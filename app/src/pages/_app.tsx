@@ -9,15 +9,14 @@ import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
-import { clusterApiUrl } from "@solana/web3.js";
 import { Toaster } from "react-hot-toast";
+import { getRpcEndpoint } from "../lib/runtime";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "../styles/globals.css";
 
 export default function App({ Component, pageProps }: AppProps) {
-  // Use devnet for development
-  const endpoint = useMemo(() => clusterApiUrl("devnet"), []);
+  const endpoint = useMemo(() => getRpcEndpoint(), []);
 
   const wallets = useMemo(
     () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],

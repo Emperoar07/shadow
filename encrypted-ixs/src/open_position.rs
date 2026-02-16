@@ -5,7 +5,7 @@
 
 use arcis::prelude::*;
 
-use crate::types::{MarketParams, OpenInterest, OpenPositionResult, Position};
+use crate::types::{MarketParams, OpenInterest, Position};
 
 #[encrypted]
 mod open_position_circuit {
@@ -30,7 +30,7 @@ mod open_position_circuit {
         market_params: MarketParams,
         // Current open interest state (encrypted)
         oi_state: Enc<Mxe, OpenInterest>,
-    ) -> (Enc<Mxe, OpenPositionResult>, Enc<Mxe, OpenInterest>) {
+    ) -> (bool, Enc<Mxe, Position>, u64, Enc<Mxe, OpenInterest>) {
         // Decrypt inputs into secret-shared values (still not visible to any single node)
         let size = size.to_arcis();
         let entry_price = entry_price.to_arcis();
@@ -81,14 +81,8 @@ mod open_position_circuit {
             owner_hi,
         };
 
-        // Build result
-        let result = OpenPositionResult {
-            success,
-            position,
-            required_margin,
-        };
-
-        // Re-encrypt results
-        (Mxe.from_arcis(result), Mxe.from_arcis(oi))
+        // Return the validation bit and required margin in plaintext,
+        // while keeping the full position payload encrypted.
+        (success, Mxe.from_arcis(position), required_margin, Mxe.from_arcis(oi))
     }
 }

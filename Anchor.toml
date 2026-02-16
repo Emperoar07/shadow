@@ -23,3 +23,7 @@ startup_wait = 5000
 
 [test.validator]
 url = "https://api.devnet.solana.com"
+
+# Clone Arcium program for local testing
+[[test.validator.clone]]
+address = "3R4wZSJFTfCJyofLGrVHPCyjMgP8x2cJCDwKUANKsMAE"

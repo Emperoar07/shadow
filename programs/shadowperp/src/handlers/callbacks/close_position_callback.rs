@@ -1,14 +1,32 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+use arcium_anchor::prelude::*;
 
 use crate::errors::ShadowPerpError;
 use crate::state::{Market, MarginAccount, Position, PositionClosed, PositionStatus};
 
+/// Callback account for receiving PnL result from MPC
+#[callback_accounts("close_position")]
 #[derive(Accounts)]
 pub struct ClosePositionCallback<'info> {
-    /// Arcium callback authority
-    /// CHECK: Must be the Arcium program callback
-    pub callback_authority: Signer<'info>,
+    // Standard Arcium callback accounts
+    pub arcium_program: Program<'info, Arcium>,
+    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
+    pub mxe_account: Account<'info, MXEAccount>,
+    /// CHECK: Validated by Arcium
+    pub computation_account: UncheckedAccount<'info>,
+    pub cluster_account: Account<'info, Cluster>,
+    /// CHECK: Instructions sysvar
+    pub instructions_sysvar: AccountInfo<'info>,
+
+    // Custom callback accounts
+    #[account(
+        mut,
+        seeds = [b"position", market.key().as_ref(), position.owner.as_ref(), &position.index.to_le_bytes()],
+        bump = position.bump,
+        has_one = market,
+    )]
+    pub position: Account<'info, Position>,
 
     #[account(
         mut,
@@ -24,17 +42,10 @@ pub struct ClosePositionCallback<'info> {
     )]
     pub margin_account: Account<'info, MarginAccount>,
 
-    #[account(
-        mut,
-        seeds = [b"position", market.key().as_ref(), position.owner.as_ref(), &position.index.to_le_bytes()],
-        bump = position.bump,
-        has_one = market,
-    )]
-    pub position: Account<'info, Position>,
-
     /// Position owner's token account for settlement
     #[account(
         mut,
+        constraint = owner_token_account.owner == position.owner,
         constraint = owner_token_account.mint == market.collateral_mint
     )]
     pub owner_token_account: Account<'info, TokenAccount>,
@@ -50,11 +61,26 @@ pub struct ClosePositionCallback<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+/// Auto-generated output type from the close_position circuit
+/// Returns: (ClosePositionResult, Enc<Mxe, OpenInterest>)
+/// field_0: ClosePositionResult is REVEALED (realized_pnl, settlement_amount, fee)
+/// field_1: MXEEncryptedStruct for updated OpenInterest
+pub type ClosePositionOutput = ClosePositionCallbackOutput;
+
+#[arcium_callback(encrypted_ix = "close_position")]
 pub fn handler(
     ctx: Context<ClosePositionCallback>,
-    realized_pnl: i64,
-    settlement_amount: u64,
+    output: SignedComputationOutputs<ClosePositionOutput>,
 ) -> Result<()> {
+    // Verify the computation output from the MPC cluster
+    let verified_output = match output.verify_output(
+        &ctx.accounts.cluster_account,
+        &ctx.accounts.computation_account,
+    ) {
+        Ok(o) => o,
+        Err(_) => return Err(ShadowPerpError::InvalidComputationResult.into()),
+    };
+
     let market = &mut ctx.accounts.market;
     let margin_account = &mut ctx.accounts.margin_account;
     let position = &mut ctx.accounts.position;
@@ -67,11 +93,24 @@ pub fn handler(
     );
 
     // THIS IS THE KEY PRIVACY MOMENT:
-    // The realized_pnl is revealed ONLY now, at position close
-    // All position details (size, entry, leverage) remain encrypted forever
+    // The close_position circuit returns ClosePositionResult as PLAINTEXT (revealed)
+    // Extract the revealed PnL and settlement from the output
+    // field_0 contains the revealed ClosePositionResult
+    let realized_pnl = verified_output.field_0.realized_pnl;
+    let settlement_amount = verified_output.field_0.settlement_amount;
+    let fee = verified_output.field_0.fee;
+
+    // Update position - PnL is now public
     position.realized_pnl = realized_pnl;
     position.status = PositionStatus::Closed;
     position.closed_at = clock.unix_timestamp;
+
+    // Update encrypted open interest from MPC output
+    let oi_ciphertexts = &verified_output.field_1.ciphertexts;
+    if oi_ciphertexts.len() >= 2 {
+        market.encrypted_total_long_oi = oi_ciphertexts[0];
+        market.encrypted_total_short_oi = oi_ciphertexts[1];
+    }
 
     // Unlock margin
     margin_account.locked_balance = margin_account
@@ -90,10 +129,23 @@ pub fn handler(
         .checked_add(1)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
+    // Collect trading fees
+    market.total_fees_collected = market
+        .total_fees_collected
+        .checked_add(fee)
+        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+
     // Decrement active positions
     market.active_positions = market
         .active_positions
         .checked_sub(1)
+        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+
+    let updated_balance = margin_account
+        .balance
+        .checked_sub(position.margin)
+        .ok_or(ShadowPerpError::ArithmeticOverflow)?
+        .checked_add(settlement_amount)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
     // Transfer settlement amount to user
@@ -115,28 +167,22 @@ pub fn handler(
             signer_seeds,
         );
         token::transfer(transfer_ctx, settlement_amount)?;
-
-        // Update margin balance
-        margin_account.balance = margin_account
-            .balance
-            .checked_sub(position.margin)
-            .ok_or(ShadowPerpError::ArithmeticOverflow)?
-            .checked_add(settlement_amount)
-            .ok_or(ShadowPerpError::ArithmeticOverflow)?;
     }
+    margin_account.balance = updated_balance;
 
     emit!(PositionClosed {
         owner: position.owner,
         position: position.key(),
-        realized_pnl,  // THIS is revealed
+        realized_pnl,  // THIS is the only data revealed
         settlement_amount,
         timestamp: clock.unix_timestamp,
     });
 
-    msg!("Position closed successfully");
+    msg!("Position closed via MPC callback - PnL revealed");
     msg!("Position: {}", position.key());
-    msg!("Realized PnL: {}", realized_pnl);  // Only PnL revealed
-    msg!("Settlement amount: {}", settlement_amount);
+    msg!("Realized PnL: {}", realized_pnl);
+    msg!("Settlement: {}", settlement_amount);
+    msg!("Fee: {}", fee);
 
     Ok(())
 }

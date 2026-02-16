@@ -2,42 +2,126 @@
 
 > **Trade in the shadows, settle in the light.**
 
-ShadowPerp is a private perpetual futures protocol built on Solana using [Arcium's](https://arcium.com) encrypted computation network. Your trading positions, leverage, and strategy remain completely private until you close your position.
+ShadowPerp is a private perpetual futures protocol built on Solana using [Arcium's](https://arcium.com) Multi-Party Execution (MXE) network. Your trading positions, leverage, and strategy remain completely private — only your final PnL is revealed when you close.
 
-## Privacy Guarantees
+## The Problem
+
+Traditional perpetual futures protocols expose trader intent on-chain:
+
+- **Copy-Trading Attacks**: Whales can be front-run by adversaries observing their positions in real-time
+- **Targeted Liquidations**: Attackers can see health factors on-chain and push prices to trigger liquidations
+- **Strategy Leakage**: Every trade's size, leverage, direction, and entry price is publicly visible
+- **MEV Extraction**: Searchers exploit visible position data for sandwich attacks and forced liquidations
+
+## The Solution
+
+ShadowPerp uses Arcium's MPC infrastructure to keep all position data encrypted throughout the entire lifecycle:
 
 | Data | Privacy Status | When Revealed |
 |------|----------------|---------------|
-| Position Size | Encrypted | **Never** |
-| Entry Price | Encrypted | **Never** |
-| Leverage | Encrypted | **Never** |
-| Direction (Long/Short) | Encrypted | **Never** |
-| Health Factor | Encrypted | **Never** |
-| Liquidation Price | Encrypted | **Never** |
-| **Realized PnL** | Encrypted → Public | Position Close |
+| Position Size | **Encrypted** | Never |
+| Entry Price | **Encrypted** | Never |
+| Leverage | **Encrypted** | Never |
+| Direction (Long/Short) | **Encrypted** | Never |
+| Health Factor | **Encrypted** | Never |
+| Liquidation Price | **Encrypted** | Never |
+| **Realized PnL** | Encrypted → Public | **Position Close** |
 
-## Why Private Perps?
+## How Arcium Is Used
 
-Traditional perpetual futures protocols expose trader intent:
+ShadowPerp deeply integrates Arcium at every layer of the protocol:
 
-- **Copy-Trading**: Whales can be front-run by observing their positions
-- **Targeted Liquidations**: Adversaries can see health factors and push prices to liquidate positions
-- **Strategy Leakage**: Trading strategies are visible on-chain
+### 1. Client-Side Encryption (x25519 + Rescue Cipher)
 
-ShadowPerp solves this using Multi-Party Computation (MPC):
+Before any position data touches the blockchain, it's encrypted client-side:
 
-- **Encrypted Positions**: Size, leverage, and direction are encrypted in Arcium's MPC network
-- **Private Liquidations**: Health factors are computed privately - only the liquidation decision is revealed
-- **Reveal Only at Exit**: The only data revealed is your final PnL when you close
+```
+User Input → x25519 ECDH Key Exchange with MXE Cluster
+           → Derive Shared Secret
+           → Rescue Cipher Encryption (128-bit security)
+           → Submit Encrypted Ciphertexts On-Chain
+```
+
+- **x25519 Diffie-Hellman**: Ephemeral keypair generated per session, shared secret derived with MXE cluster's public key
+- **Rescue Cipher**: Arithmetization-friendly symmetric cipher over F_{2^255-19}, optimized for MPC circuits
+- **Enc<Shared, T>**: Each encrypted parameter includes `[x25519_pubkey | nonce | ciphertext]` — decryptable by both client and MXE
+
+### 2. Arcis MPC Circuits (encrypted-ixs/)
+
+Three privacy-preserving circuits written in Arcium's Arcis DSL:
+
+**`open_position`** — Position Validation Circuit
+- Inputs: `Enc<Shared, size>`, `Enc<Shared, entry_price>`, `Enc<Shared, leverage>`, `Enc<Shared, is_long>`, `Enc<Shared, margin>`
+- Validates leverage limits, margin requirements inside MPC
+- Returns: `(Enc<Mxe, OpenPositionResult>, Enc<Mxe, OpenInterest>)` — position stored as MXE-only encrypted state
+
+**`close_position`** — PnL Computation Circuit
+- Inputs: `Enc<Mxe, Position>` (from on-chain), plaintext `oracle_price`
+- Computes PnL = `(exit_price - entry_price) * size * direction`
+- Returns: `(ClosePositionResult, Enc<Mxe, OpenInterest>)` — **PnL is revealed** (plaintext return), but position details stay encrypted
+
+**`liquidation_check`** — Private Health Factor Circuit
+- Inputs: `Enc<Mxe, Position>`, plaintext `oracle_price`, `market_params`
+- Computes: `health_factor = (margin + unrealized_pnl) / maintenance_margin`
+- Returns: `LiquidationResult { should_liquidate: bool, liquidation_price: u64 }` — **health factor is NEVER revealed**, only the boolean decision
+
+### 3. On-Chain Arcium Integration (Anchor Program)
+
+The Solana program uses Arcium's Anchor macros for full MPC integration:
+
+- **`#[init_computation_definition_accounts]`**: Registers MPC circuit bytecode on-chain as `ComputationDefinitionAccount`
+- **`#[queue_computation_accounts]`**: Prepares accounts for submitting computation to Arcium network
+- **`ArgBuilder`**: Constructs encrypted arguments matching the Enc<Shared,T> wire format (pubkey + nonce + ciphertext)
+- **`queue_computation()`**: CPI call to Arcium program that sends encrypted data to MXE cluster for MPC execution
+- **`#[callback_accounts]` + `#[arcium_callback]`**: Receives and verifies MPC results via `verify_output()`
+- **`SignedComputationOutputs<T>`**: Typed callback output with cryptographic verification against cluster signatures
+
+### 4. Encryption Data Flow
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ CLIENT                                                   │
+│  1. Generate x25519 ephemeral keypair                    │
+│  2. ECDH with MXE cluster pubkey → shared secret         │
+│  3. RescueCipher.encrypt(position_data, nonce)           │
+│  4. Pack: [pubkey(32) | nonce(16) | ciphertext(32)] × 7 │
+└──────────────────────────┬───────────────────────────────┘
+                           │ encrypted ciphertexts
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ SOLANA PROGRAM (Anchor)                                  │
+│  5. Store encrypted_data[256] on Position account        │
+│  6. ArgBuilder packs args into MPC computation           │
+│  7. queue_computation() CPI → Arcium program             │
+└──────────────────────────┬───────────────────────────────┘
+                           │ computation request
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ ARCIUM MXE CLUSTER (Cerberus MPC)                        │
+│  8. Nodes receive secret shares of encrypted data        │
+│  9. Execute Arcis circuit on secret shares                │
+│ 10. Only 1 honest node needed for security guarantee     │
+│ 11. Return signed computation outputs                     │
+└──────────────────────────┬───────────────────────────────┘
+                           │ SignedComputationOutputs
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ CALLBACK (On-Chain)                                      │
+│ 12. verify_output() validates cluster signature          │
+│ 13. Extract results (PnL revealed, or bool for liq)      │
+│ 14. Update on-chain state, transfer settlement           │
+└──────────────────────────────────────────────────────────┘
+```
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Frontend (Next.js)                   │
+│                    Frontend (Next.js)                    │
 │   - Wallet connection (Phantom/Solflare)                │
 │   - Position management UI                              │
-│   - Client-side encryption (X25519 + Rescue)            │
+│   - Client-side encryption (x25519 + Rescue)            │
+│   - 4-step encryption flow visualization                │
 └─────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -52,7 +136,7 @@ ShadowPerp solves this using Multi-Party Computation (MPC):
 ┌─────────────────────────────────────────────────────────┐
 │            Solana Program (Anchor)                      │
 │   - Collateral management (USDC vault)                  │
-│   - Position account storage                            │
+│   - Position account storage (256-byte encrypted blob)  │
 │   - Oracle price integration                            │
 │   - Settlement and fee collection                       │
 └─────────────────────────────────────────────────────────┘
@@ -64,14 +148,19 @@ ShadowPerp solves this using Multi-Party Computation (MPC):
 shadowperp/
 ├── programs/shadowperp/        # Solana Anchor program
 │   └── src/
+│       ├── lib.rs              # Program entrypoint + instruction dispatch
 │       ├── handlers/           # Instruction handlers
-│       │   ├── open_position.rs
-│       │   ├── close_position.rs
-│       │   ├── check_liquidation.rs
-│       │   └── callbacks/      # MPC result handlers
+│       │   ├── init_comp_defs.rs   # 3 separate comp def initializers
+│       │   ├── open_position.rs    # Encrypts & queues via ArgBuilder
+│       │   ├── close_position.rs   # Queues PnL computation
+│       │   ├── check_liquidation.rs # Queues liquidation check
+│       │   └── callbacks/          # MPC result handlers
+│       │       ├── open_position_callback.rs
+│       │       ├── close_position_callback.rs
+│       │       └── liquidation_callback.rs
 │       ├── state/              # Account definitions
-│       │   ├── market.rs
-│       │   ├── position.rs
+│       │   ├── market.rs       # Market with comp def addresses
+│       │   ├── position.rs     # 256-byte encrypted_data blob
 │       │   └── margin_account.rs
 │       └── errors/
 ├── encrypted-ixs/              # Arcis MPC circuits
@@ -82,12 +171,19 @@ shadowperp/
 │       └── types.rs            # Shared encrypted types
 ├── app/                        # Next.js frontend
 │   └── src/
-│       ├── components/         # React components
-│       ├── lib/                # SDK client
-│       └── pages/              # Next.js pages
-├── tests/                      # Integration tests
-├── Anchor.toml
-├── Arcium.toml
+│       ├── components/
+│       │   ├── TradingPanel.tsx     # Trade UI with encryption steps
+│       │   ├── PositionsList.tsx    # Positions with MPC status
+│       │   └── MarketInfo.tsx       # Market data + privacy info
+│       ├── lib/
+│       │   ├── client.ts           # SDK: x25519 + Rescue + Arcium
+│       │   ├── create-client.ts    # Factory with wallet integration
+│       │   └── runtime.ts          # Environment config
+│       ├── types/index.ts          # TypeScript type definitions
+│       └── pages/
+├── tests/shadowperp.ts         # Comprehensive integration tests
+├── Anchor.toml                 # Anchor config with Arcium clone
+├── Arcium.toml                 # Arcium circuit build config
 └── Cargo.toml
 ```
 
@@ -99,7 +195,8 @@ shadowperp/
 - [Solana CLI](https://docs.solana.com/cli/install-solana-cli-tools) (1.18+)
 - [Anchor](https://www.anchor-lang.com/docs/installation) (0.30+)
 - [Arcium CLI](https://docs.arcium.com/) (0.3+)
-- [Node.js](https://nodejs.org/) (18+)
+- [Node.js](https://nodejs.org/) (20.x LTS recommended)
+- Linux/macOS/WSL2 for Solana + Anchor + Arcium CLI
 
 ### Installation
 
@@ -110,6 +207,7 @@ cd shadowperp
 
 # Install dependencies
 npm install
+cd app && npm install && cd ..
 
 # Build the Solana program
 anchor build
@@ -124,97 +222,117 @@ arcium localnet
 anchor deploy
 ```
 
+### Initialize Computation Definitions
+
+After deploying, initialize the three MPC computation definitions:
+
+```bash
+# These register the circuit bytecode on-chain
+anchor run init-open-position-comp-def
+anchor run init-close-position-comp-def
+anchor run init-liquidation-comp-def
+```
+
 ### Running the Frontend
 
 ```bash
 cd app
 npm install
+cp .env.example .env.local
+# Fill in all NEXT_PUBLIC_* account addresses from deployment
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## How It Works
+### Running Tests
 
-### Opening a Position
+```bash
+# Full test suite (encryption, privacy, integration)
+anchor test
 
-1. User inputs position parameters (size, leverage, direction)
-2. Parameters are encrypted client-side using X25519 key exchange with MXE
-3. Encrypted data is sent to Solana program
-4. Arcium MPC validates parameters and stores encrypted position
-5. Only margin amount is visible on-chain
+# Frontend development
+cd app && npm run dev
+```
 
-### Closing a Position
+## Key Design Decisions
 
-1. User requests position close
-2. MPC decrypts position, calculates PnL using current oracle price
-3. **Only the realized PnL is revealed** - position details stay encrypted
-4. Settlement amount transferred to user
+### Why Enc<Shared, T> for User Inputs?
 
-### Liquidation Check
+User inputs use `Enc<Shared, T>` (decryptable by both client and MXE) because:
+- Client needs to verify their own encrypted data before submission
+- MXE nodes need to decrypt for MPC computation
+- x25519 ECDH ensures only the intended MXE cluster can decrypt
 
-1. Anyone can trigger a liquidation check
-2. MPC computes health factor privately: `(margin + unrealized_pnl) / maintenance_margin`
-3. Only returns `true/false` - **health factor is never revealed**
-4. If liquidatable, position is closed with penalty
+### Why Enc<Mxe, T> for Stored State?
+
+Position state after MPC uses `Enc<Mxe, T>` (MXE-only decryptable) because:
+- Prevents even the position owner from reading on-chain state directly
+- Only MPC can operate on stored positions (for close/liquidation)
+- Eliminates client-side key leakage as attack vector
+
+### Why Reveal PnL but Not Position Details?
+
+- PnL must be revealed for settlement (USDC transfer amount)
+- Position size, leverage, direction remain encrypted even after close
+- This is the minimum information leakage required for settlement
+
+### Why Boolean-Only Liquidation?
+
+- Health factor is the most sensitive data (directly exploitable)
+- Boolean `should_liquidate` is sufficient for the protocol to act
+- Liquidation price is revealed only when liquidation occurs (needed for penalty calculation)
 
 ## Security
 
 ### Arcium MPC Security
 
-- Uses the **Cerberus protocol** - only needs 1 honest node for security
-- Position data is split into secret shares across nodes
+- **Cerberus protocol**: Only 1 honest node needed for full security guarantee
+- Position data split into secret shares across MXE nodes
 - No single node ever sees plaintext position data
-- Encrypted using **Rescue cipher** with 128-bit security
+- **Rescue cipher**: 128-bit security, optimized for arithmetic circuits
+- **x25519 ECDH**: Ephemeral keys prevent replay attacks
 
 ### Smart Contract Security
 
-- Built with Anchor for safety checks
-- PDA-based account derivation
-- Reentrancy protection
-- Overflow checks enabled
+- Built with Anchor (0.30.1) for automatic safety checks
+- PDA-based account derivation for all accounts
+- Callback verification via `verify_output()` against cluster signatures
+- Oracle price freshness validation (< 60 second staleness)
+- Overflow checks enabled via Cargo profile
 
-## Development
+## Hosting
 
-### Running Tests
+You can deploy ShadowPerp with a split model:
 
-```bash
-# Solana program tests
-anchor test
+1. **Frontend** (`app/`) on Vercel, Netlify, or Cloudflare Pages
+2. **Solana program** deployed via Anchor to devnet/mainnet
+3. **Arcium computation definitions** initialized on target cluster
+4. **Frontend** configured with deployed program + Arcium account addresses
 
-# Frontend tests
-cd app && npm test
-```
-
-### Building for Production
-
-```bash
-# Build optimized program
-anchor build --verifiable
-
-# Build circuits
-arcium build --release
-
-# Build frontend
-cd app && npm run build
-```
+Note: Static hosting providers only serve the web app. On-chain program logic and MPC execution run on Solana + Arcium infrastructure.
 
 ## Roadmap
 
 - [ ] Mainnet deployment
-- [ ] Multiple trading pairs
-- [ ] Limit orders (encrypted)
+- [ ] Multiple trading pairs (ETH-PERP, BTC-PERP)
+- [ ] Encrypted limit orders
 - [ ] Funding rate mechanism
-- [ ] Liquidation rewards
-- [ ] Mobile app
+- [ ] Liquidation bounties for keepers
+- [ ] Mobile-responsive trading UI
 
-## Contributing
+## Tech Stack
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) first.
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
+| Component | Technology |
+|-----------|-----------|
+| Blockchain | Solana |
+| Smart Contracts | Anchor 0.30.1 |
+| MPC Network | Arcium MXE |
+| MPC Circuits | Arcis DSL |
+| Encryption | x25519 ECDH + Rescue Cipher |
+| Frontend | Next.js + TypeScript |
+| Wallet | Solana Wallet Adapter |
+| Collateral | SPL Token (USDC) |
 
 ## Links
 
@@ -224,6 +342,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-**Built for the Arcium Private Perps Hackathon**
+**Built for the Arcium Private Perps Bounty**
 
 *Trade privately. Settle transparently. ShadowPerp.*

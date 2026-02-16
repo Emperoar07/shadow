@@ -1,51 +1,124 @@
-import { useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useState, useCallback, useEffect } from "react";
+import BN from "bn.js";
+import { useWallet, useConnection, useAnchorWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
+import { createShadowPerpClient } from "../lib/create-client";
+import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 
 type Direction = "long" | "short";
 
-export default function TradingPanel() {
+interface TradingPanelProps {
+  pair?: TradingPair;
+}
+
+export default function TradingPanel({ pair }: TradingPanelProps) {
+  const activePair = pair ?? TRADING_PAIRS[0];
   const { publicKey } = useWallet();
+  const anchorWallet = useAnchorWallet();
+  const { connection } = useConnection();
   const [direction, setDirection] = useState<Direction>("long");
   const [size, setSize] = useState("");
   const [leverage, setLeverage] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [marketPrice, setMarketPrice] = useState<number | null>(null);
 
-  const handleSubmit = async () => {
+  const margin = size && marketPrice ? (parseFloat(size) * marketPrice) / leverage : 0;
+  const positionValue = size && marketPrice ? parseFloat(size) * marketPrice : 0;
+
+  // Reset size when pair changes
+  useEffect(() => {
+    setSize("");
+  }, [activePair.label]);
+
+  const refreshMarketPrice = useCallback(async () => {
+    if (!anchorWallet) {
+      setMarketPrice(null);
+      return;
+    }
+    try {
+      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
+      const market = await client.getMarket(runtime.marketAddress);
+      const oraclePrice = new BN(market.oraclePrice.toString()).toNumber() / 1_000_000;
+      if (Number.isFinite(oraclePrice) && oraclePrice > 0) {
+        setMarketPrice(oraclePrice);
+      }
+    } catch {
+      setMarketPrice(null);
+    }
+  }, [anchorWallet, connection]);
+
+  useEffect(() => {
+    void refreshMarketPrice();
+    const interval = setInterval(() => void refreshMarketPrice(), 15_000);
+    return () => clearInterval(interval);
+  }, [refreshMarketPrice]);
+
+  const handleSubmit = useCallback(async () => {
     if (!size || parseFloat(size) <= 0) {
       toast.error("Please enter a valid size");
+      return;
+    }
+
+    if (!publicKey) {
+      toast.error("Please connect your wallet");
+      return;
+    }
+    if (!anchorWallet) {
+      toast.error("Wallet does not support signing transactions");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Simulate encryption and submission
-      toast.loading("Encrypting position data...", { id: "encrypt" });
-      await new Promise((r) => setTimeout(r, 1500));
+      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
+      const market = await client.getMarket(runtime.marketAddress);
 
-      toast.loading("Submitting to MPC network...", { id: "encrypt" });
-      await new Promise((r) => setTimeout(r, 2000));
+      const sizeUi = Number(size);
+      const baseDecimals = activePair.base.decimals;
+      const sizeBase = new BN(Math.max(1, Math.round(sizeUi * 10 ** baseDecimals)));
+      const oraclePrice = new BN(market.oraclePrice.toString());
+      const entryPrice = oraclePrice.gt(new BN(0)) ? oraclePrice : new BN(1); // 1e6 scale
+      const oraclePriceUi = Number(entryPrice.toString()) / 1_000_000;
+      const requiredMarginUi = (sizeUi * oraclePriceUi) / leverage;
+      const marginBase = new BN(Math.max(1, Math.round(requiredMarginUi * 1_000_000))); // USDC -> 1e6
 
-      toast.success(
-        <div>
-          <p className="font-medium">Position queued!</p>
-          <p className="text-sm text-gray-400">
-            Your {direction} position is being processed privately.
-          </p>
-        </div>,
-        { id: "encrypt", duration: 5000 }
+      toast.loading("Submitting encrypted trade...", { id: "trade" });
+
+      const { txSignature, positionAddress } = await client.openPosition(
+        runtime.marketAddress,
+        {
+          size: sizeBase,
+          entryPrice,
+          leverage,
+          direction,
+          margin: marginBase,
+        }
       );
 
+      const txUrl = `https://explorer.solana.com/tx/${txSignature}?cluster=devnet`;
+      toast.success(
+        <div>
+          <p className="font-medium">Position queued</p>
+          <p className="text-xs text-gray-400 break-all">{positionAddress.toBase58()}</p>
+          <a
+            href={txUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-accent-purple underline"
+          >
+            View transaction
+          </a>
+        </div>,
+        { id: "trade", duration: 10000 }
+      );
       setSize("");
-    } catch (error) {
-      toast.error("Failed to open position", { id: "encrypt" });
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to open position", { id: "trade" });
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const margin = size ? (parseFloat(size) * 103.45) / leverage : 0;
+  }, [size, direction, leverage, publicKey, anchorWallet, connection, activePair.base.decimals]);
 
   return (
     <div className="position-card rounded-xl p-6">
@@ -78,7 +151,7 @@ export default function TradingPanel() {
       {/* Size Input */}
       <div className="mb-6">
         <label className="block text-sm text-gray-400 mb-2">
-          Position Size (SOL)
+          Position Size ({activePair.base.symbol})
         </label>
         <div className="relative">
           <input
@@ -89,6 +162,18 @@ export default function TradingPanel() {
             className="w-full bg-shadow-700 border border-shadow-500 rounded-lg px-4 py-3 text-lg focus:outline-none focus:border-accent-purple transition-colors"
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            <button
+              onClick={() => setSize("1")}
+              className="text-xs text-gray-500 hover:text-accent-purple"
+            >
+              1
+            </button>
+            <button
+              onClick={() => setSize("5")}
+              className="text-xs text-gray-500 hover:text-accent-purple"
+            >
+              5
+            </button>
             <button
               onClick={() => setSize("10")}
               className="text-xs text-accent-purple hover:text-accent-blue"
@@ -124,16 +209,29 @@ export default function TradingPanel() {
       {/* Order Summary */}
       <div className="bg-shadow-700 rounded-lg p-4 mb-6 space-y-2">
         <div className="flex justify-between text-sm">
+          <span className="text-gray-400">Position Value</span>
+          <span>${positionValue.toFixed(2)} USDC</span>
+        </div>
+        <div className="flex justify-between text-sm">
           <span className="text-gray-400">Required Margin</span>
           <span>${margin.toFixed(2)} USDC</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-400">Entry Price</span>
-          <span>$103.45</span>
+          <span>{marketPrice ? `$${marketPrice.toFixed(marketPrice < 0.01 ? 8 : 2)}` : "From oracle at execution"}</span>
         </div>
         <div className="flex justify-between text-sm">
+          <span className="text-gray-400">Trading Fee</span>
+          <span>0.1%</span>
+        </div>
+        <div className="border-t border-shadow-500 my-2" />
+        <div className="flex justify-between text-sm">
           <span className="text-gray-400">Liquidation Price</span>
-          <span className="encrypted-blur text-accent-purple">Hidden</span>
+          <span className="encrypted-blur text-accent-purple">Encrypted</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-400">Health Factor</span>
+          <span className="encrypted-blur text-accent-purple">Encrypted</span>
         </div>
       </div>
 
@@ -153,11 +251,11 @@ export default function TradingPanel() {
           </svg>
           <div>
             <p className="text-sm font-medium text-accent-purple">
-              Privacy Protected
+              Arcium MPC Privacy
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              Your position size, leverage, and direction will be encrypted
-              using MPC. Only you can see these details.
+              Position encrypted via x25519 + Rescue cipher. Data split into secret
+              shares across MPC nodes - no single node sees your trade.
             </p>
           </div>
         </div>
@@ -191,7 +289,7 @@ export default function TradingPanel() {
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               />
             </svg>
-            Processing...
+            Processing via MPC...
           </span>
         ) : (
           `Open ${direction.charAt(0).toUpperCase() + direction.slice(1)}`

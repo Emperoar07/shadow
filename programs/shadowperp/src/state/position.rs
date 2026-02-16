@@ -26,6 +26,9 @@ pub struct Position {
     /// Margin deposited for this position
     pub margin: u64,
 
+    /// Public margin amount requested at open-time (used for deterministic locking)
+    pub requested_margin: u64,
+
     /// Realized PnL (only set after position is closed)
     /// This is the ONLY data revealed - and only at settlement
     pub realized_pnl: i64,
@@ -55,6 +58,7 @@ impl Position {
         8 +   // opened_at
         8 +   // closed_at
         8 +   // margin
+        8 +   // requested_margin
         8 +   // realized_pnl
         16 +  // nonce
         32 +  // client_pubkey

@@ -48,3 +48,6 @@ Thumbs.db
 # Temporary
 *.tmp
 *.temp
+app-local-*/
+app/dev.log
+app/tsconfig.tsbuildinfo

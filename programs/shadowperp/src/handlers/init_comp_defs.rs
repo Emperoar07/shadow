@@ -1,66 +1,142 @@
 use anchor_lang::prelude::*;
+use arcium_anchor::prelude::*;
 
 use crate::state::Market;
 
-/// Initialize computation definition accounts for MPC operations
-/// These define the encrypted circuits that will run on Arcium
+// ============ OPEN POSITION COMP DEF ============
+
+#[init_computation_definition_accounts("open_position", payer)]
 #[derive(Accounts)]
-pub struct InitCompDefs<'info> {
+pub struct InitOpenPositionCompDef<'info> {
     #[account(mut)]
-    pub authority: Signer<'info>,
+    pub payer: Signer<'info>,
 
     #[account(
         mut,
-        has_one = authority,
+        has_one = authority @ crate::errors::ShadowPerpError::Unauthorized,
         seeds = [b"market", market.collateral_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Account<'info, Market>,
 
-    /// Computation definition for opening positions
-    /// CHECK: Initialized via Arcium CPI
+    pub authority: Signer<'info>,
+
+    #[account(mut, address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
+
     #[account(mut)]
-    pub open_position_comp_def: UncheckedAccount<'info>,
+    pub comp_def_account: UncheckedAccount<'info>,
 
-    /// Computation definition for closing positions
-    /// CHECK: Initialized via Arcium CPI
-    #[account(mut)]
-    pub close_position_comp_def: UncheckedAccount<'info>,
+    #[account(mut, address = derive_mxe_lut_pda!(mxe_account.lut_offset_slot))]
+    pub address_lookup_table: UncheckedAccount<'info>,
 
-    /// Computation definition for liquidation checks
-    /// CHECK: Initialized via Arcium CPI
-    #[account(mut)]
-    pub liquidation_comp_def: UncheckedAccount<'info>,
+    #[account(address = LUT_PROGRAM_ID)]
+    pub lut_program: UncheckedAccount<'info>,
 
-    /// Arcium program for CPI
-    /// CHECK: Arcium program
-    pub arcium_program: UncheckedAccount<'info>,
-
+    pub arcium_program: Program<'info, Arcium>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<InitCompDefs>) -> Result<()> {
+pub fn init_open_position_handler(ctx: Context<InitOpenPositionCompDef>) -> Result<()> {
+    init_comp_def(ctx.accounts, None, None)?;
+
     let market = &mut ctx.accounts.market;
+    market.open_position_comp_def = ctx.accounts.comp_def_account.key();
 
-    // Store computation definition addresses
-    market.open_position_comp_def = ctx.accounts.open_position_comp_def.key();
-    market.close_position_comp_def = ctx.accounts.close_position_comp_def.key();
-    market.liquidation_comp_def = ctx.accounts.liquidation_comp_def.key();
+    msg!("Open position computation definition initialized");
+    msg!("Comp def: {}", market.open_position_comp_def);
 
-    // NOTE: In production, this would make CPI calls to Arcium to initialize
-    // the computation definitions with the circuit bytecode
-    //
-    // arcium_anchor::cpi::init_computation_definition(
-    //     cpi_ctx,
-    //     circuit_hash,
-    //     finalization_authority,
-    //     ...
-    // )?;
+    Ok(())
+}
 
-    msg!("Computation definitions initialized");
-    msg!("Open position comp def: {}", market.open_position_comp_def);
-    msg!("Close position comp def: {}", market.close_position_comp_def);
-    msg!("Liquidation comp def: {}", market.liquidation_comp_def);
+// ============ CLOSE POSITION COMP DEF ============
+
+#[init_computation_definition_accounts("close_position", payer)]
+#[derive(Accounts)]
+pub struct InitClosePositionCompDef<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = authority @ crate::errors::ShadowPerpError::Unauthorized,
+        seeds = [b"market", market.collateral_mint.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Account<'info, Market>,
+
+    pub authority: Signer<'info>,
+
+    #[account(mut, address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
+
+    #[account(mut)]
+    pub comp_def_account: UncheckedAccount<'info>,
+
+    #[account(mut, address = derive_mxe_lut_pda!(mxe_account.lut_offset_slot))]
+    pub address_lookup_table: UncheckedAccount<'info>,
+
+    #[account(address = LUT_PROGRAM_ID)]
+    pub lut_program: UncheckedAccount<'info>,
+
+    pub arcium_program: Program<'info, Arcium>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn init_close_position_handler(ctx: Context<InitClosePositionCompDef>) -> Result<()> {
+    init_comp_def(ctx.accounts, None, None)?;
+
+    let market = &mut ctx.accounts.market;
+    market.close_position_comp_def = ctx.accounts.comp_def_account.key();
+
+    msg!("Close position computation definition initialized");
+    msg!("Comp def: {}", market.close_position_comp_def);
+
+    Ok(())
+}
+
+// ============ LIQUIDATION COMP DEF ============
+
+#[init_computation_definition_accounts("check_liquidation", payer)]
+#[derive(Accounts)]
+pub struct InitLiquidationCompDef<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = authority @ crate::errors::ShadowPerpError::Unauthorized,
+        seeds = [b"market", market.collateral_mint.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Account<'info, Market>,
+
+    pub authority: Signer<'info>,
+
+    #[account(mut, address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
+
+    #[account(mut)]
+    pub comp_def_account: UncheckedAccount<'info>,
+
+    #[account(mut, address = derive_mxe_lut_pda!(mxe_account.lut_offset_slot))]
+    pub address_lookup_table: UncheckedAccount<'info>,
+
+    #[account(address = LUT_PROGRAM_ID)]
+    pub lut_program: UncheckedAccount<'info>,
+
+    pub arcium_program: Program<'info, Arcium>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn init_liquidation_handler(ctx: Context<InitLiquidationCompDef>) -> Result<()> {
+    init_comp_def(ctx.accounts, None, None)?;
+
+    let market = &mut ctx.accounts.market;
+    market.liquidation_comp_def = ctx.accounts.comp_def_account.key();
+
+    msg!("Liquidation computation definition initialized");
+    msg!("Comp def: {}", market.liquidation_comp_def);
 
     Ok(())
 }

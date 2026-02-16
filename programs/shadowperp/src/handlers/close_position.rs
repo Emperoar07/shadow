@@ -1,8 +1,13 @@
 use anchor_lang::prelude::*;
+use arcium_anchor::prelude::*;
+use anchor_spl::token::{TokenAccount};
 
 use crate::errors::ShadowPerpError;
-use crate::state::{Market, Position, PositionStatus};
+use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
+use super::callbacks::close_position_callback::ClosePositionCallback;
+
+#[queue_computation_accounts("close_position", owner)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct ClosePosition<'info> {
@@ -10,6 +15,7 @@ pub struct ClosePosition<'info> {
     pub owner: Signer<'info>,
 
     #[account(
+        mut,
         seeds = [b"market", market.collateral_mint.as_ref()],
         bump = market.bump
     )]
@@ -24,37 +30,52 @@ pub struct ClosePosition<'info> {
     )]
     pub position: Account<'info, Position>,
 
-    /// Computation account for Arcium MPC
+    #[account(
+        mut,
+        seeds = [b"margin", market.key().as_ref(), owner.key().as_ref()],
+        bump = margin_account.bump,
+        has_one = owner,
+        has_one = market,
+    )]
+    pub margin_account: Account<'info, MarginAccount>,
+
+    #[account(
+        mut,
+        constraint = owner_token_account.owner == owner.key(),
+        constraint = owner_token_account.mint == market.collateral_mint
+    )]
+    pub owner_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        seeds = [b"vault", market.key().as_ref()],
+        bump,
+        constraint = vault.key() == market.vault
+    )]
+    pub vault: Account<'info, TokenAccount>,
+
+    // --- Arcium accounts ---
+    #[account(address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
+    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
+    pub cluster_account: Account<'info, Cluster>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
-    pub computation: UncheckedAccount<'info>,
-
-    /// MXE cluster account
-    /// CHECK: Validated by Arcium
-    pub cluster: UncheckedAccount<'info>,
-
-    /// MXE account
-    /// CHECK: Validated by Arcium
-    pub mxe: UncheckedAccount<'info>,
-
-    /// Mempool account
-    /// CHECK: Validated by Arcium
-    #[account(mut)]
-    pub mempool: UncheckedAccount<'info>,
-
-    /// Executing pool
+    pub mempool_account: UncheckedAccount<'info>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
     pub executing_pool: UncheckedAccount<'info>,
-
-    /// Computation definition account
     /// CHECK: Validated by Arcium
-    pub comp_def: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub computation_account: UncheckedAccount<'info>,
+    /// CHECK: Validated by Arcium
+    #[account(mut)]
+    pub pool_account: UncheckedAccount<'info>,
+    /// CHECK: Validated by Arcium
+    pub sign_pda_account: UncheckedAccount<'info>,
+    pub clock_account: Sysvar<'info, Clock>,
 
-    /// Arcium program
-    /// CHECK: Arcium program
-    pub arcium_program: UncheckedAccount<'info>,
-
+    pub arcium_program: Program<'info, Arcium>,
     pub system_program: Program<'info, System>,
 }
 
@@ -71,26 +92,96 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
     // Update status to closing
     position.status = PositionStatus::Closing;
 
-    // Queue computation to Arcium MPC for PnL calculation
-    // The MPC will:
-    // 1. Decrypt position data (size, entry_price, leverage, direction)
-    // 2. Calculate PnL using current oracle price
-    // 3. Return the realized PnL (this is the ONLY data that gets revealed)
-    //
-    // NOTE: In production, this would make a CPI call to Arcium
-    //
-    // let encrypted_inputs = vec![
-    //     position.encrypted_data.to_vec(),
-    //     market.oracle_price.to_le_bytes().to_vec(),
-    // ];
-    //
-    // arcium_anchor::cpi::queue_computation(
-    //     cpi_ctx,
-    //     computation_offset,
-    //     encrypted_inputs,
-    //     position.client_pubkey,
-    //     position.nonce,
-    // )?;
+    // Build arguments for close_position MPC circuit
+    // position: Enc<Mxe, Position> - pass the encrypted position data stored on-chain
+    // exit_price: u64 - plaintext oracle price
+    // market_params: MarketParams - plaintext
+    // oi_state: Enc<Mxe, OpenInterest> - MXE-encrypted state
+    let nonce = u128::from_le_bytes(position.nonce);
+    let encrypted_size: [u8; 32] = position.encrypted_data[0..32]
+        .try_into()
+        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+    let encrypted_entry_price: [u8; 32] = position.encrypted_data[32..64]
+        .try_into()
+        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+    let encrypted_leverage: [u8; 32] = position.encrypted_data[64..96]
+        .try_into()
+        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+    let encrypted_is_long: [u8; 32] = position.encrypted_data[96..128]
+        .try_into()
+        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+    let encrypted_margin: [u8; 32] = position.encrypted_data[128..160]
+        .try_into()
+        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+    let encrypted_owner_lo: [u8; 32] = position.encrypted_data[160..192]
+        .try_into()
+        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+    let encrypted_owner_hi: [u8; 32] = position.encrypted_data[192..224]
+        .try_into()
+        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+
+    let args = ArgBuilder::new()
+        // position: Enc<Mxe, Position> - 7 fields (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi)
+        .plaintext_u128(nonce)
+        .encrypted_u64(encrypted_size)   // size
+        .encrypted_u64(encrypted_entry_price)  // entry_price
+        .encrypted_u8(encrypted_leverage)   // leverage
+        .encrypted_bool(encrypted_is_long) // is_long
+        .encrypted_u64(encrypted_margin) // margin
+        .encrypted_u128(encrypted_owner_lo) // owner_lo
+        .encrypted_u128(encrypted_owner_hi) // owner_hi
+        // exit_price: u64 (plaintext - current oracle price)
+        .plaintext_u64(market.oracle_price)
+        // market_params: MarketParams (plaintext)
+        .plaintext_u8(market.max_leverage)
+        .plaintext_u16(market.liquidation_threshold)
+        .plaintext_u16(market.trading_fee)
+        .plaintext_u64(market.oracle_price)
+        // oi_state: Enc<Mxe, OpenInterest>
+        .plaintext_u128(nonce)
+        .encrypted_u64(market.encrypted_total_long_oi)
+        .encrypted_u64(market.encrypted_total_short_oi)
+        .build();
+
+    // Build callback for when PnL is computed and revealed
+    let callback_accounts = vec![
+        CallbackAccount {
+            pubkey: position.key(),
+            is_writable: true,
+        },
+        CallbackAccount {
+            pubkey: market.key(),
+            is_writable: true,
+        },
+        CallbackAccount {
+            pubkey: ctx.accounts.margin_account.key(),
+            is_writable: true,
+        },
+        CallbackAccount {
+            pubkey: ctx.accounts.owner_token_account.key(),
+            is_writable: true,
+        },
+        CallbackAccount {
+            pubkey: ctx.accounts.vault.key(),
+            is_writable: true,
+        },
+    ];
+
+    let callback_ix = ClosePositionCallback::callback_ix(
+        computation_offset,
+        &ctx.accounts.mxe_account,
+        &callback_accounts,
+    )?;
+
+    // Queue the computation to Arcium MPC network
+    queue_computation(
+        ctx.accounts,
+        computation_offset,
+        args,
+        vec![callback_ix],
+        1,
+        0,
+    )?;
 
     msg!("Position close queued for MPC computation");
     msg!("Computation offset: {}", computation_offset);

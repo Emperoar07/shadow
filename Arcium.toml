@@ -1,6 +1,7 @@
 [project]
 name = "shadowperp"
 version = "0.1.0"
+description = "Private Perpetual Futures Protocol"
 
 [mxe]
 program_id = "shad111111111111111111111111111111111111111"
@@ -11,3 +12,7 @@ path = "encrypted-ixs"
 
 [build]
 output = "target/arcium"
+
+[devnet]
+arcium_program = "3R4wZSJFTfCJyofLGrVHPCyjMgP8x2cJCDwKUANKsMAE"
+cluster = "devnet"
