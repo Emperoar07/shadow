@@ -1,0 +1,29 @@
+[package]
+name = "shadowperp"
+version = "0.1.0"
+description = "ShadowPerp - Private Perpetual Futures on Arcium"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "shadowperp"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"
+anchor-spl = "0.30.1"
+arcium-anchor = { version = "0.3.0", features = ["cpi"] }
+arcium-client = "0.3.0"
+arcium-macros = "0.3.0"
+bytemuck = { version = "1.14", features = ["derive"] }
+
+[dev-dependencies]
+solana-program-test = "1.18"
+solana-sdk = "1.18"
+tokio = { version = "1.35", features = ["full"] }

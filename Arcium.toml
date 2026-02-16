@@ -1,0 +1,13 @@
+[project]
+name = "shadowperp"
+version = "0.1.0"
+
+[mxe]
+program_id = "shad111111111111111111111111111111111111111"
+cluster_offset = 0
+
+[circuits]
+path = "encrypted-ixs"
+
+[build]
+output = "target/arcium"

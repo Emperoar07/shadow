@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-rgb: 10, 10, 15;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #12121a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #35354a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8b5cf6;
+}
+
+/* Wallet adapter styles override */
+.wallet-adapter-button {
+  background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%) !important;
+}
+
+.wallet-adapter-button:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%) !important;
+}
+
+/* Glowing effect for privacy badge */
+.privacy-glow {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+}
+
+/* Animated gradient background */
+.gradient-bg {
+  background: linear-gradient(-45deg, #0a0a0f, #1a1a25, #12121a, #0a0a0f);
+  background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
+}
+
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Encrypted data visualization */
+.encrypted-blur {
+  filter: blur(4px);
+  transition: filter 0.3s ease;
+}
+
+.encrypted-blur:hover {
+  filter: blur(8px);
+}
+
+/* Position card */
+.position-card {
+  background: linear-gradient(135deg, rgba(26, 26, 37, 0.8) 0%, rgba(18, 18, 26, 0.9) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.position-card:hover {
+  border-color: rgba(139, 92, 246, 0.5);
+}

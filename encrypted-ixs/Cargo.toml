@@ -1,0 +1,13 @@
+[package]
+name = "shadowperp-circuits"
+version = "0.1.0"
+description = "ShadowPerp MPC circuits for private perpetual futures"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "shadowperp_circuits"
+
+[dependencies]
+arcis = "0.3.0"
+arcis-imports = "0.3.0"
