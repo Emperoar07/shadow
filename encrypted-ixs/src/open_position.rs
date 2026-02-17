@@ -5,20 +5,13 @@
 
 use arcis_imports::*;
 
-use crate::types::{MarketParams, OpenInterest, Position};
-
 #[encrypted]
 mod open_position_circuit {
-    use super::*;
+    use arcis_imports::*;
 
     /// Open a new position with encrypted parameters
-    ///
-    /// Privacy: All inputs remain encrypted. Only the success/failure
-    /// and required margin are communicated back (margin is public anyway
-    /// since it's locked on-chain).
     #[instruction]
     pub fn open_position(
-        // Encrypted inputs from the user
         size: Enc<Shared, u64>,
         entry_price: Enc<Shared, u64>,
         leverage: Enc<Shared, u8>,
@@ -26,12 +19,9 @@ mod open_position_circuit {
         margin: Enc<Shared, u64>,
         owner_lo: Enc<Shared, u128>,
         owner_hi: Enc<Shared, u128>,
-        // Market parameters (can be public)
-        market_params: MarketParams,
-        // Current open interest state (encrypted)
-        oi_state: Enc<Mxe, OpenInterest>,
-    ) -> (bool, Enc<Mxe, Position>, u64, Enc<Mxe, OpenInterest>) {
-        // Decrypt inputs into secret-shared values (still not visible to any single node)
+        market_params: (u8, u16, u16, u64),
+        oi_state: Enc<Mxe, (u64, u64)>,
+    ) -> (bool, Enc<Mxe, (u64, u64, u8, bool, u64, u128, u128)>, u64, Enc<Mxe, (u64, u64)>) {
         let size = size.to_arcis();
         let entry_price = entry_price.to_arcis();
         let leverage = leverage.to_arcis();
@@ -41,45 +31,35 @@ mod open_position_circuit {
         let owner_hi = owner_hi.to_arcis();
         let mut oi = oi_state.to_arcis();
 
-        // === VALIDATION (all in MPC) ===
-
-        // 1. Validate leverage is within bounds
+        // Validate leverage is within bounds
         let leverage_valid = leverage >= 1 && leverage <= market_params.0;
 
-        // 2. Calculate position value and required margin
+        // Calculate position value and required margin
         let position_value = size * entry_price;
         let required_margin = position_value / (leverage as u64);
 
-        // 3. Validate margin is sufficient
+        // Validate margin is sufficient
         let margin_valid = margin >= required_margin;
 
-        // 4. Validate size is non-zero
+        // Validate size is non-zero
         let size_valid = size > 0;
 
-        // All validations must pass
         let success = leverage_valid && margin_valid && size_valid;
 
-        // === UPDATE STATE (all in MPC) ===
-
         // Update open interest based on direction
-        // Note: This happens even if validation fails - the circuit
-        // must have deterministic control flow
         if is_long {
             oi.0 = oi.0 + size;
         } else {
             oi.1 = oi.1 + size;
         }
 
-        // Build position struct
-        let position: Position = (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi);
+        let position = (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi);
 
-        // Return the validation bit and required margin in plaintext,
-        // while keeping the full position payload encrypted.
         (
             success,
-            oi_state.owner.from_arcis(position),
+            Mxe.from_arcis(position),
             required_margin,
-            oi_state.owner.from_arcis(oi),
+            Mxe.from_arcis(oi),
         )
     }
 }

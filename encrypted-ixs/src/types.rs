@@ -1,7 +1,7 @@
-//! Shared Arcis-compatible tuple types for ShadowPerp circuits.
+//! Shared type aliases for ShadowPerp circuits.
 //!
-//! Arcis 0.3 supports tuple ArcisType out of the box. We use tuples here so
-//! encrypted payloads compile without custom trait derives.
+//! Arcis supports tuples as ArcisType natively, so we use type aliases
+//! for readability. These are used across all circuits.
 
 /// Position payload: (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi)
 pub type Position = (u64, u64, u8, bool, u64, u128, u128);

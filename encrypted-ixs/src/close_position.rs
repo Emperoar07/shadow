@@ -5,33 +5,23 @@
 
 use arcis_imports::*;
 
-use crate::types::{ClosePositionResult, MarketParams, OpenInterest, Position};
-
 #[encrypted]
 mod close_position_circuit {
-    use super::*;
+    use arcis_imports::*;
 
     /// Close an existing position and calculate realized PnL
     ///
     /// Privacy: Position details remain encrypted. ONLY the realized PnL
-    /// and settlement amount are revealed - this is the core privacy
-    /// guarantee of ShadowPerp.
+    /// and settlement amount are revealed.
     #[instruction]
     pub fn close_position(
-        // The encrypted position data
-        position: Enc<Mxe, Position>,
-        // Current oracle price for PnL calculation
+        position: Enc<Mxe, (u64, u64, u8, bool, u64, u128, u128)>,
         exit_price: u64,
-        // Market parameters
-        market_params: MarketParams,
-        // Current open interest state
-        oi_state: Enc<Mxe, OpenInterest>,
-    ) -> (ClosePositionResult, Enc<Mxe, OpenInterest>) {
-        // Decrypt position into secret shares
+        market_params: (u8, u16, u16, u64),
+        oi_state: Enc<Mxe, (u64, u64)>,
+    ) -> ((i64, u64, u64), Enc<Mxe, (u64, u64)>) {
         let pos = position.to_arcis();
         let mut oi = oi_state.to_arcis();
-
-        // === CALCULATE PNL (in MPC) ===
 
         // Calculate price delta
         let entry = pos.1 as i64;
@@ -39,8 +29,6 @@ mod close_position_circuit {
         let price_delta = exit - entry;
 
         // Calculate raw PnL based on direction
-        // Long: profit when price goes up
-        // Short: profit when price goes down
         let raw_pnl = if pos.3 {
             price_delta * (pos.0 as i64)
         } else {
@@ -53,13 +41,9 @@ mod close_position_circuit {
         // Normalize PnL (divide by entry price to get actual dollar value)
         let realized_pnl = leveraged_pnl / entry;
 
-        // === CALCULATE FEES ===
-
         // Trading fee on position value
         let position_value = pos.0 * exit_price;
         let fee = (position_value * market_params.2 as u64) / 10000;
-
-        // === CALCULATE SETTLEMENT ===
 
         // Settlement = margin + pnl - fees
         let margin_i64 = pos.4 as i64;
@@ -72,8 +56,6 @@ mod close_position_circuit {
         } else {
             0
         };
-
-        // === UPDATE OPEN INTEREST ===
 
         // Reduce OI based on direction
         if pos.3 {
@@ -90,11 +72,9 @@ mod close_position_circuit {
             };
         }
 
-        // === BUILD RESULT ===
-        // NOTE: This result is REVEALED (not re-encrypted)
-        // This is intentional - PnL revelation is the designed behavior
-        let result: ClosePositionResult = (realized_pnl, settlement_amount, fee);
+        // NOTE: ClosePositionResult is REVEALED (not re-encrypted)
+        let result = (realized_pnl, settlement_amount, fee);
 
-        (result, oi_state.owner.from_arcis(oi))
+        (result, Mxe.from_arcis(oi))
     }
 }
