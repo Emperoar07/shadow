@@ -1,14 +1,16 @@
 use anchor_lang::prelude::*;
+use arcium_anchor::prelude::*;
 
 pub mod errors;
 pub mod handlers;
 pub mod state;
 
+use errors::ErrorCode;
 use handlers::*;
 
 declare_id!("11111111111111111111111111111111");
 
-#[program]
+#[arcium_program]
 pub mod shadowperp {
     use super::*;
 
@@ -67,11 +69,12 @@ pub mod shadowperp {
     }
 
     /// Callback after position opening MPC completes
+    #[arcium_callback(encrypted_ix = "open_position")]
     pub fn open_position_callback(
         ctx: Context<OpenPositionCallback>,
-        output: arcium_anchor::SignedComputationOutputs<open_position_callback::OpenPositionOutput>,
+        output: SignedComputationOutputs<OpenPositionOutput>,
     ) -> Result<()> {
-        handlers::callbacks::open_position_callback::handler(ctx, output)
+        handlers::callbacks::open_position_callback::open_position_callback_handler(ctx, output)
     }
 
     /// Close an existing position - triggers PnL reveal
@@ -83,11 +86,12 @@ pub mod shadowperp {
     }
 
     /// Callback after position closing - reveals final PnL
+    #[arcium_callback(encrypted_ix = "close_position")]
     pub fn close_position_callback(
         ctx: Context<ClosePositionCallback>,
-        output: arcium_anchor::SignedComputationOutputs<close_position_callback::ClosePositionOutput>,
+        output: SignedComputationOutputs<ClosePositionOutput>,
     ) -> Result<()> {
-        handlers::callbacks::close_position_callback::handler(ctx, output)
+        handlers::callbacks::close_position_callback::close_position_callback_handler(ctx, output)
     }
 
     /// Check liquidation status (private health factor check)
@@ -99,16 +103,43 @@ pub mod shadowperp {
     }
 
     /// Callback after liquidation check
-    pub fn liquidation_callback(
+    #[arcium_callback(encrypted_ix = "check_liquidation")]
+    pub fn check_liquidation_callback(
         ctx: Context<CheckLiquidationCallback>,
-        output: arcium_anchor::SignedComputationOutputs<liquidation_callback::LiquidationCheckOutput>,
+        output: SignedComputationOutputs<CheckLiquidationOutput>,
     ) -> Result<()> {
-        handlers::callbacks::liquidation_callback::handler(ctx, output)
+        handlers::callbacks::liquidation_callback::check_liquidation_callback_handler(ctx, output)
     }
 
     /// Deposit collateral to margin account
     pub fn deposit_collateral(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
         handlers::deposit_collateral::handler(ctx, amount)
+    }
+
+    /// Initialize a user-scoped encrypted private orderbook account.
+    pub fn init_private_order_book(ctx: Context<InitPrivateOrderBook>) -> Result<()> {
+        handlers::private_orders::init_private_order_book_handler(ctx)
+    }
+
+    /// Queue an encrypted private order payload on-chain.
+    pub fn add_private_order(
+        ctx: Context<AddPrivateOrder>,
+        is_bid: bool,
+        encrypted_size: [u8; 32],
+        encrypted_price: [u8; 32],
+        encrypted_owner_lo: [u8; 32],
+        encrypted_owner_hi: [u8; 32],
+        nonce: [u8; 16],
+    ) -> Result<()> {
+        handlers::private_orders::add_private_order_handler(
+            ctx,
+            is_bid,
+            encrypted_size,
+            encrypted_price,
+            encrypted_owner_lo,
+            encrypted_owner_hi,
+            nonce,
+        )
     }
 
     /// Withdraw collateral from margin account

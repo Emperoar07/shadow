@@ -1,5 +1,13 @@
 use anchor_lang::prelude::*;
 
+/// Required by arcium-anchor macros (`#[callback_accounts]` generates code referencing
+/// `ErrorCode::ClusterNotSet`).
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Cluster not set on MXE account")]
+    ClusterNotSet,
+}
+
 #[error_code]
 pub enum ShadowPerpError {
     #[msg("Unauthorized access")]

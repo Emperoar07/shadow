@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use arcium_anchor::prelude::*;
 
-use crate::errors::ShadowPerpError;
+use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{Market, MarginAccount, Position, PositionLiquidated, PositionStatus};
 
 /// Callback account for receiving liquidation decision from MPC
@@ -64,15 +64,10 @@ pub struct CheckLiquidationCallback<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-/// Auto-generated output type from the check_liquidation circuit
-/// Returns: LiquidationResult (REVEALED - should_liquidate bool, liquidation_price)
-/// The health factor is NEVER revealed - only the boolean decision
-pub type LiquidationCheckOutput = CheckLiquidationCallbackOutput;
-
-#[arcium_callback(encrypted_ix = "check_liquidation")]
-pub fn handler(
+/// Handler logic for the check_liquidation callback (called from lib.rs via #[arcium_callback])
+pub fn check_liquidation_callback_handler(
     ctx: Context<CheckLiquidationCallback>,
-    output: SignedComputationOutputs<LiquidationCheckOutput>,
+    output: SignedComputationOutputs<CheckLiquidationOutput>,
 ) -> Result<()> {
     // Verify the computation output from the MPC cluster
     let verified_output = match output.verify_output(

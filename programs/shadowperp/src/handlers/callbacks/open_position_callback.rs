@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
 
-use crate::errors::ShadowPerpError;
+use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{Market, MarginAccount, Position, PositionOpened, PositionStatus};
 
 /// Callback account for storing validated position data from MPC
@@ -41,12 +41,8 @@ pub struct OpenPositionCallback<'info> {
     pub margin_account: Account<'info, MarginAccount>,
 }
 
-/// Auto-generated output type from the open_position circuit
-/// Returns: (bool success, Enc<Mxe, (Position, OpenInterest)>, u64 required_margin)
-pub type OpenPositionOutput = OpenPositionCallbackOutput;
-
-#[arcium_callback(encrypted_ix = "open_position")]
-pub fn handler(
+/// Handler logic for the open_position callback (called from lib.rs via #[arcium_callback])
+pub fn open_position_callback_handler(
     ctx: Context<OpenPositionCallback>,
     output: SignedComputationOutputs<OpenPositionOutput>,
 ) -> Result<()> {

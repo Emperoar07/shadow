@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use arcium_anchor::prelude::*;
 
-use crate::errors::ShadowPerpError;
+use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{Market, MarginAccount, Position, PositionClosed, PositionStatus};
 
 /// Callback account for receiving PnL result from MPC
@@ -61,14 +61,8 @@ pub struct ClosePositionCallback<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-/// Auto-generated output type from the close_position circuit
-/// Returns: (ClosePositionResult, Enc<Mxe, OpenInterest>)
-/// field_0: ClosePositionResult is REVEALED (realized_pnl, settlement_amount, fee)
-/// field_1: MXEEncryptedStruct for updated OpenInterest
-pub type ClosePositionOutput = ClosePositionCallbackOutput;
-
-#[arcium_callback(encrypted_ix = "close_position")]
-pub fn handler(
+/// Handler logic for the close_position callback (called from lib.rs via #[arcium_callback])
+pub fn close_position_callback_handler(
     ctx: Context<ClosePositionCallback>,
     output: SignedComputationOutputs<ClosePositionOutput>,
 ) -> Result<()> {
