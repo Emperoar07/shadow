@@ -3,7 +3,7 @@
 //! This circuit calculates the final PnL when a position is closed.
 //! THIS IS THE ONLY CIRCUIT THAT REVEALS DATA - the realized PnL.
 
-use arcis::prelude::*;
+use arcis::*;
 
 use crate::types::{ClosePositionResult, MarketParams, OpenInterest, Position};
 

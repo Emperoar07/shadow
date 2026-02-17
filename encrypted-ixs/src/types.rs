@@ -1,9 +1,9 @@
 //! Shared types for ShadowPerp circuits
 
-use arcis::prelude::*;
+use arcis::*;
 
 /// Position data structure - all fields are encrypted in MPC
-#[derive(ArcisData, Clone)]
+#[derive(ArcisType, Clone)]
 pub struct Position {
     /// Position size in base units (e.g., 1 SOL = 1_000_000_000)
     pub size: u64,
@@ -28,7 +28,7 @@ pub struct Position {
 }
 
 /// Result of opening a position
-#[derive(ArcisData, Clone)]
+#[derive(ArcisType, Clone)]
 pub struct OpenPositionResult {
     /// Whether the position was successfully opened
     pub success: bool,
@@ -41,7 +41,7 @@ pub struct OpenPositionResult {
 }
 
 /// Result of closing a position
-#[derive(ArcisData, Clone)]
+#[derive(ArcisType, Clone)]
 pub struct ClosePositionResult {
     /// Realized profit/loss (THIS IS REVEALED)
     pub realized_pnl: i64,
@@ -54,7 +54,7 @@ pub struct ClosePositionResult {
 }
 
 /// Result of liquidation check
-#[derive(ArcisData, Clone)]
+#[derive(ArcisType, Clone)]
 pub struct LiquidationResult {
     /// Whether position should be liquidated
     /// Note: This is the ONLY thing revealed - not the health factor itself
@@ -65,7 +65,7 @@ pub struct LiquidationResult {
 }
 
 /// Market parameters passed to circuits
-#[derive(ArcisData, Clone)]
+#[derive(ArcisType, Clone)]
 pub struct MarketParams {
     /// Maximum allowed leverage
     pub max_leverage: u8,
@@ -81,7 +81,7 @@ pub struct MarketParams {
 }
 
 /// Encrypted state accumulator for open interest tracking
-#[derive(ArcisData, Clone, Default)]
+#[derive(ArcisType, Clone, Default)]
 pub struct OpenInterest {
     /// Total long open interest (encrypted)
     pub total_long: u64,

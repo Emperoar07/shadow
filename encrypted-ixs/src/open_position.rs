@@ -3,7 +3,7 @@
 //! This circuit validates and processes new position opening requests.
 //! All validation happens on encrypted data inside MPC.
 
-use arcis::prelude::*;
+use arcis::*;
 
 use crate::types::{MarketParams, OpenInterest, Position};
 
