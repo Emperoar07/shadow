@@ -42,7 +42,7 @@ pub struct OpenPositionCallback<'info> {
 }
 
 /// Auto-generated output type from the open_position circuit
-/// Returns: (bool success, Enc<Mxe, (Position, OpenInterest)>, u64 required_margin)
+/// Returns: (bool success, Enc<Mxe, Position>, u64 required_margin, Enc<Mxe, OpenInterest>)
 pub type OpenPositionOutput = OpenPositionCallbackOutput;
 
 #[arcium_callback(encrypted_ix = "open_position")]
@@ -75,10 +75,12 @@ pub fn handler(
         ShadowPerpError::InvalidComputationResult
     );
 
-    // field_1: encrypted (position, open_interest) payload
+    // field_1: encrypted position payload
     // field_2: required margin returned by MPC
-    let combined_ciphertexts = &verified_output.field_1.ciphertexts;
+    // field_3: updated encrypted OI
+    let position_ciphertexts = &verified_output.field_1.ciphertexts;
     let required_margin = verified_output.field_2;
+    let oi_ciphertexts = &verified_output.field_3.ciphertexts;
 
     // Update position with MPC-validated encrypted data
     // The MPC has verified margin sufficiency and parameter validity
@@ -107,21 +109,24 @@ pub fn handler(
     position.margin = required_margin;
 
     // Replace encrypted position payload with MPC-produced ciphertexts.
-    if combined_ciphertexts.len() >= 9 {
-        position.encrypted_data[0..32].copy_from_slice(&combined_ciphertexts[0]);
-        position.encrypted_data[32..64].copy_from_slice(&combined_ciphertexts[1]);
-        position.encrypted_data[64..96].copy_from_slice(&combined_ciphertexts[2]);
-        position.encrypted_data[96..128].copy_from_slice(&combined_ciphertexts[3]);
-        position.encrypted_data[128..160].copy_from_slice(&combined_ciphertexts[4]);
-        position.encrypted_data[160..192].copy_from_slice(&combined_ciphertexts[5]);
-        position.encrypted_data[192..224].copy_from_slice(&combined_ciphertexts[6]);
+    if position_ciphertexts.len() >= 7 {
+        position.encrypted_data[0..32].copy_from_slice(&position_ciphertexts[0]);
+        position.encrypted_data[32..64].copy_from_slice(&position_ciphertexts[1]);
+        position.encrypted_data[64..96].copy_from_slice(&position_ciphertexts[2]);
+        position.encrypted_data[96..128].copy_from_slice(&position_ciphertexts[3]);
+        position.encrypted_data[128..160].copy_from_slice(&position_ciphertexts[4]);
+        position.encrypted_data[160..192].copy_from_slice(&position_ciphertexts[5]);
+        position.encrypted_data[192..224].copy_from_slice(&position_ciphertexts[6]);
     } else {
         return Err(ShadowPerpError::InvalidComputationResult.into());
     }
 
-    // Update encrypted open interest from combined MPC output (last 2 ciphertexts)
-    market.encrypted_total_long_oi = combined_ciphertexts[7];
-    market.encrypted_total_short_oi = combined_ciphertexts[8];
+    // Update encrypted open interest from MPC output
+    // field_3 contains updated Enc<Mxe, OpenInterest>
+    if oi_ciphertexts.len() >= 2 {
+        market.encrypted_total_long_oi = oi_ciphertexts[0];
+        market.encrypted_total_short_oi = oi_ciphertexts[1];
+    }
 
     // Increment active positions counter
     market.active_positions = market
