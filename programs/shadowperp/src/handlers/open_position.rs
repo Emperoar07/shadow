@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
+use arcium_anchor::traits::CallbackCompAccs;
 use arcium_client::idl::arcium::accounts::ArciumSignerAccount;
 
 use crate::errors::ShadowPerpError;

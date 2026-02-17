@@ -90,9 +90,9 @@ pub fn close_position_callback_handler(
     // Circuit returns tuple → wrapped in OutputStruct0:
     //   field_0 = ClosePositionOutputStruct00 {field_0: i64, field_1: u64, field_2: u64}
     //   field_1 = MXEEncryptedStruct<2> (updated OI)
-    let realized_pnl = verified_output.field_0;
-    let settlement_amount = verified_output.field_1;
-    let fee = verified_output.field_2;
+    let realized_pnl = verified_output.field_0.field_0;
+    let settlement_amount = verified_output.field_0.field_1;
+    let fee = verified_output.field_0.field_2;
 
     // Update position - PnL is now public
     position.realized_pnl = realized_pnl;
@@ -100,7 +100,7 @@ pub fn close_position_callback_handler(
     position.closed_at = clock.unix_timestamp;
 
     // Update encrypted open interest from MPC output
-    let oi_ciphertexts = &verified_output.field_3.ciphertexts;
+    let oi_ciphertexts = &verified_output.field_1.ciphertexts;
     if oi_ciphertexts.len() >= 2 {
         market.encrypted_total_long_oi = oi_ciphertexts[0];
         market.encrypted_total_short_oi = oi_ciphertexts[1];
