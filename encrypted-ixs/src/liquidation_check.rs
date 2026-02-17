@@ -5,7 +5,7 @@
 //! This prevents targeted liquidation attacks where adversaries could see
 //! exactly how close a position is to liquidation.
 
-use arcis::*;
+use arcis_imports::*;
 
 use crate::types::{LiquidationResult, MarketParams, Position};
 
