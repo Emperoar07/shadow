@@ -36,19 +36,19 @@ mod liquidation_check_circuit {
 
         // === CALCULATE UNREALIZED PNL (in MPC) ===
 
-        let entry = pos.entry_price as i64;
+        let entry = pos.1 as i64;
         let mark = mark_price as i64;
         let price_delta = mark - entry;
 
         // Calculate unrealized PnL based on direction
-        let unrealized_pnl = if pos.is_long {
-            price_delta * (pos.size as i64)
+        let unrealized_pnl = if pos.3 {
+            price_delta * (pos.0 as i64)
         } else {
-            -price_delta * (pos.size as i64)
+            -price_delta * (pos.0 as i64)
         };
 
         // Apply leverage
-        let leveraged_pnl = unrealized_pnl * (pos.leverage as i64);
+        let leveraged_pnl = unrealized_pnl * (pos.2 as i64);
 
         // Normalize
         let pnl = leveraged_pnl / entry;
@@ -56,15 +56,15 @@ mod liquidation_check_circuit {
         // === CALCULATE HEALTH FACTOR (in MPC) ===
 
         // Equity = margin + unrealized PnL
-        let margin_i64 = pos.margin as i64;
+        let margin_i64 = pos.4 as i64;
         let equity = margin_i64 + pnl;
 
         // Position value at current price
-        let position_value = pos.size * mark_price;
+        let position_value = pos.0 * mark_price;
 
         // Maintenance margin = position_value * threshold / 10000
         let maintenance_margin =
-            (position_value * market_params.liquidation_threshold as u64) / 10000;
+            (position_value * market_params.1 as u64) / 10000;
 
         // === LIQUIDATION DECISION (in MPC) ===
 
@@ -79,10 +79,7 @@ mod liquidation_check_circuit {
         // === BUILD RESULT ===
         // NOTE: Only should_liquidate boolean is meaningful
         // The health factor (equity / maintenance_margin) is NEVER revealed
-        LiquidationResult {
-            should_liquidate,
-            liquidation_price,
-        }
+        (should_liquidate, liquidation_price)
     }
 
     /// Batch check liquidations for multiple positions
@@ -95,30 +92,27 @@ mod liquidation_check_circuit {
     ) -> Vec<LiquidationResult> {
         positions
             .into_iter()
-            .map(|pos| {
+            .map(|pos: Enc<Mxe, Position>| {
                 let p = pos.to_arcis();
 
-                let entry = p.entry_price as i64;
+                let entry = p.1 as i64;
                 let mark = mark_price as i64;
                 let price_delta = mark - entry;
 
-                let unrealized_pnl = if p.is_long {
-                    price_delta * (p.size as i64) * (p.leverage as i64) / entry
+                let unrealized_pnl = if p.3 {
+                    price_delta * (p.0 as i64) * (p.2 as i64) / entry
                 } else {
-                    -price_delta * (p.size as i64) * (p.leverage as i64) / entry
+                    -price_delta * (p.0 as i64) * (p.2 as i64) / entry
                 };
 
-                let equity = (p.margin as i64) + unrealized_pnl;
-                let position_value = p.size * mark_price;
+                let equity = (p.4 as i64) + unrealized_pnl;
+                let position_value = p.0 * mark_price;
                 let maintenance_margin =
-                    (position_value * market_params.liquidation_threshold as u64) / 10000;
+                    (position_value * market_params.1 as u64) / 10000;
 
                 let should_liquidate = equity < (maintenance_margin as i64);
 
-                LiquidationResult {
-                    should_liquidate,
-                    liquidation_price: if should_liquidate { mark_price } else { 0 },
-                }
+                (should_liquidate, if should_liquidate { mark_price } else { 0 })
             })
             .collect()
     }

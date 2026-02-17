@@ -96,9 +96,9 @@ pub fn handler(
     // The close_position circuit returns ClosePositionResult as PLAINTEXT (revealed)
     // Extract the revealed PnL and settlement from the output
     // field_0 contains the revealed ClosePositionResult
-    let realized_pnl = verified_output.field_0.realized_pnl;
-    let settlement_amount = verified_output.field_0.settlement_amount;
-    let fee = verified_output.field_0.fee;
+    let realized_pnl = verified_output.field_0.field_0;
+    let settlement_amount = verified_output.field_0.field_1;
+    let fee = verified_output.field_0.field_2;
 
     // Update position - PnL is now public
     position.realized_pnl = realized_pnl;

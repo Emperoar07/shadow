@@ -44,7 +44,7 @@ mod open_position_circuit {
         // === VALIDATION (all in MPC) ===
 
         // 1. Validate leverage is within bounds
-        let leverage_valid = leverage >= 1 && leverage <= market_params.max_leverage;
+        let leverage_valid = leverage >= 1 && leverage <= market_params.0;
 
         // 2. Calculate position value and required margin
         let position_value = size * entry_price;
@@ -65,24 +65,21 @@ mod open_position_circuit {
         // Note: This happens even if validation fails - the circuit
         // must have deterministic control flow
         if is_long {
-            oi.total_long = oi.total_long + size;
+            oi.0 = oi.0 + size;
         } else {
-            oi.total_short = oi.total_short + size;
+            oi.1 = oi.1 + size;
         }
 
         // Build position struct
-        let position = Position {
-            size,
-            entry_price,
-            leverage,
-            is_long,
-            margin,
-            owner_lo,
-            owner_hi,
-        };
+        let position: Position = (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi);
 
         // Return the validation bit and required margin in plaintext,
         // while keeping the full position payload encrypted.
-        (success, Mxe.from_arcis(position), required_margin, Mxe.from_arcis(oi))
+        (
+            success,
+            oi_state.owner.from_arcis(position),
+            required_margin,
+            oi_state.owner.from_arcis(oi),
+        )
     }
 }

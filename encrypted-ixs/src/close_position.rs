@@ -34,21 +34,21 @@ mod close_position_circuit {
         // === CALCULATE PNL (in MPC) ===
 
         // Calculate price delta
-        let entry = pos.entry_price as i64;
+        let entry = pos.1 as i64;
         let exit = exit_price as i64;
         let price_delta = exit - entry;
 
         // Calculate raw PnL based on direction
         // Long: profit when price goes up
         // Short: profit when price goes down
-        let raw_pnl = if pos.is_long {
-            price_delta * (pos.size as i64)
+        let raw_pnl = if pos.3 {
+            price_delta * (pos.0 as i64)
         } else {
-            -price_delta * (pos.size as i64)
+            -price_delta * (pos.0 as i64)
         };
 
         // Apply leverage to PnL
-        let leveraged_pnl = raw_pnl * (pos.leverage as i64);
+        let leveraged_pnl = raw_pnl * (pos.2 as i64);
 
         // Normalize PnL (divide by entry price to get actual dollar value)
         let realized_pnl = leveraged_pnl / entry;
@@ -56,13 +56,13 @@ mod close_position_circuit {
         // === CALCULATE FEES ===
 
         // Trading fee on position value
-        let position_value = pos.size * exit_price;
-        let fee = (position_value * market_params.trading_fee as u64) / 10000;
+        let position_value = pos.0 * exit_price;
+        let fee = (position_value * market_params.2 as u64) / 10000;
 
         // === CALCULATE SETTLEMENT ===
 
         // Settlement = margin + pnl - fees
-        let margin_i64 = pos.margin as i64;
+        let margin_i64 = pos.4 as i64;
         let fee_i64 = fee as i64;
         let settlement_i64 = margin_i64 + realized_pnl - fee_i64;
 
@@ -76,15 +76,15 @@ mod close_position_circuit {
         // === UPDATE OPEN INTEREST ===
 
         // Reduce OI based on direction
-        if pos.is_long {
-            oi.total_long = if oi.total_long >= pos.size {
-                oi.total_long - pos.size
+        if pos.3 {
+            oi.0 = if oi.0 >= pos.0 {
+                oi.0 - pos.0
             } else {
                 0
             };
         } else {
-            oi.total_short = if oi.total_short >= pos.size {
-                oi.total_short - pos.size
+            oi.1 = if oi.1 >= pos.0 {
+                oi.1 - pos.0
             } else {
                 0
             };
@@ -93,12 +93,8 @@ mod close_position_circuit {
         // === BUILD RESULT ===
         // NOTE: This result is REVEALED (not re-encrypted)
         // This is intentional - PnL revelation is the designed behavior
-        let result = ClosePositionResult {
-            realized_pnl,
-            settlement_amount,
-            fee,
-        };
+        let result: ClosePositionResult = (realized_pnl, settlement_amount, fee);
 
-        (result, Mxe.from_arcis(oi))
+        (result, oi_state.owner.from_arcis(oi))
     }
 }

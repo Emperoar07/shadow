@@ -90,8 +90,8 @@ pub fn handler(
 
     // Extract revealed liquidation decision
     // CRITICAL: Only the boolean is revealed, NOT the health factor
-    let should_liquidate = verified_output.field_0.should_liquidate;
-    let liquidation_price = verified_output.field_0.liquidation_price;
+    let should_liquidate = verified_output.field_0.field_0;
+    let liquidation_price = verified_output.field_0.field_1;
 
     // If position should not be liquidated, just return
     if !should_liquidate {
