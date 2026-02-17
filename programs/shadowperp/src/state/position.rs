@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 
 /// Encrypted position account - all sensitive data stored encrypted
 #[account]
-#[derive(Default)]
 pub struct Position {
     /// Owner of the position
     pub owner: Pubkey,
@@ -47,6 +46,27 @@ pub struct Position {
 
     /// Reserved space for future upgrades
     pub _reserved: [u8; 64],
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Self {
+            owner: Pubkey::default(),
+            market: Pubkey::default(),
+            encrypted_data: [0u8; 256],
+            status: PositionStatus::Pending,
+            opened_at: 0,
+            closed_at: 0,
+            margin: 0,
+            requested_margin: 0,
+            realized_pnl: 0,
+            nonce: [0u8; 16],
+            client_pubkey: [0u8; 32],
+            index: 0,
+            bump: 0,
+            _reserved: [0u8; 64],
+        }
+    }
 }
 
 impl Position {

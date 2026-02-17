@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 
 /// Global market state for the perpetual futures protocol
 #[account]
-#[derive(Default)]
 pub struct Market {
     /// Authority that can update market parameters
     pub authority: Pubkey,
@@ -60,6 +59,32 @@ pub struct Market {
 
     /// Reserved space for future upgrades
     pub _reserved: [u8; 128],
+}
+
+impl Default for Market {
+    fn default() -> Self {
+        Self {
+            authority: Pubkey::default(),
+            collateral_mint: Pubkey::default(),
+            vault: Pubkey::default(),
+            oracle_price: 0,
+            last_price_update: 0,
+            max_leverage: 0,
+            liquidation_threshold: 0,
+            trading_fee: 0,
+            encrypted_total_long_oi: [0u8; 32],
+            encrypted_total_short_oi: [0u8; 32],
+            active_positions: 0,
+            total_fees_collected: 0,
+            price_feeder: Pubkey::default(),
+            mxe_cluster: Pubkey::default(),
+            open_position_comp_def: Pubkey::default(),
+            close_position_comp_def: Pubkey::default(),
+            liquidation_comp_def: Pubkey::default(),
+            bump: 0,
+            _reserved: [0u8; 128],
+        }
+    }
 }
 
 impl Market {

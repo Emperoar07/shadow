@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 
 /// User's margin account for collateral management
 #[account]
-#[derive(Default)]
 pub struct MarginAccount {
     /// Owner of the margin account
     pub owner: Pubkey,
@@ -36,6 +35,24 @@ pub struct MarginAccount {
 
     /// Reserved space for future upgrades
     pub _reserved: [u8; 64],
+}
+
+impl Default for MarginAccount {
+    fn default() -> Self {
+        Self {
+            owner: Pubkey::default(),
+            market: Pubkey::default(),
+            balance: 0,
+            locked_balance: 0,
+            total_deposited: 0,
+            total_withdrawn: 0,
+            positions_opened: 0,
+            positions_closed: 0,
+            total_realized_pnl: 0,
+            bump: 0,
+            _reserved: [0u8; 64],
+        }
+    }
 }
 
 impl MarginAccount {
