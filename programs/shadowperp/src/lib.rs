@@ -100,7 +100,7 @@ pub mod shadowperp {
 
     /// Callback after liquidation check
     pub fn liquidation_callback(
-        ctx: Context<LiquidationCallback>,
+        ctx: Context<CheckLiquidationCallback>,
         output: arcium_anchor::SignedComputationOutputs<liquidation_callback::LiquidationCheckOutput>,
     ) -> Result<()> {
         handlers::callbacks::liquidation_callback::handler(ctx, output)

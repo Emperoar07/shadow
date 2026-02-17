@@ -8,7 +8,7 @@ use crate::state::{Market, MarginAccount, Position, PositionLiquidated, Position
 /// Callback account for receiving liquidation decision from MPC
 #[callback_accounts("check_liquidation")]
 #[derive(Accounts)]
-pub struct LiquidationCallback<'info> {
+pub struct CheckLiquidationCallback<'info> {
     // Standard Arcium callback accounts
     pub arcium_program: Program<'info, Arcium>,
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
@@ -71,7 +71,7 @@ pub type LiquidationCheckOutput = CheckLiquidationCallbackOutput;
 
 #[arcium_callback(encrypted_ix = "check_liquidation")]
 pub fn handler(
-    ctx: Context<LiquidationCallback>,
+    ctx: Context<CheckLiquidationCallback>,
     output: SignedComputationOutputs<LiquidationCheckOutput>,
 ) -> Result<()> {
     // Verify the computation output from the MPC cluster

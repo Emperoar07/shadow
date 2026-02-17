@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      SOLANA_CLI_VERSION: "stable"
+      SOLANA_CLI_VERSION: "v2.3.0"
       ANCHOR_VERSION: "0.32.1"
       CARGO_TERM_COLOR: always
 
@@ -34,6 +34,12 @@ jobs:
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/${SOLANA_CLI_VERSION}/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Install Arcium CLI
+        run: |
+          curl -sSL https://install.arcium.com | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          arcium --version
 
       - name: Install Anchor CLI (AVM)
         run: |
@@ -64,11 +70,14 @@ jobs:
 
       - name: Build only (dry run)
         if: ${{ inputs.dry_run == true }}
-        run: anchor build
+        run: |
+          arcium build
+          anchor build
 
       - name: Deploy + initialize devnet
         if: ${{ inputs.dry_run == false }}
         run: |
+          arcium build
           npx --yes ts-node scripts/deploy-devnet.ts
           if [ -f app/.env.local ]; then
             echo "### Devnet Outputs" >> "$GITHUB_STEP_SUMMARY"

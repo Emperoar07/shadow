@@ -5,7 +5,7 @@ use anchor_spl::token::TokenAccount;
 use crate::errors::ShadowPerpError;
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
-use super::callbacks::liquidation_callback::LiquidationCallback;
+use super::callbacks::liquidation_callback::CheckLiquidationCallback;
 
 #[queue_computation_accounts("check_liquidation", liquidator)]
 #[derive(Accounts)]
@@ -168,7 +168,7 @@ pub fn handler(
         },
     ];
 
-    let callback_ix = LiquidationCallback::callback_ix(
+    let callback_ix = CheckLiquidationCallback::callback_ix(
         computation_offset,
         &ctx.accounts.mxe_account,
         &callback_accounts,
