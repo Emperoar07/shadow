@@ -66,15 +66,17 @@ pub fn open_position_callback_handler(
     );
 
     // Enforce MPC validation outcome.
+    // Circuit returns tuple → wrapped in OutputStruct0: field_0=bool, field_1=encrypted, field_2=u64
+    let result = &verified_output.field_0;
     require!(
-        verified_output.field_0,
+        result.field_0,
         ShadowPerpError::InvalidComputationResult
     );
 
     // field_1: encrypted (position, open_interest) payload
     // field_2: required margin returned by MPC
-    let combined_ciphertexts = &verified_output.field_1.ciphertexts;
-    let required_margin = verified_output.field_2;
+    let combined_ciphertexts = &result.field_1.ciphertexts;
+    let required_margin = result.field_2;
 
     // Update position with MPC-validated encrypted data
     // The MPC has verified margin sufficiency and parameter validity
