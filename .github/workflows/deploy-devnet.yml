@@ -71,15 +71,23 @@ jobs:
       - name: Build only (dry run)
         if: ${{ inputs.dry_run == true }}
         run: |
-          # Build circuits (non-fatal — circuit artifacts only needed for MXE comp-def registration)
-          arcium build || echo "::warning::arcium build failed — circuit artifacts not generated"
+          # Build confidential circuits and require generated artifacts.
+          arcium build
+          ls -la build || true
+          test -f build/open_position.arcis
+          test -f build/close_position.arcis
+          test -f build/check_liquidation.arcis
           # Build the on-chain Anchor program
           anchor build
 
       - name: Deploy + initialize devnet
         if: ${{ inputs.dry_run == false }}
         run: |
-          arcium build || echo "::warning::arcium build failed — continuing with anchor deploy"
+          arcium build
+          ls -la build || true
+          test -f build/open_position.arcis
+          test -f build/close_position.arcis
+          test -f build/check_liquidation.arcis
           anchor build
           npx --yes ts-node scripts/deploy-devnet.ts
           if [ -f app/.env.local ]; then
