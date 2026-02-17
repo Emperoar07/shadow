@@ -7,7 +7,7 @@ use crate::ArciumSignerAccount;
 use crate::errors::ShadowPerpError;
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
-use crate::instruction::CheckLiquidationCallback;
+use crate::handlers::callbacks::liquidation_callback::CheckLiquidationCallback;
 
 #[queue_computation_accounts("check_liquidation", liquidator)]
 #[derive(Accounts)]
@@ -69,7 +69,7 @@ pub struct CheckLiquidation<'info> {
     pub computation_account: UncheckedAccount<'info>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
-    pub pool_account: UncheckedAccount<'info>,
+    pub pool_account: Account<'info, FeePool>,
     /// CHECK: Validated by Arcium
     pub sign_pda_account: Account<'info, ArciumSignerAccount>,
     #[account(mut)]

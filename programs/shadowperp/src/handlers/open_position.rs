@@ -6,7 +6,7 @@ use crate::ArciumSignerAccount;
 use crate::errors::ShadowPerpError;
 use crate::state::{Market, MarginAccount, Position, PositionStatus};
 
-use crate::instruction::OpenPositionCallback;
+use crate::handlers::callbacks::open_position_callback::OpenPositionCallback;
 
 #[queue_computation_accounts("open_position", owner)]
 #[derive(Accounts)]
@@ -69,7 +69,7 @@ pub struct OpenPosition<'info> {
     pub computation_account: UncheckedAccount<'info>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
-    pub pool_account: UncheckedAccount<'info>,
+    pub pool_account: Account<'info, FeePool>,
     /// CHECK: Validated by Arcium
     pub sign_pda_account: Account<'info, ArciumSignerAccount>,
     #[account(mut)]
