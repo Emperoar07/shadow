@@ -11,7 +11,7 @@ cluster_offset = 0
 path = "encrypted-ixs"
 
 [build]
-output = "target/arcium"
+output = "build"
 
 [devnet]
 arcium_program = "3R4wZSJFTfCJyofLGrVHPCyjMgP8x2cJCDwKUANKsMAE"
