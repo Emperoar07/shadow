@@ -5,6 +5,8 @@ import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import { fetchPrices } from "../lib/prices";
+import TradeConfirmationModal, { TradeStep } from "./TradeConfirmationModal";
+import { useArciumPrivacy } from "../hooks/useArcium";
 
 type Direction = "long" | "short";
 
@@ -25,7 +27,19 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
   const [isDepositing, setIsDepositing] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [tradeStep, setTradeStep] = useState<TradeStep>("signing");
+  const [tradeTxSig, setTradeTxSig] = useState<string | undefined>();
+  const [tradeError, setTradeError] = useState<string | undefined>();
+  const [isPrivate, setIsPrivate] = useState(true);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
+  const {
+    submitPrivateOrder,
+    status: privacyStatus,
+    statusMessage: privacyStatusMessage,
+    setError: setPrivacyError,
+    resetStatus: resetPrivacyStatus,
+  } = useArciumPrivacy();
 
   const margin = size && marketPrice ? (parseFloat(size) * marketPrice) / leverage : 0;
   const positionValue = size && marketPrice ? parseFloat(size) * marketPrice : 0;
@@ -171,64 +185,66 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
     }
 
     setIsSubmitting(true);
+    setTradeStep("signing");
+    setTradeTxSig(undefined);
+    setTradeError(undefined);
+    resetPrivacyStatus();
+    setModalOpen(true);
+
     try {
       const ctx = getClient();
       if (!ctx) {
+        setModalOpen(false);
         toast.error("Trading is unavailable in demo mode. Deploy the program to devnet first.", { id: "trade" });
         return;
       }
-      const { client, runtime } = ctx;
-      const market = await client.getMarket(runtime.marketAddress);
-
       const sizeUi = Number(size);
-      const baseDecimals = activePair.base.decimals;
-      const sizeBase = new BN(Math.max(1, Math.round(sizeUi * 10 ** baseDecimals)));
-      const oraclePrice = new BN(market.oraclePrice.toString());
-      const entryPrice = oraclePrice.gt(new BN(0)) ? oraclePrice : new BN(1);
-      const oraclePriceUi = Number(entryPrice.toString()) / 1_000_000;
-      const requiredMarginUi = (sizeUi * oraclePriceUi) / leverage;
-      const marginBase = new BN(Math.max(1, Math.round(requiredMarginUi * 1_000_000)));
 
-      toast.loading("Submitting encrypted trade...", { id: "trade" });
+      setTradeStep("encrypting");
 
-      const { txSignature, positionAddress } = await client.openPosition(
-        runtime.marketAddress,
+      // Small delay so the user can see the encryption step
+      await new Promise((r) => setTimeout(r, 800));
+      setTradeStep("submitting");
+
+      const { txSignature } = await submitPrivateOrder(
         {
-          size: sizeBase,
-          entryPrice,
+          side: direction,
+          sizeUi,
           leverage,
-          direction,
-          margin: marginBase,
-        }
+        },
+        isPrivate
       );
 
-      const txUrl = `https://explorer.solana.com/tx/${txSignature}?cluster=devnet`;
-      toast.success(
-        <div>
-          <p className="font-medium">Position queued</p>
-          <p className="text-xs text-gray-400 break-all">{positionAddress.toBase58()}</p>
-          <a
-            href={txUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-accent-purple underline"
-          >
-            View transaction
-          </a>
-        </div>,
-        { id: "trade", duration: 10000 }
-      );
+      setTradeTxSig(txSignature);
+      setTradeStep("confirmed");
       setSize("");
       void refreshMarketData();
     } catch (error: any) {
       const msg = error?.message || "Failed to open position";
-      if (!msg.includes("env var")) {
-        toast.error(msg, { id: "trade" });
+      setPrivacyError(msg);
+      if (msg.includes("env var")) {
+        setModalOpen(false);
+      } else {
+        setTradeError(msg);
+        setTradeStep("error");
       }
     } finally {
       setIsSubmitting(false);
     }
-  }, [size, direction, leverage, publicKey, anchorWallet, getClient, activePair.base.decimals, marginBalance, refreshMarketData]);
+  }, [
+    size,
+    direction,
+    leverage,
+    publicKey,
+    anchorWallet,
+    getClient,
+    marginBalance,
+    refreshMarketData,
+    submitPrivateOrder,
+    isPrivate,
+    setPrivacyError,
+    resetPrivacyStatus,
+  ]);
 
   return (
     <div className="position-card rounded-xl p-6">
@@ -271,9 +287,9 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
       <div className="grid grid-cols-2 gap-2 mb-6">
         <button
           onClick={() => setDirection("long")}
-          className={`py-3 rounded-lg font-medium transition-all ${
+          className={`py-3 rounded-lg font-medium transition-all btn-press ${
             direction === "long"
-              ? "bg-accent-green text-white"
+              ? "bg-accent-green text-white toggle-long active"
               : "bg-shadow-600 text-gray-400 hover:bg-shadow-500"
           }`}
         >
@@ -281,9 +297,9 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
         </button>
         <button
           onClick={() => setDirection("short")}
-          className={`py-3 rounded-lg font-medium transition-all ${
+          className={`py-3 rounded-lg font-medium transition-all btn-press ${
             direction === "short"
-              ? "bg-accent-red text-white"
+              ? "bg-accent-red text-white toggle-short active"
               : "bg-shadow-600 text-gray-400 hover:bg-shadow-500"
           }`}
         >
@@ -336,7 +352,7 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
         <input
           type="range"
           min="1"
-          max="20"
+          max="50"
           value={leverage}
           onChange={(e) => setLeverage(parseInt(e.target.value))}
           className="w-full h-2 bg-shadow-600 rounded-lg appearance-none cursor-pointer accent-accent-purple"
@@ -345,7 +361,8 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
           <span>1x</span>
           <span>5x</span>
           <span>10x</span>
-          <span>20x</span>
+          <span>25x</span>
+          <span>50x</span>
         </div>
       </div>
 
@@ -380,6 +397,17 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
 
       {/* Privacy Notice */}
       <div className="bg-accent-purple/10 border border-accent-purple/30 rounded-lg p-4 mb-6">
+        <label className="flex items-center justify-between gap-4 mb-3 text-sm">
+          <span className="text-accent-purple font-medium">
+            Arcium MXE Privacy (MPC Encrypted Orderbook)
+          </span>
+          <input
+            type="checkbox"
+            checked={isPrivate}
+            onChange={(e) => setIsPrivate(e.target.checked)}
+            className="h-4 w-4 accent-accent-purple"
+          />
+        </label>
         <div className="flex items-start gap-3">
           <svg
             className="w-5 h-5 text-accent-purple flex-shrink-0 mt-0.5"
@@ -400,6 +428,12 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
               Position encrypted via x25519 + Rescue cipher. Data split into secret
               shares across MPC nodes - no single node sees your trade.
             </p>
+            {privacyStatusMessage && (
+              <p className="text-xs mt-2 text-accent-purple">
+                Status: {privacyStatusMessage}
+                {privacyStatus === "queued" ? " -> waiting for callback" : ""}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -408,7 +442,7 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
       <button
         onClick={handleSubmit}
         disabled={isSubmitting || !size}
-        className={`w-full py-4 rounded-lg font-semibold text-lg transition-all ${
+        className={`w-full py-4 rounded-lg font-semibold text-lg transition-all btn-press ${
           direction === "long"
             ? "bg-gradient-to-r from-accent-green to-emerald-600 hover:from-emerald-600 hover:to-accent-green"
             : "bg-gradient-to-r from-accent-red to-rose-600 hover:from-rose-600 hover:to-accent-red"
@@ -438,6 +472,19 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
           `Open ${direction.charAt(0).toUpperCase() + direction.slice(1)}`
         )}
       </button>
+
+      {/* Trade Confirmation Modal */}
+      <TradeConfirmationModal
+        isOpen={modalOpen}
+        step={tradeStep}
+        direction={direction}
+        size={size || "0"}
+        leverage={leverage}
+        entryPrice={marketPrice ?? activePair.mockPrice}
+        errorMessage={tradeError}
+        txSignature={tradeTxSig}
+        onClose={() => setModalOpen(false)}
+      />
     </div>
   );
 }

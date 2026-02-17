@@ -7,6 +7,7 @@ import PositionsList from "../components/PositionsList";
 import MarketInfo from "../components/MarketInfo";
 import PrivacyBadge from "../components/PrivacyBadge";
 import NetworkIndicator from "../components/NetworkIndicator";
+import PortfolioSummary from "../components/PortfolioSummary";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 
 const WalletMultiButton = dynamic(
@@ -70,10 +71,15 @@ export default function TradingAppPage() {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 py-6">
-          {/* Chart - always visible */}
-          <div className="mb-6">
-            <PriceChart selectedPair={selectedPair} onPairChange={setSelectedPair} />
-          </div>
+          {/* Portfolio Summary */}
+          <PortfolioSummary />
+
+          {/* Chart - trade tab only */}
+          {activeTab === "trade" && (
+            <div className="mb-6">
+              <PriceChart selectedPair={selectedPair} onPairChange={setSelectedPair} />
+            </div>
+          )}
 
           {/* Trading panel + Market info */}
           <div className="grid lg:grid-cols-3 gap-6">
@@ -109,4 +115,3 @@ export default function TradingAppPage() {
     </>
   );
 }
-

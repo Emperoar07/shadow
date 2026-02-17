@@ -141,7 +141,7 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
         <InfoRow label="Fees Collected" value={market ? `$${market.totalFeesCollected.toFixed(2)}` : "--"} />
         <InfoRow label="Trading Fee" value={market ? `${market.tradingFee.toFixed(2)}%` : "0.10%"} />
         <InfoRow label="Liq. Threshold" value={market ? `${market.liquidationThreshold.toFixed(0)}%` : "80%"} />
-        <InfoRow label="Max Leverage" value={market ? `${market.maxLeverage}x` : "20x"} />
+        <InfoRow label="Max Leverage" value={market ? `${market.maxLeverage}x` : "50x"} />
       </div>
 
       <div className="pt-4 border-t border-shadow-600">

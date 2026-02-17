@@ -143,7 +143,7 @@ async function main() {
 
   try {
     await program.methods
-      .initialize(20, 500, 10) // 20x max leverage, 5% liq threshold, 0.1% fee
+      .initialize(50, 500, 10) // 50x max leverage, 5% liq threshold, 0.1% fee
       .accounts({
         authority: walletKeypair.publicKey,
         collateralMint,
