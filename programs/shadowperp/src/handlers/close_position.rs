@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
 use arcium_anchor::traits::CallbackCompAccs;
-use arcium_client::idl::arcium::accounts::ArciumSignerAccount;
 use anchor_spl::token::{TokenAccount};
+use crate::ArciumSignerAccount;
 
 use crate::errors::ShadowPerpError;
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
