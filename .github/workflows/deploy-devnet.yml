@@ -43,7 +43,7 @@ jobs:
           anchor --version
 
       - name: Install JS deps
-        run: npm ci
+        run: npm install
 
       - name: Configure Solana wallet + devnet
         env:
