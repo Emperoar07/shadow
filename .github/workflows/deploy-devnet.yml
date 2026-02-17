@@ -1,0 +1,78 @@
+name: Deploy Devnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build only (skip on-chain deploy/init)"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SOLANA_CLI_VERSION: "v1.18.26"
+      ANCHOR_VERSION: "0.32.1"
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/${SOLANA_CLI_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Install Anchor CLI (AVM)
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor avm --locked
+          avm install ${ANCHOR_VERSION}
+          avm use ${ANCHOR_VERSION}
+          anchor --version
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Configure Solana wallet + devnet
+        env:
+          SOLANA_WALLET_KEYPAIR_JSON: ${{ secrets.SOLANA_WALLET_KEYPAIR_JSON }}
+        run: |
+          if [ -z "${SOLANA_WALLET_KEYPAIR_JSON}" ]; then
+            echo "Missing secret: SOLANA_WALLET_KEYPAIR_JSON"
+            exit 1
+          fi
+
+          mkdir -p "$HOME/.config/solana"
+          printf '%s' "${SOLANA_WALLET_KEYPAIR_JSON}" > "$HOME/.config/solana/id.json"
+          chmod 600 "$HOME/.config/solana/id.json"
+
+          solana config set --url devnet --keypair "$HOME/.config/solana/id.json"
+          solana address
+          solana balance || true
+
+      - name: Build only (dry run)
+        if: ${{ inputs.dry_run == true }}
+        run: anchor build
+
+      - name: Deploy + initialize devnet
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          npx --yes ts-node scripts/deploy-devnet.ts
+          if [ -f app/.env.local ]; then
+            echo "### Devnet Outputs" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            grep '^NEXT_PUBLIC_' app/.env.local >> "$GITHUB_STEP_SUMMARY"
+          fi
