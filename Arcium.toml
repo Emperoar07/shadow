@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Private Perpetual Futures Protocol"
 
 [mxe]
-program_id = "shad111111111111111111111111111111111111111"
+program_id = "11111111111111111111111111111111"
 cluster_offset = 0
 
 [circuits]

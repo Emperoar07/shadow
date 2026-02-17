@@ -6,10 +6,10 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-shadowperp = "shad111111111111111111111111111111111111111"
+shadowperp = "11111111111111111111111111111111"
 
 [programs.devnet]
-shadowperp = "shad111111111111111111111111111111111111111"
+shadowperp = "11111111111111111111111111111111"
 
 [registry]
 url = "https://api.apr.dev"
