@@ -19,7 +19,7 @@ mod close_position_circuit {
         exit_price: u64,
         market_params: (u8, u16, u16, u64),
         oi_state: Enc<Mxe, (u64, u64)>,
-    ) -> ((i64, u64, u64), Enc<Mxe, (u64, u64)>) {
+    ) -> (i64, u64, u64, Enc<Mxe, (u64, u64)>) {
         let pos = position.to_arcis();
         let mut oi = oi_state.to_arcis();
 
@@ -72,9 +72,11 @@ mod close_position_circuit {
             };
         }
 
-        // NOTE: ClosePositionResult is REVEALED (not re-encrypted)
-        let result = (realized_pnl.reveal(), settlement_amount.reveal(), fee.reveal());
-
-        (result, oi_state.owner.from_arcis(oi))
+        (
+            realized_pnl.reveal(),
+            settlement_amount.reveal(),
+            fee.reveal(),
+            oi_state.owner.from_arcis(oi),
+        )
     }
 }

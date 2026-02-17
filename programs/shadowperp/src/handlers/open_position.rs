@@ -1,10 +1,11 @@
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
+use arcium_client::idl::arcium::accounts::ArciumSignerAccount;
 
 use crate::errors::ShadowPerpError;
 use crate::state::{Market, MarginAccount, Position, PositionStatus};
 
-use super::callbacks::open_position_callback::OpenPositionCallback;
+use crate::instruction::OpenPositionCallback;
 
 #[queue_computation_accounts("open_position", owner)]
 #[derive(Accounts)]
@@ -54,6 +55,7 @@ pub struct OpenPosition<'info> {
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
+    #[account(mut)]
     pub cluster_account: Account<'info, Cluster>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
@@ -68,8 +70,9 @@ pub struct OpenPosition<'info> {
     #[account(mut)]
     pub pool_account: UncheckedAccount<'info>,
     /// CHECK: Validated by Arcium
-    pub sign_pda_account: UncheckedAccount<'info>,
-    pub clock_account: Sysvar<'info, Clock>,
+    pub sign_pda_account: Account<'info, ArciumSignerAccount>,
+    #[account(mut)]
+    pub clock_account: Account<'info, ClockAccount>,
 
     pub arcium_program: Program<'info, Arcium>,
     pub system_program: Program<'info, System>,
