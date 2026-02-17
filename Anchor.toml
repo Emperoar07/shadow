@@ -12,7 +12,7 @@ shadowperp = "shad111111111111111111111111111111111111111"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "Devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

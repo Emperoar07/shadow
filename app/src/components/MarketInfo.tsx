@@ -3,6 +3,7 @@ import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import BN from "bn.js";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
+import { fetchPrices, PriceData } from "../lib/prices";
 
 interface MarketInfoProps {
   pair?: TradingPair;
@@ -23,14 +24,48 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
   const anchorWallet = useAnchorWallet();
   const { connection } = useConnection();
   const [market, setMarket] = useState<MarketData | null>(null);
-  const [mxeStatus, setMxeStatus] = useState<"active" | "checking" | "offline">("checking");
+  const [mxeStatus, setMxeStatus] = useState<"active" | "checking" | "demo">("checking");
   const [priceChange, setPriceChange] = useState<number | null>(null);
+  const [isDemo, setIsDemo] = useState(false);
   const previousPriceRef = useRef<number | null>(null);
+  const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
+
+  // Reset client on wallet change
+  useEffect(() => {
+    clientRef.current = null;
+  }, [anchorWallet]);
+
+  const setDemoData = useCallback((livePrice?: PriceData) => {
+    const price = livePrice?.price ?? activePair.mockPrice;
+    const change = livePrice?.change24h ?? activePair.mockPriceChange;
+    setIsDemo(true);
+    setMxeStatus("demo");
+    setMarket({
+      oraclePrice: price,
+      maxLeverage: 20,
+      liquidationThreshold: 5,
+      tradingFee: 0.1,
+      activePositions: 0,
+      totalFeesCollected: 0,
+      lastPriceUpdate: new Date(),
+    });
+    setPriceChange(change);
+  }, [activePair]);
 
   const loadMarket = useCallback(async () => {
-    if (!anchorWallet) return;
+    // Always fetch live prices for demo/fallback
+    const livePrices = await fetchPrices().catch(() => null);
+    const livePrice = livePrices?.[activePair.label] ?? undefined;
+
+    if (!anchorWallet) {
+      setDemoData(livePrice);
+      return;
+    }
     try {
-      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
+      if (!clientRef.current) {
+        clientRef.current = createShadowPerpClient(connection, anchorWallet);
+      }
+      const { client, runtime } = clientRef.current;
       const data = await client.getMarket(runtime.marketAddress);
       const oraclePrice = new BN(data.oraclePrice.toString()).toNumber() / 1_000_000;
       const previousPrice = previousPriceRef.current;
@@ -48,10 +83,12 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
         lastPriceUpdate: new Date(new BN(data.lastPriceUpdate.toString()).toNumber() * 1000),
       });
       setMxeStatus("active");
+      setIsDemo(false);
     } catch {
-      setMxeStatus("offline");
+      // On-chain fetch failed — fall back to demo with live prices
+      setDemoData(livePrice);
     }
-  }, [anchorWallet, connection]);
+  }, [anchorWallet, connection, activePair, setDemoData]);
 
   useEffect(() => {
     void loadMarket();
@@ -59,8 +96,10 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
     return () => clearInterval(interval);
   }, [loadMarket]);
 
-  const price = market?.oraclePrice ?? null;
-  const priceFresh = market
+  const price = market?.oraclePrice ?? activePair.mockPrice;
+  const priceFresh = isDemo
+    ? true
+    : market
     ? Date.now() - market.lastPriceUpdate.getTime() < 120_000
     : false;
 
@@ -77,7 +116,7 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
         </div>
         <div className="flex items-baseline gap-2">
           <span className="text-3xl font-bold">
-            {price === null ? "--" : `$${price < 0.01 ? price.toFixed(8) : price.toFixed(2)}`}
+            ${price < 0.01 ? price.toFixed(8) : price.toFixed(2)}
           </span>
           {priceChange !== null && (
             <span
@@ -90,8 +129,8 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
             </span>
           )}
           {market && (
-            <span className={`text-xs ml-1 ${priceFresh ? "text-accent-green" : "text-accent-red"}`}>
-              {priceFresh ? "live" : "stale"}
+            <span className={`text-xs ml-1 ${isDemo ? "text-accent-purple" : priceFresh ? "text-accent-green" : "text-accent-red"}`}>
+              {isDemo ? "demo" : priceFresh ? "live" : "stale"}
             </span>
           )}
         </div>
@@ -131,7 +170,7 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
                 ? "bg-accent-green"
                 : mxeStatus === "checking"
                 ? "bg-yellow-400 animate-pulse"
-                : "bg-accent-red"
+                : "bg-accent-purple animate-pulse"
             }`}
           />
           <span className="text-sm">
@@ -139,11 +178,13 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
               ? "MXE Cluster Active"
               : mxeStatus === "checking"
               ? "Connecting..."
-              : "MXE Offline"}
+              : "Demo Mode"}
           </span>
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Cerberus MPC protocol - 1 honest node guarantees security
+          {isDemo
+            ? "Deploy program to devnet to enable live trading"
+            : "Cerberus MPC protocol - 1 honest node guarantees security"}
         </p>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
           <MpcStat label="Cipher" value="Rescue" />

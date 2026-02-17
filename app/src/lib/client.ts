@@ -12,11 +12,24 @@ import {
   RescueCipher,
   getCompDefAccAddress,
   getCompDefAccOffset,
+  getComputationAccAddress,
   getMXEAccAddress,
   getMXEPublicKey as getArciumMXEPublicKey,
   x25519,
 } from "@arcium-hq/client";
-import { randomBytes } from "crypto";
+function randomBytes(length: number): Uint8Array {
+  const buf = new Uint8Array(length);
+  if (typeof globalThis.crypto !== "undefined" && globalThis.crypto.getRandomValues) {
+    globalThis.crypto.getRandomValues(buf);
+  } else {
+    // Node.js fallback
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const nodeCrypto = require("crypto");
+    const nodeBytes = nodeCrypto.randomBytes(length);
+    buf.set(nodeBytes);
+  }
+  return buf;
+}
 
 import {
   ShadowPerpConfig,
@@ -287,6 +300,7 @@ export class ShadowPerpClient {
     const positionAddress = this.getPositionAddress(market, owner, marketAccount.activePositions);
     const mxeAccount = this.getMXEPda();
     const compDefAccount = this.getCompDefPda("open_position");
+    const computationAccount = getComputationAccAddress(this.config.mxeProgramId, computationOffset);
 
     const tx = await this.program.methods
       .openPosition(
@@ -312,10 +326,10 @@ export class ShadowPerpClient {
         clusterAccount: this.config.clusterAddress,
         mempoolAccount: this.config.mempoolAccount,
         executingPool: this.config.executingPool,
-        computationAccount: this.config.computationAccount,
+        computationAccount,
         poolAccount: this.config.poolAccount,
         signPdaAccount: this.config.signPdaAccount,
-        arciumProgram: this.config.mxeProgramId,
+        arciumProgram: this.config.arciumProgramId,
         systemProgram: SystemProgram.programId,
         clockAccount: SYSVAR_CLOCK_PUBKEY,
       })
@@ -340,6 +354,7 @@ export class ShadowPerpClient {
     const marginAccount = this.getMarginAccountAddress(market, owner);
     const positionAddress = this.getPositionAddress(market, owner, positionIndex);
     const computationOffset = new BN(randomBytes(8));
+    const computationAccount = getComputationAccAddress(this.config.mxeProgramId, computationOffset);
 
     const tx = await this.program.methods
       .closePosition(computationOffset)
@@ -355,10 +370,10 @@ export class ShadowPerpClient {
         clusterAccount: this.config.clusterAddress,
         mempoolAccount: this.config.mempoolAccount,
         executingPool: this.config.executingPool,
-        computationAccount: this.config.computationAccount,
+        computationAccount,
         poolAccount: this.config.poolAccount,
         signPdaAccount: this.config.signPdaAccount,
-        arciumProgram: this.config.mxeProgramId,
+        arciumProgram: this.config.arciumProgramId,
         systemProgram: SystemProgram.programId,
         clockAccount: SYSVAR_CLOCK_PUBKEY,
       })
@@ -381,6 +396,7 @@ export class ShadowPerpClient {
     const marketAccount = await this.getMarket(market);
     const positionAddress = this.getPositionAddress(market, positionOwner, positionIndex);
     const computationOffset = new BN(randomBytes(8));
+    const computationAccount = getComputationAccAddress(this.config.mxeProgramId, computationOffset);
 
     const tx = await this.program.methods
       .checkLiquidation(computationOffset)
@@ -396,10 +412,10 @@ export class ShadowPerpClient {
         clusterAccount: this.config.clusterAddress,
         mempoolAccount: this.config.mempoolAccount,
         executingPool: this.config.executingPool,
-        computationAccount: this.config.computationAccount,
+        computationAccount,
         poolAccount: this.config.poolAccount,
         signPdaAccount: this.config.signPdaAccount,
-        arciumProgram: this.config.mxeProgramId,
+        arciumProgram: this.config.arciumProgramId,
         systemProgram: SystemProgram.programId,
         clockAccount: SYSVAR_CLOCK_PUBKEY,
       })

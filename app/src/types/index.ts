@@ -100,12 +100,12 @@ export interface PositionLiquidatedEvent {
 // SDK Configuration
 export interface ShadowPerpConfig {
   programId: PublicKey;
+  arciumProgramId: PublicKey;
   mxeProgramId: PublicKey;
   clusterAddress: PublicKey;
   marketAddress: PublicKey;
   mempoolAccount: PublicKey;
   executingPool: PublicKey;
-  computationAccount: PublicKey;
   poolAccount: PublicKey;
   signPdaAccount: PublicKey;
   idl: any;

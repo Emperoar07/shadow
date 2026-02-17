@@ -13,6 +13,8 @@ export interface TradingPair {
   base: TokenInfo;
   quote: TokenInfo;
   label: string; // e.g. "SOL-PERP"
+  mockPrice: number; // demo mode price
+  mockPriceChange: number; // demo mode 24h change %
 }
 
 // Well-known Solana devnet token mints
@@ -23,6 +25,7 @@ export const DEVNET_TOKENS: Record<string, TokenInfo> = {
     mint: new PublicKey("So11111111111111111111111111111111111111112"),
     decimals: 9,
     color: "#9945FF",
+    coingeckoId: "solana",
   },
   USDC: {
     symbol: "USDC",
@@ -44,6 +47,7 @@ export const DEVNET_TOKENS: Record<string, TokenInfo> = {
     mint: new PublicKey("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"),
     decimals: 5,
     color: "#F5A623",
+    coingeckoId: "bonk",
   },
   WIF: {
     symbol: "WIF",
@@ -51,6 +55,7 @@ export const DEVNET_TOKENS: Record<string, TokenInfo> = {
     mint: new PublicKey("EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm"),
     decimals: 6,
     color: "#B8860B",
+    coingeckoId: "dogwifcoin",
   },
   JUP: {
     symbol: "JUP",
@@ -58,6 +63,7 @@ export const DEVNET_TOKENS: Record<string, TokenInfo> = {
     mint: new PublicKey("JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"),
     decimals: 6,
     color: "#59C29F",
+    coingeckoId: "jupiter-exchange-solana",
   },
   BTC: {
     symbol: "BTC",
@@ -135,71 +141,19 @@ export const DEVNET_TOKENS: Record<string, TokenInfo> = {
 
 // Trading pairs available on ShadowPerp
 export const TRADING_PAIRS: TradingPair[] = [
-  {
-    base: DEVNET_TOKENS.SOL,
-    quote: DEVNET_TOKENS.USDC,
-    label: "SOL-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.BONK,
-    quote: DEVNET_TOKENS.USDC,
-    label: "BONK-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.WIF,
-    quote: DEVNET_TOKENS.USDC,
-    label: "WIF-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.JUP,
-    quote: DEVNET_TOKENS.USDC,
-    label: "JUP-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.BTC,
-    quote: DEVNET_TOKENS.USDC,
-    label: "BTC-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.ETH,
-    quote: DEVNET_TOKENS.USDC,
-    label: "ETH-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.PYTH,
-    quote: DEVNET_TOKENS.USDC,
-    label: "PYTH-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.RAY,
-    quote: DEVNET_TOKENS.USDC,
-    label: "RAY-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.ORCA,
-    quote: DEVNET_TOKENS.USDC,
-    label: "ORCA-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.W,
-    quote: DEVNET_TOKENS.USDC,
-    label: "W-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.JTO,
-    quote: DEVNET_TOKENS.USDC,
-    label: "JTO-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.RENDER,
-    quote: DEVNET_TOKENS.USDC,
-    label: "RENDER-PERP",
-  },
-  {
-    base: DEVNET_TOKENS.HNT,
-    quote: DEVNET_TOKENS.USDC,
-    label: "HNT-PERP",
-  },
+  { base: DEVNET_TOKENS.SOL, quote: DEVNET_TOKENS.USDC, label: "SOL-PERP", mockPrice: 178.45, mockPriceChange: 3.12 },
+  { base: DEVNET_TOKENS.BONK, quote: DEVNET_TOKENS.USDC, label: "BONK-PERP", mockPrice: 0.0000234, mockPriceChange: -5.67 },
+  { base: DEVNET_TOKENS.WIF, quote: DEVNET_TOKENS.USDC, label: "WIF-PERP", mockPrice: 0.68, mockPriceChange: 12.34 },
+  { base: DEVNET_TOKENS.JUP, quote: DEVNET_TOKENS.USDC, label: "JUP-PERP", mockPrice: 0.92, mockPriceChange: 1.45 },
+  { base: DEVNET_TOKENS.BTC, quote: DEVNET_TOKENS.USDC, label: "BTC-PERP", mockPrice: 97250.00, mockPriceChange: 0.87 },
+  { base: DEVNET_TOKENS.ETH, quote: DEVNET_TOKENS.USDC, label: "ETH-PERP", mockPrice: 2715.30, mockPriceChange: -1.23 },
+  { base: DEVNET_TOKENS.PYTH, quote: DEVNET_TOKENS.USDC, label: "PYTH-PERP", mockPrice: 0.37, mockPriceChange: 8.91 },
+  { base: DEVNET_TOKENS.RAY, quote: DEVNET_TOKENS.USDC, label: "RAY-PERP", mockPrice: 5.42, mockPriceChange: 4.56 },
+  { base: DEVNET_TOKENS.ORCA, quote: DEVNET_TOKENS.USDC, label: "ORCA-PERP", mockPrice: 3.18, mockPriceChange: -2.34 },
+  { base: DEVNET_TOKENS.W, quote: DEVNET_TOKENS.USDC, label: "W-PERP", mockPrice: 0.58, mockPriceChange: 6.78 },
+  { base: DEVNET_TOKENS.JTO, quote: DEVNET_TOKENS.USDC, label: "JTO-PERP", mockPrice: 3.45, mockPriceChange: -0.45 },
+  { base: DEVNET_TOKENS.RENDER, quote: DEVNET_TOKENS.USDC, label: "RENDER-PERP", mockPrice: 7.82, mockPriceChange: 2.10 },
+  { base: DEVNET_TOKENS.HNT, quote: DEVNET_TOKENS.USDC, label: "HNT-PERP", mockPrice: 3.96, mockPriceChange: -3.21 },
 ];
 
 // Tokens to display in wallet balance bar

@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import BN from "bn.js";
 import { useWallet, useConnection, useAnchorWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
+import { fetchPrices } from "../lib/prices";
 
 type Direction = "long" | "short";
 
@@ -21,44 +22,141 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
   const [leverage, setLeverage] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
+  const [marginBalance, setMarginBalance] = useState<number | null>(null);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [isDepositing, setIsDepositing] = useState(false);
+  const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
 
   const margin = size && marketPrice ? (parseFloat(size) * marketPrice) / leverage : 0;
   const positionValue = size && marketPrice ? parseFloat(size) * marketPrice : 0;
+
+  // Reuse client instance for the same wallet
+  const getClient = useCallback(() => {
+    if (!anchorWallet) return null;
+    if (!clientRef.current) {
+      try {
+        clientRef.current = createShadowPerpClient(connection, anchorWallet);
+      } catch {
+        return null;
+      }
+    }
+    return clientRef.current;
+  }, [anchorWallet, connection]);
+
+  // Reset client when wallet changes
+  useEffect(() => {
+    clientRef.current = null;
+  }, [anchorWallet]);
 
   // Reset size when pair changes
   useEffect(() => {
     setSize("");
   }, [activePair.label]);
 
-  const refreshMarketPrice = useCallback(async () => {
+  const refreshMarketData = useCallback(async () => {
+    // Always fetch live prices for fallback
+    const livePrices = await fetchPrices().catch(() => null);
+    const livePrice = livePrices?.[activePair.label]?.price ?? activePair.mockPrice;
+
     if (!anchorWallet) {
-      setMarketPrice(null);
+      setMarketPrice(livePrice);
+      setMarginBalance(null);
+      return;
+    }
+    const ctx = getClient();
+    if (!ctx) {
+      setMarketPrice(livePrice);
       return;
     }
     try {
-      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
-      const market = await client.getMarket(runtime.marketAddress);
-      const oraclePrice = new BN(market.oraclePrice.toString()).toNumber() / 1_000_000;
-      if (Number.isFinite(oraclePrice) && oraclePrice > 0) {
-        setMarketPrice(oraclePrice);
+      const { client, runtime } = ctx;
+      const [marketResult, marginResult] = await Promise.allSettled([
+        client.getMarket(runtime.marketAddress),
+        publicKey
+          ? client.getMarginAccount(
+              client.getMarginAccountAddress(runtime.marketAddress, publicKey)
+            )
+          : Promise.reject("no wallet"),
+      ]);
+      if (marketResult.status === "fulfilled") {
+        const oraclePrice = new BN(marketResult.value.oraclePrice.toString()).toNumber() / 1_000_000;
+        if (Number.isFinite(oraclePrice) && oraclePrice > 0) {
+          setMarketPrice(oraclePrice);
+        } else {
+          setMarketPrice(livePrice);
+        }
+      } else {
+        setMarketPrice(livePrice);
+      }
+      if (marginResult.status === "fulfilled") {
+        const bal = new BN(marginResult.value.balance.toString()).toNumber() / 1_000_000;
+        setMarginBalance(bal);
+      } else {
+        setMarginBalance(0);
       }
     } catch {
-      setMarketPrice(null);
+      setMarketPrice(livePrice);
     }
-  }, [anchorWallet, connection]);
+  }, [anchorWallet, publicKey, getClient, activePair]);
 
   useEffect(() => {
-    void refreshMarketPrice();
-    const interval = setInterval(() => void refreshMarketPrice(), 15_000);
+    void refreshMarketData();
+    const interval = setInterval(() => void refreshMarketData(), 15_000);
     return () => clearInterval(interval);
-  }, [refreshMarketPrice]);
+  }, [refreshMarketData]);
+
+  const handleDeposit = useCallback(async () => {
+    const amt = parseFloat(depositAmount);
+    if (!amt || amt <= 0) {
+      toast.error("Enter a valid deposit amount");
+      return;
+    }
+    if (!anchorWallet || !publicKey) {
+      toast.error("Please connect your wallet");
+      return;
+    }
+    setIsDepositing(true);
+    try {
+      const ctx = getClient();
+      if (!ctx) {
+        toast.error("Deposits unavailable in demo mode. Deploy the program to devnet first.", { id: "deposit" });
+        return;
+      }
+      const { client, runtime } = ctx;
+      const amountBN = new BN(Math.round(amt * 1_000_000)); // USDC 6 decimals
+      toast.loading("Depositing collateral...", { id: "deposit" });
+      const tx = await client.depositCollateral(runtime.marketAddress, amountBN);
+      toast.success(
+        <div>
+          <p className="font-medium">Deposited ${amt.toFixed(2)} USDC</p>
+          <a
+            href={`https://explorer.solana.com/tx/${tx}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-accent-purple underline"
+          >
+            View transaction
+          </a>
+        </div>,
+        { id: "deposit", duration: 8000 }
+      );
+      setDepositAmount("");
+      void refreshMarketData();
+    } catch (error: any) {
+      const msg = error?.message || "Deposit failed";
+      if (!msg.includes("env var")) {
+        toast.error(msg, { id: "deposit" });
+      }
+    } finally {
+      setIsDepositing(false);
+    }
+  }, [depositAmount, anchorWallet, publicKey, getClient, refreshMarketData]);
 
   const handleSubmit = useCallback(async () => {
     if (!size || parseFloat(size) <= 0) {
       toast.error("Please enter a valid size");
       return;
     }
-
     if (!publicKey) {
       toast.error("Please connect your wallet");
       return;
@@ -67,21 +165,29 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
       toast.error("Wallet does not support signing transactions");
       return;
     }
+    if (marginBalance !== null && marginBalance <= 0) {
+      toast.error("Deposit collateral first before opening a position");
+      return;
+    }
 
     setIsSubmitting(true);
-
     try {
-      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
+      const ctx = getClient();
+      if (!ctx) {
+        toast.error("Trading is unavailable in demo mode. Deploy the program to devnet first.", { id: "trade" });
+        return;
+      }
+      const { client, runtime } = ctx;
       const market = await client.getMarket(runtime.marketAddress);
 
       const sizeUi = Number(size);
       const baseDecimals = activePair.base.decimals;
       const sizeBase = new BN(Math.max(1, Math.round(sizeUi * 10 ** baseDecimals)));
       const oraclePrice = new BN(market.oraclePrice.toString());
-      const entryPrice = oraclePrice.gt(new BN(0)) ? oraclePrice : new BN(1); // 1e6 scale
+      const entryPrice = oraclePrice.gt(new BN(0)) ? oraclePrice : new BN(1);
       const oraclePriceUi = Number(entryPrice.toString()) / 1_000_000;
       const requiredMarginUi = (sizeUi * oraclePriceUi) / leverage;
-      const marginBase = new BN(Math.max(1, Math.round(requiredMarginUi * 1_000_000))); // USDC -> 1e6
+      const marginBase = new BN(Math.max(1, Math.round(requiredMarginUi * 1_000_000)));
 
       toast.loading("Submitting encrypted trade...", { id: "trade" });
 
@@ -113,16 +219,53 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
         { id: "trade", duration: 10000 }
       );
       setSize("");
+      void refreshMarketData();
     } catch (error: any) {
-      toast.error(error?.message || "Failed to open position", { id: "trade" });
+      const msg = error?.message || "Failed to open position";
+      if (!msg.includes("env var")) {
+        toast.error(msg, { id: "trade" });
+      }
     } finally {
       setIsSubmitting(false);
     }
-  }, [size, direction, leverage, publicKey, anchorWallet, connection, activePair.base.decimals]);
+  }, [size, direction, leverage, publicKey, anchorWallet, getClient, activePair.base.decimals, marginBalance, refreshMarketData]);
 
   return (
     <div className="position-card rounded-xl p-6">
       <h2 className="text-xl font-semibold mb-6">Open Position</h2>
+
+      {/* Margin Balance & Deposit */}
+      {publicKey && (
+        <div className="bg-shadow-700 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-gray-400">Margin Balance</span>
+            <span className="text-sm font-medium">
+              {marginBalance !== null ? `$${marginBalance.toFixed(2)} USDC` : "--"}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+              placeholder="Amount (USDC)"
+              className="flex-1 bg-shadow-600 border border-shadow-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent-purple transition-colors"
+            />
+            <button
+              onClick={handleDeposit}
+              disabled={isDepositing || !depositAmount}
+              className="px-4 py-2 bg-accent-purple/20 text-accent-purple rounded-lg text-sm font-medium hover:bg-accent-purple/30 transition-colors disabled:opacity-50"
+            >
+              {isDepositing ? "..." : "Deposit"}
+            </button>
+          </div>
+          {marginBalance === 0 && (
+            <p className="text-xs text-yellow-400 mt-2">
+              Deposit USDC collateral to start trading
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Direction Toggle */}
       <div className="grid grid-cols-2 gap-2 mb-6">

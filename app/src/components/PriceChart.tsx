@@ -1,31 +1,23 @@
-import { useEffect, useRef, useState, useCallback, memo } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 
-// Verified TradingView symbol mappings (PYTH and BINANCE feeds are most reliable)
-const TV_SYMBOLS: Record<string, string> = {
-  "SOL-PERP": "PYTH:SOLUSD",
-  "BONK-PERP": "BYBIT:BONKUSDT",
-  "WIF-PERP": "BYBIT:WIFUSDT",
-  "JUP-PERP": "BYBIT:JUPUSDT",
-  "BTC-PERP": "PYTH:BTCUSD",
-  "ETH-PERP": "PYTH:ETHUSD",
-  "PYTH-PERP": "BYBIT:PYTHUSDT",
-  "RAY-PERP": "BYBIT:RAYUSDT",
-  "ORCA-PERP": "BYBIT:ORCAUSDT",
-  "W-PERP": "BYBIT:WUSDT",
-  "JTO-PERP": "BYBIT:JTOUSDT",
-  "RENDER-PERP": "BINANCE:RENDERUSDT",
-  "HNT-PERP": "BINANCE:HNTUSDT",
+// Use explicit TradingView symbol candidates so we can quickly fall back
+// to another exchange feed for pairs that are intermittently unavailable.
+const TV_SYMBOL_CANDIDATES: Record<string, string[]> = {
+  "SOL-PERP": ["BINANCE:SOLUSDT"],
+  "BONK-PERP": ["BINANCE:1000BONKUSDT", "MEXC:BONKUSDT"],
+  "WIF-PERP": ["BINANCE:WIFUSDT", "BYBIT:WIFUSDT"],
+  "JUP-PERP": ["BYBIT:JUPUSDT", "MEXC:JUPUSDT"],
+  "BTC-PERP": ["BINANCE:BTCUSDT"],
+  "ETH-PERP": ["BINANCE:ETHUSDT"],
+  "PYTH-PERP": ["BYBIT:PYTHUSDT", "MEXC:PYTHUSDT"],
+  "RAY-PERP": ["BINANCE:RAYUSDT", "GATEIO:RAYUSDT"],
+  "ORCA-PERP": ["CRYPTO:ORCAUSD", "MEXC:ORCAUSDT"],
+  "W-PERP": ["BINANCE:WUSDT", "BYBIT:WUSDT"],
+  "JTO-PERP": ["BYBIT:JTOUSDT", "MEXC:JTOUSDT"],
+  "RENDER-PERP": ["BINANCE:RENDERUSDT"],
+  "HNT-PERP": ["COINBASE:HNTUSD", "KRAKEN:HNTUSD", "MEXC:HNTUSDT"],
 };
-
-// Preload the TradingView script into browser cache on module load
-if (typeof window !== "undefined") {
-  const link = document.createElement("link");
-  link.rel = "preload";
-  link.as = "script";
-  link.href = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-  document.head.appendChild(link);
-}
 
 interface PriceChartProps {
   selectedPair?: TradingPair;
@@ -60,13 +52,10 @@ const PairButton = memo(function PairButton({
 });
 
 export default function PriceChart({ selectedPair, onPairChange }: PriceChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [activePair, setActivePair] = useState<TradingPair>(selectedPair ?? TRADING_PAIRS[0]);
   const [isLoading, setIsLoading] = useState(true);
-  const pendingSymbolRef = useRef<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [feedIndex, setFeedIndex] = useState(0);
 
-  // Sync with parent
   useEffect(() => {
     if (selectedPair) setActivePair(selectedPair);
   }, [selectedPair]);
@@ -74,91 +63,46 @@ export default function PriceChart({ selectedPair, onPairChange }: PriceChartPro
   const handlePairChange = useCallback(
     (pair: TradingPair) => {
       setActivePair(pair);
+      setFeedIndex(0);
       onPairChange?.(pair);
     },
     [onPairChange]
   );
 
-  const tvSymbol = TV_SYMBOLS[activePair.label] ?? "PYTH:SOLUSD";
+  const symbolCandidates =
+    TV_SYMBOL_CANDIDATES[activePair.label] ?? [`BINANCE:${activePair.base.symbol}USDT`];
+  const tvSymbol = symbolCandidates[feedIndex] ?? symbolCandidates[0];
+  const canSwitchFeed = symbolCandidates.length > 1;
 
-  // Debounced widget injection - avoids rapid destroy/create cycles when clicking through pairs
+  // Auto-advance to next feed if the current one doesn't render in time
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!canSwitchFeed) return;
+    const timeout = setTimeout(() => {
+      // If still loading after 8s, try next feed
+      if (isLoading) {
+        setFeedIndex((prev) => (prev + 1) % symbolCandidates.length);
+      }
+    }, 8000);
+    return () => clearTimeout(timeout);
+  }, [tvSymbol, isLoading, canSwitchFeed, symbolCandidates.length]);
 
-    const container = containerRef.current;
-
-    // If the symbol we want is already rendering, skip
-    if (pendingSymbolRef.current === tvSymbol) return;
-    pendingSymbolRef.current = tvSymbol;
-
-    // Clear any pending debounce
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    setIsLoading(true);
-
-    debounceRef.current = setTimeout(() => {
-      // Double-check this is still the symbol we want
-      if (pendingSymbolRef.current !== tvSymbol) return;
-
-      container.innerHTML = "";
-
-      const widgetDiv = document.createElement("div");
-      widgetDiv.className = "tradingview-widget-container__widget";
-      widgetDiv.style.height = "100%";
-      widgetDiv.style.width = "100%";
-      container.appendChild(widgetDiv);
-
-      const script = document.createElement("script");
-      script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-      script.type = "text/javascript";
-      script.async = true;
-      script.innerHTML = JSON.stringify({
-        autosize: true,
-        symbol: tvSymbol,
-        interval: "60",
-        timezone: "Etc/UTC",
-        theme: "dark",
-        style: "1",
-        locale: "en",
-        allow_symbol_change: false,
-        backgroundColor: "rgba(13, 13, 20, 1)",
-        gridColor: "rgba(139, 92, 246, 0.04)",
-        hide_top_toolbar: false,
-        hide_legend: false,
-        save_image: false,
-        calendar: false,
-        hide_volume: false,
-        support_host: "https://www.tradingview.com",
-        studies: [],
-        withdateranges: true,
-        details: false,
-        hotlist: false,
-        show_popup_button: false,
-      });
-
-      script.onload = () => setIsLoading(false);
-      // Fallback - widget renders inside an iframe; give it a reasonable window
-      setTimeout(() => setIsLoading(false), 3000);
-
-      container.appendChild(script);
-    }, 150); // 150ms debounce
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+  const iframeSrc = useMemo(() => {
+    const params = new URLSearchParams({
+      symbol: tvSymbol,
+      interval: "60",
+      theme: "dark",
+      style: "1",
+      timezone: "Etc/UTC",
+      withdateranges: "1",
+      allow_symbol_change: "0",
+      hide_side_toolbar: "0",
+      saveimage: "0",
+    });
+    return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
   }, [tvSymbol]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (containerRef.current) containerRef.current.innerHTML = "";
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
 
   return (
     <div className="position-card rounded-xl overflow-hidden">
-      {/* Custom header bar with pair selector + privacy badge */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-shadow-600">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-shadow-500 pr-4">
           {TRADING_PAIRS.map((pair) => (
@@ -166,12 +110,14 @@ export default function PriceChart({ selectedPair, onPairChange }: PriceChartPro
               key={pair.label}
               pair={pair}
               isActive={activePair.label === pair.label}
-              onClick={() => handlePairChange(pair)}
+              onClick={() => {
+                setIsLoading(true);
+                handlePairChange(pair);
+              }}
             />
           ))}
         </div>
 
-        {/* Privacy badge */}
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-accent-purple/15 border border-accent-purple/30 flex-shrink-0">
           <svg className="w-3 h-3 text-accent-purple" fill="currentColor" viewBox="0 0 20 20">
             <path
@@ -182,11 +128,22 @@ export default function PriceChart({ selectedPair, onPairChange }: PriceChartPro
           </svg>
           <span className="text-xs text-accent-purple">Positions Encrypted</span>
         </div>
+
+        {canSwitchFeed && (
+          <button
+            onClick={() => {
+              setIsLoading(true);
+              setFeedIndex((prev) => (prev + 1) % symbolCandidates.length);
+            }}
+            className="ml-2 px-2.5 py-1 text-xs rounded border border-shadow-500 text-gray-300 hover:text-white hover:border-shadow-400 transition-colors"
+            title={`Switch data feed (${feedIndex + 1}/${symbolCandidates.length})`}
+          >
+            Feed {feedIndex + 1}/{symbolCandidates.length}
+          </button>
+        )}
       </div>
 
-      {/* TradingView widget */}
       <div className="relative">
-        {/* Loading skeleton */}
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-shadow-800">
             <div className="flex flex-col items-center gap-3">
@@ -199,17 +156,23 @@ export default function PriceChart({ selectedPair, onPairChange }: PriceChartPro
           </div>
         )}
 
-        <div ref={containerRef} className="w-full h-[500px]" />
+        <iframe
+          key={tvSymbol}
+          src={iframeSrc}
+          className="w-full h-[560px] xl:h-[640px]"
+          frameBorder="0"
+          allowFullScreen
+          title={`${activePair.label} chart`}
+          onLoad={() => setIsLoading(false)}
+        />
 
-        {/* Privacy overlay at bottom */}
         <div className="absolute bottom-2 left-2 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-shadow-800/90 backdrop-blur-sm border border-accent-purple/20">
           <div className="w-1.5 h-1.5 rounded-full bg-accent-purple animate-pulse" />
           <span className="text-xs text-gray-400">
-            Price is public - your positions are <span className="text-accent-purple font-medium">MPC encrypted</span> via Arcium
+            Price is public - your positions are <span className="text-accent-purple font-medium">MPC encrypted</span> via Arcium.
           </span>
         </div>
       </div>
     </div>
   );
 }
-

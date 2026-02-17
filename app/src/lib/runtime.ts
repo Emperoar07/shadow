@@ -1,6 +1,13 @@
 import { PublicKey } from "@solana/web3.js";
 import shadowperpIdl from "../idl/shadowperp.json";
+import {
+  getExecutingPoolAccAddress,
+  getMempoolAccAddress,
+  getStakingPoolAccAddress,
+} from "@arcium-hq/client";
 import { ShadowPerpConfig } from "../types";
+
+const DEFAULT_SHADOWPERP_PROGRAM_ID = "11111111111111111111111111111111";
 
 function readRequired(name: string): string {
   const value = process.env[name];
@@ -10,8 +17,12 @@ function readRequired(name: string): string {
   return value.trim();
 }
 
-function parsePublicKey(name: string): PublicKey {
-  const raw = readRequired(name);
+function parsePublicKey(name: string, fallback?: string): PublicKey {
+  const envValue = process.env[name]?.trim();
+  const raw = envValue && envValue.length > 0 ? envValue : fallback;
+  if (!raw) {
+    throw new Error(`Missing required env var: ${name}`);
+  }
   try {
     return new PublicKey(raw);
   } catch (error: any) {
@@ -20,16 +31,22 @@ function parsePublicKey(name: string): PublicKey {
 }
 
 export function getRuntimeConfig(): ShadowPerpConfig {
+  const mxeProgramId = parsePublicKey("NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID");
+  const signPdaAccount = PublicKey.findProgramAddressSync(
+    [Buffer.from("SignerAccount")],
+    mxeProgramId
+  )[0];
+
   return {
-    programId: parsePublicKey("NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID"),
-    mxeProgramId: parsePublicKey("NEXT_PUBLIC_ARCIUM_PROGRAM_ID"),
+    programId: parsePublicKey("NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID", DEFAULT_SHADOWPERP_PROGRAM_ID),
+    arciumProgramId: parsePublicKey("NEXT_PUBLIC_ARCIUM_PROGRAM_ID"),
+    mxeProgramId,
     clusterAddress: parsePublicKey("NEXT_PUBLIC_ARCIUM_CLUSTER_ACCOUNT"),
     marketAddress: parsePublicKey("NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT"),
-    mempoolAccount: parsePublicKey("NEXT_PUBLIC_ARCIUM_MEMPOOL_ACCOUNT"),
-    executingPool: parsePublicKey("NEXT_PUBLIC_ARCIUM_EXECUTING_POOL"),
-    computationAccount: parsePublicKey("NEXT_PUBLIC_ARCIUM_COMPUTATION_ACCOUNT"),
-    poolAccount: parsePublicKey("NEXT_PUBLIC_ARCIUM_POOL_ACCOUNT"),
-    signPdaAccount: parsePublicKey("NEXT_PUBLIC_ARCIUM_SIGN_PDA_ACCOUNT"),
+    mempoolAccount: getMempoolAccAddress(mxeProgramId),
+    executingPool: getExecutingPoolAccAddress(mxeProgramId),
+    poolAccount: getStakingPoolAccAddress(),
+    signPdaAccount,
     idl: shadowperpIdl,
   };
 }
