@@ -23,9 +23,8 @@ mod open_position_circuit {
         oi_state: Enc<Mxe, (u64, u64)>,
     ) -> (
         bool,
-        Enc<Mxe, (u64, u64, u8, bool, u64, u128, u128)>,
+        Enc<Mxe, ((u64, u64, u8, bool, u64, u128, u128), (u64, u64))>,
         u64,
-        Enc<Mxe, (u64, u64)>,
     ) {
         let size = size.to_arcis();
         let entry_price = entry_price.to_arcis();
@@ -59,13 +58,12 @@ mod open_position_circuit {
         }
 
         let position = (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi);
-        let owner = oi_state.owner;
+        let combined = (position, oi);
 
         (
             success.reveal(),
-            owner.clone().from_arcis(position),
+            oi_state.owner.from_arcis(combined),
             required_margin.reveal(),
-            owner.from_arcis(oi),
         )
     }
 }

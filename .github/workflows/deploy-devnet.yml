@@ -71,13 +71,15 @@ jobs:
       - name: Build only (dry run)
         if: ${{ inputs.dry_run == true }}
         run: |
-          arcium build
+          arcium build --help || true
+          RUST_LOG=debug RUST_BACKTRACE=full arcium build
           anchor build
 
       - name: Deploy + initialize devnet
         if: ${{ inputs.dry_run == false }}
         run: |
-          arcium build
+          arcium build --help || true
+          RUST_LOG=debug RUST_BACKTRACE=full arcium build
           npx --yes ts-node scripts/deploy-devnet.ts
           if [ -f app/.env.local ]; then
             echo "### Devnet Outputs" >> "$GITHUB_STEP_SUMMARY"
