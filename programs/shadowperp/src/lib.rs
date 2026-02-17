@@ -6,7 +6,20 @@ pub mod handlers;
 pub mod state;
 
 use errors::ErrorCode;
-use handlers::*;
+use handlers::callbacks::close_position_callback::ClosePositionCallback;
+use handlers::callbacks::liquidation_callback::CheckLiquidationCallback;
+use handlers::callbacks::open_position_callback::OpenPositionCallback;
+use handlers::check_liquidation::CheckLiquidation;
+use handlers::close_position::ClosePosition;
+use handlers::deposit_collateral::DepositCollateral;
+use handlers::init_comp_defs::{
+    InitClosePositionCompDef, InitLiquidationCompDef, InitOpenPositionCompDef,
+};
+use handlers::initialize::Initialize;
+use handlers::open_position::OpenPosition;
+use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
+use handlers::update_price::UpdatePrice;
+use handlers::withdraw_collateral::WithdrawCollateral;
 
 declare_id!("11111111111111111111111111111111");
 

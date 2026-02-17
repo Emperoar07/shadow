@@ -9,5 +9,5 @@ crate-type = ["cdylib", "lib"]
 name = "shadowperp_circuits"
 
 [dependencies]
-arcis = "0.8.4"
-arcis-imports = "0.8.4"
+arcis = "=0.8.4"
+arcis-imports = "=0.8.4"

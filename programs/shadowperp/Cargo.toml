@@ -16,9 +16,9 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
-anchor-spl = "0.32.1"
-arcium-anchor = "0.8.3"
-arcium-macros = "0.8.3"
+anchor-lang = { version = "=0.32.1", features = ["init-if-needed"] }
+anchor-spl = "=0.32.1"
+arcium-anchor = "=0.8.4"
+arcium-macros = "=0.8.4"
 bytemuck = { version = "1.14", features = ["derive"] }
 solana-instruction = "=2.3.3"
