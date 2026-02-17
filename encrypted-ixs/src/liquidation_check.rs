@@ -54,6 +54,6 @@ mod liquidation_check_circuit {
 
         let liquidation_price = if should_liquidate { mark_price } else { 0 };
 
-        (should_liquidate, liquidation_price)
+        (should_liquidate.reveal(), liquidation_price.reveal())
     }
 }

@@ -56,10 +56,10 @@ mod open_position_circuit {
         let position = (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi);
 
         (
-            success,
-            Mxe.from_arcis(position),
-            required_margin,
-            Mxe.from_arcis(oi),
+            success.reveal(),
+            oi_state.owner.from_arcis(position),
+            required_margin.reveal(),
+            oi_state.owner.from_arcis(oi),
         )
     }
 }

@@ -73,8 +73,8 @@ mod close_position_circuit {
         }
 
         // NOTE: ClosePositionResult is REVEALED (not re-encrypted)
-        let result = (realized_pnl, settlement_amount, fee);
+        let result = (realized_pnl.reveal(), settlement_amount.reveal(), fee.reveal());
 
-        (result, Mxe.from_arcis(oi))
+        (result, oi_state.owner.from_arcis(oi))
     }
 }
