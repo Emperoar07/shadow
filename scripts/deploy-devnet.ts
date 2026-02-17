@@ -45,14 +45,19 @@ const ARCIUM_CLUSTER_ACCOUNT = new PublicKey("536voMDX7c7FxgQDhciVwQkDHnusWwFTsa
 async function main() {
   console.log("\n=== ShadowPerp Devnet Deployment ===\n");
 
-  // 1. Build the program
-  console.log("Step 1: Building Anchor program...");
-  try {
-    execSync("anchor build", { cwd: path.resolve(__dirname, ".."), stdio: "inherit" });
-  } catch {
-    console.error("ERROR: `anchor build` failed. Ensure Rust, Solana CLI, and Anchor CLI are installed.");
-    console.error("  Install: https://www.anchor-lang.com/docs/installation");
-    process.exit(1);
+  // 1. Build check (assume anchor build already ran in CI)
+  console.log("Step 1: Checking build artifacts...");
+  const soPath = path.resolve(__dirname, "..", "target", "deploy", "shadowperp.so");
+  if (!fs.existsSync(soPath)) {
+    console.log("No build artifacts found, running anchor build...");
+    try {
+      execSync("anchor build", { cwd: path.resolve(__dirname, ".."), stdio: "inherit" });
+    } catch {
+      console.error("ERROR: `anchor build` failed.");
+      process.exit(1);
+    }
+  } else {
+    console.log("Build artifacts found, skipping build.");
   }
 
   // 2. Deploy to devnet
