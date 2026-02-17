@@ -312,15 +312,6 @@ You can deploy ShadowPerp with a split model:
 
 Note: Static hosting providers only serve the web app. On-chain program logic and MPC execution run on Solana + Arcium infrastructure.
 
-## Roadmap
-
-- [ ] Mainnet deployment
-- [ ] Multiple trading pairs (ETH-PERP, BTC-PERP)
-- [ ] Encrypted limit orders
-- [ ] Funding rate mechanism
-- [ ] Liquidation bounties for keepers
-- [ ] Mobile-responsive trading UI
-
 ## Tech Stack
 
 | Component | Technology |
