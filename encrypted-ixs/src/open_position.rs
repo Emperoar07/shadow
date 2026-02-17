@@ -21,11 +21,7 @@ mod open_position_circuit {
         owner_hi: Enc<Shared, u128>,
         market_params: (u8, u16, u16, u64),
         oi_state: Enc<Mxe, (u64, u64)>,
-    ) -> (
-        bool,
-        Enc<Mxe, ((u64, u64, u8, bool, u64, u128, u128), (u64, u64))>,
-        u64,
-    ) {
+    ) -> (bool, Enc<Mxe, ((u64, u64, u8, bool, u64, u128, u128), (u64, u64))>, u64) {
         let size = size.to_arcis();
         let entry_price = entry_price.to_arcis();
         let leverage = leverage.to_arcis();
