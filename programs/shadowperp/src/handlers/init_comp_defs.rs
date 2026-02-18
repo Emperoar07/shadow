@@ -25,12 +25,15 @@ pub struct InitOpenPositionCompDef<'info> {
     #[account(mut, address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
 
+    /// CHECK: Created and validated by the Arcium program during init_comp_def CPI.
     #[account(mut)]
     pub comp_def_account: UncheckedAccount<'info>,
 
+    /// CHECK: Derived LUT PDA checked by address constraint above.
     #[account(mut, address = derive_mxe_lut_pda!(mxe_account.lut_offset_slot))]
     pub address_lookup_table: UncheckedAccount<'info>,
 
+    /// CHECK: Must match LUT program id via address constraint above.
     #[account(address = LUT_PROGRAM_ID)]
     pub lut_program: UncheckedAccount<'info>,
 
@@ -71,12 +74,15 @@ pub struct InitClosePositionCompDef<'info> {
     #[account(mut, address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
 
+    /// CHECK: Created and validated by the Arcium program during init_comp_def CPI.
     #[account(mut)]
     pub comp_def_account: UncheckedAccount<'info>,
 
+    /// CHECK: Derived LUT PDA checked by address constraint above.
     #[account(mut, address = derive_mxe_lut_pda!(mxe_account.lut_offset_slot))]
     pub address_lookup_table: UncheckedAccount<'info>,
 
+    /// CHECK: Must match LUT program id via address constraint above.
     #[account(address = LUT_PROGRAM_ID)]
     pub lut_program: UncheckedAccount<'info>,
 
@@ -117,12 +123,15 @@ pub struct InitLiquidationCompDef<'info> {
     #[account(mut, address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
 
+    /// CHECK: Created and validated by the Arcium program during init_comp_def CPI.
     #[account(mut)]
     pub comp_def_account: UncheckedAccount<'info>,
 
+    /// CHECK: Derived LUT PDA checked by address constraint above.
     #[account(mut, address = derive_mxe_lut_pda!(mxe_account.lut_offset_slot))]
     pub address_lookup_table: UncheckedAccount<'info>,
 
+    /// CHECK: Must match LUT program id via address constraint above.
     #[account(address = LUT_PROGRAM_ID)]
     pub lut_program: UncheckedAccount<'info>,
 
