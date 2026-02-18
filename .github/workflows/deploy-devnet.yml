@@ -95,3 +95,16 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             grep '^NEXT_PUBLIC_' app/.env.local >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Upload build artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: arcium-build-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            build/open_position.arcis
+            build/close_position.arcis
+            build/check_liquidation.arcis
+            target/idl/shadowperp.json
+            app/.env.local
