@@ -4,7 +4,6 @@ use arcium_anchor::prelude::*;
 pub mod errors;
 pub mod handlers;
 pub mod state;
-pub use handlers::*;
 
 use errors::ErrorCode;
 use handlers::callbacks::close_position_callback::ClosePositionCallback;
