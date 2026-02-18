@@ -8,7 +8,6 @@ import PrivacyBadge from "../components/PrivacyBadge";
 import NetworkIndicator from "../components/NetworkIndicator";
 import PortfolioSummary from "../components/PortfolioSummary";
 import BottomPositionsPanel from "../components/BottomPositionsPanel";
-import MarketTickerBar from "../components/MarketTickerBar";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 import NeuralShadowBackground from "../components/NeuralShadowBackground";
 
@@ -67,9 +66,6 @@ export default function TradingAppPage() {
               <WalletMultiButton />
             </div>
           </header>
-
-          {/* ── Market ticker bar ── */}
-          <MarketTickerBar activePair={selectedPair} onSelect={setSelectedPair} />
 
           {/* ── Main terminal ── */}
           <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 py-3 flex flex-col gap-3">
