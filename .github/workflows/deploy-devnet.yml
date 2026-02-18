@@ -68,6 +68,41 @@ jobs:
           solana address
           solana balance || true
 
+      - name: Top up deployer SOL (best effort)
+        run: |
+          set +e
+          WALLET="$(solana address)"
+          echo "Wallet: ${WALLET}"
+
+          # Try direct airdrop to deployer wallet.
+          for AMOUNT in 5 2 1; do
+            echo "Attempting direct airdrop ${AMOUNT} SOL..."
+            solana airdrop "${AMOUNT}" "${WALLET}" --url https://api.devnet.solana.com && break
+            sleep 3
+          done
+
+          # Try a fresh temporary wallet and forward funds to deployer.
+          TMP_KEYPAIR="$(mktemp)"
+          solana-keygen new --no-bip39-passphrase -o "${TMP_KEYPAIR}" --force --silent
+          TMP_WALLET="$(solana-keygen pubkey "${TMP_KEYPAIR}")"
+          echo "Temporary wallet: ${TMP_WALLET}"
+
+          for ATTEMPT in 1 2 3 4 5; do
+            echo "Attempting temp-wallet airdrop (attempt ${ATTEMPT})..."
+            solana airdrop 2 "${TMP_WALLET}" --url https://api.devnet.solana.com && break
+            sleep 3
+          done
+
+          solana balance "${TMP_WALLET}" || true
+          solana transfer \
+            --from "${TMP_KEYPAIR}" \
+            --fee-payer "${TMP_KEYPAIR}" \
+            --allow-unfunded-recipient \
+            "${WALLET}" 1.8 --no-wait || true
+
+          echo "Final deployer balance:"
+          solana balance || true
+
       - name: Build only (dry run)
         if: ${{ inputs.dry_run == true }}
         run: |
