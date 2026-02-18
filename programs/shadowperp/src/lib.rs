@@ -5,6 +5,22 @@ pub mod errors;
 pub mod handlers;
 pub mod state;
 
+pub use handlers::__client_accounts_add_private_order;
+pub use handlers::__client_accounts_check_liquidation;
+pub use handlers::__client_accounts_check_liquidation_callback;
+pub use handlers::__client_accounts_close_position;
+pub use handlers::__client_accounts_close_position_callback;
+pub use handlers::__client_accounts_deposit_collateral;
+pub use handlers::__client_accounts_init_close_position_comp_def;
+pub use handlers::__client_accounts_init_liquidation_comp_def;
+pub use handlers::__client_accounts_init_open_position_comp_def;
+pub use handlers::__client_accounts_init_private_order_book;
+pub use handlers::__client_accounts_initialize;
+pub use handlers::__client_accounts_open_position;
+pub use handlers::__client_accounts_open_position_callback;
+pub use handlers::__client_accounts_update_price;
+pub use handlers::__client_accounts_withdraw_collateral;
+
 use errors::ErrorCode;
 use handlers::callbacks::close_position_callback::ClosePositionCallback;
 use handlers::callbacks::liquidation_callback::CheckLiquidationCallback;
