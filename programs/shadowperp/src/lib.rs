@@ -23,8 +23,11 @@ use handlers::__client_accounts_withdraw_collateral;
 
 use errors::ErrorCode;
 use handlers::callbacks::close_position_callback::ClosePositionCallback;
+use handlers::callbacks::close_position_callback::ClosePositionOutput;
 use handlers::callbacks::liquidation_callback::CheckLiquidationCallback;
+use handlers::callbacks::liquidation_callback::CheckLiquidationOutput;
 use handlers::callbacks::open_position_callback::OpenPositionCallback;
+use handlers::callbacks::open_position_callback::OpenPositionOutput;
 use handlers::check_liquidation::CheckLiquidation;
 use handlers::close_position::ClosePosition;
 use handlers::deposit_collateral::DepositCollateral;

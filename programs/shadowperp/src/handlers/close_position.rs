@@ -179,6 +179,11 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         &callback_accounts,
     )?;
 
+    let position_key = position.key();
+    let oracle_price = market.oracle_price;
+    drop(position);
+    drop(market);
+
     // Queue the computation to Arcium MPC network
     queue_computation(
         ctx.accounts,
@@ -191,8 +196,8 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
 
     msg!("Position close queued for MPC computation");
     msg!("Computation offset: {}", computation_offset);
-    msg!("Position: {}", position.key());
-    msg!("Current oracle price: {}", market.oracle_price);
+    msg!("Position: {}", position_key);
+    msg!("Current oracle price: {}", oracle_price);
 
     Ok(())
 }

@@ -200,6 +200,11 @@ pub fn handler(
         &callback_accounts,
     )?;
 
+    let position_index = position.index;
+    drop(position);
+    drop(market);
+    drop(margin_account);
+
     // Queue the computation to Arcium MPC network
     queue_computation(
         ctx.accounts,
@@ -212,7 +217,7 @@ pub fn handler(
 
     msg!("Position opening queued for MPC computation");
     msg!("Computation offset: {}", computation_offset);
-    msg!("Position index: {}", position.index);
+    msg!("Position index: {}", position_index);
 
     Ok(())
 }
