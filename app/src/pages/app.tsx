@@ -3,12 +3,13 @@ import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
 import TradingPanel from "../components/TradingPanel";
-import PositionsList from "../components/PositionsList";
 import MarketInfo from "../components/MarketInfo";
 import PrivacyBadge from "../components/PrivacyBadge";
 import NetworkIndicator from "../components/NetworkIndicator";
 import PortfolioSummary from "../components/PortfolioSummary";
+import BottomPositionsPanel from "../components/BottomPositionsPanel";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
+import NeuralShadowBackground from "../components/NeuralShadowBackground";
 
 const WalletMultiButton = dynamic(
   () => import("@solana/wallet-adapter-react-ui").then((mod) => mod.WalletMultiButton),
@@ -17,101 +18,113 @@ const WalletMultiButton = dynamic(
 const PriceChart = dynamic(() => import("../components/PriceChart"), { ssr: false });
 
 export default function TradingAppPage() {
-  const [activeTab, setActiveTab] = useState<"trade" | "positions">("trade");
   const [selectedPair, setSelectedPair] = useState<TradingPair>(TRADING_PAIRS[0]);
 
   return (
     <>
       <Head>
-        <title>ShadowPerp App - Trading Terminal</title>
+        <title>ShadowPerp — Private Perpetuals on Solana</title>
         <meta
           name="description"
-          content="ShadowPerp private perpetual futures trading terminal."
+          content="ShadowPerp private perpetual futures trading terminal powered by Arcium MPC."
         />
       </Head>
 
-      <div className="min-h-screen gradient-bg">
-        <header className="border-b border-shadow-600">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/"
-                className="text-2xl font-bold bg-gradient-to-r from-accent-purple to-accent-blue bg-clip-text text-transparent"
-              >
-                ShadowPerp
-              </Link>
-              <PrivacyBadge />
-              <NetworkIndicator />
-            </div>
+      <div className="relative min-h-screen gradient-bg overflow-hidden">
+        <style jsx>{`
+          @keyframes header-logo-glow {
+            0%,
+            100% {
+              filter: drop-shadow(0 0 10px rgba(109, 82, 255, 0.32));
+            }
+            50% {
+              filter: drop-shadow(0 0 18px rgba(56, 189, 248, 0.3));
+            }
+          }
+          .header-logo-animate {
+            animation: header-logo-glow 4s infinite ease-in-out;
+          }
+        `}</style>
+        <NeuralShadowBackground />
 
-            <nav className="flex items-center gap-3">
-              <button
-                onClick={() => setActiveTab("trade")}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  activeTab === "trade"
-                    ? "bg-shadow-600 text-white"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                Trade
-              </button>
-              <button
-                onClick={() => setActiveTab("positions")}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  activeTab === "positions"
-                    ? "bg-shadow-600 text-white"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                Positions
-              </button>
+        <div className="relative z-10 flex flex-col min-h-screen">
+          {/* ── Header ── */}
+          <header className="border-b border-shadow-600 shrink-0">
+            <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/"
+                  className="flex items-center gap-2 text-xl font-bold bg-gradient-to-r from-accent-purple to-accent-blue bg-clip-text text-transparent"
+                >
+                  <ShadowLogo className="h-7 w-7 shrink-0 header-logo-animate" />
+                  ShadowPerp
+                </Link>
+                <PrivacyBadge />
+                <NetworkIndicator />
+              </div>
+
               <WalletMultiButton />
-            </nav>
-          </div>
-        </header>
-
-        <main className="max-w-7xl mx-auto px-4 py-6">
-          {/* Portfolio Summary */}
-          <PortfolioSummary />
-
-          {/* Chart - trade tab only */}
-          {activeTab === "trade" && (
-            <div className="mb-6">
-              <PriceChart selectedPair={selectedPair} onPairChange={setSelectedPair} />
             </div>
-          )}
+          </header>
 
-          {/* Trading panel + Market info */}
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-              <MarketInfo pair={selectedPair} />
-            </div>
-            <div className="lg:col-span-2">
-              {activeTab === "trade" ? <TradingPanel pair={selectedPair} /> : <PositionsList />}
-            </div>
-          </div>
-        </main>
+          {/* ── Main terminal ── */}
+          <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 py-3 flex flex-col gap-3">
+            {/* Portfolio summary strip */}
+            <PortfolioSummary />
 
-        <footer className="border-t border-shadow-600 mt-auto">
-          <div className="max-w-7xl mx-auto px-4 py-6 text-center text-gray-500 text-sm">
-            <p>
-              Powered by{" "}
-              <a
-                href="https://arcium.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent-purple hover:underline"
-              >
-                Arcium
-              </a>{" "}
-              - Built on Solana
-            </p>
-            <p className="mt-2">
-              Your trades are encrypted using multi-party computation.
-            </p>
-          </div>
-        </footer>
+            {/* Terminal grid: chart (flex-grow) | right column (fixed 360px) */}
+            <div className="grid gap-3 grid-cols-1 lg:grid-cols-[1fr_360px]">
+              {/* Left – price chart */}
+              <div className="min-w-0">
+                <PriceChart selectedPair={selectedPair} onPairChange={setSelectedPair} />
+              </div>
+
+              {/* Right – market info + order form stacked */}
+              <div className="flex flex-col gap-3">
+                <MarketInfo pair={selectedPair} />
+                <TradingPanel pair={selectedPair} />
+              </div>
+            </div>
+
+            {/* Bottom – positions panel (always visible, Hyperliquid-style) */}
+            <BottomPositionsPanel />
+          </main>
+
+          {/* ── Footer ── */}
+          <footer className="border-t border-shadow-600 shrink-0">
+            <div className="max-w-[1600px] mx-auto px-4 py-4 flex items-center justify-between text-xs text-gray-500">
+              <p>
+                Powered by{" "}
+                <a
+                  href="https://arcium.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent-purple hover:underline"
+                >
+                  Arcium MPC
+                </a>{" "}
+                · Built on Solana
+              </p>
+              <p>Your trades are encrypted end-to-end. Only PnL is ever revealed.</p>
+            </div>
+          </footer>
+        </div>
       </div>
     </>
+  );
+}
+
+function ShadowLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 100 100" className={className} aria-hidden="true">
+      <defs>
+        <linearGradient id="trade-shadow-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style={{ stopColor: "#8b5cf6", stopOpacity: 1 }} />
+          <stop offset="100%" style={{ stopColor: "#3b82f6", stopOpacity: 1 }} />
+        </linearGradient>
+      </defs>
+      <circle cx="50" cy="50" r="40" fill="url(#trade-shadow-logo-grad)" />
+      <circle cx="62" cy="38" r="41" fill="#05081a" />
+    </svg>
   );
 }

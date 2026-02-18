@@ -1,14 +1,18 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import BN from "bn.js";
-import { useWallet, useConnection, useAnchorWallet } from "@solana/wallet-adapter-react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import { fetchPrices } from "../lib/prices";
 import TradeConfirmationModal, { TradeStep } from "./TradeConfirmationModal";
 import { useArciumPrivacy } from "../hooks/useArcium";
+import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 
 type Direction = "long" | "short";
+type SizeUnit = "base" | "usd";
+
+const LEVERAGE_PRESETS = [2, 5, 10, 25, 50] as const;
 
 interface TradingPanelProps {
   pair?: TradingPair;
@@ -17,10 +21,11 @@ interface TradingPanelProps {
 export default function TradingPanel({ pair }: TradingPanelProps) {
   const activePair = pair ?? TRADING_PAIRS[0];
   const { publicKey } = useWallet();
-  const anchorWallet = useAnchorWallet();
+  const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
   const [direction, setDirection] = useState<Direction>("long");
   const [size, setSize] = useState("");
+  const [sizeUnit, setSizeUnit] = useState<SizeUnit>("base");
   const [leverage, setLeverage] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
@@ -31,7 +36,6 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
   const [tradeStep, setTradeStep] = useState<TradeStep>("signing");
   const [tradeTxSig, setTradeTxSig] = useState<string | undefined>();
   const [tradeError, setTradeError] = useState<string | undefined>();
-  const [isPrivate, setIsPrivate] = useState(true);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
   const {
     submitPrivateOrder,
@@ -41,8 +45,16 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
     resetStatus: resetPrivacyStatus,
   } = useArciumPrivacy();
 
-  const margin = size && marketPrice ? (parseFloat(size) * marketPrice) / leverage : 0;
-  const positionValue = size && marketPrice ? parseFloat(size) * marketPrice : 0;
+  // Normalise to base units regardless of which unit the user is typing in
+  const sizeInBase =
+    size && marketPrice
+      ? sizeUnit === "usd"
+        ? parseFloat(size) / marketPrice
+        : parseFloat(size)
+      : 0;
+
+  const positionValue = sizeInBase && marketPrice ? sizeInBase * marketPrice : 0;
+  const margin = positionValue > 0 ? positionValue / leverage : 0;
 
   // Reuse client instance for the same wallet
   const getClient = useCallback(() => {
@@ -62,10 +74,10 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
     clientRef.current = null;
   }, [anchorWallet]);
 
-  // Reset size when pair changes
+  // Reset size when pair or unit changes
   useEffect(() => {
     setSize("");
-  }, [activePair.label]);
+  }, [activePair.label, sizeUnit]);
 
   const refreshMarketData = useCallback(async () => {
     // Always fetch live prices for fallback
@@ -167,7 +179,7 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
   }, [depositAmount, anchorWallet, publicKey, getClient, refreshMarketData]);
 
   const handleSubmit = useCallback(async () => {
-    if (!size || parseFloat(size) <= 0) {
+    if (!size || parseFloat(size) <= 0 || sizeInBase <= 0) {
       toast.error("Please enter a valid size");
       return;
     }
@@ -198,7 +210,7 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
         toast.error("Trading is unavailable in demo mode. Deploy the program to devnet first.", { id: "trade" });
         return;
       }
-      const sizeUi = Number(size);
+      const sizeUi = sizeInBase;
 
       setTradeStep("encrypting");
 
@@ -212,7 +224,7 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
           sizeUi,
           leverage,
         },
-        isPrivate
+        true
       );
 
       setTradeTxSig(txSignature);
@@ -233,6 +245,7 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
     }
   }, [
     size,
+    sizeInBase,
     direction,
     leverage,
     publicKey,
@@ -241,7 +254,6 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
     marginBalance,
     refreshMarketData,
     submitPrivateOrder,
-    isPrivate,
     setPrivacyError,
     resetPrivacyStatus,
   ]);
@@ -309,46 +321,102 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
 
       {/* Size Input */}
       <div className="mb-6">
-        <label className="block text-sm text-gray-400 mb-2">
-          Position Size ({activePair.base.symbol})
-        </label>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm text-gray-400">
+            Position Size
+          </label>
+          {/* USD / Base toggle */}
+          <div className="flex rounded-md overflow-hidden border border-shadow-500 text-xs">
+            <button
+              onClick={() => setSizeUnit("base")}
+              className={`px-2.5 py-1 transition-colors ${
+                sizeUnit === "base"
+                  ? "bg-accent-purple/30 text-white"
+                  : "bg-shadow-700 text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              {activePair.base.symbol}
+            </button>
+            <button
+              onClick={() => setSizeUnit("usd")}
+              className={`px-2.5 py-1 transition-colors ${
+                sizeUnit === "usd"
+                  ? "bg-accent-purple/30 text-white"
+                  : "bg-shadow-700 text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              USD
+            </button>
+          </div>
+        </div>
         <div className="relative">
           <input
             type="number"
             value={size}
             onChange={(e) => setSize(e.target.value)}
             placeholder="0.00"
-            className="w-full bg-shadow-700 border border-shadow-500 rounded-lg px-4 py-3 text-lg focus:outline-none focus:border-accent-purple transition-colors"
+            className="w-full bg-shadow-700 border border-shadow-500 rounded-lg px-4 py-3 text-lg focus:outline-none focus:border-accent-purple transition-colors pr-16"
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-            <button
-              onClick={() => setSize("1")}
-              className="text-xs text-gray-500 hover:text-accent-purple"
-            >
-              1
-            </button>
-            <button
-              onClick={() => setSize("5")}
-              className="text-xs text-gray-500 hover:text-accent-purple"
-            >
-              5
-            </button>
-            <button
-              onClick={() => setSize("10")}
-              className="text-xs text-accent-purple hover:text-accent-blue"
-            >
-              MAX
-            </button>
+            <span className="text-xs text-gray-500 pointer-events-none">
+              {sizeUnit === "usd" ? "USDC" : activePair.base.symbol}
+            </span>
           </div>
         </div>
+        {/* Quick-fill hints */}
+        {sizeUnit === "base" && (
+          <div className="flex gap-2 mt-1.5">
+            {["0.1", "0.5", "1", "5"].map((v) => (
+              <button
+                key={v}
+                onClick={() => setSize(v)}
+                className="text-[11px] px-2 py-0.5 rounded bg-shadow-600 text-gray-400 hover:text-accent-purple hover:bg-shadow-500 transition-colors"
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        )}
+        {sizeUnit === "usd" && (
+          <div className="flex gap-2 mt-1.5">
+            {["10", "50", "100", "500"].map((v) => (
+              <button
+                key={v}
+                onClick={() => setSize(v)}
+                className="text-[11px] px-2 py-0.5 rounded bg-shadow-600 text-gray-400 hover:text-accent-purple hover:bg-shadow-500 transition-colors"
+              >
+                ${v}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Leverage Slider */}
+      {/* Leverage */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
           <label className="text-sm text-gray-400">Leverage</label>
           <span className="text-lg font-semibold">{leverage}x</span>
         </div>
+
+        {/* Quick-select preset buttons */}
+        <div className="flex gap-1.5 mb-3">
+          {LEVERAGE_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              onClick={() => setLeverage(preset)}
+              className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${
+                leverage === preset
+                  ? "bg-accent-purple text-white"
+                  : "bg-shadow-600 text-gray-400 hover:bg-shadow-500 hover:text-white"
+              }`}
+            >
+              {preset}x
+            </button>
+          ))}
+        </div>
+
+        {/* Fine-tune slider */}
         <input
           type="range"
           min="1"
@@ -359,9 +427,9 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
         />
         <div className="flex justify-between text-xs text-gray-500 mt-1">
           <span>1x</span>
-          <span>5x</span>
           <span>10x</span>
-          <span>25x</span>
+          <span>20x</span>
+          <span>35x</span>
           <span>50x</span>
         </div>
       </div>
@@ -372,6 +440,14 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
           <span className="text-gray-400">Position Value</span>
           <span>${positionValue.toFixed(2)} USDC</span>
         </div>
+        {sizeUnit === "usd" && sizeInBase > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400">Size ({activePair.base.symbol})</span>
+            <span>
+              {sizeInBase.toFixed(sizeInBase < 0.01 ? 6 : 4)} {activePair.base.symbol}
+            </span>
+          </div>
+        )}
         <div className="flex justify-between text-sm">
           <span className="text-gray-400">Required Margin</span>
           <span>${margin.toFixed(2)} USDC</span>
@@ -395,53 +471,39 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
         </div>
       </div>
 
-      {/* Privacy Notice */}
-      <div className="bg-accent-purple/10 border border-accent-purple/30 rounded-lg p-4 mb-6">
-        <label className="flex items-center justify-between gap-4 mb-3 text-sm">
-          <span className="text-accent-purple font-medium">
-            Arcium MXE Privacy (MPC Encrypted Orderbook)
-          </span>
-          <input
-            type="checkbox"
-            checked={isPrivate}
-            onChange={(e) => setIsPrivate(e.target.checked)}
-            className="h-4 w-4 accent-accent-purple"
-          />
-        </label>
-        <div className="flex items-start gap-3">
-          <svg
-            className="w-5 h-5 text-accent-purple flex-shrink-0 mt-0.5"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path
-              fillRule="evenodd"
-              d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-              clipRule="evenodd"
-            />
-          </svg>
-          <div>
-            <p className="text-sm font-medium text-accent-purple">
-              Arcium MPC Privacy
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Position encrypted via x25519 + Rescue cipher. Data split into secret
-              shares across MPC nodes - no single node sees your trade.
-            </p>
-            {privacyStatusMessage && (
-              <p className="text-xs mt-2 text-accent-purple">
-                Status: {privacyStatusMessage}
-                {privacyStatus === "queued" ? " -> waiting for callback" : ""}
-              </p>
-            )}
+      {/* Privacy Strip */}
+      <div className="bg-accent-purple/10 border border-accent-purple/30 rounded-lg p-3 mb-6">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <div className="flex items-center gap-2">
+            <svg
+              className="w-4 h-4 text-accent-purple flex-shrink-0"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <p className="font-medium text-accent-purple leading-tight">MPC Privacy: On</p>
           </div>
+          <span
+            className={`text-[11px] px-2 py-1 rounded border ${
+              privacyStatus === "error"
+                ? "text-red-400 border-red-500/30 bg-red-500/10"
+                : "text-emerald-300 border-emerald-500/30 bg-emerald-500/10"
+            }`}
+          >
+            Status: {privacyStatus === "error" ? "Degraded" : "Active"}
+          </span>
         </div>
       </div>
 
       {/* Submit Button */}
       <button
         onClick={handleSubmit}
-        disabled={isSubmitting || !size}
+        disabled={isSubmitting || !size || sizeInBase <= 0}
         className={`w-full py-4 rounded-lg font-semibold text-lg transition-all btn-press ${
           direction === "long"
             ? "bg-gradient-to-r from-accent-green to-emerald-600 hover:from-emerald-600 hover:to-accent-green"
