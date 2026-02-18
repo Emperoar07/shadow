@@ -6,6 +6,7 @@ import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import { fetchPrices } from "../lib/prices";
 import TradeConfirmationModal, { TradeStep } from "./TradeConfirmationModal";
+import CollateralModal from "./CollateralModal";
 import { useArciumPrivacy } from "../hooks/useArcium";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 
@@ -33,6 +34,8 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
   const [depositAmount, setDepositAmount] = useState("");
   const [isDepositing, setIsDepositing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [collateralModalOpen, setCollateralModalOpen] = useState(false);
+  const [liqThreshold, setLiqThreshold] = useState(80); // % health floor; fetched from market
   const [tradeStep, setTradeStep] = useState<TradeStep>("signing");
   const [tradeTxSig, setTradeTxSig] = useState<string | undefined>();
   const [tradeError, setTradeError] = useState<string | undefined>();
@@ -55,6 +58,16 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
 
   const positionValue = sizeInBase && marketPrice ? sizeInBase * marketPrice : 0;
   const margin = positionValue > 0 ? positionValue / leverage : 0;
+
+  // Estimated liquidation price (client-side, informational to the trader only).
+  // Formula: liq happens when margin loss = (1 - liqThreshold/100) * initial_margin
+  // Which equals a price move of (1 - liqThreshold/100) / leverage against the position.
+  const estimatedLiqPrice =
+    marketPrice && sizeInBase > 0
+      ? direction === "long"
+        ? marketPrice * (1 - (1 - liqThreshold / 100) / leverage)
+        : marketPrice * (1 + (1 - liqThreshold / 100) / leverage)
+      : null;
 
   // Reuse client instance for the same wallet
   const getClient = useCallback(() => {
@@ -111,6 +124,11 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
         } else {
           setMarketPrice(livePrice);
         }
+        const thresh = marketResult.value.liquidationThreshold;
+        if (thresh != null) {
+          // Stored as basis points (e.g. 8000 = 80%); divide by 100
+          setLiqThreshold(Number(thresh) / 100);
+        }
       } else {
         setMarketPrice(livePrice);
       }
@@ -130,6 +148,30 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
     const interval = setInterval(() => void refreshMarketData(), 15_000);
     return () => clearInterval(interval);
   }, [refreshMarketData]);
+
+  // Keyboard shortcuts: L = Long, S = Short, Enter = submit, Esc = close modal
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Ignore when typing inside any input/textarea/select
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      )
+        return;
+      // Ignore modifier combos
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (e.key === "l" || e.key === "L") setDirection("long");
+      if (e.key === "s" || e.key === "S") setDirection("short");
+      if (e.key === "Escape" && modalOpen) setModalOpen(false);
+      if (e.key === "Enter" && !isSubmitting && size && sizeInBase > 0) {
+        void handleSubmit();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [modalOpen, isSubmitting, size, sizeInBase, handleSubmit]);
 
   const handleDeposit = useCallback(async () => {
     const amt = parseFloat(depositAmount);
@@ -262,41 +304,26 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
     <div className="position-card rounded-xl p-6">
       <h2 className="text-xl font-semibold mb-6">Open Position</h2>
 
-      {/* Margin Balance & Deposit */}
+      {/* Margin Balance (compact) + Manage Collateral button */}
       {publicKey && (
-        <div className="bg-shadow-700 rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-gray-400">Margin Balance</span>
-            <span className="text-sm font-medium">
+        <div className="flex items-center justify-between bg-shadow-700 rounded-lg px-4 py-3 mb-6">
+          <div>
+            <p className="text-xs text-gray-500 mb-0.5">Margin Balance</p>
+            <p className={`text-sm font-semibold ${marginBalance === 0 ? "text-yellow-400" : "text-white"}`}>
               {marginBalance !== null ? `$${marginBalance.toFixed(2)} USDC` : "--"}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
-              placeholder="Amount (USDC)"
-              className="flex-1 bg-shadow-600 border border-shadow-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent-purple transition-colors"
-            />
-            <button
-              onClick={handleDeposit}
-              disabled={isDepositing || !depositAmount}
-              className="px-4 py-2 bg-accent-purple/20 text-accent-purple rounded-lg text-sm font-medium hover:bg-accent-purple/30 transition-colors disabled:opacity-50"
-            >
-              {isDepositing ? "..." : "Deposit"}
-            </button>
-          </div>
-          {marginBalance === 0 && (
-            <p className="text-xs text-yellow-400 mt-2">
-              Deposit USDC collateral to start trading
             </p>
-          )}
+          </div>
+          <button
+            onClick={() => setCollateralModalOpen(true)}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-accent-purple/20 text-accent-purple hover:bg-accent-purple/30 transition-colors border border-accent-purple/30"
+          >
+            {marginBalance === 0 ? "Deposit Collateral" : "Manage"}
+          </button>
         </div>
       )}
 
       {/* Direction Toggle */}
-      <div className="grid grid-cols-2 gap-2 mb-6">
+      <div className="grid grid-cols-2 gap-2 mb-1">
         <button
           onClick={() => setDirection("long")}
           className={`py-3 rounded-lg font-medium transition-all btn-press ${
@@ -317,6 +344,11 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
         >
           Short
         </button>
+      </div>
+
+      <div className="flex justify-between text-[10px] text-gray-600 mb-5 px-0.5">
+        <span>Hotkey: <kbd className="px-1 py-0.5 rounded bg-shadow-600 text-gray-500">L</kbd> Long</span>
+        <span>Hotkey: <kbd className="px-1 py-0.5 rounded bg-shadow-600 text-gray-500">S</kbd> Short · <kbd className="px-1 py-0.5 rounded bg-shadow-600 text-gray-500">↵</kbd> Submit</span>
       </div>
 
       {/* Size Input */}
@@ -462,8 +494,19 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
         </div>
         <div className="border-t border-shadow-500 my-2" />
         <div className="flex justify-between text-sm">
-          <span className="text-gray-400">Liquidation Price</span>
-          <span className="encrypted-blur text-accent-purple">Encrypted</span>
+          <span className="text-gray-400">
+            Est. Liq. Price
+            <span className="ml-1 text-[10px] text-gray-600">(approx)</span>
+          </span>
+          {estimatedLiqPrice ? (
+            <span className={direction === "long" ? "text-accent-red" : "text-accent-green"}>
+              ${estimatedLiqPrice < 0.01
+                ? estimatedLiqPrice.toFixed(8)
+                : estimatedLiqPrice.toFixed(2)}
+            </span>
+          ) : (
+            <span className="text-gray-500">—</span>
+          )}
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-400">Health Factor</span>
@@ -546,6 +589,17 @@ export default function TradingPanel({ pair }: TradingPanelProps) {
         errorMessage={tradeError}
         txSignature={tradeTxSig}
         onClose={() => setModalOpen(false)}
+      />
+
+      {/* Collateral Manager Modal */}
+      <CollateralModal
+        isOpen={collateralModalOpen}
+        marginBalance={marginBalance}
+        onClose={() => setCollateralModalOpen(false)}
+        onSuccess={() => {
+          setCollateralModalOpen(false);
+          void refreshMarketData();
+        }}
       />
     </div>
   );

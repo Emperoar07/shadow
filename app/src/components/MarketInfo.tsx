@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import BN from "bn.js";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import { fetchPrices, PriceData } from "../lib/prices";
+import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 
 interface MarketInfoProps {
   pair?: TradingPair;
@@ -21,12 +22,13 @@ interface MarketData {
 
 export default function MarketInfo({ pair }: MarketInfoProps) {
   const activePair = pair ?? TRADING_PAIRS[0];
-  const anchorWallet = useAnchorWallet();
+  const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
   const [market, setMarket] = useState<MarketData | null>(null);
   const [mxeStatus, setMxeStatus] = useState<"active" | "checking" | "demo">("checking");
   const [priceChange, setPriceChange] = useState<number | null>(null);
   const [isDemo, setIsDemo] = useState(false);
+  const [priceFlash, setPriceFlash] = useState<"up" | "down" | null>(null);
   const previousPriceRef = useRef<number | null>(null);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
 
@@ -97,6 +99,17 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
   }, [loadMarket]);
 
   const price = market?.oraclePrice ?? activePair.mockPrice;
+
+  // Flash price green/red when it ticks
+  useEffect(() => {
+    const prev = previousPriceRef.current;
+    if (prev === null || prev === price) return;
+    const dir = price > prev ? "up" : "down";
+    setPriceFlash(dir);
+    const t = setTimeout(() => setPriceFlash(null), 600);
+    return () => clearTimeout(t);
+  }, [price]);
+
   const priceFresh = isDemo
     ? true
     : market
@@ -115,7 +128,15 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
           )}
         </div>
         <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-bold">
+          <span
+            className={`text-3xl font-bold transition-colors duration-300 ${
+              priceFlash === "up"
+                ? "text-accent-green"
+                : priceFlash === "down"
+                ? "text-accent-red"
+                : "text-white"
+            }`}
+          >
             ${price < 0.01 ? price.toFixed(8) : price.toFixed(2)}
           </span>
           {priceChange !== null && (
