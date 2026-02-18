@@ -40,7 +40,7 @@ use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
 use handlers::update_price::UpdatePrice;
 use handlers::withdraw_collateral::WithdrawCollateral;
 
-declare_id!("11111111111111111111111111111111");
+declare_id!("oyqpyfdjjq6REqnvnHXzQMheR5vnJTUnV6S4zeBKJDP");
 
 #[arcium_program]
 pub mod shadowperp {
