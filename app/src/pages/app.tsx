@@ -12,16 +12,24 @@ const NeuralShadowBackground = dynamic(
   () => import("../components/NeuralShadowBackground"),
   { ssr: false }
 );
-const PortfolioSummary = dynamic(() => import("../components/PortfolioSummary"), { ssr: false });
-const BottomPositionsPanel = dynamic(() => import("../components/BottomPositionsPanel"), {
+const PortfolioSummary = dynamic(() => import("../components/PortfolioSummary"), {
   ssr: false,
 });
-
-const WalletMultiButton = dynamic(
-  () => import("@solana/wallet-adapter-react-ui").then((mod) => mod.WalletMultiButton),
+const BottomPositionsPanel = dynamic(
+  () => import("../components/BottomPositionsPanel"),
   { ssr: false }
 );
-const PriceChart = dynamic(() => import("../components/PriceChart"), { ssr: false });
+
+const WalletMultiButton = dynamic(
+  () =>
+    import("@solana/wallet-adapter-react-ui").then(
+      (mod) => mod.WalletMultiButton
+    ),
+  { ssr: false }
+);
+const PriceChart = dynamic(() => import("../components/PriceChart"), {
+  ssr: false,
+});
 
 export default function TradingAppPage() {
   const [selectedPair, setSelectedPair] = useState<TradingPair>(TRADING_PAIRS[0]);
@@ -29,7 +37,7 @@ export default function TradingAppPage() {
   return (
     <>
       <Head>
-        <title>ShadowPerp — Private Perpetuals on Solana</title>
+        <title>ShadowPerp - Private Perpetuals on Solana</title>
         <meta
           name="description"
           content="ShadowPerp private perpetual futures trading terminal powered by Arcium MPC."
@@ -54,7 +62,7 @@ export default function TradingAppPage() {
         <NeuralShadowBackground />
 
         <div className="relative z-10 flex flex-col min-h-screen">
-          {/* ── Header ── */}
+          {/* Header */}
           <header className="border-b border-shadow-600 shrink-0">
             <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -66,37 +74,36 @@ export default function TradingAppPage() {
                   ShadowPerp
                 </Link>
                 <PrivacyBadge />
-                <NetworkIndicator />
               </div>
 
-              <WalletMultiButton />
+              <div className="flex items-center gap-2">
+                <NetworkIndicator />
+                <WalletMultiButton />
+              </div>
             </div>
           </header>
 
-          {/* ── Main terminal ── */}
+          {/* Main terminal */}
           <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 py-3 flex flex-col gap-3">
-            {/* Portfolio summary strip */}
             <PortfolioSummary />
 
-            {/* Terminal grid: chart (flex-grow) | right column (fixed 360px) */}
-            <div className="grid gap-3 grid-cols-1 lg:grid-cols-[1fr_360px]">
-              {/* Left – price chart */}
+            {/* Top row: chart + market info */}
+            <div className="grid gap-3 grid-cols-1 lg:grid-cols-[1fr_340px]">
               <div className="min-w-0">
                 <PriceChart selectedPair={selectedPair} onPairChange={setSelectedPair} />
               </div>
-
-              {/* Right – market info + order form stacked */}
               <div className="flex flex-col gap-3">
                 <MarketInfo pair={selectedPair} />
-                <TradingPanel pair={selectedPair} />
               </div>
             </div>
 
-            {/* Bottom – positions panel (always visible, Hyperliquid-style) */}
+            {/* Open position panel under chart */}
+            <TradingPanel pair={selectedPair} layout="horizontal" />
+
             <BottomPositionsPanel />
           </main>
 
-          {/* ── Footer ── */}
+          {/* Footer */}
           <footer className="border-t border-shadow-600 shrink-0">
             <div className="max-w-[1600px] mx-auto px-4 py-4 flex items-center justify-between text-xs text-gray-500">
               <p>
@@ -109,7 +116,7 @@ export default function TradingAppPage() {
                 >
                   Arcium MPC
                 </a>{" "}
-                · Built on Solana
+                | Built on Solana
               </p>
               <p>Your trades are encrypted end-to-end. Only PnL is ever revealed.</p>
             </div>
