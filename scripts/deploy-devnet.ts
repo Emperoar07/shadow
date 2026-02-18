@@ -137,7 +137,8 @@ async function main() {
   );
   const idlPath = path.resolve(__dirname, "..", "target", "idl", "shadowperp.json");
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
-  const program = new anchor.Program(idl, PROGRAM_ID, provider);
+  (idl as { address?: string }).address = PROGRAM_ID.toBase58();
+  const program = new anchor.Program(idl as anchor.Idl, provider);
 
   const priceFeeder = walletKeypair; // deployer is also price feeder for devnet
 
