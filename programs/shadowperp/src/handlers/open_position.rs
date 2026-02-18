@@ -189,7 +189,7 @@ pub fn handler(
             is_writable: true,
         },
         CallbackAccount {
-            pubkey: ctx.accounts.margin_account.key(),
+            pubkey: margin_account.key(),
             is_writable: true,
         },
     ];
