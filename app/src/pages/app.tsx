@@ -6,10 +6,16 @@ import TradingPanel from "../components/TradingPanel";
 import MarketInfo from "../components/MarketInfo";
 import PrivacyBadge from "../components/PrivacyBadge";
 import NetworkIndicator from "../components/NetworkIndicator";
-import PortfolioSummary from "../components/PortfolioSummary";
-import BottomPositionsPanel from "../components/BottomPositionsPanel";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
-import NeuralShadowBackground from "../components/NeuralShadowBackground";
+
+const NeuralShadowBackground = dynamic(
+  () => import("../components/NeuralShadowBackground"),
+  { ssr: false }
+);
+const PortfolioSummary = dynamic(() => import("../components/PortfolioSummary"), { ssr: false });
+const BottomPositionsPanel = dynamic(() => import("../components/BottomPositionsPanel"), {
+  ssr: false,
+});
 
 const WalletMultiButton = dynamic(
   () => import("@solana/wallet-adapter-react-ui").then((mod) => mod.WalletMultiButton),

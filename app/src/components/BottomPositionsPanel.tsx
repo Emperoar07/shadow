@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BN from "bn.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import {
+  PositionProtectionRule,
+  getPositionRule,
+  getPositionRules,
+  removePositionRule,
+  setPositionRule,
+  subscribeAutomationUpdates,
+} from "../lib/trade-automation";
 
 type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated";
 
@@ -16,6 +24,8 @@ interface UiPosition {
   realizedPnl: number;
   hasEncryptedData: boolean;
 }
+
+type Direction = "long" | "short";
 
 function parseStatus(status: unknown): UiStatus {
   if (typeof status === "number") {
@@ -89,6 +99,16 @@ function TabBtn({
   );
 }
 
+function parseOptionalPositive(value: string): number | null {
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function formatPrice(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "--";
+  return value < 0.01 ? `$${value.toFixed(8)}` : `$${value.toFixed(2)}`;
+}
+
 export default function BottomPositionsPanel() {
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
@@ -97,12 +117,28 @@ export default function BottomPositionsPanel() {
   const [loading, setLoading] = useState(false);
   const [closingAddress, setClosingAddress] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"open" | "history">("open");
+  const [positionRules, setPositionRules] = useState<Record<string, PositionProtectionRule>>({});
+  const [editAddress, setEditAddress] = useState<string | null>(null);
+  const [editSide, setEditSide] = useState<Direction>("long");
+  const [editTakeProfit, setEditTakeProfit] = useState("");
+  const [editStopLoss, setEditStopLoss] = useState("");
+  const [oraclePrice, setOraclePrice] = useState<number | null>(null);
+  const autoCloseInFlightRef = useRef<Set<string>>(new Set());
+  const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
+
+  // Reset cached client when wallet changes
+  useEffect(() => {
+    clientRef.current = null;
+  }, [anchorWallet]);
 
   const loadPositions = useCallback(async () => {
     if (!publicKey || !anchorWallet) return;
     setLoading(true);
     try {
-      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
+      if (!clientRef.current) {
+        clientRef.current = createShadowPerpClient(connection, anchorWallet);
+      }
+      const { client, runtime } = clientRef.current;
       const onchain = await client.getUserPositionAccounts(runtime.marketAddress, publicKey);
       const mapped: UiPosition[] = onchain.map((p) => {
         const account = p.account as any;
@@ -119,6 +155,13 @@ export default function BottomPositionsPanel() {
       });
       mapped.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
       setPositions(mapped);
+      try {
+        const market = await client.getMarket(runtime.marketAddress);
+        const price = new BN(market.oraclePrice.toString()).toNumber() / 1_000_000;
+        setOraclePrice(Number.isFinite(price) && price > 0 ? price : null);
+      } catch {
+        // keep previous oracle price
+      }
     } catch {
       // silent in demo / config error
     } finally {
@@ -126,18 +169,30 @@ export default function BottomPositionsPanel() {
     }
   }, [publicKey, anchorWallet, connection]);
 
+  const loadRules = useCallback(() => {
+    setPositionRules(getPositionRules());
+  }, []);
+
   useEffect(() => {
     void loadPositions();
     const id = setInterval(() => void loadPositions(), 15_000);
     return () => clearInterval(id);
   }, [loadPositions]);
 
+  useEffect(() => {
+    loadRules();
+    return subscribeAutomationUpdates(loadRules);
+  }, [loadRules]);
+
   const handleClose = useCallback(
     async (pos: UiPosition) => {
       if (!publicKey || !anchorWallet) return;
       setClosingAddress(pos.address);
       try {
-        const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
+        if (!clientRef.current) {
+          clientRef.current = createShadowPerpClient(connection, anchorWallet);
+        }
+        const { client, runtime } = clientRef.current;
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(
           runtime.marketAddress
         );
@@ -173,6 +228,36 @@ export default function BottomPositionsPanel() {
     [publicKey, anchorWallet, connection, loadPositions]
   );
 
+  const beginEditRule = useCallback((position: UiPosition) => {
+    const rule = getPositionRule(position.address);
+    setEditAddress(position.address);
+    setEditSide(rule?.side ?? "long");
+    setEditTakeProfit(rule?.takeProfit?.toString() ?? "");
+    setEditStopLoss(rule?.stopLoss?.toString() ?? "");
+  }, []);
+
+  const saveRule = useCallback(() => {
+    if (!editAddress) return;
+    const tp = parseOptionalPositive(editTakeProfit);
+    const sl = parseOptionalPositive(editStopLoss);
+    if (tp === null && sl === null) {
+      removePositionRule(editAddress);
+      toast.success("TP/SL rule removed");
+      setEditAddress(null);
+      return;
+    }
+    setPositionRule({
+      positionAddress: editAddress,
+      pairLabel: "SHADOW-PERP",
+      side: editSide,
+      takeProfit: tp,
+      stopLoss: sl,
+      updatedAt: Date.now(),
+    });
+    toast.success("TP/SL rule saved");
+    setEditAddress(null);
+  }, [editAddress, editSide, editStopLoss, editTakeProfit]);
+
   const openPositions = useMemo(
     () => positions.filter((p) => ["open", "pending", "closing"].includes(p.status)),
     [positions]
@@ -183,6 +268,34 @@ export default function BottomPositionsPanel() {
   );
   const displayed = activeTab === "open" ? openPositions : historyPositions;
   const showActionCol = activeTab === "open";
+
+  useEffect(() => {
+    if (!oraclePrice || activeTab !== "open") return;
+    for (const pos of openPositions) {
+      if (pos.status !== "open") continue;
+      if (autoCloseInFlightRef.current.has(pos.address)) continue;
+      const rule = positionRules[pos.address];
+      if (!rule) continue;
+      const hit =
+        rule.side === "long"
+          ? (rule.takeProfit !== null && oraclePrice >= rule.takeProfit) ||
+            (rule.stopLoss !== null && oraclePrice <= rule.stopLoss)
+          : (rule.takeProfit !== null && oraclePrice <= rule.takeProfit) ||
+            (rule.stopLoss !== null && oraclePrice >= rule.stopLoss);
+
+      if (!hit) continue;
+
+      autoCloseInFlightRef.current.add(pos.address);
+      toast(
+        `TP/SL hit for #${pos.index.toString()} at ${formatPrice(oraclePrice)}. Closing position...`,
+        { id: `tp-sl-${pos.address}` }
+      );
+
+      void handleClose(pos).finally(() => {
+        autoCloseInFlightRef.current.delete(pos.address);
+      });
+    }
+  }, [activeTab, handleClose, openPositions, oraclePrice, positionRules]);
 
   return (
     <div className="position-card rounded-xl overflow-hidden">
@@ -204,6 +317,11 @@ export default function BottomPositionsPanel() {
         </div>
 
         <div className="flex items-center gap-3 pr-4">
+          {oraclePrice && (
+            <span className="hidden sm:block text-[10px] text-gray-500">
+              Oracle: {formatPrice(oraclePrice)}
+            </span>
+          )}
           {/* Privacy note */}
           <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-accent-purple">
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -245,6 +363,7 @@ export default function BottomPositionsPanel() {
                 <th className="text-right px-3 py-2 font-medium">Margin</th>
                 <th className="text-right px-3 py-2 font-medium">Size & Direction</th>
                 <th className="text-right px-3 py-2 font-medium">Leverage</th>
+                <th className="text-right px-3 py-2 font-medium">TP / SL</th>
                 <th className="text-right px-3 py-2 font-medium">Realized PnL</th>
                 {showActionCol && <th className="text-right px-4 py-2 font-medium">Action</th>}
               </tr>
@@ -255,6 +374,7 @@ export default function BottomPositionsPanel() {
                 const isPending = pos.status === "pending";
                 const isClosing = closingAddress === pos.address || pos.status === "closing";
                 const isFinal = pos.status === "closed" || pos.status === "liquidated";
+                const rule = positionRules[pos.address];
 
                 return (
                   <tr
@@ -299,6 +419,16 @@ export default function BottomPositionsPanel() {
                       </span>
                     </td>
 
+                    <td className="px-3 py-2.5 text-right">
+                      {rule ? (
+                        <span className="text-[10px] text-cyan-300">
+                          {rule.side.toUpperCase()} {formatPrice(rule.takeProfit)} / {formatPrice(rule.stopLoss)}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-gray-500">Not set</span>
+                      )}
+                    </td>
+
                     {/* PnL */}
                     <td className="px-3 py-2.5 text-right">
                       {isFinal ? (
@@ -320,17 +450,25 @@ export default function BottomPositionsPanel() {
                     {showActionCol && (
                       <td className="px-4 py-2.5 text-right">
                         {(isOpen || isPending || isClosing) && (
-                          <button
-                            onClick={() => void handleClose(pos)}
-                            disabled={isClosing || isPending}
-                            className="px-3 py-1 rounded text-[11px] font-medium bg-accent-red/15 text-accent-red hover:bg-accent-red/25 transition-colors disabled:opacity-40 whitespace-nowrap"
-                          >
-                            {isPending
-                              ? "MPC Processing..."
-                              : isClosing
-                              ? "Closing..."
-                              : "Close Position"}
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => beginEditRule(pos)}
+                              className="px-2.5 py-1 rounded text-[11px] font-medium bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25 transition-colors whitespace-nowrap"
+                            >
+                              TP/SL
+                            </button>
+                            <button
+                              onClick={() => void handleClose(pos)}
+                              disabled={isClosing || isPending}
+                              className="px-3 py-1 rounded text-[11px] font-medium bg-accent-red/15 text-accent-red hover:bg-accent-red/25 transition-colors disabled:opacity-40 whitespace-nowrap"
+                            >
+                              {isPending
+                                ? "MPC Processing..."
+                                : isClosing
+                                ? "Closing..."
+                                : "Close Position"}
+                            </button>
+                          </div>
                         )}
                       </td>
                     )}
@@ -341,6 +479,53 @@ export default function BottomPositionsPanel() {
           </table>
         )}
       </div>
+
+      {editAddress && (
+        <div className="border-t border-shadow-600 p-3 bg-shadow-800/50">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium text-cyan-300">Edit TP/SL Automation</p>
+            <button
+              onClick={() => setEditAddress(null)}
+              className="text-[11px] text-gray-400 hover:text-gray-200"
+            >
+              Close
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <select
+              value={editSide}
+              onChange={(e) => setEditSide(e.target.value as Direction)}
+              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-400/50"
+            >
+              <option value="long">Long</option>
+              <option value="short">Short</option>
+            </select>
+            <input
+              type="number"
+              value={editTakeProfit}
+              onChange={(e) => setEditTakeProfit(e.target.value)}
+              placeholder="Take Profit"
+              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-400/50"
+            />
+            <input
+              type="number"
+              value={editStopLoss}
+              onChange={(e) => setEditStopLoss(e.target.value)}
+              placeholder="Stop Loss"
+              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-400/50"
+            />
+            <button
+              onClick={saveRule}
+              className="px-3 py-1.5 rounded text-xs font-medium bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25 transition-colors"
+            >
+              Save Rule
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-500 mt-2">
+            Client automation: position closes automatically when oracle hits TP/SL while this app is running.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
