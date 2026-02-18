@@ -25,7 +25,6 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
   const [market, setMarket] = useState<MarketData | null>(null);
-  const [mxeStatus, setMxeStatus] = useState<"active" | "checking" | "demo">("checking");
   const [priceChange, setPriceChange] = useState<number | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [priceFlash, setPriceFlash] = useState<"up" | "down" | null>(null);
@@ -41,10 +40,9 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
     const price = livePrice?.price ?? activePair.mockPrice;
     const change = livePrice?.change24h ?? activePair.mockPriceChange;
     setIsDemo(true);
-    setMxeStatus("demo");
     setMarket({
       oraclePrice: price,
-      maxLeverage: 20,
+      maxLeverage: 50,
       liquidationThreshold: 5,
       tradingFee: 0.1,
       activePositions: 0,
@@ -84,7 +82,6 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
         totalFeesCollected: new BN(data.totalFeesCollected.toString()).toNumber() / 1_000_000,
         lastPriceUpdate: new Date(new BN(data.lastPriceUpdate.toString()).toNumber() * 1000),
       });
-      setMxeStatus("active");
       setIsDemo(false);
     } catch {
       // On-chain fetch failed — fall back to demo with live prices
@@ -166,52 +163,9 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
       </div>
 
       <div className="pt-4 border-t border-shadow-600">
-        <h3 className="text-sm font-medium text-gray-400 mb-3">
-          Privacy Guarantees
-        </h3>
-        <div className="space-y-2">
-          <PrivacyRow label="Position Size" status="encrypted" detail="Never revealed" />
-          <PrivacyRow label="Entry Price" status="encrypted" detail="Never revealed" />
-          <PrivacyRow label="Leverage" status="encrypted" detail="Never revealed" />
-          <PrivacyRow label="Direction" status="encrypted" detail="Never revealed" />
-          <PrivacyRow label="Health Factor" status="encrypted" detail="Never revealed" />
-          <PrivacyRow label="Liquidation Price" status="encrypted" detail="Never revealed" />
-          <PrivacyRow label="Realized PnL" status="revealed" detail="On close only" />
-        </div>
-      </div>
-
-      <div className="pt-4 border-t border-shadow-600">
-        <h3 className="text-sm font-medium text-gray-400 mb-3">
-          Arcium MXE Network
-        </h3>
-        <div className="flex items-center gap-2">
-          <div
-            className={`w-2 h-2 rounded-full ${
-              mxeStatus === "active"
-                ? "bg-accent-green"
-                : mxeStatus === "checking"
-                ? "bg-yellow-400 animate-pulse"
-                : "bg-accent-purple animate-pulse"
-            }`}
-          />
-          <span className="text-sm">
-            {mxeStatus === "active"
-              ? "MXE Cluster Active"
-              : mxeStatus === "checking"
-              ? "Connecting..."
-              : "Demo Mode"}
-          </span>
-        </div>
-        <p className="text-xs text-gray-500 mt-2">
-          {isDemo
-            ? "Deploy program to devnet to enable live trading"
-            : "Cerberus MPC protocol - 1 honest node guarantees security"}
+        <p className="text-xs text-gray-500">
+          Privacy is always on by default.
         </p>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <MpcStat label="Cipher" value="Rescue" />
-          <MpcStat label="Key Exchange" value="x25519" />
-          <MpcStat label="Security" value="128-bit" />
-        </div>
       </div>
     </div>
   );
@@ -245,43 +199,6 @@ function InfoRow({
         )}
         <span className={encrypted ? "encrypted-blur" : ""}>{value}</span>
       </div>
-    </div>
-  );
-}
-
-function PrivacyRow({
-  label,
-  status,
-  detail,
-}: {
-  label: string;
-  status: "encrypted" | "revealed";
-  detail: string;
-}) {
-  return (
-    <div className="flex justify-between items-center text-sm">
-      <span className="text-gray-400">{label}</span>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500">{detail}</span>
-        <span
-          className={`px-2 py-0.5 rounded text-xs ${
-            status === "encrypted"
-              ? "bg-accent-purple/20 text-accent-purple"
-              : "bg-accent-green/20 text-accent-green"
-          }`}
-        >
-          {status === "encrypted" ? "Encrypted" : "Revealed"}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function MpcStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-shadow-700 rounded-lg p-2">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-sm font-medium text-accent-purple">{value}</p>
     </div>
   );
 }
