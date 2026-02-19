@@ -11,8 +11,14 @@ mod close_position_circuit {
 
     /// Close an existing position and calculate realized PnL
     ///
-    /// Privacy: Position details remain encrypted. ONLY the realized PnL
-    /// and settlement amount are revealed.
+    /// Privacy: Position details remain encrypted while open.
+    /// At settlement we reveal:
+    /// - realized PnL
+    /// - settlement amount
+    /// - fee
+    /// locked_margin is NOT returned: the callback reads position.margin from on-chain state,
+    /// avoiding a redundant reveal and matching the ClosePositionOutput layout expected by
+    /// close_position_callback.rs (field_0..field_2 plain, field_3 = encrypted OI).
     #[instruction]
     pub fn close_position(
         position: Enc<Mxe, (u64, u64, u8, bool, u64, u128, u128)>,
@@ -59,17 +65,9 @@ mod close_position_circuit {
 
         // Reduce OI based on direction
         if pos.3 {
-            oi.0 = if oi.0 >= pos.0 {
-                oi.0 - pos.0
-            } else {
-                0
-            };
+            oi.0 = if oi.0 >= pos.0 { oi.0 - pos.0 } else { 0 };
         } else {
-            oi.1 = if oi.1 >= pos.0 {
-                oi.1 - pos.0
-            } else {
-                0
-            };
+            oi.1 = if oi.1 >= pos.0 { oi.1 - pos.0 } else { 0 };
         }
 
         (

@@ -40,7 +40,7 @@ use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
 use handlers::update_price::UpdatePrice;
 use handlers::withdraw_collateral::WithdrawCollateral;
 
-declare_id!("oyqpyfdjjq6REqnvnHXzQMheR5vnJTUnV6S4zeBKJDP");
+declare_id!("6JSACVRd4TxePjsfvy3d5sXP5ykS4m3wbtkYJjHK8SCA");
 
 #[arcium_program]
 pub mod shadowperp {
@@ -110,10 +110,7 @@ pub mod shadowperp {
     }
 
     /// Close an existing position - triggers PnL reveal
-    pub fn close_position(
-        ctx: Context<ClosePosition>,
-        computation_offset: u64,
-    ) -> Result<()> {
+    pub fn close_position(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<()> {
         handlers::close_position::handler(ctx, computation_offset)
     }
 
