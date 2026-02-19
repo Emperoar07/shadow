@@ -78,3 +78,93 @@ body {
 .position-card:hover {
   border-color: rgba(139, 92, 246, 0.5);
 }
+
+/* Skeleton loading pulse */
+.skeleton-pulse {
+  background: linear-gradient(90deg, #1a1a25 25%, #252530 50%, #1a1a25 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Animate-in for component mount */
+.animate-in {
+  animation: animate-in 0.3s ease-out;
+}
+
+@keyframes animate-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Gradient border card */
+.gradient-border-card {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.4) 0%, rgba(59, 130, 246, 0.4) 50%, rgba(16, 185, 129, 0.2) 100%);
+}
+
+/* Micro-interactions: button press */
+.btn-press {
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* Direction toggle glow */
+.toggle-long.active {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.toggle-short.active {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Custom range slider thumb */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  cursor: pointer;
+  border: 2px solid #1a1a25;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.7);
+  transform: scale(1.15);
+}
+
+input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(0.95);
+}
+
+/* Pair button hover lift */
+.pair-btn {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pair-btn:hover {
+  transform: translateY(-1px);
+}
+
+.pair-btn.active {
+  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.3);
+}
+
+/* Dropdown search */
+.pair-dropdown {
+  animation: dropdown-in 0.2s ease-out;
+}
+
+@keyframes dropdown-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}

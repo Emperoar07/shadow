@@ -69,7 +69,11 @@ export class ShadowPerpClient {
   constructor(provider: AnchorProvider, config: ShadowPerpConfig) {
     this.provider = provider;
     this.config = config;
-    this.program = new (Program as any)(config.idl, config.programId, provider);
+    const idlWithAddress = {
+      ...config.idl,
+      address: config.programId.toBase58(),
+    };
+    this.program = new (Program as any)(idlWithAddress, provider);
   }
 
   private generateClientPrivateKey(): Uint8Array {
@@ -104,8 +108,6 @@ export class ShadowPerpClient {
 
     // Initialize Rescue cipher with derived shared secret
     this.cipher = new RescueCipher(this.sharedSecret);
-
-    console.log("Arcium encryption initialized with MXE cluster");
   }
 
   /**
@@ -227,8 +229,6 @@ export class ShadowPerpClient {
         systemProgram: SystemProgram.programId,
       })
       .rpc();
-
-    console.log("Deposited collateral:", amount.toString());
     return tx;
   }
 
@@ -250,8 +250,6 @@ export class ShadowPerpClient {
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .rpc();
-
-    console.log("Withdrew collateral:", amount.toString());
     return tx;
   }
 
@@ -276,8 +274,13 @@ export class ShadowPerpClient {
     }
 
     const owner = this.provider.wallet.publicKey;
-    const marketAccount = await this.getMarket(market);
     const marginAccount = this.getMarginAccountAddress(market, owner);
+    let marginSnapshot: MarginAccount;
+    try {
+      marginSnapshot = await this.getMarginAccount(marginAccount);
+    } catch {
+      throw new Error("Margin account not initialized. Deposit collateral first.");
+    }
 
     // Generate nonce for encryption session
     const { bytes: nonceBytes, value: nonceBN } = this.generateNonce();
@@ -297,10 +300,17 @@ export class ShadowPerpClient {
     const encryptedOwnerHi = this.encryptU128(ownerHi, nonceBytes);
 
     const computationOffset = new BN(randomBytes(8));
-    const positionAddress = this.getPositionAddress(market, owner, marketAccount.activePositions);
+    const positionAddress = this.getPositionAddress(
+      market,
+      owner,
+      marginSnapshot.positionsOpened
+    );
     const mxeAccount = this.getMXEPda();
     const compDefAccount = this.getCompDefPda("open_position");
-    const computationAccount = getComputationAccAddress(this.config.mxeProgramId, computationOffset);
+    const computationAccount = getComputationAccAddress(
+      this.config.clusterOffset,
+      computationOffset
+    );
 
     const tx = await this.program.methods
       .openPosition(
@@ -335,9 +345,6 @@ export class ShadowPerpClient {
       })
       .rpc();
 
-    console.log("Position opening queued for MPC");
-    console.log("Position:", positionAddress.toBase58());
-
     return { txSignature: tx, positionAddress };
   }
 
@@ -354,7 +361,10 @@ export class ShadowPerpClient {
     const marginAccount = this.getMarginAccountAddress(market, owner);
     const positionAddress = this.getPositionAddress(market, owner, positionIndex);
     const computationOffset = new BN(randomBytes(8));
-    const computationAccount = getComputationAccAddress(this.config.mxeProgramId, computationOffset);
+    const computationAccount = getComputationAccAddress(
+      this.config.clusterOffset,
+      computationOffset
+    );
 
     const tx = await this.program.methods
       .closePosition(computationOffset)
@@ -378,8 +388,6 @@ export class ShadowPerpClient {
         clockAccount: SYSVAR_CLOCK_PUBKEY,
       })
       .rpc();
-
-    console.log("Position close queued for MPC");
     return tx;
   }
 
@@ -396,7 +404,10 @@ export class ShadowPerpClient {
     const marketAccount = await this.getMarket(market);
     const positionAddress = this.getPositionAddress(market, positionOwner, positionIndex);
     const computationOffset = new BN(randomBytes(8));
-    const computationAccount = getComputationAccAddress(this.config.mxeProgramId, computationOffset);
+    const computationAccount = getComputationAccAddress(
+      this.config.clusterOffset,
+      computationOffset
+    );
 
     const tx = await this.program.methods
       .checkLiquidation(computationOffset)
@@ -420,8 +431,6 @@ export class ShadowPerpClient {
         clockAccount: SYSVAR_CLOCK_PUBKEY,
       })
       .rpc();
-
-    console.log("Liquidation check queued for MPC");
     return tx;
   }
 

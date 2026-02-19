@@ -102,6 +102,7 @@ export interface ShadowPerpConfig {
   programId: PublicKey;
   arciumProgramId: PublicKey;
   mxeProgramId: PublicKey;
+  clusterOffset: number;
   clusterAddress: PublicKey;
   marketAddress: PublicKey;
   mempoolAccount: PublicKey;

@@ -4,6 +4,7 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { getExplorerTxUrl } from "../lib/explorer";
 
 type Tab = "deposit" | "withdraw";
 
@@ -60,7 +61,7 @@ export default function CollateralModal({
         <div>
           <p className="font-medium">Deposited ${amt.toFixed(2)} USDC</p>
           <a
-            href={`https://explorer.solana.com/tx/${tx}?cluster=devnet`}
+            href={getExplorerTxUrl(tx)}
             target="_blank"
             rel="noreferrer"
             className="text-xs text-accent-purple underline"
@@ -102,7 +103,7 @@ export default function CollateralModal({
         <div>
           <p className="font-medium">Withdrew ${amt.toFixed(2)} USDC</p>
           <a
-            href={`https://explorer.solana.com/tx/${tx}?cluster=devnet`}
+            href={getExplorerTxUrl(tx)}
             target="_blank"
             rel="noreferrer"
             className="text-xs text-accent-purple underline"

@@ -4,6 +4,7 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { getExplorerTxUrl } from "../lib/explorer";
 import {
   PositionProtectionRule,
   getPositionRule,
@@ -207,7 +208,7 @@ export default function BottomPositionsPanel() {
             <p className="font-medium">Close queued for MPC computation</p>
             <p className="text-xs text-gray-400 mt-0.5">PnL revealed after MPC completes</p>
             <a
-              href={`https://explorer.solana.com/tx/${tx}?cluster=devnet`}
+              href={getExplorerTxUrl(tx)}
               target="_blank"
               rel="noreferrer"
               className="text-xs text-accent-purple underline mt-1 block"
@@ -350,7 +351,7 @@ export default function BottomPositionsPanel() {
             {!publicKey
               ? "Connect wallet to view positions"
               : activeTab === "open"
-              ? "No open positions — open a trade using the panel above"
+              ? "No open positions - open a trade using the panel above"
               : "No closed positions yet"}
           </div>
         ) : (
@@ -405,14 +406,14 @@ export default function BottomPositionsPanel() {
                       ${pos.margin.toFixed(2)}
                     </td>
 
-                    {/* Size & Direction — always encrypted */}
+                    {/* Size & Direction - always encrypted */}
                     <td className="px-3 py-2.5 text-right">
                       <span className="encrypted-blur text-accent-purple text-[10px]">
                         Encrypted
                       </span>
                     </td>
 
-                    {/* Leverage — always encrypted */}
+                    {/* Leverage - always encrypted */}
                     <td className="px-3 py-2.5 text-right">
                       <span className="encrypted-blur text-accent-purple text-[10px]">
                         Encrypted

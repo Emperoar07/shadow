@@ -47,9 +47,6 @@ pub fn init_open_position_handler(ctx: Context<InitOpenPositionCompDef>) -> Resu
     let market = &mut ctx.accounts.market;
     market.open_position_comp_def = ctx.accounts.comp_def_account.key();
 
-    msg!("Open position computation definition initialized");
-    msg!("Comp def: {}", market.open_position_comp_def);
-
     Ok(())
 }
 
@@ -96,9 +93,6 @@ pub fn init_close_position_handler(ctx: Context<InitClosePositionCompDef>) -> Re
     let market = &mut ctx.accounts.market;
     market.close_position_comp_def = ctx.accounts.comp_def_account.key();
 
-    msg!("Close position computation definition initialized");
-    msg!("Comp def: {}", market.close_position_comp_def);
-
     Ok(())
 }
 
@@ -144,9 +138,6 @@ pub fn init_liquidation_handler(ctx: Context<InitLiquidationCompDef>) -> Result<
 
     let market = &mut ctx.accounts.market;
     market.liquidation_comp_def = ctx.accounts.comp_def_account.key();
-
-    msg!("Liquidation computation definition initialized");
-    msg!("Comp def: {}", market.liquidation_comp_def);
 
     Ok(())
 }

@@ -57,7 +57,6 @@ pub fn handler(ctx: Context<WithdrawCollateral>, amount: u64) -> Result<()> {
     require!(available >= amount, ShadowPerpError::InsufficientBalance);
 
     // Transfer tokens from vault to user using PDA signer
-    let market_key = market.key();
     let seeds = &[b"market", market.collateral_mint.as_ref(), &[market.bump]];
     let signer_seeds = &[&seeds[..]];
 
@@ -87,9 +86,6 @@ pub fn handler(ctx: Context<WithdrawCollateral>, amount: u64) -> Result<()> {
         amount,
         new_balance: margin_account.balance,
     });
-
-    msg!("Withdrew {} collateral", amount);
-    msg!("New balance: {}", margin_account.balance);
 
     Ok(())
 }

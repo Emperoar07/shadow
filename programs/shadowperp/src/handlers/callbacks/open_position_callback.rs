@@ -112,12 +112,9 @@ pub fn open_position_callback_handler(
         combined_ciphertexts.len() == 9,
         ShadowPerpError::InvalidComputationResult
     );
-    for (i, ct) in combined_ciphertexts.iter().enumerate() {
-        require!(
-            ct.len() == 32,
-            ShadowPerpError::InvalidComputationResult
-        );
-        let _ = i; // suppress unused warning
+    for ct in combined_ciphertexts.iter() {
+        let ct_bytes: &[u8] = ct.as_ref();
+        require!(ct_bytes.len() == 32, ShadowPerpError::InvalidComputationResult);
     }
     position.encrypted_data[0..32].copy_from_slice(&combined_ciphertexts[0]);
     position.encrypted_data[32..64].copy_from_slice(&combined_ciphertexts[1]);

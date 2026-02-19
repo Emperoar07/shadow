@@ -62,7 +62,8 @@ pub struct ClosePosition<'info> {
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
-    #[account(mut)]
+    /// Cluster must match the one recorded in the market at initialisation.
+    #[account(mut, constraint = cluster_account.key() == market.mxe_cluster @ ShadowPerpError::Unauthorized)]
     pub cluster_account: Account<'info, Cluster>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
@@ -179,8 +180,6 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         &callback_accounts,
     )?;
 
-    let position_key = position.key();
-    let oracle_price = market.oracle_price;
     drop(position);
     drop(market);
 
@@ -193,11 +192,6 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         1,
         0,
     )?;
-
-    msg!("Position close queued for MPC computation");
-    msg!("Computation offset: {}", computation_offset);
-    msg!("Position: {}", position_key);
-    msg!("Current oracle price: {}", oracle_price);
 
     Ok(())
 }

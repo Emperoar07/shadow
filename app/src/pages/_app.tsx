@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { AppProps } from "next/app";
+import { Buffer } from "buffer";
 import {
   ConnectionProvider,
   WalletProvider,
@@ -14,6 +15,10 @@ import { getRpcEndpoint } from "../lib/runtime";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "../styles/globals.css";
+
+if (typeof window !== "undefined" && !(globalThis as any).Buffer) {
+  (globalThis as any).Buffer = Buffer;
+}
 
 export default function App({ Component, pageProps }: AppProps) {
   const endpoint = useMemo(() => getRpcEndpoint(), []);

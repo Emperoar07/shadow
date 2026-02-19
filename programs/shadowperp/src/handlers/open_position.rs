@@ -49,7 +49,7 @@ pub struct OpenPosition<'info> {
         init,
         payer = owner,
         space = Position::LEN,
-        seeds = [b"position", market.key().as_ref(), owner.key().as_ref(), &market.active_positions.to_le_bytes()],
+        seeds = [b"position", market.key().as_ref(), owner.key().as_ref(), &margin_account.positions_opened.to_le_bytes()],
         bump
     )]
     pub position: Account<'info, Position>,
@@ -58,7 +58,9 @@ pub struct OpenPosition<'info> {
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
-    #[account(mut)]
+    /// Cluster must match the one recorded in the market at initialisation.
+    /// Prevents a caller from substituting a different (potentially malicious) cluster.
+    #[account(mut, constraint = cluster_account.key() == market.mxe_cluster @ ShadowPerpError::Unauthorized)]
     pub cluster_account: Account<'info, Cluster>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
@@ -111,6 +113,18 @@ pub fn handler(
         .ok_or(ShadowPerpError::InsufficientMargin)?;
     require!(available_margin >= margin, ShadowPerpError::InsufficientMargin);
 
+    // Validate oracle freshness before opening a position.
+    let price_age = clock.unix_timestamp.saturating_sub(market.last_price_update);
+    require!(price_age < 60, ShadowPerpError::StalePrice);
+    require!(market.oracle_price > 0, ShadowPerpError::InvalidPrice);
+
+    // Reserve a monotonic per-user position index to avoid PDA seed reuse.
+    let next_position_index = margin_account.positions_opened;
+    margin_account.positions_opened = margin_account
+        .positions_opened
+        .checked_add(1)
+        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+
     // Initialize position with encrypted data
     position.owner = ctx.accounts.owner.key();
     position.market = market.key();
@@ -122,7 +136,7 @@ pub fn handler(
     position.realized_pnl = 0;
     position.nonce = nonce.to_le_bytes();
     position.client_pubkey = client_pubkey;
-    position.index = market.active_positions;
+    position.index = next_position_index;
     position.bump = ctx.bumps.position;
 
     // Pack encrypted inputs into position data for on-chain storage
@@ -200,7 +214,6 @@ pub fn handler(
         &callback_accounts,
     )?;
 
-    let position_index = position.index;
     drop(position);
     drop(market);
     drop(margin_account);
@@ -214,10 +227,6 @@ pub fn handler(
         1, // single transaction
         0, // no priority fee
     )?;
-
-    msg!("Position opening queued for MPC computation");
-    msg!("Computation offset: {}", computation_offset);
-    msg!("Position index: {}", position_index);
 
     Ok(())
 }

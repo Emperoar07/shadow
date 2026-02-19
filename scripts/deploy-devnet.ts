@@ -15,9 +15,10 @@
  *   2. Deploys to devnet
  *   3. Creates a mock USDC mint
  *   4. Initializes the ShadowPerp market
- *   5. Initializes computation definitions for Arcium MPC
+ *   5. Initializes Arcium computation definitions
  *   6. Sets the initial oracle price
  *   7. Writes all addresses to app/.env.local
+ *   8. Syncs latest IDL into app/src/idl/shadowperp.json
  */
 
 import * as anchor from "@coral-xyz/anchor";
@@ -28,6 +29,7 @@ import {
   clusterApiUrl,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
+import { getArciumProgramId, getClusterAccAddress } from "@arcium-hq/client";
 import {
   createMint,
   getOrCreateAssociatedTokenAccount,
@@ -38,9 +40,9 @@ import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
 
-const ARCIUM_PROGRAM_ID = new PublicKey("BKck65TgoKRokMjQM3datB9oRwJ8rAj2jxPXvHXUvcL6");
-const ARCIUM_MXE_PROGRAM_ID = new PublicKey("C7mVipE329s49ZZN11tA6fufBoLdxkV5wE9nk9ZrHdcr");
-const ARCIUM_CLUSTER_ACCOUNT = new PublicKey("536voMDX7c7FxgQDhciVwQkDHnusWwFTsaHNiEMPMEqo");
+const ARCIUM_PROGRAM_ID = getArciumProgramId();
+const ARCIUM_CLUSTER_OFFSET = 456;
+const ARCIUM_CLUSTER_ACCOUNT = getClusterAccAddress(ARCIUM_CLUSTER_OFFSET);
 
 async function main() {
   console.log("\n=== ShadowPerp Devnet Deployment ===\n");
@@ -162,7 +164,22 @@ async function main() {
   }
 
   // 7. Set initial oracle price (SOL ~$103)
-  console.log("\nStep 5: Setting initial oracle price...");
+  console.log("\nStep 5: Initializing Arcium computation definitions...");
+  try {
+    execSync(
+      `npx --yes ts-node scripts/init-comp-defs.ts --program ${PROGRAM_ID.toBase58()} --market ${marketPda.toBase58()} --rpc ${connection.rpcEndpoint} --arcium-program ${ARCIUM_PROGRAM_ID.toBase58()} --mxe-program ${PROGRAM_ID.toBase58()} --cluster-offset ${ARCIUM_CLUSTER_OFFSET}`,
+      {
+        cwd: path.resolve(__dirname, ".."),
+        stdio: "inherit",
+      }
+    );
+  } catch {
+    console.error("ERROR: Failed to initialize Arcium computation definitions.");
+    process.exit(1);
+  }
+
+  // 8. Set initial oracle price (SOL ~$103)
+  console.log("\nStep 6: Setting initial oracle price...");
   try {
     await program.methods
       .updatePrice(new anchor.BN(103_000_000)) // $103.00 in 1e6 scale
@@ -177,8 +194,8 @@ async function main() {
     console.error("Failed to set price:", e.message);
   }
 
-  // 8. Mint some test USDC to deployer
-  console.log("\nStep 6: Minting test USDC...");
+  // 9. Mint some test USDC to deployer
+  console.log("\nStep 7: Minting test USDC...");
   const deployerAta = await getOrCreateAssociatedTokenAccount(
     connection,
     walletKeypair,
@@ -195,8 +212,8 @@ async function main() {
   );
   console.log("Minted 10,000 USDC to deployer");
 
-  // 9. Write .env.local
-  console.log("\nStep 7: Writing app/.env.local...");
+  // 10. Write .env.local
+  console.log("\nStep 8: Writing app/.env.local...");
   const envContent = `NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
 
 # ShadowPerp program (deployed to devnet)
@@ -204,7 +221,8 @@ NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID=${PROGRAM_ID.toBase58()}
 
 # Arcium network accounts (devnet)
 NEXT_PUBLIC_ARCIUM_PROGRAM_ID=${ARCIUM_PROGRAM_ID.toBase58()}
-NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID=${ARCIUM_MXE_PROGRAM_ID.toBase58()}
+NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID=${PROGRAM_ID.toBase58()}
+NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET=${ARCIUM_CLUSTER_OFFSET}
 NEXT_PUBLIC_ARCIUM_CLUSTER_ACCOUNT=${ARCIUM_CLUSTER_ACCOUNT.toBase58()}
 
 # Market account
@@ -213,6 +231,11 @@ NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT=${marketPda.toBase58()}
 
   fs.writeFileSync(path.resolve(__dirname, "..", "app", ".env.local"), envContent);
   console.log("Written to app/.env.local");
+
+  // 11. Sync latest IDL for frontend/runtime
+  const appIdlPath = path.resolve(__dirname, "..", "app", "src", "idl", "shadowperp.json");
+  fs.copyFileSync(idlPath, appIdlPath);
+  console.log("Synced IDL to app/src/idl/shadowperp.json");
 
   // Summary
   console.log("\n=== Deployment Complete ===\n");
@@ -225,8 +248,6 @@ NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT=${marketPda.toBase58()}
   console.log("  2. Connect wallet (Phantom/Solflare) on devnet");
   console.log("  3. Get devnet USDC from the mock mint above");
   console.log("  4. Deposit collateral and open positions!");
-  console.log("\nTo init Arcium computation definitions (requires Arcium devnet access):");
-  console.log("  npx ts-node scripts/init-comp-defs.ts");
 }
 
 main().catch((err) => {

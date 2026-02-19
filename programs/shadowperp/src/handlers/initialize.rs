@@ -76,9 +76,5 @@ pub fn handler(
         liquidation_threshold,
     });
 
-    msg!("ShadowPerp market initialized");
-    msg!("Max leverage: {}x", max_leverage);
-    msg!("Liquidation threshold: {} bps", liquidation_threshold);
-
     Ok(())
 }

@@ -1,13 +1,14 @@
 import { PublicKey } from "@solana/web3.js";
 import shadowperpIdl from "../idl/shadowperp.json";
 import {
+  getClusterAccAddress,
+  getFeePoolAccAddress,
   getExecutingPoolAccAddress,
   getMempoolAccAddress,
-  getStakingPoolAccAddress,
 } from "@arcium-hq/client";
 import { ShadowPerpConfig } from "../types";
 
-const DEFAULT_SHADOWPERP_PROGRAM_ID = "11111111111111111111111111111111";
+const DEFAULT_CLUSTER_OFFSET = 456;
 
 function readRequired(name: string): string {
   const value = process.env[name];
@@ -31,21 +32,39 @@ function parsePublicKey(name: string, fallback?: string): PublicKey {
 }
 
 export function getRuntimeConfig(): ShadowPerpConfig {
-  const mxeProgramId = parsePublicKey("NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID");
+  const programId = parsePublicKey("NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID");
+  const clusterOffsetRaw = process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET?.trim();
+  const clusterOffset = clusterOffsetRaw
+    ? Number.parseInt(clusterOffsetRaw, 10)
+    : DEFAULT_CLUSTER_OFFSET;
+  if (!Number.isFinite(clusterOffset) || clusterOffset < 0) {
+    throw new Error(
+      "Invalid NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET. Set a non-negative integer (e.g. 456)."
+    );
+  }
+
+  const mxeProgramId = parsePublicKey(
+    "NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID",
+    programId.toBase58()
+  );
   const signPdaAccount = PublicKey.findProgramAddressSync(
-    [Buffer.from("SignerAccount")],
-    mxeProgramId
+    [Buffer.from("ArciumSignerAccount")],
+    programId
   )[0];
 
   return {
-    programId: parsePublicKey("NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID", DEFAULT_SHADOWPERP_PROGRAM_ID),
+    programId,
     arciumProgramId: parsePublicKey("NEXT_PUBLIC_ARCIUM_PROGRAM_ID"),
     mxeProgramId,
-    clusterAddress: parsePublicKey("NEXT_PUBLIC_ARCIUM_CLUSTER_ACCOUNT"),
+    clusterOffset,
+    clusterAddress: parsePublicKey(
+      "NEXT_PUBLIC_ARCIUM_CLUSTER_ACCOUNT",
+      getClusterAccAddress(clusterOffset).toBase58()
+    ),
     marketAddress: parsePublicKey("NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT"),
-    mempoolAccount: getMempoolAccAddress(mxeProgramId),
-    executingPool: getExecutingPoolAccAddress(mxeProgramId),
-    poolAccount: getStakingPoolAccAddress(),
+    mempoolAccount: getMempoolAccAddress(clusterOffset),
+    executingPool: getExecutingPoolAccAddress(clusterOffset),
+    poolAccount: getFeePoolAccAddress(),
     signPdaAccount,
     idl: shadowperpIdl,
   };

@@ -36,6 +36,24 @@ function resolveArciumRpcUrl(): string {
 }
 
 const ARCIUM_RPC_URL = resolveArciumRpcUrl();
+const SCALE_PRICE = 1_000_000;
+const SCALE_BASE_SIZE = 1_000_000_000;
+const SCALE_MARGIN = 1_000_000;
+
+function requireFinitePositive(value: number, label: string): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`Invalid ${label}.`);
+  }
+}
+
+function toScaledPositiveBn(value: number, scale: number, label: string): BN {
+  requireFinitePositive(value, label);
+  const scaled = Math.round(value * scale);
+  if (!Number.isFinite(scaled) || scaled <= 0 || !Number.isSafeInteger(scaled)) {
+    throw new Error(`Invalid ${label}: out of supported range.`);
+  }
+  return new BN(scaled);
+}
 
 export const useArciumPrivacy = () => {
   const { connection } = useConnection();
@@ -71,6 +89,11 @@ export const useArciumPrivacy = () => {
       }
 
       const { client, runtime } = ctx;
+      requireFinitePositive(order.sizeUi, "position size");
+      if (!Number.isInteger(order.leverage) || order.leverage < 1) {
+        throw new Error("Invalid leverage.");
+      }
+
       setStatus("preparing");
       setStatusMessage(
         isPrivate
@@ -79,6 +102,15 @@ export const useArciumPrivacy = () => {
       );
 
       const market = await client.getMarket(runtime.marketAddress);
+      const marketMaxLeverage = Number(market.maxLeverage ?? 0);
+      if (
+        !Number.isFinite(marketMaxLeverage) ||
+        marketMaxLeverage < 1 ||
+        order.leverage > marketMaxLeverage
+      ) {
+        throw new Error(`Leverage exceeds market max (${marketMaxLeverage}x).`);
+      }
+
       const oraclePriceRaw = new BN(market.oraclePrice.toString());
       const oraclePrice = oraclePriceRaw.gt(new BN(0)) ? oraclePriceRaw : new BN(1);
       const oraclePriceUi = Number(oraclePrice.toString()) / 1_000_000;
@@ -86,13 +118,13 @@ export const useArciumPrivacy = () => {
         order.entryPriceUi && order.entryPriceUi > 0
           ? order.entryPriceUi
           : oraclePriceUi;
-      const entryPrice = new BN(
-        Math.max(1, Math.round(resolvedEntryPriceUi * 1_000_000))
-      );
+      requireFinitePositive(resolvedEntryPriceUi, "entry price");
+      const entryPrice = toScaledPositiveBn(resolvedEntryPriceUi, SCALE_PRICE, "entry price");
 
-      const sizeBase = new BN(Math.max(1, Math.round(order.sizeUi * 10 ** 9)));
+      const sizeBase = toScaledPositiveBn(order.sizeUi, SCALE_BASE_SIZE, "position size");
       const requiredMarginUi = (order.sizeUi * resolvedEntryPriceUi) / order.leverage;
-      const marginBase = new BN(Math.max(1, Math.round(requiredMarginUi * 1_000_000)));
+      requireFinitePositive(requiredMarginUi, "required margin");
+      const marginBase = toScaledPositiveBn(requiredMarginUi, SCALE_MARGIN, "required margin");
 
       const { txSignature, positionAddress } = await client.openPosition(runtime.marketAddress, {
         size: sizeBase,

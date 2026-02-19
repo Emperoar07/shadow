@@ -83,8 +83,5 @@ pub fn handler(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
         new_balance: margin_account.balance,
     });
 
-    msg!("Deposited {} collateral", amount);
-    msg!("New balance: {}", margin_account.balance);
-
     Ok(())
 }

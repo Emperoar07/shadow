@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BN from "bn.js";
-import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
+import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { getExplorerTxUrl } from "../lib/explorer";
 
 type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated";
 
@@ -45,7 +47,7 @@ const STATUS_CONFIG: Record<UiStatus, { label: string; color: string; bgColor: s
 
 export default function PositionsList() {
   const { publicKey } = useWallet();
-  const anchorWallet = useAnchorWallet();
+  const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
   const [positions, setPositions] = useState<UiPosition[]>([]);
   const [loading, setLoading] = useState(false);
@@ -96,7 +98,7 @@ export default function PositionsList() {
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(runtime.marketAddress);
         toast.loading("Queuing close via Arcium MPC...", { id: position.address });
         const tx = await client.closePosition(runtime.marketAddress, position.index, ownerTokenAccount);
-        const txUrl = `https://explorer.solana.com/tx/${tx}?cluster=devnet`;
+        const txUrl = getExplorerTxUrl(tx);
         toast.success(
           <div>
             <p className="font-medium">Close queued for MPC computation</p>

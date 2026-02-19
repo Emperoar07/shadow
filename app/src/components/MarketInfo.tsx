@@ -155,7 +155,7 @@ export default function MarketInfo({ pair }: MarketInfoProps) {
       </div>
 
       <div className="space-y-3">
-        <InfoRow label="Open Interest" value={market ? `$${(market.activePositions * 500).toLocaleString()}` : "--"} encrypted />
+        <InfoRow label="Open Interest" value={market ? `$${(market.activePositions * 500).toLocaleString()}` : "--"} />
         <InfoRow label="Fees Collected" value={market ? `$${market.totalFeesCollected.toFixed(2)}` : "--"} />
         <InfoRow label="Trading Fee" value={market ? `${market.tradingFee.toFixed(2)}%` : "0.10%"} />
         <InfoRow label="Liq. Threshold" value={market ? `${market.liquidationThreshold.toFixed(0)}%` : "80%"} />
