@@ -106,30 +106,35 @@ pub fn open_position_callback_handler(
     position.margin = required_margin;
 
     // Replace encrypted position payload with MPC-produced ciphertexts.
-    if combined_ciphertexts.len() >= 9 {
-        position.encrypted_data[0..32].copy_from_slice(&combined_ciphertexts[0]);
-        position.encrypted_data[32..64].copy_from_slice(&combined_ciphertexts[1]);
-        position.encrypted_data[64..96].copy_from_slice(&combined_ciphertexts[2]);
-        position.encrypted_data[96..128].copy_from_slice(&combined_ciphertexts[3]);
-        position.encrypted_data[128..160].copy_from_slice(&combined_ciphertexts[4]);
-        position.encrypted_data[160..192].copy_from_slice(&combined_ciphertexts[5]);
-        position.encrypted_data[192..224].copy_from_slice(&combined_ciphertexts[6]);
-    } else {
-        return Err(ShadowPerpError::InvalidComputationResult.into());
+    // Require exactly 9 elements (7 position fields + 2 OI fields), each exactly 32 bytes,
+    // to prevent malformed MPC output from corrupting position state.
+    require!(
+        combined_ciphertexts.len() == 9,
+        ShadowPerpError::InvalidComputationResult
+    );
+    for (i, ct) in combined_ciphertexts.iter().enumerate() {
+        require!(
+            ct.len() == 32,
+            ShadowPerpError::InvalidComputationResult
+        );
+        let _ = i; // suppress unused warning
     }
+    position.encrypted_data[0..32].copy_from_slice(&combined_ciphertexts[0]);
+    position.encrypted_data[32..64].copy_from_slice(&combined_ciphertexts[1]);
+    position.encrypted_data[64..96].copy_from_slice(&combined_ciphertexts[2]);
+    position.encrypted_data[96..128].copy_from_slice(&combined_ciphertexts[3]);
+    position.encrypted_data[128..160].copy_from_slice(&combined_ciphertexts[4]);
+    position.encrypted_data[160..192].copy_from_slice(&combined_ciphertexts[5]);
+    position.encrypted_data[192..224].copy_from_slice(&combined_ciphertexts[6]);
 
-    // Update encrypted open interest from combined MPC output (last 2 ciphertexts)
+    // Update encrypted open interest from combined MPC output (last 2 ciphertexts).
+    // Lengths already validated in the loop above.
     market.encrypted_total_long_oi = combined_ciphertexts[7];
     market.encrypted_total_short_oi = combined_ciphertexts[8];
 
     // Increment active positions counter
     market.active_positions = market
         .active_positions
-        .checked_add(1)
-        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
-
-    margin_account.positions_opened = margin_account
-        .positions_opened
         .checked_add(1)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
@@ -142,11 +147,6 @@ pub fn open_position_callback_handler(
         margin: position.margin,
         timestamp: clock.unix_timestamp,
     });
-
-    msg!("Position opened successfully via MPC callback");
-    msg!("Position: {}", position.key());
-    msg!("Margin locked: {}", position.margin);
-    // Note: Size, leverage, direction are NOT logged - they remain private
 
     Ok(())
 }

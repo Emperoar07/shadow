@@ -119,11 +119,13 @@ pub struct PositionClosed {
     pub timestamp: i64,
 }
 
-/// Event emitted when a position is liquidated
+/// Event emitted when a position is liquidated.
+/// liquidation_price is intentionally omitted — revealing it would let observers
+/// reconstruct leverage/direction from margin + price. Only the fact of liquidation
+/// is public, matching the MPC circuit's boolean-only output guarantee.
 #[event]
 pub struct PositionLiquidated {
     pub owner: Pubkey,
     pub position: Pubkey,
-    pub liquidation_price: u64,
     pub timestamp: i64,
 }

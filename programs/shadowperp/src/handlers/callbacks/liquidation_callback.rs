@@ -87,12 +87,12 @@ pub fn check_liquidation_callback_handler(
     // Extract revealed liquidation decision
     // CRITICAL: Only the boolean is revealed, NOT the health factor
     let should_liquidate = verified_output.field_0.field_0;
-    let liquidation_price = verified_output.field_0.field_1;
+    // liquidation_price is deliberately not stored or emitted — revealing it allows
+    // observers to reconstruct leverage/direction from the plaintext margin amount.
+    let _liquidation_price = verified_output.field_0.field_1;
 
     // If position should not be liquidated, just return
     if !should_liquidate {
-        msg!("Position health factor above liquidation threshold");
-        msg!("Position: {}", position.key());
         return Ok(());
     }
 
@@ -180,15 +180,8 @@ pub fn check_liquidation_callback_handler(
     emit!(PositionLiquidated {
         owner: position.owner,
         position: position.key(),
-        liquidation_price,
         timestamp: clock.unix_timestamp,
     });
-
-    msg!("Position liquidated via MPC callback");
-    msg!("Position: {}", position.key());
-    msg!("Liquidation price: {}", liquidation_price);
-    msg!("Liquidation penalty: {}", liquidation_penalty);
-    // Note: Position size, leverage, entry price remain PRIVATE even after liquidation
 
     Ok(())
 }

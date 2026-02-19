@@ -100,12 +100,18 @@ pub fn close_position_callback_handler(
     position.status = PositionStatus::Closed;
     position.closed_at = clock.unix_timestamp;
 
-    // Update encrypted open interest from MPC output
+    // Update encrypted open interest from MPC output.
+    // Require exactly 2 elements, each 32 bytes — reject malformed MPC output rather
+    // than silently accepting extra or truncated ciphertexts.
     let oi_ciphertexts = &verified_output.field_0.field_3.ciphertexts;
-    if oi_ciphertexts.len() >= 2 {
-        market.encrypted_total_long_oi = oi_ciphertexts[0];
-        market.encrypted_total_short_oi = oi_ciphertexts[1];
-    }
+    require!(
+        oi_ciphertexts.len() == 2
+            && oi_ciphertexts[0].len() == 32
+            && oi_ciphertexts[1].len() == 32,
+        ShadowPerpError::InvalidComputationResult
+    );
+    market.encrypted_total_long_oi = oi_ciphertexts[0];
+    market.encrypted_total_short_oi = oi_ciphertexts[1];
 
     // Unlock margin
     margin_account.locked_balance = margin_account
@@ -172,12 +178,6 @@ pub fn close_position_callback_handler(
         settlement_amount,
         timestamp: clock.unix_timestamp,
     });
-
-    msg!("Position closed via MPC callback - PnL revealed");
-    msg!("Position: {}", position.key());
-    msg!("Realized PnL: {}", realized_pnl);
-    msg!("Settlement: {}", settlement_amount);
-    msg!("Fee: {}", fee);
 
     Ok(())
 }
