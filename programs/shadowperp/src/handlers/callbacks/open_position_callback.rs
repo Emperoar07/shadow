@@ -66,6 +66,16 @@ pub fn open_position_callback_handler(
         ShadowPerpError::InvalidAccountData
     );
 
+    // Verify the callback is consuming the exact computation that was authorised for this
+    // position. Prevents replay: output from a different computation (with different/malicious
+    // parameters) cannot be applied to this position even if it passes verify_output.
+    require!(
+        ctx.accounts.computation_account.key() == position.pending_computation_account,
+        ShadowPerpError::Unauthorized
+    );
+    // Clear the binding so it cannot be consumed a second time.
+    position.pending_computation_account = Pubkey::default();
+
     // Enforce MPC validation outcome.
     // Circuit returns tuple → wrapped in OutputStruct0: field_0=bool, field_1=encrypted, field_2=u64
     let result = &verified_output.field_0;

@@ -87,6 +87,16 @@ pub fn close_position_callback_handler(
         ShadowPerpError::InvalidAccountData
     );
 
+    // Verify the callback is consuming the exact computation that was authorised for this
+    // close request. Prevents replay: output from a different computation cannot be applied
+    // to settle this position.
+    require!(
+        ctx.accounts.computation_account.key() == position.pending_computation_account,
+        ShadowPerpError::Unauthorized
+    );
+    // Clear the binding so it cannot be consumed a second time.
+    position.pending_computation_account = Pubkey::default();
+
     // THIS IS THE KEY PRIVACY MOMENT:
     // Circuit returns flat tuple (i64, u64, u64, Enc<Mxe, (u64, u64)>) → all in OutputStruct0:
     //   field_0: i64 (realized_pnl), field_1: u64 (settlement), field_2: u64 (fee),

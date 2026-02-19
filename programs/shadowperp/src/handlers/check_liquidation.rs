@@ -87,7 +87,7 @@ pub fn handler(
     computation_offset: u64,
 ) -> Result<()> {
     let market = &ctx.accounts.market;
-    let position = &ctx.accounts.position;
+    let position = &mut ctx.accounts.position;
     let clock = Clock::get()?;
 
     // Validate position is open
@@ -174,6 +174,14 @@ pub fn handler(
             is_writable: true,
         },
     ];
+
+    // Bind to the specific computation account so the callback can verify it is consuming
+    // output from the exact liquidation computation that was authorised for this position.
+    // If multiple concurrent liquidation checks are submitted, the last one wins — earlier
+    // callbacks will fail the key check and return, which is safe and preferable.
+    position.pending_computation_account = ctx.accounts.computation_account.key();
+    drop(position);
+    drop(market);
 
     let callback_ix = CheckLiquidationCallback::callback_ix(
         computation_offset,

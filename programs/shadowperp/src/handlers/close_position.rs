@@ -98,6 +98,9 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
 
     // Update status to closing
     position.status = PositionStatus::Closing;
+    // Bind to the specific computation account so the callback can verify it is consuming
+    // output from the exact computation that was authorised for this close request.
+    position.pending_computation_account = ctx.accounts.computation_account.key();
 
     // Build arguments for close_position MPC circuit
     // position: Enc<Mxe, Position> - pass the encrypted position data stored on-chain

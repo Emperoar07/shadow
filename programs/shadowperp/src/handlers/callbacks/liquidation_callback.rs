@@ -84,6 +84,17 @@ pub fn check_liquidation_callback_handler(
     let position = &mut ctx.accounts.position;
     let clock = Clock::get()?;
 
+    // Verify the callback is consuming the exact computation that was authorised for this
+    // liquidation check. The last-submitted check wins if multiple were queued concurrently;
+    // earlier callbacks will fail this guard and return harmlessly.
+    require!(
+        ctx.accounts.computation_account.key() == position.pending_computation_account,
+        ShadowPerpError::Unauthorized
+    );
+    // Clear the binding immediately — even if liquidation doesn't occur, the computation
+    // is consumed and must not be reusable.
+    position.pending_computation_account = Pubkey::default();
+
     // Extract revealed liquidation decision
     // CRITICAL: Only the boolean is revealed, NOT the health factor
     let should_liquidate = verified_output.field_0.field_0;

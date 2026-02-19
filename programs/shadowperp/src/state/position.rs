@@ -44,8 +44,14 @@ pub struct Position {
     /// Bump seed for PDA derivation
     pub bump: u8,
 
+    /// The computation account key recorded when this position's MPC computation was queued.
+    /// Callbacks verify that the computation_account passed to them matches this key,
+    /// binding each callback to the specific computation that was authorised for this position.
+    /// Cleared to Pubkey::default() after the callback consumes it.
+    pub pending_computation_account: Pubkey,
+
     /// Reserved space for future upgrades
-    pub _reserved: [u8; 64],
+    pub _reserved: [u8; 32],
 }
 
 impl Default for Position {
@@ -64,7 +70,8 @@ impl Default for Position {
             client_pubkey: [0u8; 32],
             index: 0,
             bump: 0,
-            _reserved: [0u8; 64],
+            pending_computation_account: Pubkey::default(),
+            _reserved: [0u8; 32],
         }
     }
 }
@@ -84,7 +91,8 @@ impl Position {
         32 +  // client_pubkey
         8 +   // index
         1 +   // bump
-        64;   // reserved
+        32 +  // pending_computation_account
+        32;   // reserved
 }
 
 /// Position status enum

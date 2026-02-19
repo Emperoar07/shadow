@@ -138,6 +138,9 @@ pub fn handler(
     position.client_pubkey = client_pubkey;
     position.index = next_position_index;
     position.bump = ctx.bumps.position;
+    // Bind this position to the specific computation account that will execute it.
+    // The callback will verify this key before accepting any MPC output.
+    position.pending_computation_account = ctx.accounts.computation_account.key();
 
     // Pack encrypted inputs into position data for on-chain storage
     let mut encrypted_data = [0u8; 256];
