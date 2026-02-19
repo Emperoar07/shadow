@@ -33,6 +33,12 @@ function parsePublicKey(name: string, fallback?: string): PublicKey {
 
 export function getRuntimeConfig(): ShadowPerpConfig {
   const programId = parsePublicKey("NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID");
+
+  // Parse Arcium program ID first so it can be used as the MXE fallback.
+  // NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID is the Arcium program (not ShadowPerp's).
+  // getMXEAccAddress / getArciumMXEPublicKey both derive the MXE PDA from it.
+  const arciumProgramId = parsePublicKey("NEXT_PUBLIC_ARCIUM_PROGRAM_ID");
+
   const clusterOffsetRaw = process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET?.trim();
   const clusterOffset = clusterOffsetRaw
     ? Number.parseInt(clusterOffsetRaw, 10)
@@ -43,9 +49,10 @@ export function getRuntimeConfig(): ShadowPerpConfig {
     );
   }
 
+  // MXE program ID defaults to the Arcium program ID when not explicitly set.
   const mxeProgramId = parsePublicKey(
     "NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID",
-    programId.toBase58()
+    arciumProgramId.toBase58()
   );
   const signPdaAccount = PublicKey.findProgramAddressSync(
     [Buffer.from("ArciumSignerAccount")],
@@ -54,7 +61,7 @@ export function getRuntimeConfig(): ShadowPerpConfig {
 
   return {
     programId,
-    arciumProgramId: parsePublicKey("NEXT_PUBLIC_ARCIUM_PROGRAM_ID"),
+    arciumProgramId,
     mxeProgramId,
     clusterOffset,
     clusterAddress: parsePublicKey(
