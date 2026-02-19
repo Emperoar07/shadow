@@ -115,9 +115,24 @@ pub fn check_liquidation_callback_handler(
         .checked_sub(margin)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
-    // Calculate liquidation penalty (5% to liquidator, rest returned)
-    let liquidation_penalty = margin / 20; // 5%
-    let remaining = margin.checked_sub(liquidation_penalty).unwrap_or(0);
+    // Calculate liquidation penalty (5% to liquidator, rest returned).
+    // Use multiply-then-divide to avoid integer-division precision loss.
+    let liquidation_penalty = margin
+        .checked_mul(5)
+        .ok_or(ShadowPerpError::ArithmeticOverflow)?
+        .checked_div(100)
+        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+    let remaining = margin
+        .checked_sub(liquidation_penalty)
+        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+    // Invariant: the two halves must reconstitute the original margin exactly.
+    require!(
+        liquidation_penalty
+            .checked_add(remaining)
+            .ok_or(ShadowPerpError::ArithmeticOverflow)?
+            == margin,
+        ShadowPerpError::ArithmeticOverflow
+    );
 
     // Return remaining to user's margin balance
     margin_account.balance = margin_account
