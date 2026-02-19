@@ -167,7 +167,7 @@ async function main() {
   console.log("\nStep 5: Initializing Arcium computation definitions...");
   try {
     execSync(
-      `npx --yes ts-node scripts/init-comp-defs.ts --program ${PROGRAM_ID.toBase58()} --market ${marketPda.toBase58()} --rpc ${connection.rpcEndpoint} --arcium-program ${ARCIUM_PROGRAM_ID.toBase58()} --mxe-program ${PROGRAM_ID.toBase58()} --cluster-offset ${ARCIUM_CLUSTER_OFFSET}`,
+      `npx --yes ts-node scripts/init-comp-defs.ts --program ${PROGRAM_ID.toBase58()} --market ${marketPda.toBase58()} --rpc ${connection.rpcEndpoint} --arcium-program ${ARCIUM_PROGRAM_ID.toBase58()} --mxe-program ${ARCIUM_PROGRAM_ID.toBase58()} --cluster-offset ${ARCIUM_CLUSTER_OFFSET}`,
       {
         cwd: path.resolve(__dirname, ".."),
         stdio: "inherit",
@@ -215,17 +215,20 @@ async function main() {
   // 10. Write .env.local
   console.log("\nStep 8: Writing app/.env.local...");
   const envContent = `NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
+NEXT_PUBLIC_ARCIUM_RPC_URL=https://devnet.helius-rpc.com
 
-# ShadowPerp program (deployed to devnet)
+# ShadowPerp program (deployed to devnet - matches Anchor.toml [programs.devnet])
 NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID=${PROGRAM_ID.toBase58()}
 
 # Arcium network accounts (devnet)
+# NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID is the Arcium runtime program, NOT your ShadowPerp program.
+# getMXEAccAddress/getArciumMXEPublicKey derive the MXE PDA from this program.
 NEXT_PUBLIC_ARCIUM_PROGRAM_ID=${ARCIUM_PROGRAM_ID.toBase58()}
-NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID=${PROGRAM_ID.toBase58()}
+NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID=${ARCIUM_PROGRAM_ID.toBase58()}
 NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET=${ARCIUM_CLUSTER_OFFSET}
 NEXT_PUBLIC_ARCIUM_CLUSTER_ACCOUNT=${ARCIUM_CLUSTER_ACCOUNT.toBase58()}
 
-# Market account
+# Market account (PDA of the initialize instruction)
 NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT=${marketPda.toBase58()}
 `;
 
