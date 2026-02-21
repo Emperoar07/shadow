@@ -27,7 +27,8 @@ pub struct MarginAccount {
     /// Number of positions closed
     pub positions_closed: u64,
 
-    /// Total realized PnL (sum of all closed positions)
+    /// Deprecated public accumulator (kept for account layout compatibility).
+    /// Do not use for analytics/privacy-sensitive surfaces.
     pub total_realized_pnl: i64,
 
     /// Bump seed for PDA derivation
@@ -67,7 +68,7 @@ impl MarginAccount {
         8 +  // positions_closed
         8 +  // total_realized_pnl
         1 +  // bump
-        64;  // reserved
+        64; // reserved
 }
 
 /// Event emitted when collateral is deposited

@@ -22,10 +22,13 @@ pub struct Position {
     /// Timestamp when position was closed (0 if still open)
     pub closed_at: i64,
 
-    /// Margin deposited for this position
+    /// Deprecated plaintext margin slot (legacy compatibility only).
+    /// New flow keeps this at 0 while a position is active and settles using
+    /// MPC-revealed lock amount in callbacks.
     pub margin: u64,
 
-    /// Public margin amount requested at open-time (used for deterministic locking)
+    /// Pending-time user margin cap used during open-position validation.
+    /// Cleared once callback transitions position to Open.
     pub requested_margin: u64,
 
     /// Realized PnL (only set after position is closed)
@@ -92,14 +95,14 @@ impl Position {
         8 +   // index
         1 +   // bump
         32 +  // pending_computation_account
-        32;   // reserved
+        32; // reserved
 }
 
 /// Position status enum
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PositionStatus {
     #[default]
-    Pending,    // Position opening in progress (MPC running)
+    Pending, // Position opening in progress (MPC running)
     Open,       // Position is active
     Closing,    // Position close in progress (MPC running)
     Closed,     // Position settled, PnL revealed
@@ -107,23 +110,21 @@ pub enum PositionStatus {
 }
 
 /// Event emitted when a position is opened
-/// Note: Size and direction are NOT revealed here
+/// Note: size, direction and margin are not revealed here.
 #[event]
 pub struct PositionOpened {
     pub owner: Pubkey,
     pub position: Pubkey,
     pub market: Pubkey,
-    pub margin: u64,
     pub timestamp: i64,
 }
 
-/// Event emitted when a position is closed - PnL revealed
+/// Event emitted when a position is closed.
+/// Settlement details are intentionally omitted to reduce public strategy leakage.
 #[event]
 pub struct PositionClosed {
     pub owner: Pubkey,
     pub position: Pubkey,
-    pub realized_pnl: i64,
-    pub settlement_amount: u64,
     pub timestamp: i64,
 }
 

@@ -1,6 +1,6 @@
+use crate::ID;
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
-use crate::{ID, ID_CONST};
 
 use crate::state::Market;
 

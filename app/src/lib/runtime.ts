@@ -9,20 +9,19 @@ import {
 import { ShadowPerpConfig } from "../types";
 
 const DEFAULT_CLUSTER_OFFSET = 456;
-
-function readRequired(name: string): string {
-  const value = process.env[name];
-  if (!value || value.trim().length === 0) {
-    throw new Error(`Missing required env var: ${name}`);
-  }
-  return value.trim();
-}
+const DEFAULT_IDL_PROGRAM_ID =
+  typeof shadowperpIdl.address === "string" && shadowperpIdl.address.length > 0
+    ? shadowperpIdl.address
+    : undefined;
 
 function parsePublicKey(name: string, fallback?: string): PublicKey {
   const envValue = process.env[name]?.trim();
   const raw = envValue && envValue.length > 0 ? envValue : fallback;
   if (!raw) {
-    throw new Error(`Missing required env var: ${name}`);
+    throw new Error(
+      `Missing required env var: ${name}. ` +
+        "Set it in app/.env.local and restart the Next.js dev server."
+    );
   }
   try {
     return new PublicKey(raw);
@@ -32,11 +31,12 @@ function parsePublicKey(name: string, fallback?: string): PublicKey {
 }
 
 export function getRuntimeConfig(): ShadowPerpConfig {
-  const programId = parsePublicKey("NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID");
+  const programId = parsePublicKey(
+    "NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID",
+    DEFAULT_IDL_PROGRAM_ID
+  );
 
-  // Parse Arcium program ID first so it can be used as the MXE fallback.
-  // NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID is the Arcium program (not ShadowPerp's).
-  // getMXEAccAddress / getArciumMXEPublicKey both derive the MXE PDA from it.
+  // Parse Arcium runtime program ID first (queue/execution program).
   const arciumProgramId = parsePublicKey("NEXT_PUBLIC_ARCIUM_PROGRAM_ID");
 
   const clusterOffsetRaw = process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET?.trim();
@@ -49,10 +49,11 @@ export function getRuntimeConfig(): ShadowPerpConfig {
     );
   }
 
-  // MXE program ID defaults to the Arcium program ID when not explicitly set.
+  // MXE PDA namespace defaults to the ShadowPerp program ID.
+  // This matches Arcium SDK examples where getMXEAccAddress() is derived from app program id.
   const mxeProgramId = parsePublicKey(
     "NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID",
-    arciumProgramId.toBase58()
+    programId.toBase58()
   );
   const signPdaAccount = PublicKey.findProgramAddressSync(
     [Buffer.from("ArciumSignerAccount")],

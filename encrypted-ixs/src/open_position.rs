@@ -57,7 +57,15 @@ mod open_position_circuit {
             oi.1 = oi.1 + size;
         }
 
-        let position = (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi);
+        let position = (
+            size,
+            entry_price,
+            leverage,
+            is_long,
+            margin,
+            owner_lo,
+            owner_hi,
+        );
         let combined = (position, oi);
 
         (

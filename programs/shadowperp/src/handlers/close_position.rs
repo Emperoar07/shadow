@@ -1,10 +1,10 @@
+use crate::ArciumSignerAccount;
+use crate::ID;
 use anchor_lang::prelude::*;
+use anchor_spl::token::TokenAccount;
 use arcium_anchor::prelude::*;
 use arcium_anchor::traits::CallbackCompAccs;
-use anchor_spl::token::{TokenAccount};
 use arcium_client::idl::arcium::types::CallbackAccount;
-use crate::{ID, ID_CONST};
-use crate::ArciumSignerAccount;
 
 use crate::errors::ShadowPerpError;
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
@@ -23,7 +23,7 @@ pub struct ClosePosition<'info> {
         seeds = [b"market", market.collateral_mint.as_ref()],
         bump = market.bump
     )]
-    pub market: Account<'info, Market>,
+    pub market: Box<Account<'info, Market>>,
 
     #[account(
         mut,
@@ -32,7 +32,7 @@ pub struct ClosePosition<'info> {
         has_one = owner,
         has_one = market,
     )]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
 
     #[account(
         mut,
@@ -41,14 +41,14 @@ pub struct ClosePosition<'info> {
         has_one = owner,
         has_one = market,
     )]
-    pub margin_account: Account<'info, MarginAccount>,
+    pub margin_account: Box<Account<'info, MarginAccount>>,
 
     #[account(
         mut,
         constraint = owner_token_account.owner == owner.key(),
         constraint = owner_token_account.mint == market.collateral_mint
     )]
-    pub owner_token_account: Account<'info, TokenAccount>,
+    pub owner_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -56,15 +56,15 @@ pub struct ClosePosition<'info> {
         bump,
         constraint = vault.key() == market.vault
     )]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
 
     // --- Arcium accounts ---
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
-    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
+    pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
     /// Cluster must match the one recorded in the market at initialisation.
     #[account(mut, constraint = cluster_account.key() == market.mxe_cluster @ ShadowPerpError::Unauthorized)]
-    pub cluster_account: Account<'info, Cluster>,
+    pub cluster_account: Box<Account<'info, Cluster>>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
     pub mempool_account: UncheckedAccount<'info>,
@@ -76,11 +76,11 @@ pub struct ClosePosition<'info> {
     pub computation_account: UncheckedAccount<'info>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
-    pub pool_account: Account<'info, FeePool>,
+    pub pool_account: Box<Account<'info, FeePool>>,
     /// CHECK: Validated by Arcium
     pub sign_pda_account: Account<'info, ArciumSignerAccount>,
     #[account(mut)]
-    pub clock_account: Account<'info, ClockAccount>,
+    pub clock_account: Box<Account<'info, ClockAccount>>,
 
     pub arcium_program: Program<'info, Arcium>,
     pub system_program: Program<'info, System>,
@@ -133,9 +133,9 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
     let args = ArgBuilder::new()
         // position: Enc<Mxe, Position> - 7 fields (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi)
         .plaintext_u128(nonce)
-        .encrypted_u64(encrypted_size)   // size
-        .encrypted_u64(encrypted_entry_price)  // entry_price
-        .encrypted_u8(encrypted_leverage)   // leverage
+        .encrypted_u64(encrypted_size) // size
+        .encrypted_u64(encrypted_entry_price) // entry_price
+        .encrypted_u8(encrypted_leverage) // leverage
         .encrypted_bool(encrypted_is_long) // is_long
         .encrypted_u64(encrypted_margin) // margin
         .encrypted_u128(encrypted_owner_lo) // owner_lo
@@ -182,9 +182,6 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         &ctx.accounts.mxe_account,
         &callback_accounts,
     )?;
-
-    drop(position);
-    drop(market);
 
     // Queue the computation to Arcium MPC network
     queue_computation(

@@ -4,6 +4,8 @@
   "description": "ShadowPerp - Private Perpetual Futures on Arcium",
   "scripts": {
     "build": "anchor build",
+    "build:anchor:safe": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/build-anchor.ps1",
+    "deploy:anchor:safe": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/build-anchor.ps1 -DeployDevnet",
     "test": "anchor test",
     "dev": "cd app && npm run dev",
     "lint": "eslint . --ext .ts,.tsx",

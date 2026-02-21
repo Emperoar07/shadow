@@ -1,10 +1,10 @@
+use crate::{ID, ID_CONST};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use arcium_anchor::prelude::*;
-use crate::{ID, ID_CONST};
 
 use crate::errors::{ErrorCode, ShadowPerpError};
-use crate::state::{Market, MarginAccount, Position, PositionLiquidated, PositionStatus};
+use crate::state::{MarginAccount, Market, Position, PositionLiquidated, PositionStatus};
 
 /// Callback account for receiving liquidation decision from MPC
 #[callback_accounts("check_liquidation")]
@@ -12,11 +12,11 @@ use crate::state::{Market, MarginAccount, Position, PositionLiquidated, Position
 pub struct CheckLiquidationCallback<'info> {
     // Standard Arcium callback accounts
     pub arcium_program: Program<'info, Arcium>,
-    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
-    pub mxe_account: Account<'info, MXEAccount>,
+    pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
     /// CHECK: Validated by Arcium
     pub computation_account: UncheckedAccount<'info>,
-    pub cluster_account: Account<'info, Cluster>,
+    pub cluster_account: Box<Account<'info, Cluster>>,
     /// CHECK: Instructions sysvar
     pub instructions_sysvar: AccountInfo<'info>,
 
@@ -27,14 +27,14 @@ pub struct CheckLiquidationCallback<'info> {
         bump = position.bump,
         has_one = market,
     )]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
 
     #[account(
         mut,
         seeds = [b"market", market.collateral_mint.as_ref()],
         bump = market.bump
     )]
-    pub market: Account<'info, Market>,
+    pub market: Box<Account<'info, Market>>,
 
     /// Liquidator who initiated the check
     /// CHECK: Receives liquidation reward
@@ -45,14 +45,14 @@ pub struct CheckLiquidationCallback<'info> {
         constraint = liquidator_token_account.owner == liquidator.key(),
         constraint = liquidator_token_account.mint == market.collateral_mint
     )]
-    pub liquidator_token_account: Account<'info, TokenAccount>,
+    pub liquidator_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         seeds = [b"margin", market.key().as_ref(), position.owner.as_ref()],
         bump = margin_account.bump,
     )]
-    pub margin_account: Account<'info, MarginAccount>,
+    pub margin_account: Box<Account<'info, MarginAccount>>,
 
     #[account(
         mut,
@@ -60,7 +60,7 @@ pub struct CheckLiquidationCallback<'info> {
         bump,
         constraint = vault.key() == market.vault
     )]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -79,6 +79,16 @@ pub fn check_liquidation_callback_handler(
         Err(_) => return Err(ShadowPerpError::InvalidComputationResult.into()),
     };
 
+    // Callback must be bound to this market's configured Arcium cluster + comp-def.
+    require!(
+        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
+        ShadowPerpError::Unauthorized
+    );
+    require!(
+        ctx.accounts.comp_def_account.key() == ctx.accounts.market.liquidation_comp_def,
+        ShadowPerpError::Unauthorized
+    );
+
     let market = &mut ctx.accounts.market;
     let margin_account = &mut ctx.accounts.margin_account;
     let position = &mut ctx.accounts.position;
@@ -88,6 +98,10 @@ pub fn check_liquidation_callback_handler(
     // liquidation check. The last-submitted check wins if multiple were queued concurrently;
     // earlier callbacks will fail this guard and return harmlessly.
     require!(
+        position.pending_computation_account != Pubkey::default(),
+        ShadowPerpError::InvalidAccountData
+    );
+    require!(
         ctx.accounts.computation_account.key() == position.pending_computation_account,
         ShadowPerpError::Unauthorized
     );
@@ -95,12 +109,14 @@ pub fn check_liquidation_callback_handler(
     // is consumed and must not be reusable.
     position.pending_computation_account = Pubkey::default();
 
-    // Extract revealed liquidation decision
-    // CRITICAL: Only the boolean is revealed, NOT the health factor
+    // Extract revealed liquidation decision.
+    // Health factor remains private in MPC output.
     let should_liquidate = verified_output.field_0.field_0;
-    // liquidation_price is deliberately not stored or emitted — revealing it allows
-    // observers to reconstruct leverage/direction from the plaintext margin amount.
-    let _liquidation_price = verified_output.field_0.field_1;
+    let revealed_margin = verified_output.field_0.field_1;
+    // Migration compatibility:
+    // use revealed margin when present; fall back to legacy persisted value.
+    // liquidation_price is deliberately not stored or emitted.
+    let _liquidation_price = verified_output.field_0.field_2;
 
     // If position should not be liquidated, just return
     if !should_liquidate {
@@ -120,7 +136,12 @@ pub fn check_liquidation_callback_handler(
     position.closed_at = clock.unix_timestamp;
 
     // Unlock margin (will be distributed to liquidator and protocol)
-    let margin = position.margin;
+    let margin = if revealed_margin > 0 {
+        revealed_margin
+    } else {
+        position.margin
+    };
+    require!(margin > 0, ShadowPerpError::InvalidComputationResult);
     margin_account.locked_balance = margin_account
         .locked_balance
         .checked_sub(margin)
@@ -155,10 +176,8 @@ pub fn check_liquidation_callback_handler(
 
     // Record as loss for the user
     position.realized_pnl = -(liquidation_penalty as i64);
-    margin_account.total_realized_pnl = margin_account
-        .total_realized_pnl
-        .checked_sub(liquidation_penalty as i64)
-        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+    // Privacy hardening: avoid exposing cumulative realised PnL as public account state.
+    margin_account.total_realized_pnl = 0;
 
     margin_account.positions_closed = margin_account
         .positions_closed
@@ -187,6 +206,9 @@ pub fn check_liquidation_callback_handler(
         );
         token::transfer(transfer_ctx, liquidation_penalty)?;
     }
+
+    position.margin = 0;
+    position.requested_margin = 0;
 
     emit!(PositionLiquidated {
         owner: position.owner,

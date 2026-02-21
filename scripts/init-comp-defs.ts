@@ -116,13 +116,31 @@ function resolveWalletPath(): string {
 }
 
 function fetchShadowIdl(programId: PublicKey): any {
-  const raw = execSync(`anchor idl fetch ${programId.toBase58()}`, {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const idl = JSON.parse(raw);
-  idl.address = programId.toBase58();
-  return idl;
+  try {
+    const raw = execSync(`anchor idl fetch ${programId.toBase58()}`, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const idl = JSON.parse(raw);
+    idl.address = programId.toBase58();
+    return idl;
+  } catch (error: any) {
+    const fallbackPaths = [
+      path.resolve(process.cwd(), "target", "idl", "shadowperp.json"),
+      path.resolve(process.cwd(), "app", "src", "idl", "shadowperp.json"),
+    ];
+    const fallback = fallbackPaths.find((candidate) => fs.existsSync(candidate));
+    if (!fallback) {
+      throw error;
+    }
+    console.warn(
+      `anchor idl fetch failed (${String(error?.message || error).split("\n")[0]}). ` +
+        `Falling back to local IDL at ${fallback}.`
+    );
+    const idl = JSON.parse(fs.readFileSync(fallback, "utf8"));
+    idl.address = programId.toBase58();
+    return idl;
+  }
 }
 
 function readCompDefOffset(circuit: string): number {
@@ -141,6 +159,14 @@ function parseNodeOffset(value: any): number {
     if (Number.isFinite(asNum)) return asNum;
   }
   return 0;
+}
+
+function isCompDefCompleted(account: any): boolean {
+  return (
+    account?.circuitSource?.onChain?.[0]?.isCompleted ??
+    account?.circuit_source?.on_chain?.[0]?.is_completed ??
+    false
+  );
 }
 
 function describeLamportShortfall(error: unknown): string | null {
@@ -253,6 +279,7 @@ async function ensureCompDef(
     addressLookupTable: PublicKey;
     arciumProgramId: PublicKey;
     mxeProgramId: PublicKey;
+    arciumProgram: any;
   }
 ): Promise<void> {
   const offset = readCompDefOffset(params.circuit);
@@ -290,9 +317,33 @@ async function ensureCompDef(
     }
   }
 
+  const existingCompDef = await (params.arciumProgram.account as any).computationDefinitionAccount.fetch(
+    compDefAccount
+  );
+  if (isCompDefCompleted(existingCompDef)) {
+    console.log(`Comp-def already finalized for ${params.circuit}`);
+    return;
+  }
+
   try {
-    const circuitPath = path.resolve(process.cwd(), "build", `${params.circuit}.arcis`);
-    if (fs.existsSync(circuitPath)) {
+    const preferredIdarcPath = path.resolve(
+      process.cwd(),
+      "build",
+      `${params.circuit}.idarc`
+    );
+    const fallbackArcisPath = path.resolve(
+      process.cwd(),
+      "build",
+      `${params.circuit}.arcis`
+    );
+
+    const circuitPath = fs.existsSync(preferredIdarcPath)
+      ? preferredIdarcPath
+      : fs.existsSync(fallbackArcisPath)
+      ? fallbackArcisPath
+      : null;
+
+    if (circuitPath) {
       const rawCircuit = new Uint8Array(fs.readFileSync(circuitPath));
       const uploadSigs = await uploadCircuit(
         provider,
@@ -302,7 +353,7 @@ async function ensureCompDef(
         true
       );
       console.log(
-        `Uploaded/finalized ${params.circuit} circuit (${uploadSigs.length} txs).`
+        `Uploaded/finalized ${params.circuit} circuit from ${path.basename(circuitPath)} (${uploadSigs.length} txs).`
       );
     } else {
       const finalizeTx = await buildFinalizeCompDefTx(provider, offset, params.mxeProgramId);
@@ -324,7 +375,7 @@ async function ensureCompDef(
     ) {
       console.warn(
         `Skipped finalization for ${params.circuit}: raw circuit is not uploaded yet. ` +
-          `Run 'arcium build' to generate build/${params.circuit}.arcis, then rerun this script.`
+          `Run 'arcium build' to generate build/${params.circuit}.idarc (preferred) or .arcis, then rerun this script.`
       );
     } else if (lamportShortfall) {
       throw new Error(
@@ -382,6 +433,7 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
   console.log("Cluster Offset:", args.clusterOffset);
   console.log("MXE Account:", mxeAccount.toBase58());
   console.log("Address Lookup Table:", addressLookupTable.toBase58());
+  const arciumProgram = getArciumProgram(provider);
 
   for (const def of COMP_DEFS) {
     await ensureCompDef(shadowProgram, provider, {
@@ -394,6 +446,7 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
       addressLookupTable,
       arciumProgramId: args.arciumProgramId,
       mxeProgramId: args.mxeProgramId,
+      arciumProgram,
     });
   }
 
@@ -409,7 +462,6 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
   console.log("close_position:", closeCompDefPk.toBase58());
   console.log("check_liquidation:", liqCompDefPk.toBase58());
 
-  const arciumProgram = getArciumProgram(provider);
   const compDefs = [
     { label: "open_position", pk: openCompDefPk },
     { label: "close_position", pk: closeCompDefPk },
@@ -420,10 +472,7 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
     const account = await (arciumProgram.account as any).computationDefinitionAccount.fetch(
       comp.pk
     );
-    const isCompleted =
-      account?.circuitSource?.onChain?.[0]?.isCompleted ??
-      account?.circuit_source?.on_chain?.[0]?.is_completed ??
-      false;
+    const isCompleted = isCompDefCompleted(account);
     console.log(`- ${comp.label}: ${isCompleted ? "completed" : "pending upload/finalize"}`);
   }
 }

@@ -18,6 +18,7 @@ use handlers::__client_accounts_init_private_order_book;
 use handlers::__client_accounts_initialize;
 use handlers::__client_accounts_open_position;
 use handlers::__client_accounts_open_position_callback;
+use handlers::__client_accounts_sync_comp_defs;
 use handlers::__client_accounts_update_price;
 use handlers::__client_accounts_withdraw_collateral;
 
@@ -37,6 +38,7 @@ use handlers::init_comp_defs::{
 use handlers::initialize::Initialize;
 use handlers::open_position::OpenPosition;
 use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
+use handlers::sync_comp_defs::SyncCompDefs;
 use handlers::update_price::UpdatePrice;
 use handlers::withdraw_collateral::WithdrawCollateral;
 
@@ -67,6 +69,11 @@ pub mod shadowperp {
 
     pub fn init_liquidation_comp_def(ctx: Context<InitLiquidationCompDef>) -> Result<()> {
         handlers::init_comp_defs::init_liquidation_handler(ctx)
+    }
+
+    /// Sync market comp-def pointers to already-initialized Arcium accounts.
+    pub fn sync_comp_defs(ctx: Context<SyncCompDefs>) -> Result<()> {
+        handlers::sync_comp_defs::handler(ctx)
     }
 
     /// Open a new encrypted position

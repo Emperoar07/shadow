@@ -16,16 +16,17 @@ mod close_position_circuit {
     /// - realized PnL
     /// - settlement amount
     /// - fee
-    /// locked_margin is NOT returned: the callback reads position.margin from on-chain state,
-    /// avoiding a redundant reveal and matching the ClosePositionOutput layout expected by
-    /// close_position_callback.rs (field_0..field_2 plain, field_3 = encrypted OI).
+    /// - locked_margin
+    ///
+    /// locked_margin is revealed only during close settlement so active
+    /// positions do not need a plaintext margin slot on-chain.
     #[instruction]
     pub fn close_position(
         position: Enc<Mxe, (u64, u64, u8, bool, u64, u128, u128)>,
         exit_price: u64,
         market_params: (u8, u16, u16, u64),
         oi_state: Enc<Mxe, (u64, u64)>,
-    ) -> (i64, u64, u64, Enc<Mxe, (u64, u64)>) {
+    ) -> (i64, u64, u64, u64, Enc<Mxe, (u64, u64)>) {
         let pos = position.to_arcis();
         let mut oi = oi_state.to_arcis();
 
@@ -74,6 +75,7 @@ mod close_position_circuit {
             realized_pnl.reveal(),
             settlement_amount.reveal(),
             fee.reveal(),
+            pos.4.reveal(),
             oi_state.owner.from_arcis(oi),
         )
     }

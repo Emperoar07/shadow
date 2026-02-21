@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "ShadowPerp - Private Perpetual Futures on Arcium"
 edition = "2021"
 
+[package.metadata.solana]
+tools-version = "v1.53"
+
 [lib]
 crate-type = ["cdylib", "lib"]
 name = "shadowperp"

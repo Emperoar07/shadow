@@ -5,6 +5,9 @@ members = [
 ]
 resolver = "2"
 
+[workspace.metadata.solana]
+tools-version = "v1.53"
+
 [profile.release]
 overflow-checks = true
 lto = false
@@ -17,3 +20,4 @@ codegen-units = 1
 
 [patch.crates-io]
 proc-macro2 = { git = "https://github.com/arcium-hq/proc-macro2.git" }
+arcis-interpreter = { path = "vendor/arcis-interpreter-0.8.4" }

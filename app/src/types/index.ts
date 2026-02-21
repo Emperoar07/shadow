@@ -30,7 +30,7 @@ export interface EncryptedPosition {
   status: PositionStatus;
   openedAt: BN;
   closedAt: BN;
-  margin: BN;
+  margin: BN; // Deprecated compatibility field; new active positions keep this as 0
   realizedPnl: BN; // Only set after close
   nonce: Uint8Array;
   clientPubkey: Uint8Array;
@@ -71,6 +71,7 @@ export interface ClosePositionResult {
   realizedPnl: BN;
   settlementAmount: BN;
   fee: BN;
+  lockedMargin: BN;
 }
 
 // Events
@@ -78,22 +79,18 @@ export interface PositionOpenedEvent {
   owner: PublicKey;
   position: PublicKey;
   market: PublicKey;
-  margin: BN;
   timestamp: BN;
 }
 
 export interface PositionClosedEvent {
   owner: PublicKey;
   position: PublicKey;
-  realizedPnl: BN;
-  settlementAmount: BN;
   timestamp: BN;
 }
 
 export interface PositionLiquidatedEvent {
   owner: PublicKey;
   position: PublicKey;
-  liquidationPrice: BN;
   timestamp: BN;
 }
 

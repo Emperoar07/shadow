@@ -594,8 +594,9 @@ export async function enableEncryptedAutomationPersistence(params: {
   }
 
   const initPromise = (async () => {
+    const origin = hasWindow() ? window.location.origin : "unknown-origin";
     const challenge = textEncoder.encode(
-      `${SIGN_MESSAGE_PREFIX}\nwallet:${owner}\nversion:${ENVELOPE_VERSION}`
+      `${SIGN_MESSAGE_PREFIX}\nwallet:${owner}\norigin:${origin}\nversion:${ENVELOPE_VERSION}`
     );
     const signature = await params.signMessage(challenge);
     if (!(signature instanceof Uint8Array) || signature.length === 0) {
