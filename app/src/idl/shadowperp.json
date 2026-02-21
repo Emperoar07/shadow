@@ -1005,6 +1005,66 @@
       ]
     },
     {
+      "name": "init_arcium_signer",
+      "docs": [
+        "Initialize computation definitions for MPC operations"
+      ],
+      "discriminator": [
+        5,
+        191,
+        80,
+        49,
+        29,
+        115,
+        21,
+        135
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "init_close_position_comp_def",
       "discriminator": [
         104,
@@ -2599,6 +2659,10 @@
           },
           {
             "name": "field_3",
+            "type": "u64"
+          },
+          {
+            "name": "field_4",
             "type": {
               "defined": {
                 "name": "MXEEncryptedStruct",
