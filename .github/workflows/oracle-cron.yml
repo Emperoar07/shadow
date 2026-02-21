@@ -1,0 +1,49 @@
+name: Oracle Price Feed
+
+on:
+  schedule:
+    # Every 4 minutes — keeps price fresh within the 300s on-chain window.
+    - cron: "*/4 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  update-price:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install JS deps
+        run: npm ci --ignore-scripts
+
+      - name: Configure Solana wallet
+        env:
+          SOLANA_WALLET_KEYPAIR_JSON: ${{ secrets.SOLANA_WALLET_KEYPAIR_JSON }}
+        run: |
+          if [ -z "${SOLANA_WALLET_KEYPAIR_JSON}" ]; then
+            echo "Missing secret: SOLANA_WALLET_KEYPAIR_JSON"
+            exit 1
+          fi
+          mkdir -p "$HOME/.config/solana"
+          printf '%s' "${SOLANA_WALLET_KEYPAIR_JSON}" > "$HOME/.config/solana/id.json"
+          chmod 600 "$HOME/.config/solana/id.json"
+
+      - name: Update oracle price
+        env:
+          NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID }}
+          NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT: ${{ vars.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT }}
+          NEXT_PUBLIC_SOLANA_RPC_URL: ${{ vars.NEXT_PUBLIC_SOLANA_RPC_URL }}
+        run: |
+          # Fall back to .env.local values if repo vars not set
+          if [ -z "${NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID}" ] && [ -f app/.env.local ]; then
+            export $(grep -v '^#' app/.env.local | xargs)
+          fi
+          npx ts-node scripts/price-oracle.ts --once

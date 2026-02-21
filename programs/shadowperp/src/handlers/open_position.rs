@@ -1,12 +1,12 @@
+use crate::ArciumSignerAccount;
+use crate::ID;
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
 use arcium_anchor::traits::CallbackCompAccs;
 use arcium_client::idl::arcium::types::CallbackAccount;
-use crate::{ID, ID_CONST};
-use crate::ArciumSignerAccount;
 
 use crate::errors::ShadowPerpError;
-use crate::state::{Market, MarginAccount, Position, PositionStatus};
+use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
 use crate::handlers::callbacks::open_position_callback::OpenPositionCallback;
 
@@ -34,7 +34,7 @@ pub struct OpenPosition<'info> {
         seeds = [b"market", market.collateral_mint.as_ref()],
         bump = market.bump
     )]
-    pub market: Account<'info, Market>,
+    pub market: Box<Account<'info, Market>>,
 
     #[account(
         mut,
@@ -43,7 +43,7 @@ pub struct OpenPosition<'info> {
         has_one = owner,
         has_one = market,
     )]
-    pub margin_account: Account<'info, MarginAccount>,
+    pub margin_account: Box<Account<'info, MarginAccount>>,
 
     #[account(
         init,
@@ -52,16 +52,16 @@ pub struct OpenPosition<'info> {
         seeds = [b"position", market.key().as_ref(), owner.key().as_ref(), &margin_account.positions_opened.to_le_bytes()],
         bump
     )]
-    pub position: Account<'info, Position>,
+    pub position: Box<Account<'info, Position>>,
 
     // --- Arcium accounts (populated by queue_computation_accounts macro) ---
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
-    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
+    pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
     /// Cluster must match the one recorded in the market at initialisation.
     /// Prevents a caller from substituting a different (potentially malicious) cluster.
     #[account(mut, constraint = cluster_account.key() == market.mxe_cluster @ ShadowPerpError::Unauthorized)]
-    pub cluster_account: Account<'info, Cluster>,
+    pub cluster_account: Box<Account<'info, Cluster>>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
     pub mempool_account: UncheckedAccount<'info>,
@@ -73,11 +73,11 @@ pub struct OpenPosition<'info> {
     pub computation_account: UncheckedAccount<'info>,
     /// CHECK: Validated by Arcium
     #[account(mut)]
-    pub pool_account: Account<'info, FeePool>,
+    pub pool_account: Box<Account<'info, FeePool>>,
     /// CHECK: Validated by Arcium
     pub sign_pda_account: Account<'info, ArciumSignerAccount>,
     #[account(mut)]
-    pub clock_account: Account<'info, ClockAccount>,
+    pub clock_account: Box<Account<'info, ClockAccount>>,
 
     pub arcium_program: Program<'info, Arcium>,
     pub system_program: Program<'info, System>,
@@ -105,17 +105,25 @@ pub fn handler(
     // Validate margin account has sufficient balance
     // Note: We can't check exact margin requirement because size/leverage are encrypted
     // The MPC circuit will validate this
-    require!(margin_account.balance > 0, ShadowPerpError::InsufficientMargin);
+    require!(
+        margin_account.balance > 0,
+        ShadowPerpError::InsufficientMargin
+    );
     require!(margin > 0, ShadowPerpError::InsufficientMargin);
     let available_margin = margin_account
         .balance
         .checked_sub(margin_account.locked_balance)
         .ok_or(ShadowPerpError::InsufficientMargin)?;
-    require!(available_margin >= margin, ShadowPerpError::InsufficientMargin);
+    require!(
+        available_margin >= margin,
+        ShadowPerpError::InsufficientMargin
+    );
 
     // Validate oracle freshness before opening a position.
-    let price_age = clock.unix_timestamp.saturating_sub(market.last_price_update);
-    require!(price_age < 60, ShadowPerpError::StalePrice);
+    let price_age = clock
+        .unix_timestamp
+        .saturating_sub(market.last_price_update);
+    require!(price_age < 300, ShadowPerpError::StalePrice);
     require!(market.oracle_price > 0, ShadowPerpError::InvalidPrice);
 
     // Reserve a monotonic per-user position index to avoid PDA seed reuse.
@@ -131,7 +139,9 @@ pub fn handler(
     position.status = PositionStatus::Pending;
     position.opened_at = clock.unix_timestamp;
     position.closed_at = 0;
-    position.margin = 0; // Set by callback after MPC validates
+    // Keep plaintext margin slots empty during active lifecycle.
+    // `requested_margin` is used only as a pending-time cap and is cleared in callback.
+    position.margin = 0;
     position.requested_margin = margin;
     position.realized_pnl = 0;
     position.nonce = nonce.to_le_bytes();
@@ -216,10 +226,6 @@ pub fn handler(
         &ctx.accounts.mxe_account,
         &callback_accounts,
     )?;
-
-    drop(position);
-    drop(market);
-    drop(margin_account);
 
     // Queue the computation to Arcium MPC network
     queue_computation(
