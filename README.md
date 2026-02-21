@@ -211,17 +211,11 @@ cd shadowperp
 npm install
 cd app && npm install && cd ..
 
-# Build the Solana program
-anchor build
+# Build the Solana program + Arcium circuits
+anchor build && arcium build
 
-# Build the Arcium circuits
-arcium build
-
-# Start local validator with Arcium
-arcium localnet
-
-# Deploy
-anchor deploy
+# Deploy to devnet
+npx ts-node scripts/deploy-devnet.ts
 ```
 
 ### Initialize Computation Definitions
@@ -241,12 +235,8 @@ npx ts-node scripts/init-comp-defs.ts \
 ```bash
 cd app
 npm install
-cp .env.example .env.local
-# Fill in all NEXT_PUBLIC_* account addresses from deployment
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+cp .env.example .env.local  # fill in deployed addresses
+npm run dev  # opens at http://localhost:3000
 
 ### Running Tests
 
@@ -304,6 +294,32 @@ Position state after MPC uses `Enc<Mxe, T>` (MXE-only decryptable) because:
 - Callback verification via `verify_output()` against cluster signatures
 - Oracle price freshness validation (< 300 second staleness)
 - Overflow checks enabled via Cargo profile
+
+## Stable Trading Run Order
+
+Run these in order before live devnet testing:
+
+```bash
+# 1) Validate deployed accounts, comp-def completion, oracle freshness, and operator balances
+npm run check:preflight
+
+# 2) Validate oracle freshness only (quick health check)
+npm run check:oracle
+
+# 3) Keep oracle fresh continuously (required for open/close/liquidation)
+npm run oracle:daemon
+
+# 4) Start frontend in another terminal
+npm run dev
+```
+
+Notes:
+- If step 1 fails with stale oracle, run `npm run oracle:once` and re-run checks.
+- If step 1 fails with missing env vars, update `app/.env.local` and restart the dev server.
+- GitHub Actions cron keeps the oracle fresh on hosted deployments; run `npm run oracle:daemon` when testing locally.
+- If preflight passes but callbacks fail after a circuit-interface change, force re-upload the specific circuit:
+  `npm run circuit:force-upload -- --circuit close_position`
+  (or `open_position` / `check_liquidation`), then rerun `npm run check:preflight`.
 
 ## Hosting
 
