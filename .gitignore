@@ -13,8 +13,9 @@ out/
 .anchor/
 test-ledger/
 
-# IDL
+# IDL (ignore generated artifacts but keep app copy for CI/frontend)
 idl/
+!app/src/idl/
 
 # Environment
 .env
@@ -51,3 +52,4 @@ Thumbs.db
 app-local-*/
 app/dev.log
 app/tsconfig.tsbuildinfo
+node_modules
