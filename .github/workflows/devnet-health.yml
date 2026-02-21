@@ -1,0 +1,43 @@
+name: Devnet Health Check
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm install --ignore-scripts
+
+      - name: Configure env
+        env:
+          NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID }}
+          NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT: ${{ vars.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT }}
+          NEXT_PUBLIC_ARCIUM_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_ARCIUM_PROGRAM_ID }}
+          NEXT_PUBLIC_SOLANA_RPC_URL: ${{ vars.NEXT_PUBLIC_SOLANA_RPC_URL }}
+        run: |
+          if [ -z "${NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID}" ] || [ -z "${NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT}" ]; then
+            echo "Missing required repo variables: NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID and/or NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT"
+            exit 1
+          fi
+
+      - name: Run stable preflight
+        env:
+          NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID }}
+          NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT: ${{ vars.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT }}
+          NEXT_PUBLIC_ARCIUM_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_ARCIUM_PROGRAM_ID }}
+          NEXT_PUBLIC_SOLANA_RPC_URL: ${{ vars.NEXT_PUBLIC_SOLANA_RPC_URL }}
+        run: npm run check:preflight

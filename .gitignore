@@ -53,3 +53,22 @@ app-local-*/
 app/dev.log
 app/tsconfig.tsbuildinfo
 node_modules
+
+# Local release/debug artifacts (do not commit)
+_*.log
+_*.txt
+_*.sh
+ci_log_*.txt
+.anchor-build.tmp.toml
+Cargo.toml.orig
+.tools/
+artifacts/
+ci_artifacts/
+vendor/
+arcium_x86_64_linux
+arcup_x86_64_linux
+rustup-init-linux
+rust-linux-toolchain*.tar.gz
+faucet-page.js
+faucet.html
+C*Usersbolaj/
