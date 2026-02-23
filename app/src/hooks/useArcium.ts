@@ -121,10 +121,14 @@ export function getStoredRelaySession(owner?: string, market?: string): SessionR
 
 function persistSession(session: SessionRelayInfo): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(
-    storageKey(session.owner, session.market),
-    JSON.stringify(session)
-  );
+  try {
+    window.localStorage.setItem(
+      storageKey(session.owner, session.market),
+      JSON.stringify(session)
+    );
+  } catch {
+    // Storage failures should not block in-memory session activation.
+  }
   window.dispatchEvent(
     new CustomEvent(RELAY_SESSION_UPDATED_EVENT, { detail: { session } })
   );
@@ -132,7 +136,11 @@ function persistSession(session: SessionRelayInfo): void {
 
 function clearStoredSession(owner: string, market: string): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(storageKey(owner, market));
+  try {
+    window.localStorage.removeItem(storageKey(owner, market));
+  } catch {
+    // no-op
+  }
   window.dispatchEvent(
     new CustomEvent(RELAY_SESSION_UPDATED_EVENT, {
       detail: { session: null, owner, market },
@@ -313,7 +321,18 @@ export const useArciumPrivacy = () => {
       );
 
       setStatus("preparing");
-      setStatusMessage("Creating delegated trading session...");
+      setStatusMessage("Authorizing delegated trading session...");
+
+      const authMessage = buildRelaySessionAuthMessage({
+        owner,
+        market: marketAddress,
+        sessionId: sessionId.toString(),
+        expiresAt,
+      });
+      const signature = await signMessage(new TextEncoder().encode(authMessage));
+
+      setStatus("queued");
+      setStatusMessage("Creating delegated session on-chain...");
 
       const { txSignature, sessionAddress } = await client.createTradeSession(
         runtime.marketAddress,
@@ -324,14 +343,6 @@ export const useArciumPrivacy = () => {
         new BN(expiresAt)
       );
       setLastSignature(txSignature);
-
-      const authMessage = buildRelaySessionAuthMessage({
-        owner,
-        market: marketAddress,
-        sessionId: sessionId.toString(),
-        expiresAt,
-      });
-      const signature = await signMessage(new TextEncoder().encode(authMessage));
 
       const nextSession: SessionRelayInfo = {
         owner,

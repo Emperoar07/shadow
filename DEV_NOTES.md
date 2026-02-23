@@ -2028,3 +2028,28 @@ Full multi-dimensional audit run across all TypeScript, Rust, scripts, and confi
 1. Deploy updated program + sync IDL to activate `withdraw_collateral_with_session` on-chain.
 2. Run delegated withdraw smoke (session create -> withdraw -> session usage increment -> revoke).
 3. Keep relay watchdog in CI/ops loop for fast runtime readiness checks.
+
+## Session Bootstrap Loop Fix (2026-02-23 UTC)
+
+### What changed
+- Fixed delegated-session auto-bootstrap loop and stuck loading toast:
+  - `app/src/components/TradingPanel.tsx`
+    - auto-session toast now always dismisses on cleanup/cancel/success-active state
+    - added stronger cooldown backoff after auto-session failure (`5m`) to prevent repeated retries
+    - keeps short base cooldown (`30s`) for normal flow
+- Reduced repeated gas-spend risk during session creation:
+  - `app/src/hooks/useArcium.ts`
+    - reordered `createRelaySession` flow to sign authorization message **before** on-chain `createTradeSession`
+      - prevents sending repeated on-chain session-create txs when auth/sign step fails
+    - hardened storage helpers (`persistSession` / `clearStoredSession`) to not throw on localStorage failures
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit` -> PASS
+- `npm run check:preflight` -> PASS
+
+### Current blocker
+- Unchanged protocol blocker on some trade queue paths: `QueueComputation -> AccountDidNotSerialize (3004)`.
+
+### Next safe step
+1. User-side confirm: spinner clears after session activation and no repeated session-create tx fees.
+2. If any repeat persists, log `/api/relay/session` payload cadence + wallet adapter sign events for exact retry trigger.

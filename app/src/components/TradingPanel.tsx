@@ -34,6 +34,8 @@ const MAX_LEVERAGE = LEVERAGE_MARKERS[LEVERAGE_MARKERS.length - 1];
 const TP_SL_MIN_GAP_BPS = 10; // 0.10%
 const MAX_POSITION_SIZE_BASE = 1_000_000;
 const MAX_POSITION_NOTIONAL_USDC = 5_000_000;
+const AUTO_SESSION_BASE_COOLDOWN_MS = 30_000;
+const AUTO_SESSION_ERROR_COOLDOWN_MS = 5 * 60_000;
 
 interface TradingPanelProps {
   pair?: TradingPair;
@@ -335,14 +337,19 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     if (!owner) {
       autoSessionInFlightRef.current = false;
       autoSessionCooldownUntilRef.current = 0;
+      toast.dismiss("relay-auto-session");
       return;
     }
-    if (!relayAvailable || isRelaySessionActive) return;
+    if (isRelaySessionActive) {
+      toast.dismiss("relay-auto-session");
+      return;
+    }
+    if (!relayAvailable) return;
     if (autoSessionInFlightRef.current) return;
     const nowMs = Date.now();
     if (nowMs < autoSessionCooldownUntilRef.current) return;
     autoSessionInFlightRef.current = true;
-    autoSessionCooldownUntilRef.current = nowMs + 30_000;
+    autoSessionCooldownUntilRef.current = nowMs + AUTO_SESSION_BASE_COOLDOWN_MS;
 
     let cancelled = false;
     void (async () => {
@@ -351,7 +358,10 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           id: "relay-auto-session",
         });
         const session = await ensureRelaySession();
-        if (cancelled || !session) return;
+        if (cancelled || !session) {
+          toast.dismiss("relay-auto-session");
+          return;
+        }
         const remainingMinutes = Math.max(
           1,
           Math.floor((session.expiresAt - Math.floor(Date.now() / 1000)) / 60)
@@ -362,6 +372,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         });
       } catch (error: any) {
         if (cancelled) return;
+        autoSessionCooldownUntilRef.current = Date.now() + AUTO_SESSION_ERROR_COOLDOWN_MS;
         const message =
           typeof error?.message === "string" && error.message.trim().length > 0
             ? error.message
@@ -369,11 +380,15 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         toast.error(message, { id: "relay-auto-session", duration: 7000 });
       } finally {
         autoSessionInFlightRef.current = false;
+        if (cancelled) {
+          toast.dismiss("relay-auto-session");
+        }
       }
     })();
 
     return () => {
       cancelled = true;
+      toast.dismiss("relay-auto-session");
     };
   }, [ensureRelaySession, isRelaySessionActive, publicKey, relayAvailable]);
 
