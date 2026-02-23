@@ -2071,3 +2071,27 @@ Full multi-dimensional audit run across all TypeScript, Rust, scripts, and confi
 ### Next safe step
 1. Visually verify the new order in the live form (`Size` then `Leverage`) on desktop and mobile widths.
 2. Continue Arcium queue-path unblock track in parallel with UI refinement work.
+
+## Market Panel Simplification (2026-02-23 UTC)
+
+### What changed
+- Simplified right-side market info card to price-only display in `app/src/components/MarketInfo.tsx`.
+- Removed nonessential stat tiles from that panel:
+  - Open Interest
+  - Notional Traded
+  - Trading Fee
+  - Max Leverage
+  - Liq. Threshold
+  - Fees Collected
+- Removed active-position counter and percent-change badge from this card to keep only the price value visible.
+- Cleaned now-unused helper/state fields tied to removed tiles.
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit` -> PASS
+
+### Current blocker
+- Unchanged runtime blocker in some queue flows: `QueueComputation -> AccountDidNotSerialize (3004)`.
+
+### Next safe step
+1. Quick visual pass in app to confirm the 50/50 chart-side panel proportions still look correct after content reduction.
+2. Keep price-source sync behavior unchanged (chart/pair/panel canonical feed alignment work remains intact).
