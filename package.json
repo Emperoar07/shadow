@@ -29,6 +29,7 @@
     "hosting:restart": "npx ts-node scripts/hosting-stack.ts restart",
     "canary:devnet": "npx ts-node scripts/devnet-canary.ts --max-oracle-age-seconds 300",
     "oracle:alert:test": "npx ts-node scripts/test-alert-webhook.ts",
+    "relay:watchdog": "npx ts-node scripts/relay-watchdog.ts",
     "circuit:force-upload": "npx ts-node scripts/force-upload-circuit.ts",
     "check:oracle": "npx ts-node scripts/oracle-health.ts --max-age-seconds 300",
     "check:preflight": "npx ts-node scripts/stable-preflight.ts --max-oracle-age-seconds 300",

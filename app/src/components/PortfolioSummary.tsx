@@ -243,12 +243,13 @@ export default function PortfolioSummary() {
                   : "border-yellow-500/35 bg-yellow-500/10 text-yellow-300"
               }`}
             >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path
-                  fillRule="evenodd"
-                  d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm2 6V6a2 2 0 10-4 0v2h4z"
-                  clipRule="evenodd"
-                />
+              <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2"/>
+                <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                  strokeDasharray="37.7" strokeDashoffset="37.7"
+                  transform="rotate(-90 8 8)">
+                  <animate attributeName="stroke-dashoffset" from="37.7" to="0" dur="3s" repeatCount="indefinite"/>
+                </circle>
               </svg>
               {isRelaySessionActive ? (
                 <span>Delegated session active - {relayMinutesLeft}m left</span>

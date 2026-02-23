@@ -1108,6 +1108,11 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       <CollateralModal
         isOpen={collateralModalOpen}
         marginBalance={marginBalance}
+        relayAvailable={relayAvailable}
+        relaySession={relaySession}
+        isRelaySessionActive={isRelaySessionActive}
+        ensureRelaySession={ensureRelaySession}
+        refreshRelaySession={refreshRelaySession}
         onClose={() => setCollateralModalOpen(false)}
         onSuccess={() => {
           setCollateralModalOpen(false);

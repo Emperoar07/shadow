@@ -346,9 +346,16 @@ export default function BottomPositionsPanel() {
         unrealizedPnl = (oraclePrice - entryPrice) * sizeBase * direction;
       }
 
+      // Do not use on-chain `position.margin` for active-position health/PnL calculations.
+      // Active margin is privacy-hardened and expected to remain 0 on-chain.
+      const localMargin =
+        entryPrice !== null && sizeBase !== null && leverage !== null && leverage > 0
+          ? (entryPrice * sizeBase) / leverage
+          : null;
+
       const pnlPercent =
-        unrealizedPnl !== null && position.margin > 0
-          ? (unrealizedPnl / position.margin) * 100
+        unrealizedPnl !== null && localMargin !== null && localMargin > 0
+          ? (unrealizedPnl / localMargin) * 100
           : null;
 
       let healthPercent: number | null = null;
@@ -375,6 +382,7 @@ export default function BottomPositionsPanel() {
         pairLabel,
         side,
         leverage,
+        localMargin,
         entryPrice,
         liqPrice,
         unrealizedPnl,
@@ -638,7 +646,10 @@ export default function BottomPositionsPanel() {
                       value={formatPrice(card.liqPrice)}
                       valueClassName="text-accent-red"
                     />
-                    <MetricBlock label="Margin" value={`$${pos.margin.toFixed(2)}`} />
+                    <MetricBlock
+                      label="Margin"
+                      value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
+                    />
                     <MetricBlock
                       label="PnL"
                       value={

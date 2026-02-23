@@ -29,6 +29,7 @@ use handlers::__client_accounts_init_shielded_pool;
 use handlers::__client_accounts_sync_comp_defs;
 use handlers::__client_accounts_update_price;
 use handlers::__client_accounts_withdraw_collateral;
+use handlers::__client_accounts_withdraw_collateral_with_session;
 use handlers::__client_accounts_revoke_trade_session;
 
 use errors::ErrorCode;
@@ -48,7 +49,13 @@ use handlers::init_comp_defs::{
 use handlers::initialize::Initialize;
 use handlers::open_position::OpenPosition;
 use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
-use handlers::session_trading::{ClosePositionWithSession, CreateTradeSession, OpenPositionWithSession, RevokeTradeSession};
+use handlers::session_trading::{
+    ClosePositionWithSession,
+    CreateTradeSession,
+    OpenPositionWithSession,
+    RevokeTradeSession,
+    WithdrawCollateralWithSession,
+};
 #[cfg(feature = "shielded-collateral")]
 use handlers::shielded_collateral::{InitShieldedPool, SetShieldedCollateralFeature};
 use handlers::sync_comp_defs::SyncCompDefs;
@@ -245,6 +252,14 @@ pub mod shadowperp {
     /// Deposit collateral to margin account
     pub fn deposit_collateral(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
         handlers::deposit_collateral::handler(ctx, amount)
+    }
+
+    /// Relayer withdraws collateral for owner under an active delegated session.
+    pub fn withdraw_collateral_with_session(
+        ctx: Context<WithdrawCollateralWithSession>,
+        amount: u64,
+    ) -> Result<()> {
+        handlers::session_trading::withdraw_collateral_with_session_handler(ctx, amount)
     }
 
     /// Initialize a user-scoped encrypted private orderbook account.

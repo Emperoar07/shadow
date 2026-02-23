@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
+import type { SessionRelayInfo } from "../hooks/useArcium";
 
 type Tab = "deposit" | "withdraw";
 
@@ -13,6 +14,11 @@ interface CollateralModalProps {
   marginBalance: number | null;
   onClose: () => void;
   onSuccess: () => void;
+  relayAvailable: boolean;
+  relaySession: SessionRelayInfo | null;
+  isRelaySessionActive: boolean;
+  ensureRelaySession: () => Promise<SessionRelayInfo | null>;
+  refreshRelaySession: () => Promise<SessionRelayInfo | null>;
 }
 
 export default function CollateralModal({
@@ -20,6 +26,11 @@ export default function CollateralModal({
   marginBalance,
   onClose,
   onSuccess,
+  relayAvailable,
+  relaySession,
+  isRelaySessionActive,
+  ensureRelaySession,
+  refreshRelaySession,
 }: CollateralModalProps) {
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
@@ -98,17 +109,53 @@ export default function CollateralModal({
   const handleWithdraw = useCallback(async () => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) { toast.error("Enter a valid amount"); return; }
-    if (!anchorWallet || !publicKey) { toast.error("Connect your wallet"); return; }
+    if (!publicKey) { toast.error("Connect your wallet"); return; }
     if (marginBalance !== null && amt > marginBalance) {
       toast.error("Amount exceeds available balance");
       return;
     }
+    if (!relayAvailable) {
+      toast.error("Delegated withdrawal unavailable: relay is offline.");
+      return;
+    }
     setIsBusy(true);
     try {
-      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
       const amountBN = new BN(Math.round(amt * 1_000_000));
-      toast.loading("Withdrawing collateral...", { id: "collateral" });
-      const tx = await client.withdrawCollateral(runtime.marketAddress, amountBN);
+      const owner = publicKey.toBase58();
+      const existing =
+        isRelaySessionActive && relaySession?.owner === owner ? relaySession : null;
+      const session = existing ?? (await ensureRelaySession());
+      if (!session || session.owner !== owner) {
+        throw new Error("Delegated session required. Please sign a new session.");
+      }
+
+      const authExpiresAt = Math.min(
+        session.expiresAt,
+        Math.floor(Date.now() / 1000) + 120
+      );
+      toast.loading("Withdrawing via delegated session...", { id: "collateral" });
+      const response = await fetch("/api/relay/withdraw", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          owner: session.owner,
+          sessionId: session.sessionId,
+          amountRaw: amountBN.toString(),
+          auth: {
+            expiresAt: authExpiresAt,
+            signature: session.authSignature,
+          },
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok || !payload?.txSignature) {
+        throw new Error(
+          payload?.error ||
+            `Delegated withdraw failed (${response.status}).`
+        );
+      }
+      const tx = payload.txSignature as string;
+      await refreshRelaySession();
       toast.success(
         <div>
           <p className="font-medium">Withdrew ${amt.toFixed(2)} USDC</p>
@@ -136,7 +183,18 @@ export default function CollateralModal({
     } finally {
       setIsBusy(false);
     }
-  }, [amount, anchorWallet, publicKey, connection, marginBalance, getRuntimeErrorMessage, onSuccess]);
+  }, [
+    amount,
+    ensureRelaySession,
+    getRuntimeErrorMessage,
+    isRelaySessionActive,
+    marginBalance,
+    onSuccess,
+    publicKey,
+    refreshRelaySession,
+    relayAvailable,
+    relaySession,
+  ]);
 
   if (!isOpen) return null;
 

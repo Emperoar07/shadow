@@ -216,7 +216,8 @@ export default function LandingPage() {
             background: transparent;
             border-bottom: none;
           }
-          .lp-nav-logo { display:flex;align-items:center;gap:10px;text-decoration:none }
+          .lp-nav-logo { display:flex;align-items:center;gap:10px;text-decoration:none;transition:transform .15s ease,filter .15s ease;user-select:none }
+          .lp-nav-logo:active { transform:scale(0.88);filter:drop-shadow(0 0 14px rgba(139,92,246,.8)) }
           .lp-nav-logo-svg { width:28px;height:28px;animation:lp-logo-pulse 4s ease-in-out infinite }
           @keyframes lp-logo-pulse {
             0%,100% { filter: drop-shadow(0 0 10px rgba(109,82,255,.4)) }
@@ -276,7 +277,7 @@ export default function LandingPage() {
           }
           .lp-btn-primary:hover { transform:translateY(-2px);box-shadow:0 0 45px rgba(139,92,246,.5) }
           .lp-powered {
-            display:flex;align-items:center;gap:20px;margin-top:48px;
+            display:flex;align-items:center;justify-content:center;gap:20px;margin-top:48px;width:100%;
             font-size:11px;font-weight:600;color:#374151;letter-spacing:.1em;text-transform:uppercase;
             animation:lp-fade-up .7s .6s ease both;
           }
@@ -287,21 +288,17 @@ export default function LandingPage() {
           }
           .lp-arc { color:#a78bfa } .lp-sol { color:#9945ff }
           .lp-scroll-hint {
-            position:absolute;bottom:32px;left:50%;transform:translateX(-50%);
-            display:flex;flex-direction:column;align-items:center;gap:6px;
-            font-size:10px;color:#374151;letter-spacing:.1em;text-transform:uppercase;
+            position:absolute;bottom:32px;left:0;right:0;
+            display:flex;flex-direction:column;align-items:center;gap:8px;
+            font-size:13px;color:#94a3b8;letter-spacing:.1em;text-transform:uppercase;
             animation:lp-fade-up .7s .8s ease both;
           }
-          .lp-scroll-line {
-            width:1px;height:40px;
-            background:linear-gradient(to bottom,rgba(139,92,246,.5),transparent);
-            animation:lp-scroll-drop 2s ease-in-out infinite;
+          .lp-scroll-arrow {
+            color:#a78bfa;animation:lp-arrow-bounce 1.6s ease-in-out infinite;
           }
-          @keyframes lp-scroll-drop {
-            0%   { transform:scaleY(0);transform-origin:top }
-            50%  { transform:scaleY(1);transform-origin:top }
-            51%  { transform:scaleY(1);transform-origin:bottom }
-            100% { transform:scaleY(0);transform-origin:bottom }
+          @keyframes lp-arrow-bounce {
+            0%,100% { transform:translateY(0);opacity:1 }
+            50%     { transform:translateY(7px);opacity:.6 }
           }
           /* SECTIONS */
           .lp-section { padding:100px 24px;max-width:1100px;margin:0 auto;position:relative;z-index:1 }
@@ -360,6 +357,7 @@ export default function LandingPage() {
           .lp-pv-plain { color:#10b981 }
           .lp-pv-lock { font-size:10px;color:#8b5cf6;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;white-space:nowrap }
           .lp-pv-lock-green { font-size:10px;color:#10b981;background:rgba(16,185,129,.1);padding:1px 5px;border-radius:4px;white-space:nowrap }
+          .lp-pv-lock-blue { font-size:10px;color:#60a5fa;background:rgba(96,165,250,.1);padding:1px 5px;border-radius:4px;white-space:nowrap }
           .lp-pv-hint { font-size:10px;color:#374151;margin-top:10px;text-align:right }
           /* CTA */
           .lp-cta-section { position:relative;z-index:1;padding:120px 24px;text-align:center;overflow:hidden }
@@ -388,6 +386,19 @@ export default function LandingPage() {
           .lp-delay-1 { transition-delay:.1s } .lp-delay-2 { transition-delay:.2s } .lp-delay-3 { transition-delay:.3s }
           @keyframes lp-fade-up { from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)} }
           /* RESPONSIVE */
+          /* SESSION CALLOUT */
+          .lp-session-callout { max-width:1100px;margin:0 auto 80px;position:relative;z-index:1;padding:0 24px }
+          .lp-session-card {
+            background:rgba(139,92,246,.04);border:1px solid rgba(139,92,246,.18);
+            border-radius:16px;padding:36px 40px;display:grid;grid-template-columns:1fr auto;gap:32px;align-items:center;
+          }
+          .lp-session-label { font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8b5cf6;margin-bottom:8px }
+          .lp-session-title { font-size:22px;font-weight:800;color:#e2e8f0;margin-bottom:10px;letter-spacing:-.02em }
+          .lp-session-desc { font-size:14px;color:#94a3b8;font-weight:500;line-height:1.7;max-width:520px }
+          .lp-session-stats { display:flex;gap:24px }
+          .lp-session-stat { text-align:center;padding:16px 24px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px }
+          .lp-session-stat-val { font-size:22px;font-weight:800;color:#a78bfa;letter-spacing:-.02em }
+          .lp-session-stat-lbl { font-size:10px;color:#6b7280;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-top:4px }
           @media(max-width:768px){
             .lp-steps{grid-template-columns:1fr}
             .lp-steps::before{display:none}
@@ -395,6 +406,8 @@ export default function LandingPage() {
             .lp-privacy-inner{grid-template-columns:1fr}
             .lp-nav-links{display:none}
             .lp-footer{flex-direction:column;gap:16px;text-align:center}
+            .lp-session-card{grid-template-columns:1fr}
+            .lp-session-stats{flex-wrap:wrap}
           }
         `}</style>
 
@@ -420,6 +433,7 @@ export default function LandingPage() {
           <div className="lp-nav-links">
             <a href="#privacy" className="lp-nav-link">Privacy</a>
             <a href="#features" className="lp-nav-link">Features</a>
+            <a href="#session" className="lp-nav-link">Session Trading</a>
           </div>
           <Link href="/app" className="lp-nav-cta">Launch App →</Link>
         </nav>
@@ -447,28 +461,28 @@ export default function LandingPage() {
             </Link>
           </div>
           <div className="lp-powered">
-            <span>Powered by</span>
-            <span className="lp-powered-badge"><span className="lp-arc">Arcium</span> MPC</span>
+            <span className="lp-powered-badge">Built on <span className="lp-sol">Solana</span></span>
             <span style={{ color: "#1e293b" }}>·</span>
-            <span className="lp-powered-badge"><span className="lp-sol">Solana</span></span>
+            <span className="lp-powered-badge">Powered by <span className="lp-arc">Arcium</span></span>
           </div>
           <div className="lp-scroll-hint">
             <span>Scroll</span>
-            <div className="lp-scroll-line" />
+            <svg className="lp-scroll-arrow" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
           </div>
         </section>
 
         {/* HOW IT WORKS */}
         <div id="how" />
         <div className="lp-section lp-reveal">
-          <p className="lp-section-tag">How it works</p>
           <div className="lp-section-title">Privacy without compromise</div>
           <p className="lp-section-sub">Three steps. Your trade data never touches a public ledger unencrypted.</p>
           <div className="lp-steps">
             <div className="lp-step lp-reveal lp-delay-1 lp-tilt">
               <div className="lp-step-num">01</div>
-              <div className="lp-step-title">Encrypt Locally</div>
-              <p className="lp-step-desc">Your position inputs (size, leverage, direction) are encrypted in your browser before they leave your device.</p>
+              <div className="lp-step-title">Encrypt &amp; Delegate</div>
+              <p className="lp-step-desc">Your position inputs (size, leverage, direction) are encrypted in your browser. Approve a 5-hour trading session once with no wallet popup for every trade.</p>
             </div>
             <div className="lp-step lp-reveal lp-delay-2 lp-tilt">
               <div className="lp-step-num">02</div>
@@ -504,8 +518,36 @@ export default function LandingPage() {
                 <div className="lp-pv-row"><span className="lp-pv-label">Entry Price</span><span className="lp-pv-enc">0xb29f...11da</span><span className="lp-pv-lock">☂️ encrypted</span></div>
                 <div className="lp-pv-row"><span className="lp-pv-label">Leverage</span><span className="lp-pv-enc">0x7a5e...0c83</span><span className="lp-pv-lock">☂️ encrypted</span></div>
                 <div className="lp-pv-row"><span className="lp-pv-label">Liq. Price</span><span className="lp-pv-enc">0xe3c1...9f62</span><span className="lp-pv-lock">☂️ encrypted</span></div>
+                <div className="lp-pv-row"><span className="lp-pv-label">Session Key</span><span className="lp-pv-enc">0xa12f...d44e</span><span className="lp-pv-lock-blue">delegated</span></div>
                 <div className="lp-pv-row"><span className="lp-pv-label">PnL</span><span className="lp-pv-plain">+$142.30</span><span className="lp-pv-lock-green">revealed on close</span></div>
                 <div className="lp-pv-hint">hover blur to reveal ↑</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SESSION TRADING CALLOUT */}
+        <div id="session" className="lp-session-callout lp-reveal" style={{ paddingTop: "80px" }}>
+          <div className="lp-session-card">
+            <div>
+              <p className="lp-session-label">Session Trading</p>
+              <h3 className="lp-session-title">One approval. Unlimited trades.</h3>
+              <p className="lp-session-desc">
+                Create a delegated trading session and sign once. For the next 5 hours a relayer executes your encrypted orders on-chain with no wallet popup interrupting every position. Set a per-trade margin cap and revoke the session at any time.
+              </p>
+            </div>
+            <div className="lp-session-stats">
+              <div className="lp-session-stat">
+                <div className="lp-session-stat-val">5h</div>
+                <div className="lp-session-stat-lbl">Session window</div>
+              </div>
+              <div className="lp-session-stat">
+                <div className="lp-session-stat-val">1×</div>
+                <div className="lp-session-stat-lbl">Wallet sign</div>
+              </div>
+              <div className="lp-session-stat">
+                <div className="lp-session-stat-val">∞</div>
+                <div className="lp-session-stat-lbl">Trades within cap</div>
               </div>
             </div>
           </div>
@@ -518,10 +560,10 @@ export default function LandingPage() {
           <div className="lp-features-grid">
             <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Dark Limit Orders</div><p className="lp-feat-desc">Place large orders without telegraphing your intent. No MEV bot can front run an order it can&apos;t see.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Confidential Liquidations</div><p className="lp-feat-desc">Your liquidation price is known only to the protocol. No hunter can target it, because it&apos;s encrypted.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Solana Speed</div><p className="lp-feat-desc">Sub 400ms finality. 50× leverage. 13 trading pairs. Privacy at the speed of Solana&apos;s block time.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Session Trading</div><p className="lp-feat-desc">Approve once, trade freely. A 5-hour delegated session lets a relayer execute on your behalf with zero wallet popups between trades. Set caps per trade and revoke anytime.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">MEV Resistant</div><p className="lp-feat-desc">Encrypted order flow eliminates exploitable signal. No sandwich attacks. No front running.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">MPC Powered</div><p className="lp-feat-desc">Arcium&apos;s multi party computation validates every trade. Zero knowledge of your inputs. Just the outcome.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Full Terminal</div><p className="lp-feat-desc">Professional trading interface: live charts, orderbook, positions panel, all running on encrypted state.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">MPC Powered</div><p className="lp-feat-desc">Arcium&apos;s multi-party computation validates every trade with replay-hardened callbacks. Every computation consumed exactly once. Zero knowledge of your inputs. Just the outcome.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Verified Oracle Feeds</div><p className="lp-feat-desc">Prices sourced from CoinGecko, Binance and Coinbase. Median aggregation and circuit breakers prevent manipulation from reaching your trades.</p></div>
           </div>
         </div>
 
@@ -530,7 +572,7 @@ export default function LandingPage() {
           <div className="lp-cta-glow" />
           <p className="lp-section-tag" style={{ textAlign: "center" }}>Ready?</p>
           <h2 className="lp-cta-title">Trade like no one<br />is watching.</h2>
-          <p className="lp-cta-sub">Connect your wallet. Open a position. Stay encrypted.</p>
+          <p className="lp-cta-sub">Connect your wallet. Approve one session. Stay encrypted for 5 hours.</p>
           <Link href="/app" className="lp-btn-primary" style={{ display: "inline-flex", fontSize: "16px", padding: "16px 40px" }}>
             Launch App
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>

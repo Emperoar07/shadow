@@ -333,6 +333,44 @@ export class ShadowPerpClient {
     return tx;
   }
 
+  /**
+   * Relayer path: withdraw owner collateral under an active delegated session.
+   */
+  async withdrawCollateralWithSession(
+    market: PublicKey,
+    owner: PublicKey,
+    sessionId: BN | number,
+    amount: BN
+  ): Promise<string> {
+    const relayer = this.provider.wallet.publicKey;
+    const marketAccount = await this.getMarket(market);
+    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const ownerTokenAccount = await getAssociatedTokenAddress(
+      marketAccount.collateralMint,
+      owner
+    );
+    const sessionAddress = this.getTradeSessionAddress(
+      market,
+      owner,
+      this.toU64Bn(sessionId)
+    );
+
+    const tx = await this.program.methods
+      .withdrawCollateralWithSession(amount)
+      .accounts({
+        relayer,
+        owner,
+        market,
+        session: sessionAddress,
+        marginAccount,
+        ownerTokenAccount,
+        vault: marketAccount.vault,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+    return tx;
+  }
+
   // ============ POSITION OPERATIONS ============
 
   /**

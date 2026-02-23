@@ -1965,3 +1965,66 @@ Full multi-dimensional audit run across all TypeScript, Rust, scripts, and confi
 1. Keep canary/preflight as gate before every trading run.
 2. Continue Arcium queue serialization unblock track with minimal repro + support channel.
 3. Maintain session-only relay UX until queue path is stable.
+
+## Delegated Withdraw + Relay Watchdog + Audit Follow-up (2026-02-23 UTC)
+
+### What changed
+- Added delegated-session withdrawal path end-to-end:
+  - On-chain:
+    - `programs/shadowperp/src/handlers/session_trading.rs`
+      - new `WithdrawCollateralWithSession` accounts context
+      - new `withdraw_collateral_with_session_handler(...)`
+      - enforces active session + relayer/market binding + amount <= `max_margin_per_action` + action consumption
+    - `programs/shadowperp/src/lib.rs`
+      - new instruction `withdraw_collateral_with_session`
+  - Client:
+    - `app/src/lib/client.ts`
+      - new `withdrawCollateralWithSession(...)`
+  - Relay API:
+    - new `app/src/pages/api/relay/withdraw.ts`
+      - validates auth signature, session owner/market/relayer, expiry, limits
+      - executes `withdrawCollateralWithSession`
+  - UI:
+    - `app/src/components/CollateralModal.tsx`
+      - withdraw now runs via relay/session (no per-withdraw wallet popup)
+      - auto-ensures session and refreshes session usage after successful withdraw
+    - `app/src/components/TradingPanel.tsx`
+      - passes relay/session props into collateral modal
+
+- Added relay watchdog script with webhook paging:
+  - new `scripts/relay-watchdog.ts`
+    - checks `/api/relay/session`
+    - fails fast on unhealthy response
+    - sends webhook alert on failure (`RELAY_ALERT_WEBHOOK_URL` fallback `ORACLE_ALERT_WEBHOOK_URL`)
+  - `package.json`
+    - new script: `relay:watchdog`
+  - `app/.env.example`
+    - added `RELAY_WATCHDOG_BASE_URL`
+    - added `RELAY_ALERT_WEBHOOK_URL`
+
+- Audit follow-up hardening:
+  - `app/src/components/BottomPositionsPanel.tsx`
+    - removed health/PnL% dependence on on-chain `position.margin`
+    - now uses local derived margin from owner view (`entryPrice * sizeBase / leverage`)
+
+- Repo hygiene:
+  - `.gitignore` updated to ignore `timer-icon-preview.html` scratch file.
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit` -> PASS
+- `cargo check -p shadowperp` -> PASS (warnings only)
+- `npm run check:preflight` -> PASS
+- `npm run relay:watchdog -- --base-url http://localhost:3000` -> PASS
+- Checked `C:\Users\bolaj\AppData\Local\Temp\claude\c--Users-bolaj-projects-shadowperp\tasks\b9ec040.output`:
+  - captured output is normal mid-compilation crate graph
+  - warning about unused `proc-macro2` patch is pre-existing/non-blocking
+  - build status remains clean
+
+### Current blocker
+- Core Arcium queue blocker remains unchanged for open-position queue path in some flows:
+  - `QueueComputation` -> `AccountDidNotSerialize (3004)`
+
+### Next safe step
+1. Deploy updated program + sync IDL to activate `withdraw_collateral_with_session` on-chain.
+2. Run delegated withdraw smoke (session create -> withdraw -> session usage increment -> revoke).
+3. Keep relay watchdog in CI/ops loop for fast runtime readiness checks.
