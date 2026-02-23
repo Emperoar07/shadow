@@ -10,6 +10,8 @@ use handlers::__client_accounts_check_liquidation;
 use handlers::__client_accounts_check_liquidation_callback;
 use handlers::__client_accounts_close_position;
 use handlers::__client_accounts_close_position_callback;
+use handlers::__client_accounts_close_position_with_session;
+use handlers::__client_accounts_create_trade_session;
 use handlers::__client_accounts_deposit_collateral;
 use handlers::__client_accounts_init_arcium_signer;
 use handlers::__client_accounts_init_close_position_comp_def;
@@ -18,6 +20,7 @@ use handlers::__client_accounts_init_open_position_comp_def;
 use handlers::__client_accounts_init_private_order_book;
 use handlers::__client_accounts_initialize;
 use handlers::__client_accounts_open_position;
+use handlers::__client_accounts_open_position_with_session;
 use handlers::__client_accounts_open_position_v2_callback;
 #[cfg(feature = "shielded-collateral")]
 use handlers::__client_accounts_set_shielded_collateral_feature;
@@ -26,6 +29,7 @@ use handlers::__client_accounts_init_shielded_pool;
 use handlers::__client_accounts_sync_comp_defs;
 use handlers::__client_accounts_update_price;
 use handlers::__client_accounts_withdraw_collateral;
+use handlers::__client_accounts_revoke_trade_session;
 
 use errors::ErrorCode;
 use handlers::callbacks::close_position_callback::ClosePositionCallback;
@@ -44,6 +48,7 @@ use handlers::init_comp_defs::{
 use handlers::initialize::Initialize;
 use handlers::open_position::OpenPosition;
 use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
+use handlers::session_trading::{ClosePositionWithSession, CreateTradeSession, OpenPositionWithSession, RevokeTradeSession};
 #[cfg(feature = "shielded-collateral")]
 use handlers::shielded_collateral::{InitShieldedPool, SetShieldedCollateralFeature};
 use handlers::sync_comp_defs::SyncCompDefs;
@@ -138,6 +143,57 @@ pub mod shadowperp {
         )
     }
 
+    /// Create an owner-approved delegated trading session for a relayer.
+    pub fn create_trade_session(
+        ctx: Context<CreateTradeSession>,
+        session_id: u64,
+        relayer: Pubkey,
+        max_actions: u32,
+        max_margin_per_action: u64,
+        expires_at: i64,
+    ) -> Result<()> {
+        handlers::session_trading::create_trade_session_handler(
+            ctx,
+            session_id,
+            relayer,
+            max_actions,
+            max_margin_per_action,
+            expires_at,
+        )
+    }
+
+    /// Owner can revoke a delegated trading session at any time.
+    pub fn revoke_trade_session(ctx: Context<RevokeTradeSession>) -> Result<()> {
+        handlers::session_trading::revoke_trade_session_handler(ctx)
+    }
+
+    /// Relayer opens an encrypted position under an active owner-approved session.
+    pub fn open_position_with_session(
+        ctx: Context<OpenPositionWithSession>,
+        encrypted_size: [u8; 32],
+        encrypted_entry_price: [u8; 32],
+        encrypted_leverage: [u8; 32],
+        encrypted_is_long: [u8; 32],
+        encrypted_margin: [u8; 32],
+        margin: u64,
+        client_pubkey: [u8; 32],
+        nonce: u128,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::session_trading::open_position_with_session_handler(
+            ctx,
+            encrypted_size,
+            encrypted_entry_price,
+            encrypted_leverage,
+            encrypted_is_long,
+            encrypted_margin,
+            margin,
+            client_pubkey,
+            nonce,
+            computation_offset,
+        )
+    }
+
     /// Callback after position opening MPC completes
     #[arcium_callback(encrypted_ix = "open_position_v2", auto_serialize = false)]
     pub fn open_position_v2_callback(
@@ -150,6 +206,14 @@ pub mod shadowperp {
     /// Close an existing position - triggers PnL reveal
     pub fn close_position(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<()> {
         handlers::close_position::handler(ctx, computation_offset)
+    }
+
+    /// Relayer closes an encrypted position under an active owner-approved session.
+    pub fn close_position_with_session(
+        ctx: Context<ClosePositionWithSession>,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::session_trading::close_position_with_session_handler(ctx, computation_offset)
     }
 
     /// Callback after position closing - reveals final PnL

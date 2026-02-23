@@ -23,6 +23,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { execSync } from "child_process";
+import { resolveRpcEndpoint } from "./rpc";
 
 type InitArgs = {
   programId: PublicKey;
@@ -34,10 +35,18 @@ type InitArgs = {
 };
 
 const DEFAULT_CLUSTER_OFFSET = 456;
+const EXPECTED_SIGNATURES: Record<string, { params: number; outputs: number }> = {
+  // open_position_v2 batched Enc<Shared,(u64,u64,u8,bool,u64)> format (v2 = new comp-def for 15-param layout)
+  open_position_v2: { params: 15, outputs: 4 },
+  // close_position tuple layout with Enc<Mxe,(u64,u64)> OI state
+  close_position: { params: 14, outputs: 7 },
+  // check_liquidation tuple layout
+  check_liquidation: { params: 11, outputs: 3 },
+};
 
 const COMP_DEFS = [
   {
-    circuit: "open_position",
+    circuit: "open_position_v2",
     methodName: "initOpenPositionCompDef",
     marketField: "openPositionCompDef",
   },
@@ -167,6 +176,62 @@ function isCompDefCompleted(account: any): boolean {
     account?.circuit_source?.on_chain?.[0]?.is_completed ??
     false
   );
+}
+
+function readCompDefSignature(account: any): { params: number; outputs: number; circuitLen: number | null } {
+  const definition = account?.definition ?? account?.computationDefinition ?? account?.computation_definition;
+  const signature = definition?.signature;
+  const params = Array.isArray(signature?.parameters) ? signature.parameters.length : 0;
+  const outputs = Array.isArray(signature?.outputs) ? signature.outputs.length : 0;
+  const circuitLenRaw = definition?.circuitLen ?? definition?.circuit_len;
+  const circuitLen =
+    circuitLenRaw !== undefined && circuitLenRaw !== null
+      ? Number.parseInt(circuitLenRaw.toString(), 10)
+      : null;
+  return { params, outputs, circuitLen: Number.isFinite(circuitLen) ? circuitLen : null };
+}
+
+function resolveCircuitArtifactPath(circuit: string): string | null {
+  const preferredArcisPath = path.resolve(process.cwd(), "build", `${circuit}.arcis`);
+  const fallbackIdarcPath = path.resolve(process.cwd(), "build", `${circuit}.idarc`);
+  if (fs.existsSync(preferredArcisPath)) return preferredArcisPath;
+  if (fs.existsSync(fallbackIdarcPath)) return fallbackIdarcPath;
+  return null;
+}
+
+function validateCompDefAgainstExpected(
+  circuit: string,
+  compDefAccount: PublicKey,
+  account: any
+): void {
+  const expected = EXPECTED_SIGNATURES[circuit];
+  const actual = readCompDefSignature(account);
+  if (expected && (actual.params !== expected.params || actual.outputs !== expected.outputs)) {
+    throw new Error(
+      [
+        `FRESH_NAMESPACE_REQUIRED: finalized comp-def mismatch for ${circuit}.`,
+        `  comp-def: ${compDefAccount.toBase58()}`,
+        `  expected signature: params=${expected.params}, outputs=${expected.outputs}`,
+        `  actual signature:   params=${actual.params}, outputs=${actual.outputs}`,
+        "This comp-def is immutable once finalized; rotate to a fresh MXE namespace (new program ID) and re-init comp-defs.",
+      ].join("\n")
+    );
+  }
+
+  const circuitPath = resolveCircuitArtifactPath(circuit);
+  if (!circuitPath || actual.circuitLen === null) return;
+  const localLen = fs.statSync(circuitPath).size;
+  if (localLen !== actual.circuitLen) {
+    throw new Error(
+      [
+        `FRESH_NAMESPACE_REQUIRED: finalized comp-def circuit length mismatch for ${circuit}.`,
+        `  comp-def: ${compDefAccount.toBase58()}`,
+        `  on-chain circuit_len: ${actual.circuitLen}`,
+        `  local ${path.basename(circuitPath)} length: ${localLen}`,
+        "A finalized comp-def cannot be resized/replaced in-place safely; rotate to a fresh namespace and re-finalize.",
+      ].join("\n")
+    );
+  }
 }
 
 function describeLamportShortfall(error: unknown): string | null {
@@ -321,27 +386,16 @@ async function ensureCompDef(
     compDefAccount
   );
   if (isCompDefCompleted(existingCompDef)) {
-    console.log(`Comp-def already finalized for ${params.circuit}`);
+    validateCompDefAgainstExpected(params.circuit, compDefAccount, existingCompDef);
+    const actual = readCompDefSignature(existingCompDef);
+    console.log(
+      `Comp-def already finalized for ${params.circuit} (params=${actual.params}, outputs=${actual.outputs}, circuit_len=${actual.circuitLen ?? "n/a"})`
+    );
     return;
   }
 
   try {
-    const preferredIdarcPath = path.resolve(
-      process.cwd(),
-      "build",
-      `${params.circuit}.idarc`
-    );
-    const fallbackArcisPath = path.resolve(
-      process.cwd(),
-      "build",
-      `${params.circuit}.arcis`
-    );
-
-    const circuitPath = fs.existsSync(preferredIdarcPath)
-      ? preferredIdarcPath
-      : fs.existsSync(fallbackArcisPath)
-      ? fallbackArcisPath
-      : null;
+    const circuitPath = resolveCircuitArtifactPath(params.circuit);
 
     if (circuitPath) {
       const rawCircuit = new Uint8Array(fs.readFileSync(circuitPath));
@@ -375,7 +429,7 @@ async function ensureCompDef(
     ) {
       console.warn(
         `Skipped finalization for ${params.circuit}: raw circuit is not uploaded yet. ` +
-          `Run 'arcium build' to generate build/${params.circuit}.idarc (preferred) or .arcis, then rerun this script.`
+          `Run 'arcium build' to generate build/${params.circuit}.arcis (preferred), then rerun this script.`
       );
     } else if (lamportShortfall) {
       throw new Error(
@@ -386,6 +440,13 @@ async function ensureCompDef(
       throw error;
     }
   }
+
+  const refreshed = await (params.arciumProgram.account as any).computationDefinitionAccount.fetch(
+    compDefAccount
+  );
+  if (isCompDefCompleted(refreshed)) {
+    validateCompDefAgainstExpected(params.circuit, compDefAccount, refreshed);
+  }
 }
 
 export async function initCompDefs(args: InitArgs): Promise<void> {
@@ -393,7 +454,11 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
   const walletKeypair = Keypair.fromSecretKey(
     new Uint8Array(JSON.parse(fs.readFileSync(walletPath, "utf8")))
   );
-  const connection = new Connection(args.rpcUrl, "confirmed");
+  const rpcSelection = await resolveRpcEndpoint({
+    preferred: args.rpcUrl,
+    commitment: "confirmed",
+  });
+  const connection = new Connection(rpcSelection.rpcUrl, "confirmed");
   const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(walletKeypair), {
     commitment: "confirmed",
   });
@@ -430,6 +495,7 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
   console.log("Market:", args.market.toBase58());
   console.log("Arcium Program:", args.arciumProgramId.toBase58());
   console.log("MXE Program:", args.mxeProgramId.toBase58());
+  console.log("RPC:", rpcSelection.rpcUrl);
   console.log("Cluster Offset:", args.clusterOffset);
   console.log("MXE Account:", mxeAccount.toBase58());
   console.log("Address Lookup Table:", addressLookupTable.toBase58());

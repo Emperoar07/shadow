@@ -1,65 +1,193 @@
 /**
- * ShadowPerp Oracle Price Feeder
+ * ShadowPerp Oracle Price Feeder (hardened)
  *
- * Continuously fetches live SOL/USD price from CoinGecko and pushes it
- * on-chain via the `update_price` instruction. The oracle must be refreshed
- * at least every 300 seconds or trades/liquidations will be blocked.
- *
- * Prerequisites:
- *   - Program already deployed (run deploy-devnet.ts first)
- *   - Wallet keypair is the authorized price_feeder (deployer wallet by default)
+ * Safety features:
+ * - Multi-source median pricing
+ * - Delta + heartbeat write gating
+ * - Deviation circuit breaker
+ * - Source-disagreement freeze mode
+ * - RPC write failover/retry across endpoint candidates
+ * - Post-write on-chain verification
+ * - Structured metrics + alert hooks
+ * - Polling jitter to reduce burst/rate-limit collisions
  *
  * Usage:
- *   npx ts-node scripts/price-oracle.ts          # daemon mode (continuous)
- *   npx ts-node scripts/price-oracle.ts --once   # one-shot mode (GitHub Actions cron)
- *
- * Environment variables (all optional, read from app/.env.local if not set):
- *   SOLANA_WALLET          Path to keypair JSON (default: ~/.config/solana/id.json)
- *   SOLANA_RPC_URL         RPC endpoint (default: https://api.devnet.solana.com)
- *   SHADOWPERP_PROGRAM_ID  Program ID (default: from .env.local)
- *   SHADOWPERP_MARKET      Market PDA (default: from .env.local)
- *   UPDATE_INTERVAL_MS     Price update interval in ms, daemon mode only (default: 30000)
+ *   npx ts-node scripts/price-oracle.ts
+ *   npx ts-node scripts/price-oracle.ts --once
+ *   npx ts-node scripts/price-oracle.ts --once --force
  */
 
 import * as anchor from "@coral-xyz/anchor";
-import { PublicKey, Keypair, Connection } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import * as fs from "fs";
-import * as path from "path";
 import * as https from "https";
+import * as path from "path";
+import { collectRpcCandidates, resolveRpcEndpoint } from "./rpc";
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+type SourceQuote = {
+  source: string;
+  price: number;
+};
 
-/** Parse a minimal .env file and inject keys that aren't already in process.env */
-function loadEnvFile(envPath: string): void {
-  if (!fs.existsSync(envPath)) return;
-  const lines = fs.readFileSync(envPath, "utf-8").split("\n");
+type MarketSnapshot = {
+  oraclePriceRaw: number;
+  oraclePriceUi: number;
+  lastPriceUpdateSec: number;
+};
+
+type OracleMetrics = {
+  event: "published" | "skipped" | "frozen" | "error";
+  medianPrice: number | null;
+  sourcePrices: Record<string, number>;
+  sourceDisagreementBps: number | null;
+  ageSeconds: number | null;
+  moveBps: number | null;
+  txSig: string | null;
+  txLatencyMs: number | null;
+  rpcUrl: string | null;
+  consecutiveFailures: number;
+  note?: string;
+};
+
+type ProgramCtx = {
+  rpcUrl: string;
+  connection: Connection;
+  provider: anchor.AnchorProvider;
+  program: anchor.Program;
+};
+
+type PublishResult = {
+  signature: string;
+  latencyMs: number;
+  rpcUrl: string;
+  verified: MarketSnapshot;
+};
+
+function ts(): string {
+  return new Date().toISOString();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function readFlag(name: string): boolean {
+  return process.argv.includes(`--${name}`);
+}
+
+function toNumber(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "bigint") return Number(value);
+  if (value && typeof (value as any).toString === "function") {
+    return Number((value as any).toString());
+  }
+  return Number.NaN;
+}
+
+function pickField<T>(value: any, ...keys: string[]): T | undefined {
+  for (const key of keys) {
+    if (value != null && value[key] !== undefined && value[key] !== null) {
+      return value[key] as T;
+    }
+  }
+  return undefined;
+}
+
+function toRawPrice(ui: number): number {
+  return Math.round(ui * 1_000_000);
+}
+
+function toUiPrice(raw: number): number {
+  return raw / 1_000_000;
+}
+
+function fmt(value: number, digits = 4): string {
+  return Number.isFinite(value) ? value.toFixed(digits) : "NaN";
+}
+
+function deviationBps(a: number, b: number): number {
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) return Number.POSITIVE_INFINITY;
+  return (Math.abs(a - b) / b) * 10_000;
+}
+
+function sourceDisagreementBps(quotes: SourceQuote[], medianPrice: number): number {
+  if (!Number.isFinite(medianPrice) || medianPrice <= 0 || quotes.length < 2) return 0;
+  const prices = quotes.map((q) => q.price).filter((p) => Number.isFinite(p) && p > 0);
+  if (prices.length < 2) return 0;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  return ((max - min) / medianPrice) * 10_000;
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) throw new Error("Cannot compute median of empty values");
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+function parsePositiveInt(raw: string | undefined, fallback: number, name: string): number {
+  if (!raw) return fallback;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`Invalid ${name}: ${raw}`);
+  }
+  return value;
+}
+
+function parseNonNegativeInt(raw: string | undefined, fallback: number, name: string): number {
+  if (!raw) return fallback;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`Invalid ${name}: ${raw}`);
+  }
+  return value;
+}
+
+function parseBoolean(raw: string | undefined, fallback: boolean): boolean {
+  if (!raw) return fallback;
+  const v = raw.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(v)) return true;
+  if (["0", "false", "no", "off"].includes(v)) return false;
+  return fallback;
+}
+
+function loadEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return;
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
   for (const raw of lines) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq < 1) continue;
-    const key = line.slice(0, eq).trim();
-    const val = line.slice(eq + 1).trim();
-    if (!(key in process.env)) {
-      process.env[key] = val;
-    }
+    const sep = line.indexOf("=");
+    if (sep <= 0) continue;
+    const key = line.slice(0, sep).trim();
+    const value = line.slice(sep + 1).trim();
+    if (!(key in process.env)) process.env[key] = value;
   }
 }
 
-/** Fetch JSON over HTTPS. Returns parsed body or throws on non-200. */
-function fetchJson(url: string): Promise<unknown> {
+function logMetrics(metrics: OracleMetrics): void {
+  console.log(`[${ts()}] METRIC ${JSON.stringify(metrics)}`);
+}
+
+async function fetchJson(url: string, headers?: Record<string, string>): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const req = https.get(
       url,
       {
         headers: {
-          "User-Agent": "shadowperp-oracle/1.0",
+          "User-Agent": "shadowperp-oracle/3.0",
           Accept: "application/json",
+          ...(headers ?? {}),
         },
       },
       (res) => {
         let body = "";
-        res.on("data", (chunk: Buffer) => (body += chunk.toString()));
+        res.on("data", (chunk: Buffer) => {
+          body += chunk.toString();
+        });
         res.on("end", () => {
           if (res.statusCode !== 200) {
             reject(new Error(`HTTP ${res.statusCode}: ${body.slice(0, 200)}`));
@@ -67,8 +195,8 @@ function fetchJson(url: string): Promise<unknown> {
           }
           try {
             resolve(JSON.parse(body));
-          } catch (e) {
-            reject(new Error(`Failed to parse JSON: ${(e as Error).message}`));
+          } catch (error) {
+            reject(new Error(`Failed to parse JSON: ${(error as Error).message}`));
           }
         });
       }
@@ -80,12 +208,49 @@ function fetchJson(url: string): Promise<unknown> {
   });
 }
 
-/** Fetch SOL price in USD from CoinGecko free API. Returns price in dollars. */
-async function fetchSolPrice(): Promise<number> {
+async function postJson(url: string, payload: Record<string, unknown>): Promise<void> {
+  const body = JSON.stringify(payload);
+  const parsed = new URL(url);
+
+  await new Promise<void>((resolve, reject) => {
+    const req = https.request(
+      {
+        protocol: parsed.protocol,
+        hostname: parsed.hostname,
+        port: parsed.port,
+        path: `${parsed.pathname}${parsed.search}`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+          "User-Agent": "shadowperp-oracle-alert/1.0",
+        },
+      },
+      (res) => {
+        let response = "";
+        res.on("data", (chunk) => {
+          response += chunk.toString();
+        });
+        res.on("end", () => {
+          if ((res.statusCode ?? 500) >= 400) {
+            reject(new Error(`Alert webhook HTTP ${res.statusCode}: ${response.slice(0, 200)}`));
+            return;
+          }
+          resolve();
+        });
+      }
+    );
+    req.on("error", reject);
+    req.setTimeout(8_000, () => req.destroy(new Error("Alert webhook timed out")));
+    req.write(body);
+    req.end();
+  });
+}
+
+async function fetchCoinGeckoSolUsd(): Promise<number> {
   const data = (await fetchJson(
     "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
   )) as { solana?: { usd?: number } };
-
   const price = data?.solana?.usd;
   if (typeof price !== "number" || price <= 0) {
     throw new Error(`Unexpected CoinGecko response: ${JSON.stringify(data)}`);
@@ -93,134 +258,518 @@ async function fetchSolPrice(): Promise<number> {
   return price;
 }
 
-/** Sleep for `ms` milliseconds. */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function fetchBinanceSolUsd(): Promise<number> {
+  const data = (await fetchJson(
+    "https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT"
+  )) as { price?: string };
+  const price = Number(data?.price);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error(`Unexpected Binance response: ${JSON.stringify(data)}`);
+  }
+  return price;
 }
 
-/** Format timestamp as ISO-like local string for logs. */
-function ts(): string {
-  return new Date().toISOString();
+async function fetchCoinbaseSolUsd(): Promise<number> {
+  const data = (await fetchJson(
+    "https://api.coinbase.com/v2/prices/SOL-USD/spot"
+  )) as { data?: { amount?: string } };
+  const price = Number(data?.data?.amount);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error(`Unexpected Coinbase response: ${JSON.stringify(data)}`);
+  }
+  return price;
 }
 
-// ─── Main ────────────────────────────────────────────────────────────────────
+async function fetchCoinMarketCapSolUsd(apiKey: string): Promise<number> {
+  const data = (await fetchJson(
+    "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol=SOL&convert=USD",
+    { "X-CMC_PRO_API_KEY": apiKey }
+  )) as { data?: { SOL?: { quote?: { USD?: { price?: number } } } } };
+  const price = data?.data?.SOL?.quote?.USD?.price;
+  if (typeof price !== "number" || price <= 0) {
+    throw new Error(`Unexpected CoinMarketCap response: ${JSON.stringify(data)}`);
+  }
+  return price;
+}
+
+async function fetchCompositePrice(
+  minSourcesRequired: number
+): Promise<{ medianPrice: number; quotes: SourceQuote[]; warnings: string[] }> {
+  const cmcApiKey = process.env.COINMARKETCAP_API_KEY?.trim();
+  const sources: Array<{ name: string; fetcher: () => Promise<number> }> = [
+    { name: "coingecko", fetcher: fetchCoinGeckoSolUsd },
+    { name: "binance", fetcher: fetchBinanceSolUsd },
+    { name: "coinbase", fetcher: fetchCoinbaseSolUsd },
+  ];
+  if (cmcApiKey) {
+    sources.push({ name: "coinmarketcap", fetcher: () => fetchCoinMarketCapSolUsd(cmcApiKey) });
+  }
+
+  const settled = await Promise.allSettled(
+    sources.map(async (src) => ({ source: src.name, price: await src.fetcher() }))
+  );
+
+  const quotes: SourceQuote[] = [];
+  const warnings: string[] = [];
+  for (const result of settled) {
+    if (result.status === "fulfilled") {
+      const { source, price } = result.value;
+      if (Number.isFinite(price) && price > 0) {
+        quotes.push({ source, price });
+      } else {
+        warnings.push(`${source}: invalid price ${String(price)}`);
+      }
+    } else {
+      warnings.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
+    }
+  }
+
+  // Strict source-count policy is handled by the caller so we can support
+  // guarded single-source failsafe when freshness is at risk.
+  if (quotes.length === 0) {
+    throw new Error(`No healthy oracle sources. ${warnings.join(" | ")}`);
+  }
+
+  return {
+    medianPrice: median(quotes.map((q) => q.price)),
+    quotes,
+    warnings,
+  };
+}
 
 async function main(): Promise<void> {
-  const onceMode = process.argv.includes("--once");
-  // Load .env.local so scripts can be run without manual env setup
+  const onceMode = readFlag("once");
+  const forceMode = readFlag("force");
   loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"));
 
-  // Config with fallbacks
-  const rpcUrl =
-    process.env.SOLANA_RPC_URL ||
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
-    "https://api.devnet.solana.com";
+  const rpcSelection = await resolveRpcEndpoint({
+    preferred: process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL,
+    commitment: "confirmed",
+  });
+  let activeRpcUrl = rpcSelection.rpcUrl;
 
-  const programIdStr =
-    process.env.SHADOWPERP_PROGRAM_ID ||
-    process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID;
-  if (!programIdStr) {
-    console.error("ERROR: No program ID found. Set SHADOWPERP_PROGRAM_ID or run deploy-devnet.ts first.");
-    process.exit(1);
+  const programIdRaw =
+    process.env.SHADOWPERP_PROGRAM_ID || process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID;
+  if (!programIdRaw) {
+    throw new Error("Missing SHADOWPERP_PROGRAM_ID / NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID");
   }
-
-  const marketStr =
-    process.env.SHADOWPERP_MARKET ||
-    process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT;
-  if (!marketStr) {
-    console.error("ERROR: No market account found. Set SHADOWPERP_MARKET or run deploy-devnet.ts first.");
-    process.exit(1);
+  const marketRaw = process.env.SHADOWPERP_MARKET || process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT;
+  if (!marketRaw) {
+    throw new Error("Missing SHADOWPERP_MARKET / NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT");
   }
-
   const walletPath =
     process.env.SOLANA_WALLET ||
     path.resolve(process.env.HOME || process.env.USERPROFILE || "~", ".config", "solana", "id.json");
-
   if (!fs.existsSync(walletPath)) {
-    console.error(`ERROR: Wallet keypair not found at ${walletPath}`);
-    console.error("Set SOLANA_WALLET=/path/to/keypair.json");
-    process.exit(1);
+    throw new Error(`Wallet keypair not found at ${walletPath}`);
   }
 
-  const intervalMs = parseInt(process.env.UPDATE_INTERVAL_MS || "30000", 10);
+  const intervalMs = parsePositiveInt(process.env.UPDATE_INTERVAL_MS, 30_000, "UPDATE_INTERVAL_MS");
+  const jitterMs = parseNonNegativeInt(process.env.ORACLE_JITTER_MS, 3_000, "ORACLE_JITTER_MS");
+  const heartbeatSeconds = parsePositiveInt(
+    process.env.ORACLE_HEARTBEAT_SECONDS,
+    120,
+    "ORACLE_HEARTBEAT_SECONDS"
+  );
+  const minMoveBps = parsePositiveInt(process.env.ORACLE_MIN_MOVE_BPS, 10, "ORACLE_MIN_MOVE_BPS");
+  const maxDeviationBps = parsePositiveInt(
+    process.env.ORACLE_MAX_DEVIATION_BPS,
+    500,
+    "ORACLE_MAX_DEVIATION_BPS"
+  );
+  const minSourcesRequired = parsePositiveInt(
+    process.env.ORACLE_MIN_SOURCES_REQUIRED,
+    2,
+    "ORACLE_MIN_SOURCES_REQUIRED"
+  );
+  const failsafeAllowSingleSource = parseBoolean(
+    process.env.ORACLE_FAILSAFE_ALLOW_SINGLE_SOURCE,
+    true
+  );
+  const failsafeMaxMoveBps = parsePositiveInt(
+    process.env.ORACLE_FAILSAFE_MAX_MOVE_BPS,
+    150,
+    "ORACLE_FAILSAFE_MAX_MOVE_BPS"
+  );
+  const safetyModeEnabled = parseBoolean(process.env.ORACLE_SAFETY_MODE, true);
+  const sourceDisagreeLimitBps = parsePositiveInt(
+    process.env.ORACLE_SOURCE_DISAGREE_BPS,
+    120,
+    "ORACLE_SOURCE_DISAGREE_BPS"
+  );
+  const staleAlertSeconds = parsePositiveInt(
+    process.env.ORACLE_STALE_ALERT_SECONDS,
+    240,
+    "ORACLE_STALE_ALERT_SECONDS"
+  );
+  const alertCooldownSeconds = parsePositiveInt(
+    process.env.ORACLE_ALERT_COOLDOWN_SECONDS,
+    300,
+    "ORACLE_ALERT_COOLDOWN_SECONDS"
+  );
+  const alertWebhookUrl = process.env.ORACLE_ALERT_WEBHOOK_URL?.trim();
 
-  // Load keypair and connect
   const walletKeypair = Keypair.fromSecretKey(
     new Uint8Array(JSON.parse(fs.readFileSync(walletPath, "utf-8")))
   );
-  const connection = new Connection(rpcUrl, "confirmed");
-  const programId = new PublicKey(programIdStr);
-  const marketPda = new PublicKey(marketStr);
+  const programId = new PublicKey(programIdRaw);
+  const marketPda = new PublicKey(marketRaw);
 
-  // Load IDL — try build artifact first, then app copy
-  const idlPaths = [
+  const idlPathCandidates = [
     path.resolve(__dirname, "..", "target", "idl", "shadowperp.json"),
     path.resolve(__dirname, "..", "app", "src", "idl", "shadowperp.json"),
   ];
-  const idlPath = idlPaths.find((p) => fs.existsSync(p));
+  const idlPath = idlPathCandidates.find((p) => fs.existsSync(p));
   if (!idlPath) {
-    console.error("ERROR: shadowperp.json IDL not found. Run anchor build first.");
-    process.exit(1);
+    throw new Error("shadowperp.json IDL not found. Run anchor build first.");
   }
-  const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
-  (idl as { address?: string }).address = programId.toBase58();
+  const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8")) as anchor.Idl & { address?: string };
+  idl.address = programId.toBase58();
 
-  const provider = new anchor.AnchorProvider(
-    connection,
-    new anchor.Wallet(walletKeypair),
-    { commitment: "confirmed" }
-  );
-  const program = new anchor.Program(idl as anchor.Idl, provider);
+  const programCache = new Map<string, ProgramCtx>();
+  const getProgramCtx = (rpcUrl: string): ProgramCtx => {
+    const cached = programCache.get(rpcUrl);
+    if (cached) return cached;
+    const connection = new Connection(rpcUrl, "confirmed");
+    const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(walletKeypair), {
+      commitment: "confirmed",
+    });
+    const program = new anchor.Program(idl as anchor.Idl, provider);
+    const ctx: ProgramCtx = { rpcUrl, connection, provider, program };
+    programCache.set(rpcUrl, ctx);
+    return ctx;
+  };
+
+  const fetchSnapshot = async (ctx: ProgramCtx): Promise<MarketSnapshot> => {
+    const market = await (ctx.program.account as any).market.fetch(marketPda);
+    const oracleRaw = toNumber(pickField<any>(market, "oraclePrice", "oracle_price"));
+    const lastUpdate = toNumber(pickField<any>(market, "lastPriceUpdate", "last_price_update"));
+    return {
+      oraclePriceRaw: oracleRaw,
+      oraclePriceUi: Number.isFinite(oracleRaw) ? toUiPrice(oracleRaw) : Number.NaN,
+      lastPriceUpdateSec: lastUpdate,
+    };
+  };
+
+  const fetchSnapshotWithFailover = async (): Promise<MarketSnapshot> => {
+    const candidates = collectRpcCandidates(activeRpcUrl);
+    const errors: string[] = [];
+    for (const rpcUrl of candidates) {
+      try {
+        const snapshot = await fetchSnapshot(getProgramCtx(rpcUrl));
+        activeRpcUrl = rpcUrl;
+        return snapshot;
+      } catch (error) {
+        errors.push(`${rpcUrl}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    throw new Error(`Unable to fetch market snapshot from all RPCs. ${errors.join(" | ")}`);
+  };
+
+  const alertLastSent = new Map<string, number>();
+  const emitAlert = async (
+    key: string,
+    message: string,
+    context: Record<string, unknown>
+  ): Promise<void> => {
+    const now = Date.now();
+    const last = alertLastSent.get(key) ?? 0;
+    if (now - last < alertCooldownSeconds * 1000) return;
+    alertLastSent.set(key, now);
+
+    const payload = {
+      time: ts(),
+      level: "critical",
+      component: "shadowperp-oracle",
+      key,
+      message,
+      context,
+    };
+    console.error(`[${payload.time}] ALERT ${message} | ${JSON.stringify(context)}`);
+    if (!alertWebhookUrl) return;
+    try {
+      await postJson(alertWebhookUrl, payload);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[${ts()}] ALERT delivery failed: ${errMsg}`);
+    }
+  };
+
+  const publishWithRpcFailover = async (priceRaw: number): Promise<PublishResult> => {
+    const candidates = collectRpcCandidates(activeRpcUrl);
+    const errors: string[] = [];
+
+    for (const rpcUrl of candidates) {
+      const ctx = getProgramCtx(rpcUrl);
+      try {
+        const started = Date.now();
+        const signature = await (ctx.program.methods as any)
+          .updatePrice(new anchor.BN(priceRaw))
+          .accounts({ priceFeeder: walletKeypair.publicKey, market: marketPda })
+          .signers([walletKeypair])
+          .rpc();
+
+        await ctx.connection.confirmTransaction(signature, "confirmed");
+
+        // Read-after-write verification.
+        const verified = await fetchSnapshot(ctx);
+        if (verified.oraclePriceRaw !== priceRaw) {
+          throw new Error(
+            `Post-write verification mismatch: expected=${priceRaw}, got=${verified.oraclePriceRaw}`
+          );
+        }
+
+        const latencyMs = Date.now() - started;
+        activeRpcUrl = rpcUrl;
+        return {
+          signature,
+          latencyMs,
+          rpcUrl,
+          verified,
+        };
+      } catch (error) {
+        errors.push(`${rpcUrl}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    throw new Error(`All RPC write attempts failed. ${errors.join(" | ")}`);
+  };
+
+  let snapshot = await fetchSnapshotWithFailover();
+  let lastAcceptedPriceUi =
+    Number.isFinite(snapshot.oraclePriceUi) && snapshot.oraclePriceUi > 0
+      ? snapshot.oraclePriceUi
+      : null;
+  let lastAcceptedUpdateSec =
+    Number.isFinite(snapshot.lastPriceUpdateSec) && snapshot.lastPriceUpdateSec > 0
+      ? snapshot.lastPriceUpdateSec
+      : 0;
+  let consecutiveFailures = 0;
 
   console.log(`[${ts()}] ShadowPerp Oracle Price Feeder started (${onceMode ? "one-shot" : "daemon"})`);
-  console.log(`  Program:  ${programId.toBase58()}`);
-  console.log(`  Market:   ${marketPda.toBase58()}`);
-  console.log(`  Feeder:   ${walletKeypair.publicKey.toBase58()}`);
-  console.log(`  RPC:      ${rpcUrl}`);
-  if (!onceMode) console.log(`  Interval: ${intervalMs / 1000}s\n`);
+  console.log(`  Program:            ${programId.toBase58()}`);
+  console.log(`  Market:             ${marketPda.toBase58()}`);
+  console.log(`  Feeder:             ${walletKeypair.publicKey.toBase58()}`);
+  console.log(`  Active RPC:         ${activeRpcUrl}`);
+  console.log(`  RPC candidates:     ${collectRpcCandidates(activeRpcUrl).length}`);
+  console.log(`  Heartbeat:          ${heartbeatSeconds}s`);
+  console.log(`  Move threshold:     ${minMoveBps} bps`);
+  console.log(`  Max deviation:      ${maxDeviationBps} bps`);
+  console.log(`  Safety mode:        ${safetyModeEnabled ? "enabled" : "disabled"}`);
+  console.log(`  Source disagree:    ${sourceDisagreeLimitBps} bps`);
+  console.log(`  Min sources:        ${minSourcesRequired}`);
+  console.log(
+    `  Failsafe mode:      ${
+      failsafeAllowSingleSource ? `single-source <= ${failsafeMaxMoveBps} bps` : "disabled"
+    }`
+  );
+  console.log(`  Stale alert:        ${staleAlertSeconds}s`);
+  console.log(`  Alert cooldown:     ${alertCooldownSeconds}s`);
+  console.log(`  Alert webhook:      ${alertWebhookUrl ? "configured" : "not configured (console alerts only)"}`);
+  console.log(`  Last on-chain:      ${lastAcceptedPriceUi ? `$${fmt(lastAcceptedPriceUi)}` : "unset"}\n`);
 
-  let consecutiveErrors = 0;
-  const MAX_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes
+  const runTick = async (): Promise<void> => {
+    const { medianPrice, quotes, warnings } = await fetchCompositePrice(minSourcesRequired);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const ageSeconds =
+      lastAcceptedUpdateSec > 0
+        ? Math.max(0, nowSec - lastAcceptedUpdateSec)
+        : Number.POSITIVE_INFINITY;
+    let effectiveMedianPrice = medianPrice;
+    let reducedSourceMode = false;
 
-  const pushPrice = async () => {
-    const usdPrice = await fetchSolPrice();
-    const priceOnChain = Math.round(usdPrice * 1_000_000);
-    const sig = await (program.methods as any)
-      .updatePrice(new anchor.BN(priceOnChain))
-      .accounts({ priceFeeder: walletKeypair.publicKey, market: marketPda })
-      .signers([walletKeypair])
-      .rpc();
+    if (quotes.length < minSourcesRequired) {
+      const note = `Insufficient oracle sources (${quotes.length}/${minSourcesRequired})`;
+      const moveFromLast =
+        lastAcceptedPriceUi !== null
+          ? deviationBps(medianPrice, lastAcceptedPriceUi)
+          : Number.POSITIVE_INFINITY;
+      const canUseFailsafe =
+        failsafeAllowSingleSource &&
+        quotes.length >= 1 &&
+        ageSeconds >= heartbeatSeconds &&
+        (lastAcceptedPriceUi === null || moveFromLast <= failsafeMaxMoveBps);
+
+      if (!canUseFailsafe) {
+        throw new Error(`${note}. ${warnings.join(" | ")}`);
+      }
+
+      reducedSourceMode = true;
+      effectiveMedianPrice = medianPrice;
+      await emitAlert("oracle-failsafe-single-source", `${note}; using guarded failsafe`, {
+        quotes: quotes.map((q) => q.source),
+        ageSeconds,
+        medianPrice: effectiveMedianPrice,
+        moveBps: Number.isFinite(moveFromLast) ? moveFromLast : null,
+        failsafeMaxMoveBps,
+      });
+    }
+
+    const moveBps =
+      lastAcceptedPriceUi !== null
+        ? deviationBps(effectiveMedianPrice, lastAcceptedPriceUi)
+        : Number.POSITIVE_INFINITY;
+    const disagreeBps = sourceDisagreementBps(quotes, effectiveMedianPrice);
+    const sourcePrices = Object.fromEntries(quotes.map((q) => [q.source, Number(q.price.toFixed(8))]));
+
+    if (ageSeconds >= staleAlertSeconds) {
+      await emitAlert("oracle-stale-warning", "Oracle freshness approaching stale threshold", {
+        ageSeconds,
+        staleAlertSeconds,
+        heartbeatSeconds,
+        activeRpcUrl,
+      });
+    }
+
+    if (safetyModeEnabled && disagreeBps > sourceDisagreeLimitBps) {
+      const note = `Safety freeze: source disagreement ${fmt(disagreeBps, 2)} bps > ${sourceDisagreeLimitBps} bps`;
+      consecutiveFailures += 1;
+      await emitAlert("oracle-source-disagreement", note, {
+        medianPrice: effectiveMedianPrice,
+        sourcePrices,
+        disagreeBps,
+        limitBps: sourceDisagreeLimitBps,
+      });
+      logMetrics({
+        event: "frozen",
+        medianPrice: effectiveMedianPrice,
+        sourcePrices,
+        sourceDisagreementBps: disagreeBps,
+        ageSeconds,
+        moveBps,
+        txSig: null,
+        txLatencyMs: null,
+        rpcUrl: activeRpcUrl,
+        consecutiveFailures,
+        note,
+      });
+      if (onceMode) throw new Error(note);
+      return;
+    }
+
+    if (lastAcceptedPriceUi !== null && maxDeviationBps > 0 && moveBps > maxDeviationBps) {
+      const note = `Circuit breaker: move ${fmt(moveBps, 2)} bps > ${maxDeviationBps} bps`;
+      consecutiveFailures += 1;
+      await emitAlert("oracle-circuit-breaker", note, {
+        medianPrice: effectiveMedianPrice,
+        lastAcceptedPriceUi,
+        moveBps,
+        maxDeviationBps,
+      });
+      logMetrics({
+        event: "frozen",
+        medianPrice: effectiveMedianPrice,
+        sourcePrices,
+        sourceDisagreementBps: disagreeBps,
+        ageSeconds,
+        moveBps,
+        txSig: null,
+        txLatencyMs: null,
+        rpcUrl: activeRpcUrl,
+        consecutiveFailures,
+        note,
+      });
+      if (onceMode) throw new Error(note);
+      return;
+    }
+
+    const shouldPublish =
+      forceMode ||
+      lastAcceptedPriceUi === null ||
+      ageSeconds >= heartbeatSeconds ||
+      moveBps >= minMoveBps;
+
+    if (!shouldPublish) {
+      consecutiveFailures = 0;
+      logMetrics({
+        event: "skipped",
+        medianPrice: effectiveMedianPrice,
+        sourcePrices,
+        sourceDisagreementBps: disagreeBps,
+        ageSeconds,
+        moveBps,
+        txSig: null,
+        txLatencyMs: null,
+        rpcUrl: activeRpcUrl,
+        consecutiveFailures,
+        note: "Thresholds not met",
+      });
+      if (warnings.length > 0) {
+        console.warn(`[${ts()}] Source warnings: ${warnings.join(" | ")}`);
+      }
+      return;
+    }
+
+    const priceRaw = toRawPrice(effectiveMedianPrice);
+    const result = await publishWithRpcFailover(priceRaw);
+    lastAcceptedPriceUi = result.verified.oraclePriceUi;
+    lastAcceptedUpdateSec = result.verified.lastPriceUpdateSec;
+    consecutiveFailures = 0;
+
+    logMetrics({
+      event: "published",
+      medianPrice: effectiveMedianPrice,
+      sourcePrices,
+      sourceDisagreementBps: disagreeBps,
+      ageSeconds,
+      moveBps,
+      txSig: result.signature,
+      txLatencyMs: result.latencyMs,
+      rpcUrl: result.rpcUrl,
+      consecutiveFailures,
+    });
+
     console.log(
-      `[${ts()}] Price updated: $${usdPrice.toFixed(4)} (${priceOnChain} raw) | sig: ${sig.slice(0, 8)}...`
+      `[${ts()}] Price updated: median=$${fmt(effectiveMedianPrice)} raw=${priceRaw} | sig=${result.signature.slice(
+        0,
+        8
+      )}... | rpc=${result.rpcUrl} | txLatency=${result.latencyMs}ms${reducedSourceMode ? " | mode=failsafe-single-source" : ""}`
     );
+    if (warnings.length > 0) {
+      console.warn(`[${ts()}] Source warnings: ${warnings.join(" | ")}`);
+    }
   };
 
   if (onceMode) {
-    // One-shot: push once and exit. Used by GitHub Actions cron.
-    await pushPrice();
+    await runTick();
     return;
   }
 
-  // Daemon: loop forever with backoff on errors.
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
-      await pushPrice();
-      consecutiveErrors = 0;
-    } catch (err: unknown) {
-      consecutiveErrors++;
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[${ts()}] ERROR (attempt ${consecutiveErrors}): ${msg}`);
-      const backoff = Math.min(5_000 * 2 ** (consecutiveErrors - 1), MAX_BACKOFF_MS);
-      console.error(`[${ts()}] Retrying in ${backoff / 1000}s...`);
-      await sleep(backoff);
-      continue;
+      await runTick();
+    } catch (error) {
+      consecutiveFailures += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      logMetrics({
+        event: "error",
+        medianPrice: null,
+        sourcePrices: {},
+        sourceDisagreementBps: null,
+        ageSeconds:
+          lastAcceptedUpdateSec > 0 ? Math.max(0, Math.floor(Date.now() / 1000) - lastAcceptedUpdateSec) : null,
+        moveBps: null,
+        txSig: null,
+        txLatencyMs: null,
+        rpcUrl: activeRpcUrl,
+        consecutiveFailures,
+        note: message,
+      });
+      await emitAlert("oracle-runtime-error", message, {
+        consecutiveFailures,
+        activeRpcUrl,
+      });
     }
-    await sleep(intervalMs);
+
+    const jitter = jitterMs > 0 ? Math.floor((Math.random() * 2 - 1) * jitterMs) : 0;
+    const delayMs = Math.max(1_000, intervalMs + jitter);
+    await sleep(delayMs);
   }
 }
 
-main().catch((err) => {
-  console.error("Fatal:", err);
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[${ts()}] Fatal: ${message}`);
   process.exit(1);
 });

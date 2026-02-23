@@ -67,12 +67,12 @@ async function main() {
 
   // Resolve circuit binary
   const buildDir = path.resolve(process.cwd(), "build");
-  const idarcPath = path.join(buildDir, `${circuit}.idarc`);
   const arcisPath = path.join(buildDir, `${circuit}.arcis`);
-  const circuitPath = fs.existsSync(idarcPath)
-    ? idarcPath
-    : fs.existsSync(arcisPath)
+  const idarcPath = path.join(buildDir, `${circuit}.idarc`);
+  const circuitPath = fs.existsSync(arcisPath)
     ? arcisPath
+    : fs.existsSync(idarcPath)
+    ? idarcPath
     : null;
 
   if (!circuitPath) {

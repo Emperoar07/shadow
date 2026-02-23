@@ -15,7 +15,6 @@ export default function NetworkIndicator() {
   const { publicKey, connected } = useWallet();
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
-  const [blockHeight, setBlockHeight] = useState<number | null>(null);
   const [networkStatus, setNetworkStatus] = useState<"connected" | "checking" | "error">("checking");
 
   const rpcUrl = connection.rpcEndpoint;
@@ -80,11 +79,8 @@ export default function NetworkIndicator() {
 
     const checkNetwork = async () => {
       try {
-        const slot = await connection.getSlot();
-        if (!cancelled) {
-          setBlockHeight(slot);
-          setNetworkStatus("connected");
-        }
+        await connection.getSlot();
+        if (!cancelled) setNetworkStatus("connected");
       } catch {
         if (!cancelled) setNetworkStatus("error");
       }

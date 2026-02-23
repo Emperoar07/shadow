@@ -3,8 +3,8 @@
 //! Arcis supports tuples as ArcisType natively, so we use type aliases
 //! for readability. These are used across all circuits.
 
-/// Position payload: (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi)
-pub type Position = (u64, u64, u8, bool, u64, u128, u128);
+/// Position payload: (size, entry_price, leverage, is_long, margin)
+pub type Position = (u64, u64, u8, bool, u64);
 
 /// Open interest payload: (total_long, total_short)
 pub type OpenInterest = (u64, u64);

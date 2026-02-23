@@ -51,6 +51,9 @@ export interface Market {
   totalFeesCollected: BN;
   priceFeeder: PublicKey;
   mxeCluster: PublicKey;
+  openPositionCompDef: PublicKey;
+  closePositionCompDef: PublicKey;
+  liquidationCompDef: PublicKey;
 }
 
 // Margin account state
@@ -64,6 +67,19 @@ export interface MarginAccount {
   positionsOpened: BN;
   positionsClosed: BN;
   totalRealizedPnl: BN;
+}
+
+export interface TradeSession {
+  owner: PublicKey;
+  market: PublicKey;
+  relayer: PublicKey;
+  sessionId: BN;
+  maxActions: number;
+  usedActions: number;
+  maxMarginPerAction: BN;
+  expiresAt: BN;
+  revoked: boolean;
+  bump: number;
 }
 
 // Close position result (revealed data)

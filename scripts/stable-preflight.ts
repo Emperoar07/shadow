@@ -9,7 +9,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { getArciumProgram, getArciumProgramId } from "@arcium-hq/client";
 import {
-  clusterApiUrl,
   Connection,
   Keypair,
   PublicKey,
@@ -18,6 +17,7 @@ import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { resolveRpcEndpoint } from "./rpc";
 
 const CANONICAL_DEVNET_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
@@ -114,10 +114,12 @@ function formatCheck(check: Check): string {
 async function main(): Promise<void> {
   loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"));
 
-  const rpcUrl =
-    process.env.SOLANA_RPC_URL ||
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
-    clusterApiUrl("devnet");
+  const rpcSelection = await resolveRpcEndpoint({
+    preferred:
+      process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL,
+    commitment: "confirmed",
+  });
+  const rpcUrl = rpcSelection.rpcUrl;
   const programId = parsePublicKey(
     "NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID",
     process.env.SHADOWPERP_PROGRAM_ID ||

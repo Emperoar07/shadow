@@ -7,9 +7,10 @@
  */
 
 import * as anchor from "@coral-xyz/anchor";
-import { clusterApiUrl, Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import * as fs from "fs";
 import * as path from "path";
+import { resolveRpcEndpoint } from "./rpc";
 
 const DEFAULT_MAX_AGE_SECONDS = 300;
 
@@ -77,10 +78,12 @@ function toNumber(value: any): number {
 async function main(): Promise<void> {
   loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"));
 
-  const rpcUrl =
-    process.env.SOLANA_RPC_URL ||
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
-    clusterApiUrl("devnet");
+  const rpcSelection = await resolveRpcEndpoint({
+    preferred:
+      process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL,
+    commitment: "confirmed",
+  });
+  const rpcUrl = rpcSelection.rpcUrl;
   const programId = parsePublicKey(
     "NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID",
     process.env.SHADOWPERP_PROGRAM_ID ||

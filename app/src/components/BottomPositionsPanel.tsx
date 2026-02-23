@@ -6,12 +6,18 @@ import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import {
+  PendingLimitOrder,
+  OwnerPositionView,
+  getLimitOrders,
+  getOwnerPositionViews,
   PositionProtectionRule,
   getPositionRule,
   getPositionRules,
+  removeLimitOrder,
   removePositionRule,
   setPositionRule,
   subscribeAutomationUpdates,
+  updateLimitOrder,
 } from "../lib/trade-automation";
 
 type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated";
@@ -110,6 +116,30 @@ function formatPrice(value: number | null | undefined): string {
   return value < 0.01 ? `$${value.toFixed(8)}` : `$${value.toFixed(2)}`;
 }
 
+function clampPercent(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+function MetricBlock({
+  label,
+  value,
+  subtitle,
+  valueClassName = "text-white",
+}: {
+  label: string;
+  value: string;
+  subtitle?: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-[11px] uppercase tracking-[0.12em] text-gray-500">{label}</p>
+      <p className={`text-xl font-semibold leading-tight ${valueClassName}`}>{value}</p>
+      {subtitle ? <p className={`text-lg font-semibold leading-tight ${valueClassName}`}>{subtitle}</p> : null}
+    </div>
+  );
+}
+
 export default function BottomPositionsPanel() {
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
@@ -117,13 +147,19 @@ export default function BottomPositionsPanel() {
   const [positions, setPositions] = useState<UiPosition[]>([]);
   const [loading, setLoading] = useState(false);
   const [closingAddress, setClosingAddress] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"open" | "history">("open");
+  const [activeTab, setActiveTab] = useState<"position" | "orders" | "history">("position");
+  const [limitOrders, setLimitOrders] = useState<PendingLimitOrder[]>([]);
   const [positionRules, setPositionRules] = useState<Record<string, PositionProtectionRule>>({});
+  const [ownerPositionViews, setOwnerPositionViews] = useState<Record<string, OwnerPositionView>>(
+    {}
+  );
   const [editAddress, setEditAddress] = useState<string | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editSide, setEditSide] = useState<Direction>("long");
   const [editTakeProfit, setEditTakeProfit] = useState("");
   const [editStopLoss, setEditStopLoss] = useState("");
   const [oraclePrice, setOraclePrice] = useState<number | null>(null);
+  const [liqThreshold, setLiqThreshold] = useState(5);
   const autoCloseInFlightRef = useRef<Set<string>>(new Set());
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
 
@@ -160,18 +196,24 @@ export default function BottomPositionsPanel() {
         const market = await client.getMarket(runtime.marketAddress);
         const price = new BN(market.oraclePrice.toString()).toNumber() / 1_000_000;
         setOraclePrice(Number.isFinite(price) && price > 0 ? price : null);
+        const threshold = Number(market.liquidationThreshold) / 100;
+        if (Number.isFinite(threshold) && threshold > 0 && threshold <= 100) {
+          setLiqThreshold(threshold);
+        }
       } catch {
         // keep previous oracle price
       }
     } catch {
-      // silent in demo / config error
+      // silent on config/runtime fetch errors
     } finally {
       setLoading(false);
     }
   }, [publicKey, anchorWallet, connection]);
 
-  const loadRules = useCallback(() => {
+  const loadAutomationState = useCallback(() => {
     setPositionRules(getPositionRules());
+    setLimitOrders(getLimitOrders());
+    setOwnerPositionViews(getOwnerPositionViews());
   }, []);
 
   useEffect(() => {
@@ -181,9 +223,9 @@ export default function BottomPositionsPanel() {
   }, [loadPositions]);
 
   useEffect(() => {
-    loadRules();
-    return subscribeAutomationUpdates(loadRules);
-  }, [loadRules]);
+    loadAutomationState();
+    return subscribeAutomationUpdates(loadAutomationState);
+  }, [loadAutomationState]);
 
   const handleClose = useCallback(
     async (pos: UiPosition) => {
@@ -263,15 +305,88 @@ export default function BottomPositionsPanel() {
     () => positions.filter((p) => ["open", "pending", "closing"].includes(p.status)),
     [positions]
   );
+  const openOrders = useMemo(
+    () => limitOrders.filter((o) => ["pending", "triggered", "failed"].includes(o.status)),
+    [limitOrders]
+  );
   const historyPositions = useMemo(
     () => positions.filter((p) => ["closed", "liquidated"].includes(p.status)),
     [positions]
   );
-  const displayed = activeTab === "open" ? openPositions : historyPositions;
-  const showActionCol = activeTab === "open";
+  const displayed =
+    activeTab === "position" ? openPositions : activeTab === "history" ? historyPositions : [];
+  const showActionCol = activeTab === "position";
+
+  const derivePositionCard = useCallback(
+    (position: UiPosition) => {
+      const view = ownerPositionViews[position.address] ?? null;
+      const side = view?.side ?? null;
+      const leverage = view?.leverage ?? null;
+      const entryPrice = view?.entryPrice ?? null;
+      const pairLabel = view?.pairLabel ?? "SHADOW-PERP";
+      const sizeBase = view?.sizeBase ?? null;
+
+      let liqPrice: number | null = null;
+      if (entryPrice !== null && leverage !== null && leverage > 0) {
+        const liqFactor = (1 - liqThreshold / 100) / leverage;
+        liqPrice =
+          side === "short"
+            ? entryPrice * (1 + liqFactor)
+            : entryPrice * (1 - liqFactor);
+      }
+
+      let unrealizedPnl: number | null = null;
+      if (
+        entryPrice !== null &&
+        sizeBase !== null &&
+        oraclePrice !== null &&
+        Number.isFinite(oraclePrice)
+      ) {
+        const direction = side === "short" ? -1 : 1;
+        unrealizedPnl = (oraclePrice - entryPrice) * sizeBase * direction;
+      }
+
+      const pnlPercent =
+        unrealizedPnl !== null && position.margin > 0
+          ? (unrealizedPnl / position.margin) * 100
+          : null;
+
+      let healthPercent: number | null = null;
+      if (
+        liqPrice !== null &&
+        entryPrice !== null &&
+        oraclePrice !== null &&
+        side
+      ) {
+        if (side === "long") {
+          const denominator = entryPrice - liqPrice;
+          if (denominator > 0) {
+            healthPercent = clampPercent(((oraclePrice - liqPrice) / denominator) * 100);
+          }
+        } else {
+          const denominator = liqPrice - entryPrice;
+          if (denominator > 0) {
+            healthPercent = clampPercent(((liqPrice - oraclePrice) / denominator) * 100);
+          }
+        }
+      }
+
+      return {
+        pairLabel,
+        side,
+        leverage,
+        entryPrice,
+        liqPrice,
+        unrealizedPnl,
+        pnlPercent,
+        healthPercent,
+      };
+    },
+    [liqThreshold, oraclePrice, ownerPositionViews]
+  );
 
   useEffect(() => {
-    if (!oraclePrice || activeTab !== "open") return;
+    if (!oraclePrice || activeTab !== "position") return;
     for (const pos of openPositions) {
       if (pos.status !== "open") continue;
       if (autoCloseInFlightRef.current.has(pos.address)) continue;
@@ -298,15 +413,44 @@ export default function BottomPositionsPanel() {
     }
   }, [activeTab, handleClose, openPositions, oraclePrice, positionRules]);
 
+  const updateOrderField = useCallback(
+    (orderId: string, field: "limitPrice" | "takeProfit" | "stopLoss", raw: string) => {
+      const parsed = parseOptionalPositive(raw);
+      const patch: Partial<PendingLimitOrder> = {
+        status: "pending",
+        error: undefined,
+      };
+      if (field === "limitPrice") {
+        if (parsed === null) {
+          toast.error("Limit price must be greater than 0");
+          return;
+        }
+        patch.limitPrice = parsed;
+      } else if (field === "takeProfit") {
+        patch.takeProfit = parsed;
+      } else {
+        patch.stopLoss = parsed;
+      }
+      updateLimitOrder(orderId, patch);
+    },
+    []
+  );
+
   return (
     <div className="position-card rounded-xl overflow-hidden">
       {/* Tab bar */}
       <div className="flex items-center justify-between border-b border-shadow-600 pl-1">
         <div className="flex">
-          <TabBtn active={activeTab === "open"} onClick={() => setActiveTab("open")}>
-            Open Positions
+          <TabBtn active={activeTab === "position"} onClick={() => setActiveTab("position")}>
+            Position
             <span className="ml-1.5 px-1.5 py-0.5 rounded bg-shadow-600 text-[10px] text-gray-300">
               {openPositions.length}
+            </span>
+          </TabBtn>
+          <TabBtn active={activeTab === "orders"} onClick={() => setActiveTab("orders")}>
+            Orders
+            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-shadow-600 text-[10px] text-gray-300">
+              {openOrders.length}
             </span>
           </TabBtn>
           <TabBtn active={activeTab === "history"} onClick={() => setActiveTab("history")}>
@@ -317,14 +461,8 @@ export default function BottomPositionsPanel() {
           </TabBtn>
         </div>
 
-        <div className="flex items-center gap-3 pr-4">
-          {oraclePrice && (
-            <span className="hidden sm:block text-[10px] text-gray-500">
-              Oracle: {formatPrice(oraclePrice)}
-            </span>
-          )}
-          {/* Privacy note */}
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-accent-purple">
+        <div className="flex items-center pr-4">
+          <div className="flex items-center gap-1.5 text-[10px] text-accent-purple">
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path
                 fillRule="evenodd"
@@ -332,47 +470,236 @@ export default function BottomPositionsPanel() {
                 clipRule="evenodd"
               />
             </svg>
-            Size, leverage & direction encrypted via Arcium MPC
+            encrypted
           </div>
-          <button
-            onClick={() => void loadPositions()}
-            disabled={loading}
-            className="text-xs text-gray-500 hover:text-accent-purple transition-colors py-2.5 disabled:opacity-40"
-          >
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
         </div>
       </div>
 
       {/* Table */}
       <div className="overflow-x-auto" style={{ maxHeight: 200, overflowY: "auto" }}>
-        {displayed.length === 0 ? (
+        {activeTab === "orders" ? (
+          openOrders.length === 0 ? (
+            <div className="py-7 text-center text-sm text-gray-500">No active orders.</div>
+          ) : (
+            <div className="divide-y divide-shadow-700">
+              {openOrders.map((order) => (
+                <div key={order.id} className="p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-xs">
+                      <p className="font-medium text-gray-100">
+                        {order.pairLabel} | {order.side.toUpperCase()} | {order.leverage}x
+                      </p>
+                      <p className="mt-1 text-gray-400">
+                        Limit {formatPrice(order.limitPrice)} | TP {formatPrice(order.takeProfit)} | SL{" "}
+                        {formatPrice(order.stopLoss)}
+                      </p>
+                      {order.error && <p className="mt-1 text-red-400">{order.error}</p>}
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="rounded border border-shadow-500 px-2 py-0.5 text-[10px] text-gray-300">
+                        {order.status}
+                      </span>
+                      <div className="flex gap-1">
+                        {(order.status === "pending" || order.status === "failed") && (
+                          <button
+                            onClick={() =>
+                              setEditingOrderId(editingOrderId === order.id ? null : order.id)
+                            }
+                            className="rounded bg-shadow-600 px-2 py-1 text-[10px] text-gray-300"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          onClick={() => removeLimitOrder(order.id)}
+                          className="rounded bg-red-500/15 px-2 py-1 text-[10px] text-red-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {editingOrderId === order.id && (
+                    <div className="mt-2 grid grid-cols-3 gap-1.5">
+                      <input
+                        type="number"
+                        defaultValue={order.limitPrice}
+                        onBlur={(e) => updateOrderField(order.id, "limitPrice", e.target.value)}
+                        placeholder="Limit"
+                        className="rounded border border-shadow-500 bg-shadow-700 px-2 py-1 text-[11px]"
+                      />
+                      <input
+                        type="number"
+                        defaultValue={order.takeProfit ?? ""}
+                        onBlur={(e) => updateOrderField(order.id, "takeProfit", e.target.value)}
+                        placeholder="TP"
+                        className="rounded border border-shadow-500 bg-shadow-700 px-2 py-1 text-[11px]"
+                      />
+                      <input
+                        type="number"
+                        defaultValue={order.stopLoss ?? ""}
+                        onBlur={(e) => updateOrderField(order.id, "stopLoss", e.target.value)}
+                        placeholder="SL"
+                        className="rounded border border-shadow-500 bg-shadow-700 px-2 py-1 text-[11px]"
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        ) : displayed.length === 0 ? (
           <div className="py-7 text-center text-sm text-gray-500">
             {!publicKey
               ? "Connect wallet to view positions"
-              : activeTab === "open"
+              : activeTab === "position"
               ? "No open positions - open a trade using the panel above"
               : "No closed positions yet"}
           </div>
+        ) : activeTab === "position" ? (
+          <div className="space-y-3 p-3">
+            {displayed.map((pos) => {
+              const isOpen = pos.status === "open";
+              const isPending = pos.status === "pending";
+              const isClosing = closingAddress === pos.address || pos.status === "closing";
+              const card = derivePositionCard(pos);
+              const rule = positionRules[pos.address];
+              const pnlValue = card.unrealizedPnl;
+              const pnlPercent = card.pnlPercent;
+              const health = card.healthPercent;
+              const healthBarWidth = `${Math.max(2, Math.round(health ?? 0))}%`;
+              const healthTone =
+                health === null
+                  ? "bg-gray-500/60"
+                  : health >= 70
+                  ? "bg-gradient-to-r from-accent-green to-cyan-400"
+                  : health >= 40
+                  ? "bg-gradient-to-r from-yellow-400 to-orange-400"
+                  : "bg-gradient-to-r from-accent-red to-rose-500";
+
+              return (
+                <div
+                  key={pos.address}
+                  className="rounded-xl border border-shadow-500 bg-shadow-700/55 p-4"
+                >
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-2xl font-semibold tracking-tight text-white">
+                        {card.pairLabel}
+                      </p>
+                      {card.side ? (
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase ${
+                            card.side === "long"
+                              ? "bg-accent-green/20 text-accent-green"
+                              : "bg-accent-red/20 text-accent-red"
+                          }`}
+                        >
+                          {card.side}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-accent-purple/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent-purple">
+                          Encrypted
+                        </span>
+                      )}
+                      {card.leverage ? (
+                        <span className="rounded-full bg-accent-purple/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent-purple">
+                          {card.leverage}x
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-shadow-600 px-2.5 py-0.5 text-[11px] font-semibold text-gray-400">
+                          Encrypted
+                        </span>
+                      )}
+                      <StatusBadge status={pos.status} isClosing={isClosing} />
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => beginEditRule(pos)}
+                        className="rounded-lg bg-cyan-500/15 px-2.5 py-1 text-[11px] font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
+                      >
+                        TP/SL
+                      </button>
+                      <button
+                        onClick={() => void handleClose(pos)}
+                        disabled={isClosing || isPending}
+                        className="rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-1 text-[12px] font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {isPending ? "MPC..." : isClosing ? "Closing..." : "Close"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                    <MetricBlock label="Entry Price" value={formatPrice(card.entryPrice)} />
+                    <MetricBlock
+                      label="Liq. Price"
+                      value={formatPrice(card.liqPrice)}
+                      valueClassName="text-accent-red"
+                    />
+                    <MetricBlock label="Margin" value={`$${pos.margin.toFixed(2)}`} />
+                    <MetricBlock
+                      label="PnL"
+                      value={
+                        pnlValue === null
+                          ? "Encrypted"
+                          : `${pnlValue >= 0 ? "+" : ""}$${Math.abs(pnlValue).toFixed(2)}`
+                      }
+                      subtitle={
+                        pnlPercent === null
+                          ? undefined
+                          : `(${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(2)}%)`
+                      }
+                      valueClassName={
+                        pnlValue === null
+                          ? "text-accent-purple encrypted-blur"
+                          : pnlValue >= 0
+                          ? "text-accent-green"
+                          : "text-accent-red"
+                      }
+                    />
+                  </div>
+
+                  <div className="mt-3">
+                    <div className="mb-1.5 flex items-center justify-between text-[11px] text-gray-400">
+                      <span>Health</span>
+                      <span className="font-semibold text-gray-300">
+                        {health === null ? "--" : `${Math.round(health)}%`}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-shadow-600">
+                      <div
+                        className={`h-full rounded-full transition-all ${healthTone}`}
+                        style={{ width: healthBarWidth }}
+                      />
+                    </div>
+                    {rule && (
+                      <p className="mt-2 text-[10px] text-cyan-300">
+                        TP/SL: {rule.side.toUpperCase()} {formatPrice(rule.takeProfit)} /{" "}
+                        {formatPrice(rule.stopLoss)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
-          <table className="w-full text-xs min-w-[640px]">
+          <table className="w-full min-w-[640px] text-xs">
             <thead>
-              <tr className="text-gray-500 border-b border-shadow-700">
-                <th className="text-left px-4 py-2 font-medium">#</th>
-                <th className="text-left px-3 py-2 font-medium">Status</th>
-                <th className="text-left px-3 py-2 font-medium">Opened</th>
-                <th className="text-right px-3 py-2 font-medium">Margin</th>
-                <th className="text-right px-3 py-2 font-medium">Size & Direction</th>
-                <th className="text-right px-3 py-2 font-medium">Leverage</th>
-                <th className="text-right px-3 py-2 font-medium">TP / SL</th>
-                <th className="text-right px-3 py-2 font-medium">Realized PnL</th>
-                {showActionCol && <th className="text-right px-4 py-2 font-medium">Action</th>}
+              <tr className="border-b border-shadow-700 text-gray-500">
+                <th className="px-4 py-2 text-left font-medium">#</th>
+                <th className="px-3 py-2 text-left font-medium">Status</th>
+                <th className="px-3 py-2 text-left font-medium">Opened</th>
+                <th className="px-3 py-2 text-right font-medium">Margin</th>
+                <th className="px-3 py-2 text-right font-medium">TP / SL</th>
+                <th className="px-3 py-2 text-right font-medium">Realized PnL</th>
+                {showActionCol && <th className="px-4 py-2 text-right font-medium">Action</th>}
               </tr>
             </thead>
             <tbody>
               {displayed.map((pos) => {
-                const isOpen = pos.status === "open";
-                const isPending = pos.status === "pending";
                 const isClosing = closingAddress === pos.address || pos.status === "closing";
                 const isFinal = pos.status === "closed" || pos.status === "liquidated";
                 const rule = positionRules[pos.address];
@@ -380,57 +707,30 @@ export default function BottomPositionsPanel() {
                 return (
                   <tr
                     key={pos.address}
-                    className="border-b border-shadow-700 hover:bg-shadow-700/30 transition-colors"
+                    className="border-b border-shadow-700 transition-colors hover:bg-shadow-700/30"
                   >
-                    {/* Index */}
-                    <td className="px-4 py-2.5 text-gray-400">
-                      #{pos.index.toString()}
-                    </td>
-
-                    {/* Status */}
+                    <td className="px-4 py-2.5 text-gray-400">#{pos.index.toString()}</td>
                     <td className="px-3 py-2.5">
                       <StatusBadge status={pos.status} isClosing={isClosing} />
                     </td>
-
-                    {/* Opened */}
-                    <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">
+                    <td className="whitespace-nowrap px-3 py-2.5 text-gray-400">
                       {pos.openedAt.toLocaleDateString()}{" "}
                       {pos.openedAt.toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                     </td>
-
-                    {/* Margin */}
-                    <td className="px-3 py-2.5 text-right font-medium">
-                      ${pos.margin.toFixed(2)}
-                    </td>
-
-                    {/* Size & Direction - always encrypted */}
-                    <td className="px-3 py-2.5 text-right">
-                      <span className="encrypted-blur text-accent-purple text-[10px]">
-                        Encrypted
-                      </span>
-                    </td>
-
-                    {/* Leverage - always encrypted */}
-                    <td className="px-3 py-2.5 text-right">
-                      <span className="encrypted-blur text-accent-purple text-[10px]">
-                        Encrypted
-                      </span>
-                    </td>
-
+                    <td className="px-3 py-2.5 text-right font-medium">${pos.margin.toFixed(2)}</td>
                     <td className="px-3 py-2.5 text-right">
                       {rule ? (
                         <span className="text-[10px] text-cyan-300">
-                          {rule.side.toUpperCase()} {formatPrice(rule.takeProfit)} / {formatPrice(rule.stopLoss)}
+                          {rule.side.toUpperCase()} {formatPrice(rule.takeProfit)} /{" "}
+                          {formatPrice(rule.stopLoss)}
                         </span>
                       ) : (
                         <span className="text-[10px] text-gray-500">Not set</span>
                       )}
                     </td>
-
-                    {/* PnL */}
                     <td className="px-3 py-2.5 text-right">
                       {isFinal ? (
                         <span
@@ -441,38 +741,9 @@ export default function BottomPositionsPanel() {
                           {pos.realizedPnl >= 0 ? "+" : ""}${pos.realizedPnl.toFixed(2)}
                         </span>
                       ) : (
-                        <span className="encrypted-blur text-accent-purple text-[10px]">
-                          Hidden until close
-                        </span>
+                        <span className="text-[10px] text-gray-500">--</span>
                       )}
                     </td>
-
-                    {/* Action */}
-                    {showActionCol && (
-                      <td className="px-4 py-2.5 text-right">
-                        {(isOpen || isPending || isClosing) && (
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => beginEditRule(pos)}
-                              className="px-2.5 py-1 rounded text-[11px] font-medium bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25 transition-colors whitespace-nowrap"
-                            >
-                              TP/SL
-                            </button>
-                            <button
-                              onClick={() => void handleClose(pos)}
-                              disabled={isClosing || isPending}
-                              className="px-3 py-1 rounded text-[11px] font-medium bg-accent-red/15 text-accent-red hover:bg-accent-red/25 transition-colors disabled:opacity-40 whitespace-nowrap"
-                            >
-                              {isPending
-                                ? "MPC Processing..."
-                                : isClosing
-                                ? "Closing..."
-                                : "Close Position"}
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    )}
                   </tr>
                 );
               })}

@@ -79,7 +79,7 @@ export default function PositionsList() {
       mapped.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
       setPositions(mapped);
     } catch {
-      // Config or network errors are expected in demo mode — fail silently
+      // Config/runtime errors can occur during wallet/network transitions - fail silently
     } finally {
       setLoading(false);
     }
@@ -117,7 +117,7 @@ export default function PositionsList() {
         await loadPositions();
       } catch (error: any) {
         const msg = error?.message || "Failed to close position";
-        if (msg.includes("env var")) return; // config error in demo mode
+        if (msg.includes("env var")) return; // config/runtime error
         toast.error(msg, { id: position.address });
       } finally {
         setClosingAddress(null);

@@ -57,8 +57,14 @@ pub struct Market {
     /// Bump seed for PDA derivation
     pub bump: u8,
 
-    /// Reserved space for future upgrades
-    pub _reserved: [u8; 128],
+    /// Nonce used by the MXE cluster for the OI state ciphertext.
+    /// Must be passed back to Arcium on each open/close/liquidation computation.
+    /// Placed at end of struct so existing on-chain accounts (reserved bytes = 0)
+    /// naturally initialise this to 0 without requiring account re-initialisation.
+    pub oi_nonce: u128,
+
+    /// Reserved space for future upgrades (128 - 16 = 112 bytes after oi_nonce)
+    pub _reserved: [u8; 112],
 }
 
 impl Default for Market {
@@ -82,7 +88,8 @@ impl Default for Market {
             close_position_comp_def: Pubkey::default(),
             liquidation_comp_def: Pubkey::default(),
             bump: 0,
-            _reserved: [0u8; 128],
+            oi_nonce: 0,
+            _reserved: [0u8; 112],
         }
     }
 }
@@ -107,7 +114,8 @@ impl Market {
         32 + // close_position_comp_def
         32 + // liquidation_comp_def
         1 +  // bump
-        128; // reserved
+        16 + // oi_nonce
+        112; // reserved (128 - 16 for oi_nonce)
 }
 
 /// Event emitted when market is initialized

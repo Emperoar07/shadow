@@ -27,6 +27,18 @@ This document describes the live request/response flow across UI, Solana, and Ar
 - margin lock updates occur in margin account
 - market open interest encrypted aggregates update from callback output
 
+### Delegated Open (Session Path)
+
+1. Owner creates `TradeSession` once (`create_trade_session`)
+2. Relayer submits `open_position_with_session` (owner not signer)
+3. Program validates session:
+   - relayer match
+   - not expired/revoked
+   - action cap remaining
+   - margin <= per-action cap
+4. Program queues Arcium computation exactly like direct open path
+5. Callback finalizes `Pending -> Open`
+
 ## 2. Close Position Flow
 
 1. UI requests close for open position
@@ -34,6 +46,13 @@ This document describes the live request/response flow across UI, Solana, and Ar
 3. Arcium computes settlement outputs
 4. Callback verifies output and settles balances
 5. position transitions to closed/liquidated terminal state
+
+### Delegated Close (Session Path)
+
+1. Relayer submits `close_position_with_session` under active session
+2. Program validates session and consumes one action
+3. Program queues Arcium close computation
+4. Callback verifies and settles as normal close flow
 
 ## 3. Liquidation Check Flow
 
@@ -60,6 +79,12 @@ Note:
 - Current collateral transfer path is public at L1.
 - Planned shielded internal collateral accounting is specified in `PRIVATE_COLLATERAL_SPEC.md`.
 - Scaffold accounts (`ShieldedPool`, `NullifierSet`) are now feature-gated and isolated from live deposit/withdraw flow until explicitly enabled.
+
+## 4.1 Session Lifecycle Flow
+
+1. `create_trade_session`: owner signs once, defines relayer + limits
+2. `open_position_with_session` / `close_position_with_session`: relayer executes within limits
+3. `revoke_trade_session`: owner can immediately disable delegated execution
 
 ## 5. Oracle Flow
 

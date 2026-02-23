@@ -29,6 +29,15 @@ export default function CollateralModal({
   const [isBusy, setIsBusy] = useState(false);
   const [visible, setVisible] = useState(false);
 
+  const getRuntimeErrorMessage = useCallback((rawMessage: string, action: "deposit" | "withdraw") => {
+    if (!rawMessage.includes("env var")) return null;
+    const matched = rawMessage.match(/env var:\s*([A-Z0-9_]+)/i);
+    if (matched?.[1]) {
+      return `${action === "deposit" ? "Deposits" : "Withdrawals"} unavailable: missing ${matched[1]}. Set it in app/.env.local and restart Next.js.`;
+    }
+    return `${action === "deposit" ? "Deposits" : "Withdrawals"} unavailable. Check app/.env.local and restart Next.js.`;
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       setAmount("");
@@ -75,15 +84,16 @@ export default function CollateralModal({
       onSuccess();
     } catch (error: any) {
       const msg = error?.message ?? "Deposit failed";
-      if (msg.includes("env var")) {
-        toast.error("Deposits unavailable in demo mode. Deploy first.", { id: "collateral" });
+      const runtimeError = getRuntimeErrorMessage(msg, "deposit");
+      if (runtimeError) {
+        toast.error(runtimeError, { id: "collateral" });
       } else {
         toast.error(msg, { id: "collateral" });
       }
     } finally {
       setIsBusy(false);
     }
-  }, [amount, anchorWallet, publicKey, connection, onSuccess]);
+  }, [amount, anchorWallet, publicKey, connection, getRuntimeErrorMessage, onSuccess]);
 
   const handleWithdraw = useCallback(async () => {
     const amt = parseFloat(amount);
@@ -117,15 +127,16 @@ export default function CollateralModal({
       onSuccess();
     } catch (error: any) {
       const msg = error?.message ?? "Withdraw failed";
-      if (msg.includes("env var")) {
-        toast.error("Withdrawals unavailable in demo mode. Deploy first.", { id: "collateral" });
+      const runtimeError = getRuntimeErrorMessage(msg, "withdraw");
+      if (runtimeError) {
+        toast.error(runtimeError, { id: "collateral" });
       } else {
         toast.error(msg, { id: "collateral" });
       }
     } finally {
       setIsBusy(false);
     }
-  }, [amount, anchorWallet, publicKey, connection, marginBalance, onSuccess]);
+  }, [amount, anchorWallet, publicKey, connection, marginBalance, getRuntimeErrorMessage, onSuccess]);
 
   if (!isOpen) return null;
 
@@ -258,7 +269,7 @@ export default function CollateralModal({
           </button>
 
           <p className="text-[10px] text-center text-gray-600">
-            Collateral is held on-chain in the ShadowPerp vault
+            Collateral is held on-chain in the Shadow vault
           </p>
         </div>
       </div>

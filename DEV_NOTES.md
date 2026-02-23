@@ -971,7 +971,7 @@ SLOT_OFFSET=100 and SLOT_COUNTER_OFFSET=108 in arcium-anchor source confirm the 
   - Refined control hierarchy: direction/order toggles, size input, TP/SL row, compact summary strip, CTA.
   - Kept collateral modal wiring, limit order flow, and submit behavior unchanged.
 - Restyled `app/src/components/MarketInfo.tsx` into a compact tile-card layout.
-  - Headline now shows `PAIR � ORACLE`, larger price readout, and change badge.
+  - Headline now shows `PAIR � ORACLE`, larger price readout, and change badge.
   - Replaced row list with 2-column metric tiles using existing on-chain/live-backed values.
 
 ### What was verified
@@ -1602,3 +1602,366 @@ SLOT_OFFSET=100 and SLOT_COUNTER_OFFSET=108 in arcium-anchor source confirm the 
    - `npm run session:relayer:smoke`
    - open/close end-to-end smoke
    - then mark delegated batching live-ready.
+
+## Delegated Session Relay Wiring (2026-02-23 UTC)
+- User issue addressed:
+  - Opening positions still triggered wallet transaction popups each time.
+  - Requested behavior: one-time setup path, then no per-trade wallet popup.
+- Implemented:
+  - Added server-side relay runtime/bootstrap:
+    - `app/src/lib/server/relay-client.ts`
+    - Loads relayer keypair from:
+      - `SHADOWPERP_RELAYER_KEYPAIR_JSON` (preferred)
+      - `SOLANA_WALLET_KEYPAIR_JSON` (fallback)
+      - `SHADOWPERP_RELAYER_KEYPAIR_PATH`
+      - fallback file: `~/.config/solana/id.json`
+  - Added relay API routes:
+    - `app/src/pages/api/relay/session.ts`
+      - health/info endpoint and optional on-chain session status lookup
+    - `app/src/pages/api/relay/open.ts`
+      - executes `open_position_with_session` via relayer account
+      - validates owner/session/auth signature and session constraints before queueing
+  - Added shared auth/message helpers:
+    - `app/src/lib/relay-session-auth.ts`
+  - Extended trade hook:
+    - `app/src/hooks/useArcium.ts`
+    - Added delegated session lifecycle:
+      - create session (one-time wallet approval + message signature)
+      - revoke session
+      - refresh session status
+      - persisted session state in localStorage
+    - `submitPrivateOrder` now auto-routes:
+      - delegated session path if active
+      - direct wallet path otherwise
+  - Added UI controls in trade panel:
+    - `app/src/components/TradingPanel.tsx`
+    - new `Enable Session / Session On` control in margin card
+    - execution status row (`Delegated session active - Xm left` / `Direct wallet mode`)
+  - Updated env template:
+    - `app/.env.example`
+    - documented relay server keypair env vars
+
+### Verification Run (post-change)
+- `pnpm --dir app exec tsc --noEmit` -> PASS
+- `npm run oracle:once` -> PASS
+- `npm run check:preflight` -> PASS
+
+### Current blocker
+- Core Arcium queue path can still fail intermittently by environment/state (`AccountDidNotSerialize` on `comp`) in some flows; this change only removes repeated wallet-popup UX friction by routing through delegated sessions when available.
+
+### Next safe step
+1. Set relayer server env in `app/.env.local` or process env:
+   - `SHADOWPERP_RELAYER_KEYPAIR_JSON` or `SHADOWPERP_RELAYER_KEYPAIR_PATH`
+2. Restart Next.js server (`cd app && pnpm dev`).
+3. In UI, click `Enable Session` once, then test open-position flow again.
+
+## Repo Hygiene: Scratch File Cleanup (2026-02-23 UTC)
+
+### What changed
+- Deleted 7 obsolete untracked scratch/diagnostic scripts (all had `_` prefix per convention, never committed to git):
+  - `_smoke_devnet.ts` — superseded by `npm run canary:devnet` + `session:relayer:smoke`
+  - `scripts/_init_signer.ts` — one-off signer init, completed
+  - `scripts/_inspect_comp_space.ts` — used to diagnose 3004 space bug, analysis complete and documented in DEV_NOTES
+  - `scripts/_open_position_test.ts` — replaced by `session:relayer:smoke` / `check:canary`
+  - `scripts/_state_check.ts` — replaced by `check:preflight` + `check:stable`
+  - `scripts/_test_flow.ts` — replaced by full smoke/canary flow
+  - `scripts/_test_flow2.ts` — same as above
+
+### What was verified
+- Full security + hygiene audit run before deletion
+- All 7 files confirmed untracked (`git status --short` showed `??`) before removal
+- No tracked files deleted
+- No git history affected
+
+### Audit findings summary
+- No secrets or API keys tracked in git
+- No .gitignore gaps detected
+- No hardcoded addresses in frontend source
+- No plaintext position data leakage in Rust programs or API routes
+- No NO_TOUCH_LIST violations
+- No auth bypass risks in relay routes
+- HTML preview files (landing-preview.html, header-logo-preview.html, ui-previews.html) confirmed untracked and properly gitignored
+
+### Current blocker
+- Unchanged: Arcium `QueueComputation` `AccountDidNotSerialize (3004)` on `comp`.
+
+### Next safe step
+- Continue Arcium-side queue unblock track.
+
+---
+
+## Security Hygiene: API Key Removed from .claude/settings.json (2026-02-23 UTC)
+
+### What was found
+- Helius devnet RPC API key was embedded inside a Bash permission entry in `.claude/settings.json`.
+- `.claude/settings.json` is gitignored so the key was never committed to git, but the file can be accidentally shared if copied to another machine or repo.
+
+### Root cause (exact mechanism)
+At some point a ts-node script was run with the API key baked in inline, like:
+```
+NEXT_PUBLIC_SOLANA_RPC_URL=https://devnet.helius-rpc.com/?api-key=<KEY> npx ts-node scripts/...
+```
+Claude Code prompted "Allow this Bash command?" and the approval was granted.
+When you approve a command, Claude Code writes the **full command string verbatim** into `.claude/settings.json` as a stored permission rule — including any env vars and secrets embedded in the string.
+The key was then sitting in `.claude/settings.json` indefinitely.
+
+### What was fixed
+- Cleaned the offending permission entry from `.claude/settings.json`.
+- Then deleted `.claude/settings.json` entirely — Claude Code recreates it fresh when needed.
+- All remaining (new) permission entries will only contain public on-chain addresses.
+- Verified: no API keys in git history, no API keys in tracked files.
+
+### Rule going forward
+- **Never pass API keys, RPC keys, or auth tokens inline in terminal commands.**
+- All sensitive values belong in `app/.env.local` (gitignored):
+  - `NEXT_PUBLIC_SOLANA_RPC_URL` / `NEXT_PUBLIC_SOLANA_RPC_URLS`
+  - `COINMARKETCAP_API_KEY`
+  - `SHADOWPERP_RELAYER_KEYPAIR_JSON`
+  - `ORACLE_ALERT_WEBHOOK_URL`
+- Scripts and the frontend pick these up automatically from `.env.local` — no inline passing needed.
+- If a key absolutely must be passed inline for a one-off command, use **"Allow once"** not "Always allow" in the Claude Code permission prompt — "Allow once" does not write the command to `settings.json`.
+- If a key was already passed inline and approved as "Always allow", rotate it immediately.
+
+### Where secrets live (canonical reference)
+| Secret | File | Notes |
+|---|---|---|
+| Helius / Alchemy / Ankr RPC URLs + keys | `app/.env.local` | `NEXT_PUBLIC_SOLANA_RPC_URLS` |
+| CoinMarketCap key | `app/.env.local` | `COINMARKETCAP_API_KEY` (server-side only) |
+| Relayer keypair | `app/.env.local` | `SHADOWPERP_RELAYER_KEYPAIR_JSON` or `_PATH` |
+| Alert webhook URL | `app/.env.local` | `ORACLE_ALERT_WEBHOOK_URL` |
+| Solana wallet keypair | `~/.config/solana/id.json` | never in repo |
+| Program keypair | `target/deploy/shadowperp-keypair.json` | gitignored via `*keypair*.json` |
+
+---
+
+## Session-Only Trading Enforcement (2026-02-23 UTC)
+- Updated flow to remove direct wallet trade fallback.
+- Files updated:
+  - `app/src/hooks/useArcium.ts`
+    - `submitPrivateOrder` now hard-requires active delegated session.
+    - If session is expired/revoked/missing, returns explicit error:
+      - "Delegated session required. Click 'Enable Session' again to continue trading."
+  - `app/src/components/TradingPanel.tsx`
+    - Added strict guard before any submit path (market + limit queue).
+    - Limit executor now no-ops when no active session.
+    - Submit button disabled when session is not active.
+    - Execution hint changed from "Direct wallet mode" to "Session required to trade".
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run oracle:once` -> PASS
+  - `npm run check:preflight` -> PASS
+
+## Deep Codebase Audit (2026-02-23 UTC)
+
+Full multi-dimensional audit run across all TypeScript, Rust, scripts, and config. No files modified.
+
+### Result: 0 CRITICAL, 3 HIGH, 8 MEDIUM, 5 LOW
+
+---
+
+### HIGH findings
+
+**H1 — Privacy: position.margin rendered in UI**
+- File: `app/src/components/BottomPositionsPanel.tsx`
+- `position.margin` is read and used in health % calculations rendered on screen.
+- Model intention: margin is cleared to 0 on-chain after settlement, so for active positions this should already be 0. But the component still performs the division path when > 0.
+- Action: Confirm margin is always 0 during active position lifecycle. Add a guard or remove the render path for active positions.
+
+**H2 — Architecture: NEXT_PUBLIC_SOLANA_CLUSTER not in .env.example**
+- File: `app/src/lib/explorer.ts` references `NEXT_PUBLIC_SOLANA_CLUSTER` for Solana Explorer URL generation.
+- This env var is not documented in `app/.env.example`.
+- Action: Add `# NEXT_PUBLIC_SOLANA_CLUSTER=devnet` to `app/.env.example`.
+
+**H3 — Security: relay open.ts missing session market validation**
+- File: `app/src/pages/api/relay/open.ts`
+- The endpoint validates relayer, expiry, and revoked status but does not explicitly check that `session.market` matches the configured market address before queuing.
+- On-chain constraints mitigate this, but API-level validation is incomplete.
+- Action: Add `if (!session.market.equals(relay.config.marketAddress)) throw error` before queue call.
+
+---
+
+### MEDIUM findings
+
+**M1 — Quality (Rust): `.expect()` in position state handlers**
+- File: `programs/shadowperp/src/state/position.rs`
+- Multiple `.expect()` calls in `set_pending_callback_meta()` and related helpers will panic on overflow instead of returning graceful Anchor errors.
+- Action: Replace with `?` operator and `ShadowPerpError::ArithmeticOverflow`.
+
+**M2 — Quality (Rust): incomplete private_orders handler**
+- File: `programs/shadowperp/src/handlers/private_orders.rs`
+- Contains `// TODO: Wire queue_computation to Arcium MXE callback flow once comp-def is finalized.`
+- Private order book feature is not wired to Arcium callbacks yet.
+- Action: Keep as-is for now but track separately; ensure it is not callable without the wiring in place.
+
+**M3 — Quality (TS): excessive `any` types in client.ts**
+- File: `app/src/lib/client.ts` lines ~60, 77, 161-164
+- `private program: any`, `new (Program as any)(idlWithAddress, provider)`, event callbacks typed as `any`.
+- Action: Define strict Anchor program types and event interfaces when time permits.
+
+**M4 — Security: relay-client.ts keypair parsing has no input validation**
+- File: `app/src/lib/server/relay-client.ts`
+- `SHADOWPERP_RELAYER_KEYPAIR_JSON` is parsed and passed directly to `Keypair.fromSecretKey()` without format validation. Malformed input produces generic errors that could expose file system paths.
+- Action: Wrap with try/catch and sanitize error messages.
+
+**M5 — Security: deposit_collateral missing `has_one = owner` constraint**
+- File: `programs/shadowperp/src/handlers/deposit_collateral.rs`
+- `margin_account` struct uses PDA seeds with owner but no `has_one = owner` constraint. Anchor will not verify the stored owner field matches the signer on `init_if_needed` path.
+- Action: Add `has_one = owner` to the `margin_account` attribute.
+
+**M6 — Quality: env error messages don't differentiate missing vs invalid**
+- File: `app/src/lib/runtime.ts` lines 67-76
+- Error copy says "Invalid public key" for both missing and malformed env vars.
+- Action: Separate the missing-key and invalid-format error paths.
+
+**M7 — Observability: callback verify failure is silent**
+- File: `programs/shadowperp/src/handlers/callbacks/open_position_callback.rs`
+- `output.verify_output()` failure silently returns `InvalidComputationResult` with no log.
+- Action: Add `msg!("MPC verify failed for position {}", position.key())` before the error return.
+
+**M8 — Validation: relay open.ts doesn't check owner token account exists**
+- File: `app/src/pages/api/relay/open.ts`
+- No pre-flight check that owner's USDC token account exists before queuing the on-chain tx.
+- Action: Add `getAccountInfo` check on the owner's ATA before calling `openPositionWithSession`.
+
+---
+
+### LOW / INFO findings
+
+**L0 — Audit addendum: hardcoded Helius base URL in deploy-devnet.ts**
+- File: `scripts/deploy-devnet.ts` line 400
+- `NEXT_PUBLIC_ARCIUM_RPC_URL=https://devnet.helius-rpc.com` is written to `app/.env.local` on deploy.
+- No API key embedded — public Helius devnet base URL (rate-limited free tier). `.env.local` is gitignored.
+- Risk: LOW. Quality improvement only: script could read from `SOLANA_RPC_URLS` to auto-use the private key.
+
+**L1 — Dead Code: unconventional import path in session-relayer.ts**
+- `import type { ... } from "../app/src/types"` traverses out of scripts/ into app/.
+- Works but fragile if structure changes.
+
+**L2 — Confirmed CLEAN: IDL sync is correct**
+- Session instructions (create_trade_session, revoke_trade_session, open_position_with_session, close_position_with_session) are present and correct in `app/src/idl/shadowperp.json`.
+
+**L3 — Confirmed CLEAN: Program ID consistent across all configs**
+- `Anchor.toml`, `programs/shadowperp/src/lib.rs` declare_id!, `app/src/idl/shadowperp.json`, and DEV_NOTES all agree: `2Gz35PAHBkggSfV77mCENobt5YEURuYMAjgpvKXoL61d`.
+
+**L4 — Confirmed CLEAN: no plaintext position data in events/logs**
+- All `emit!` and `msg!` calls in Rust handlers log only public identifiers (owner pubkey, position pubkey, timestamp). No size, leverage, margin, or PnL values in logs.
+
+**L5 — Confirmed CLEAN: no hardcoded secrets anywhere**
+- No Helius/Alchemy/Ankr/CoinMarketCap API keys in any tracked file. All RPC and auth values are env-var-based.
+
+---
+
+### Priority action order
+1. H3 — relay market validation (quick, API-level fix)
+2. H2 — add NEXT_PUBLIC_SOLANA_CLUSTER to .env.example (trivial)
+3. H1 — verify margin=0 guard in BottomPositionsPanel (confirm then fix or no-op)
+4. M5 — has_one = owner in deposit_collateral (on-chain, requires rebuild/deploy)
+5. M1 — replace .expect() with ? in position state (on-chain, requires rebuild/deploy)
+6. M7 — add msg! to callback verify failure (on-chain, low priority)
+7. M3/M6/M8 — TypeScript quality cleanup (frontend-only, non-breaking)
+
+---
+
+### Current blocker (unchanged)
+- Arcium `QueueComputation` `AccountDidNotSerialize (3004)` on `comp` — independent of all findings above.
+
+---
+
+## Session Indicator Relocation + Auto Session Bootstrap (2026-02-23 UTC)
+- User request implemented:
+  - Move delegated session status from trading panel to top summary strip (right side).
+  - Keep timer live.
+  - Auto-create session immediately after wallet connect when needed.
+  - Reuse previous session automatically if still valid (owner/market match, not expired, not exhausted).
+- Files updated:
+  - `app/src/components/PortfolioSummary.tsx`
+    - Added right-side session pill with lock icon.
+    - Live countdown updates every second.
+    - Status text states:
+      - `Delegated session active - Xm left`
+      - `Session required`
+      - `Relay unavailable`
+    - Polls relay session status every 30s.
+  - `app/src/components/TradingPanel.tsx`
+    - Removed session toggle button + execution text from margin card.
+    - Added auto session bootstrap effect (`ensureRelaySession`) on wallet connect.
+    - Retains strict session-only trade enforcement.
+  - `app/src/hooks/useArcium.ts`
+    - Persisted session no longer cleared on disconnect.
+    - Added storage/event sync across multiple hook instances.
+    - Added `ensureRelaySession()` helper.
+    - Added usable-session guard (checks expiry + action budget).
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run oracle:once` -> PASS
+  - `npm run check:preflight` -> PASS
+- Follow-up adjustment:
+  - Auto session bootstrap now retries safely with cooldown (30s) when session is missing/expired/exhausted.
+  - Prevents duplicate auto-create attempts while still recovering automatically after expiry/action-budget exhaustion.
+
+## Session Exhaustion + 15s Renewal Gate (2026-02-23 UTC)
+- Enforced wallet-address-aware session reuse and strict replacement rules:
+  - Existing unexhausted session is reused (no new signing) when:
+    - same wallet owner
+    - same market
+    - actions remaining
+    - more than 15s to expiry
+  - New session signing is required when:
+    - session exhausted (`usedActions >= maxActions`)
+    - session has 15s or less remaining before expiry
+    - session missing/revoked/invalid
+- Storage model updated to owner+market scoped keys:
+  - `shadowperp.relay.session.v1:<owner>:<market>`
+  - supports wallet-based recognition of unexhausted sessions.
+- Implemented in `app/src/hooks/useArcium.ts`:
+  - `RELAY_SESSION_RENEW_BEFORE_SECONDS = 15`
+  - owner+market storage helpers + legacy key migration
+  - usable-session guard now includes 15s renewal window
+  - `createRelaySession` returns existing usable session instead of re-signing
+- UI behavior:
+  - auto bootstrap signs only when needed (missing/expired/exhausted/<=15s)
+  - top header timer reflects active session window continuously.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run oracle:once` -> PASS
+  - `npm run check:preflight` -> PASS
+
+## Relay Availability Hardening Addendum (2026-02-23 UTC)
+- Added API-level market binding validation in relay open endpoint:
+  - `app/src/pages/api/relay/open.ts`
+  - now rejects session if `session.market` != runtime configured market.
+- Added missing cluster env docs:
+  - `app/.env.example`
+  - `NEXT_PUBLIC_SOLANA_CLUSTER=devnet` documented for explorer URL consistency.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run check:preflight` -> PASS
+
+## Repo-Wide Review + Push Prep (2026-02-23 UTC)
+
+### What changed
+- Resolved prior merge blocker in `README.md` (removed unresolved conflict state and retained a clean merged document).
+- Performed full working-tree review across staged + unstaged + untracked files.
+- Included all pending local changes (UI, scripts, docs, Rust program/session flow, relay/API, and repo hygiene files) for a single push-ready snapshot.
+
+### What was verified
+- Mandatory session checklist executed:
+  - read `DEV_NOTES.md`
+  - `git status --short`
+  - verified active env values in `app/.env.local`
+  - `npm run check:preflight` -> PASS (program, market, comp-defs, oracle freshness, canonical devnet USDC)
+- Build checks:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `cargo check -p shadowperp` -> PASS (warnings only)
+- Safety checks:
+  - no remaining merge markers
+  - no hardcoded private API keys found in tracked files (placeholder-only patterns in docs/templates)
+
+### Current blocker
+- Known protocol/runtime blocker remains unchanged:
+  - Arcium queue path can still hit `QueueComputation` -> `AccountDidNotSerialize (3004)` in specific open-position flows.
+
+### Next safe step
+1. Keep canary/preflight as gate before every trading run.
+2. Continue Arcium queue serialization unblock track with minimal repro + support channel.
+3. Maintain session-only relay UX until queue path is stable.

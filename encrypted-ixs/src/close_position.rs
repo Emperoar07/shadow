@@ -22,7 +22,7 @@ mod close_position_circuit {
     /// positions do not need a plaintext margin slot on-chain.
     #[instruction]
     pub fn close_position(
-        position: Enc<Mxe, (u64, u64, u8, bool, u64, u128, u128)>,
+        position: Enc<Mxe, (u64, u64, u8, bool, u64)>,
         exit_price: u64,
         market_params: (u8, u16, u16, u64),
         oi_state: Enc<Mxe, (u64, u64)>,

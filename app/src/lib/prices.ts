@@ -5,16 +5,36 @@ export interface PriceData {
   change24h: number;
 }
 
+export type PriceQuality = "live" | "cached" | "mock";
+
+interface PriceMeta {
+  quality: PriceQuality;
+  provider: string;
+  fetchedAt: number;
+}
+
+interface ApiPriceResponse {
+  prices: Record<string, PriceData>;
+  provider: "binance" | "mixed" | "coingecko" | "coinmarketcap" | "cache" | "mock";
+  fetchedAt: number;
+}
+
 // In-memory cache shared across all components
 let priceCache: Record<string, PriceData> = {};
 let lastFetchTime = 0;
 const CACHE_TTL = 30_000; // 30 seconds
 let inflightRequest: Promise<Record<string, PriceData>> | null = null;
+let lastMeta: PriceMeta = {
+  quality: "mock",
+  provider: "mock",
+  fetchedAt: 0,
+};
 
 /**
- * Fetch live prices from CoinGecko free API for all trading pairs.
- * Deduplicates concurrent calls and caches results for 30s.
- * Falls back to mockPrice on any failure.
+ * Fetch prices for all trading pairs.
+ * Preferred source: backend API route (/api/prices).
+ * Emergency source: direct CoinGecko browser call.
+ * Final fallback: stale cache, then static mock prices.
  */
 export async function fetchPrices(): Promise<Record<string, PriceData>> {
   const now = Date.now();
@@ -35,39 +55,37 @@ export async function fetchPrices(): Promise<Record<string, PriceData>> {
 }
 
 async function _doFetch(): Promise<Record<string, PriceData>> {
-  // Collect all coingecko IDs
-  const idMap: Record<string, string[]> = {}; // coingeckoId -> [pairLabel, ...]
-  for (const pair of TRADING_PAIRS) {
-    const cgId = pair.base.coingeckoId;
-    if (cgId) {
-      if (!idMap[cgId]) idMap[cgId] = [];
-      idMap[cgId].push(pair.label);
-    }
-  }
+  const backendResult = await _fetchFromBackendApi();
+  if (backendResult) return backendResult;
 
-  const ids = Object.keys(idMap).join(",");
-  if (!ids) return _fallbackPrices();
+  const directResult = await _fetchCoinGeckoDirect();
+  if (directResult) return directResult;
 
+  return _fallbackPrices();
+}
+
+async function _fetchFromBackendApi(): Promise<Record<string, PriceData> | null> {
   try {
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
-      { signal: AbortSignal.timeout(8000) }
-    );
+    const res = await fetch("/api/prices", {
+      signal: AbortSignal.timeout(6000),
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    if (!res.ok) return null;
 
-    if (!res.ok) {
-      // Rate-limited or error — use fallback
-      return _fallbackPrices();
-    }
+    const payload = (await res.json()) as ApiPriceResponse;
+    if (!payload?.prices) return null;
 
-    const data = await res.json();
     const result: Record<string, PriceData> = {};
-
     for (const pair of TRADING_PAIRS) {
-      const cgId = pair.base.coingeckoId;
-      if (cgId && data[cgId]) {
+      const live = payload.prices[pair.label];
+      if (live && Number.isFinite(live.price) && live.price > 0) {
         result[pair.label] = {
-          price: data[cgId].usd ?? pair.mockPrice,
-          change24h: data[cgId].usd_24h_change ?? pair.mockPriceChange,
+          price: live.price,
+          change24h: Number.isFinite(live.change24h)
+            ? live.change24h
+            : pair.mockPriceChange,
         };
       } else {
         result[pair.label] = {
@@ -79,15 +97,91 @@ async function _doFetch(): Promise<Record<string, PriceData>> {
 
     priceCache = result;
     lastFetchTime = Date.now();
+    lastMeta = {
+      quality:
+        payload.provider === "mock"
+          ? "mock"
+          : payload.provider === "cache"
+          ? "cached"
+          : "live",
+      provider: payload.provider,
+      fetchedAt: payload.fetchedAt || Date.now(),
+    };
+
     return result;
   } catch {
-    return _fallbackPrices();
+    return null;
+  }
+}
+
+async function _fetchCoinGeckoDirect(): Promise<Record<string, PriceData> | null> {
+  const ids = Array.from(
+    new Set(
+      TRADING_PAIRS.map((pair) => pair.base.coingeckoId).filter(
+        (id): id is string => Boolean(id)
+      )
+    )
+  ).join(",");
+  if (!ids) return null;
+
+  try {
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const result: Record<string, PriceData> = {};
+    let liveCount = 0;
+
+    for (const pair of TRADING_PAIRS) {
+      const cgId = pair.base.coingeckoId;
+      const source = cgId ? data[cgId] : null;
+      const price = source?.usd;
+      const change24h = source?.usd_24h_change;
+      if (typeof price === "number" && Number.isFinite(price) && price > 0) {
+        liveCount += 1;
+        result[pair.label] = {
+          price,
+          change24h:
+            typeof change24h === "number" && Number.isFinite(change24h)
+              ? change24h
+              : pair.mockPriceChange,
+        };
+      } else {
+        result[pair.label] = {
+          price: pair.mockPrice,
+          change24h: pair.mockPriceChange,
+        };
+      }
+    }
+
+    if (liveCount === 0) return null;
+
+    priceCache = result;
+    lastFetchTime = Date.now();
+    lastMeta = {
+      quality: "live",
+      provider: "coingecko-direct",
+      fetchedAt: Date.now(),
+    };
+    return result;
+  } catch {
+    return null;
   }
 }
 
 function _fallbackPrices(): Record<string, PriceData> {
-  // If we have a previous cache, keep it (stale > mock)
-  if (Object.keys(priceCache).length > 0) return priceCache;
+  // If we have previous cache, keep it (stale cache is better than mock constants).
+  if (Object.keys(priceCache).length > 0) {
+    lastMeta = {
+      quality: "cached",
+      provider: "stale-cache",
+      fetchedAt: lastFetchTime,
+    };
+    return priceCache;
+  }
 
   const result: Record<string, PriceData> = {};
   for (const pair of TRADING_PAIRS) {
@@ -96,10 +190,20 @@ function _fallbackPrices(): Record<string, PriceData> {
       change24h: pair.mockPriceChange,
     };
   }
+  lastMeta = {
+    quality: "mock",
+    provider: "mock",
+    fetchedAt: Date.now(),
+  };
   return result;
 }
 
-/** Get cached price synchronously (returns mockPrice if not yet fetched) */
+/** Get cached price synchronously (returns null if no cache yet). */
 export function getCachedPrice(pairLabel: string): PriceData | null {
   return priceCache[pairLabel] ?? null;
+}
+
+/** Last fetch diagnostics for UI logic (without exposing noisy warning banners). */
+export function getLastPriceMeta(): PriceMeta {
+  return lastMeta;
 }

@@ -31,6 +31,7 @@ import {
 } from "@solana/spl-token";
 import * as fs from "fs";
 import * as path from "path";
+import { resolveRpcEndpoint } from "./rpc";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -95,10 +96,12 @@ async function main(): Promise<void> {
   const rawAmount = Math.round(usdcAmount * 1_000_000); // USDC has 6 decimals
 
   // Config
-  const rpcUrl =
-    process.env.SOLANA_RPC_URL ||
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
-    "https://api.devnet.solana.com";
+  const rpcSelection = await resolveRpcEndpoint({
+    preferred:
+      process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL,
+    commitment: "confirmed",
+  });
+  const rpcUrl = rpcSelection.rpcUrl;
 
   const programIdStr =
     process.env.SHADOWPERP_PROGRAM_ID ||

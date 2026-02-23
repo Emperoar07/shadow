@@ -18,7 +18,7 @@ mod liquidation_check_circuit {
     /// - current mark/liquidation price marker
     #[instruction]
     pub fn check_liquidation(
-        position: Enc<Mxe, (u64, u64, u8, bool, u64, u128, u128)>,
+        position: Enc<Mxe, (u64, u64, u8, bool, u64)>,
         mark_price: u64,
         market_params: (u8, u16, u16, u64),
     ) -> (bool, u64, u64) {

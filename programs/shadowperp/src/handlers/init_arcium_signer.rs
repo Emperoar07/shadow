@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use arcium_anchor::prelude::*;
 use crate::ArciumSignerAccount;
 
 /// One-time initializer for the local Arcium sign-seed PDA account.

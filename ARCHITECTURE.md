@@ -50,14 +50,19 @@ Main handlers:
 - `init_liquidation_comp_def`
 - `sync_comp_defs`
 - `open_position`
+- `open_position_with_session` (delegated relayer path)
 - `open_position_v2_callback`
 - `close_position`
+- `close_position_with_session` (delegated relayer path)
 - `close_position_callback`
 - `check_liquidation`
 - `check_liquidation_callback`
 - `deposit_collateral`
 - `withdraw_collateral`
 - `update_price`
+- delegated session controls:
+  - `create_trade_session`
+  - `revoke_trade_session`
 - feature-gated shielded collateral scaffold:
   - `init_shielded_pool` (`shielded-collateral` feature only)
   - `set_shielded_collateral_feature` (`shielded-collateral` feature only)
@@ -67,6 +72,7 @@ State accounts:
 - `Market`
 - `MarginAccount`
 - `Position`
+- `TradeSession` (owner-approved relayer window with action/margin caps + expiry)
 - optional private orderbook state
 - feature-gated shielded collateral state:
   - `ShieldedPool`
@@ -94,6 +100,19 @@ Arcium-related account pointers are stored in market state and validated in call
 - Public state: market-level metadata, balances, lifecycle statuses
 - Sensitive trade details: encrypted payloads and MPC outputs
 - Oracle: on-chain price feeder authority updates market price with freshness checks
+
+### Delegated Session Boundary
+
+- Owner signs once to create a `TradeSession` PDA scoped to:
+  - owner
+  - market
+  - relayer pubkey
+  - action cap
+  - per-open margin cap
+  - expiry timestamp
+- Relayer can then submit multiple encrypted open/close queue transactions without additional owner signatures.
+- Session can be revoked by owner at any time.
+- Collateral transfer path remains public; only position internals remain on Arcium encrypted flow.
 
 ## Deploy/Init Pipeline
 

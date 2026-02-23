@@ -13,8 +13,8 @@ export interface TradingPair {
   base: TokenInfo;
   quote: TokenInfo;
   label: string; // e.g. "SOL-PERP"
-  mockPrice: number; // demo mode price
-  mockPriceChange: number; // demo mode 24h change %
+  mockPrice: number; // fallback price when oracle/market data is unavailable
+  mockPriceChange: number; // fallback 24h change %
 }
 
 // Well-known Solana devnet token mints
@@ -162,5 +162,4 @@ export const WALLET_DISPLAY_TOKENS = [
   DEVNET_TOKENS.USDT,
   DEVNET_TOKENS.BONK,
 ];
-
 

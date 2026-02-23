@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@arcium-hq/client':
-        specifier: ^0.8.4
-        version: 0.8.4(bufferutil@4.1.0)(typescript@5.3.3)(utf-8-validate@5.0.10)
+        specifier: ^0.8.5
+        version: 0.8.5(bufferutil@4.1.0)(typescript@5.3.3)(utf-8-validate@5.0.10)
       '@coral-xyz/anchor':
         specifier: 0.32.1
         version: 0.32.1(bufferutil@4.1.0)(typescript@5.3.3)(utf-8-validate@5.0.10)
@@ -91,8 +91,8 @@ packages:
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
 
-  '@arcium-hq/client@0.8.4':
-    resolution: {integrity: sha512-LoszJZIzhRfwWuBv4CWvgB+owgqi6HBCCgvK2fI+mn77AGQXM+DgOwyw2YLQAqw1CWwFQPqOo5yfEtZUx4kEtA==}
+  '@arcium-hq/client@0.8.5':
+    resolution: {integrity: sha512-qY9pNqN0pPZLWZ3Z5/XnnQAQZUydoMnVFHqxEno/kZdYffNK0tO7HBS3ftYCMnPZgN4sloW+2pQCBBV9rwjDUA==}
     engines: {node: '>=20.18.0'}
 
   '@babel/code-frame@7.29.0':
@@ -4168,7 +4168,7 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
-  '@arcium-hq/client@0.8.4(bufferutil@4.1.0)(typescript@5.3.3)(utf-8-validate@5.0.10)':
+  '@arcium-hq/client@0.8.5(bufferutil@4.1.0)(typescript@5.3.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@coral-xyz/anchor': 0.32.1(bufferutil@4.1.0)(typescript@5.3.3)(utf-8-validate@5.0.10)
       '@noble/curves': 1.9.7

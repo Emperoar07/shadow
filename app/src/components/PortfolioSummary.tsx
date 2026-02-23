@@ -5,6 +5,10 @@ import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { fetchPrices } from "../lib/prices";
 import {
+  RELAY_SESSION_RENEW_BEFORE_SECONDS,
+  useArciumPrivacy,
+} from "../hooks/useArcium";
+import {
   getOwnerPositionViews,
   removeOwnerPositionView,
 } from "../lib/trade-automation";
@@ -20,7 +24,9 @@ export default function PortfolioSummary() {
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
+  const { relaySession, relayAvailable, refreshRelaySession } = useArciumPrivacy();
   const [data, setData] = useState<PortfolioData | null>(null);
+  const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
 
   useEffect(() => {
@@ -99,7 +105,7 @@ export default function PortfolioSummary() {
         accountHealth: health,
       });
     } catch {
-      // demo mode or config errors
+      // config/runtime errors
       setData(null);
     }
   }, [publicKey, anchorWallet, connection]);
@@ -109,6 +115,18 @@ export default function PortfolioSummary() {
     const interval = setInterval(() => void loadPortfolio(), 15_000);
     return () => clearInterval(interval);
   }, [loadPortfolio]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowTs(Math.floor(Date.now() / 1000)), 1_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!publicKey) return;
+    void refreshRelaySession();
+    const interval = setInterval(() => void refreshRelaySession(), 30_000);
+    return () => clearInterval(interval);
+  }, [publicKey, refreshRelaySession]);
 
   if (!publicKey) return null;
 
@@ -126,10 +144,20 @@ export default function PortfolioSummary() {
       ? "bg-yellow-400"
       : "bg-accent-red";
 
+  const isRelaySessionActive =
+    !!relaySession &&
+    relaySession.owner === publicKey.toBase58() &&
+    relaySession.expiresAt - nowTs > RELAY_SESSION_RENEW_BEFORE_SECONDS &&
+    relaySession.usedActions < relaySession.maxActions;
+  const relayMinutesLeft = isRelaySessionActive
+    ? Math.max(0, Math.floor((relaySession.expiresAt - nowTs) / 60))
+    : 0;
+
   return (
     <div className="gradient-border-card rounded-xl p-[1px] mb-6 animate-in">
       <div className="bg-shadow-800 rounded-xl px-5 py-3">
-        <div className="flex items-center gap-6 flex-wrap">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-6 flex-wrap">
           {/* Margin Balance */}
           <SummaryStat
             label="Margin Balance"
@@ -201,6 +229,34 @@ export default function PortfolioSummary() {
                   {data ? `${data.accountHealth.toFixed(0)}%` : "--"}
                 </span>
               </div>
+            </div>
+          </div>
+          </div>
+
+          <div className="ml-auto flex items-center">
+            <div
+              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+                isRelaySessionActive
+                  ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-300"
+                  : relayAvailable
+                  ? "border-cyan-400/35 bg-cyan-500/10 text-cyan-200"
+                  : "border-yellow-500/35 bg-yellow-500/10 text-yellow-300"
+              }`}
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path
+                  fillRule="evenodd"
+                  d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm2 6V6a2 2 0 10-4 0v2h4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              {isRelaySessionActive ? (
+                <span>Delegated session active - {relayMinutesLeft}m left</span>
+              ) : relayAvailable ? (
+                <span>Session required</span>
+              ) : (
+                <span>Relay unavailable</span>
+              )}
             </div>
           </div>
         </div>

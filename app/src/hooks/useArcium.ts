@@ -1,9 +1,15 @@
-import { useCallback, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import BN from "bn.js";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { createShadowPerpClient } from "../lib/create-client";
 import { PositionDirection } from "../types";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { DEFAULT_TRADE_SESSION_DURATION_SECONDS } from "../lib/client";
+import {
+  buildRelaySessionAuthMessage,
+  uint8ToBase64,
+} from "../lib/relay-session-auth";
 
 type PrivacyStatus =
   | "idle"
@@ -20,7 +26,26 @@ export interface PrivateOrderInput {
   entryPriceUi?: number;
 }
 
-// Validated once at module load — throws immediately if required env var is absent
+export interface SessionRelayInfo {
+  owner: string;
+  market: string;
+  relayer: string;
+  sessionId: string;
+  sessionAddress: string;
+  expiresAt: number;
+  maxActions: number;
+  usedActions: number;
+  maxMarginPerActionRaw: string;
+  authSignature: string;
+}
+
+export const RELAY_SESSION_STORAGE_KEY = "shadowperp.relay.session.v1";
+export const RELAY_SESSION_UPDATED_EVENT = "shadowperp:relay-session-updated";
+export const RELAY_SESSION_RENEW_BEFORE_SECONDS = 15;
+const DEFAULT_SESSION_MAX_ACTIONS = 200;
+const DEFAULT_SESSION_MAX_MARGIN_USDC = 1_000;
+
+// Validated once at module load - throws immediately if required env var is absent
 // so misconfiguration is caught at startup rather than silently routing to devnet.
 function resolveArciumRpcUrl(): string {
   const url =
@@ -40,6 +65,81 @@ const SCALE_PRICE = 1_000_000;
 const SCALE_BASE_SIZE = 1_000_000_000;
 const SCALE_MARGIN = 1_000_000;
 
+function storageKey(owner: string, market: string): string {
+  return `${RELAY_SESSION_STORAGE_KEY}:${owner}:${market}`;
+}
+
+function isRelayStorageKey(key: string | null): boolean {
+  if (!key) return false;
+  return key === RELAY_SESSION_STORAGE_KEY || key.startsWith(`${RELAY_SESSION_STORAGE_KEY}:`);
+}
+
+function parseSession(raw: string | null): SessionRelayInfo | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as SessionRelayInfo;
+    if (
+      typeof parsed?.owner !== "string" ||
+      typeof parsed?.market !== "string" ||
+      typeof parsed?.sessionId !== "string" ||
+      typeof parsed?.authSignature !== "string" ||
+      typeof parsed?.expiresAt !== "number"
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredSession(owner?: string, market?: string): SessionRelayInfo | null {
+  if (typeof window === "undefined") return null;
+  if (owner && market) {
+    const keyed = parseSession(window.localStorage.getItem(storageKey(owner, market)));
+    if (keyed) return keyed;
+
+    // Legacy migration: single-session storage key.
+    const legacy = parseSession(window.localStorage.getItem(RELAY_SESSION_STORAGE_KEY));
+    if (legacy && legacy.owner === owner && legacy.market === market) {
+      window.localStorage.setItem(storageKey(owner, market), JSON.stringify(legacy));
+      window.localStorage.removeItem(RELAY_SESSION_STORAGE_KEY);
+      return legacy;
+    }
+    return null;
+  }
+
+  // Fallback for callers without owner/market.
+  const legacy = parseSession(window.localStorage.getItem(RELAY_SESSION_STORAGE_KEY));
+  if (legacy) return legacy;
+  return null;
+}
+
+export function getStoredRelaySession(owner?: string, market?: string): SessionRelayInfo | null {
+  return readStoredSession(owner, market);
+}
+
+function persistSession(session: SessionRelayInfo): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    storageKey(session.owner, session.market),
+    JSON.stringify(session)
+  );
+  window.dispatchEvent(
+    new CustomEvent(RELAY_SESSION_UPDATED_EVENT, { detail: { session } })
+  );
+}
+
+function clearStoredSession(owner: string, market: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(storageKey(owner, market));
+  window.dispatchEvent(
+    new CustomEvent(RELAY_SESSION_UPDATED_EVENT, {
+      detail: { session: null, owner, market },
+    })
+  );
+}
+
 function requireFinitePositive(value: number, label: string): void {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`Invalid ${label}.`);
@@ -55,14 +155,32 @@ function toScaledPositiveBn(value: number, scale: number, label: string): BN {
   return new BN(scaled);
 }
 
+function isUsableRelaySession(
+  session: SessionRelayInfo | null,
+  owner: string | null | undefined,
+  market: string | null | undefined,
+  nowSeconds: number
+): session is SessionRelayInfo {
+  if (!session || !owner || !market) return false;
+  if (session.owner !== owner) return false;
+  if (session.market !== market) return false;
+  if (session.expiresAt - nowSeconds <= RELAY_SESSION_RENEW_BEFORE_SECONDS) return false;
+  if (session.usedActions >= session.maxActions) return false;
+  return true;
+}
+
 export const useArciumPrivacy = () => {
   const { connection } = useConnection();
   const anchorWallet = useAnchorWalletCompat();
+  const { publicKey, signMessage } = useWallet();
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
 
   const [status, setStatus] = useState<PrivacyStatus>("idle");
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [lastSignature, setLastSignature] = useState<string | null>(null);
+  const [relaySession, setRelaySession] = useState<SessionRelayInfo | null>(null);
+  const [relayAvailable, setRelayAvailable] = useState<boolean>(false);
+  const [relayError, setRelayError] = useState<string | null>(null);
 
   const getClient = useCallback(() => {
     if (!anchorWallet) return null;
@@ -77,6 +195,284 @@ export const useArciumPrivacy = () => {
     setStatusMessage("");
     setLastSignature(null);
   }, []);
+
+  const refreshRelayAvailability = useCallback(async () => {
+    try {
+      const response = await fetch("/api/relay/session");
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok || !payload?.available) {
+        setRelayAvailable(false);
+        setRelayError(payload?.error || `Relay unavailable (${response.status})`);
+        return null;
+      }
+      setRelayAvailable(true);
+      setRelayError(null);
+      return payload as {
+        ok: true;
+        available: true;
+        relayer: string;
+        market: string;
+      };
+    } catch (error: any) {
+      setRelayAvailable(false);
+      setRelayError(
+        typeof error?.message === "string" ? error.message : "Relay unavailable"
+      );
+      return null;
+    }
+  }, []);
+
+  const refreshRelaySession = useCallback(async () => {
+    const current = relaySession;
+    if (!current) return null;
+    if (!publicKey || current.owner !== publicKey.toBase58()) {
+      setRelaySession(null);
+      return null;
+    }
+
+    try {
+      const query = new URLSearchParams({
+        owner: current.owner,
+        sessionId: current.sessionId,
+      });
+      const response = await fetch(`/api/relay/session?${query.toString()}`);
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok || !payload?.available || payload.exists === false) {
+        setRelaySession(null);
+        clearStoredSession(current.owner, current.market);
+        return null;
+      }
+      if (!payload.session) return current;
+
+      const next: SessionRelayInfo = {
+        ...current,
+        relayer: payload.session.relayer,
+        usedActions: payload.session.usedActions,
+        maxActions: payload.session.maxActions,
+        maxMarginPerActionRaw: payload.session.maxMarginPerAction,
+        expiresAt: Number(payload.session.expiresAt),
+      };
+      if (
+        payload.session.revoked ||
+        next.expiresAt - Math.floor(Date.now() / 1000) <=
+          RELAY_SESSION_RENEW_BEFORE_SECONDS ||
+        next.usedActions >= next.maxActions
+      ) {
+        setRelaySession(null);
+        clearStoredSession(current.owner, current.market);
+        return null;
+      }
+
+      setRelaySession(next);
+      persistSession(next);
+      return next;
+    } catch {
+      return current;
+    }
+  }, [publicKey, relaySession]);
+
+  const createRelaySession = useCallback(
+    async (options?: { maxActions?: number; maxMarginPerActionUsdc?: number }) => {
+      if (!publicKey) {
+        throw new Error("Connect wallet first.");
+      }
+      if (!signMessage) {
+        throw new Error("Wallet does not support message signing.");
+      }
+      const ctx = getClient();
+      if (!ctx) {
+        throw new Error("Trading client unavailable. Check wallet + env.");
+      }
+
+      const relayInfo = await refreshRelayAvailability();
+      if (!relayInfo) {
+        throw new Error(relayError || "Relay unavailable.");
+      }
+
+      const { client, runtime } = ctx;
+      const owner = publicKey.toBase58();
+      const marketAddress = runtime.marketAddress.toBase58();
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const existing =
+        relaySession ??
+        readStoredSession(owner, marketAddress);
+      if (isUsableRelaySession(existing, owner, marketAddress, nowSeconds)) {
+        setRelaySession(existing);
+        return existing;
+      }
+
+      const sessionId = new BN(Math.floor(Date.now() / 1000));
+      const expiresAt = Math.floor(Date.now() / 1000) + DEFAULT_TRADE_SESSION_DURATION_SECONDS;
+      const maxActions = options?.maxActions ?? DEFAULT_SESSION_MAX_ACTIONS;
+      const maxMarginPerActionUsdc =
+        options?.maxMarginPerActionUsdc ?? DEFAULT_SESSION_MAX_MARGIN_USDC;
+      const maxMarginPerAction = toScaledPositiveBn(
+        maxMarginPerActionUsdc,
+        SCALE_MARGIN,
+        "delegated session max margin"
+      );
+
+      setStatus("preparing");
+      setStatusMessage("Creating delegated trading session...");
+
+      const { txSignature, sessionAddress } = await client.createTradeSession(
+        runtime.marketAddress,
+        sessionId,
+        new PublicKey(relayInfo.relayer),
+        maxActions,
+        maxMarginPerAction,
+        new BN(expiresAt)
+      );
+      setLastSignature(txSignature);
+
+      const authMessage = buildRelaySessionAuthMessage({
+        owner,
+        market: marketAddress,
+        sessionId: sessionId.toString(),
+        expiresAt,
+      });
+      const signature = await signMessage(new TextEncoder().encode(authMessage));
+
+      const nextSession: SessionRelayInfo = {
+        owner,
+        market: marketAddress,
+        relayer: relayInfo.relayer,
+        sessionId: sessionId.toString(),
+        sessionAddress: sessionAddress.toBase58(),
+        expiresAt,
+        maxActions,
+        usedActions: 0,
+        maxMarginPerActionRaw: maxMarginPerAction.toString(),
+        authSignature: uint8ToBase64(signature),
+      };
+      setRelaySession(nextSession);
+      persistSession(nextSession);
+      setStatus("verified");
+      setStatusMessage("Delegated session active. New trades can run without wallet popups.");
+
+      return nextSession;
+    },
+    [publicKey, signMessage, getClient, refreshRelayAvailability, relayError, relaySession]
+  );
+
+  const ensureRelaySession = useCallback(
+    async (options?: { maxActions?: number; maxMarginPerActionUsdc?: number }) => {
+      const ctx = getClient();
+      const owner = publicKey?.toBase58();
+      const market = ctx?.runtime.marketAddress.toBase58();
+      const nowSeconds = Math.floor(Date.now() / 1000);
+
+      if (isUsableRelaySession(relaySession, owner, market, nowSeconds)) {
+        return relaySession;
+      }
+
+      const refreshed = await refreshRelaySession();
+      if (isUsableRelaySession(refreshed, owner, market, nowSeconds)) {
+        return refreshed;
+      }
+
+      return createRelaySession(options);
+    },
+    [createRelaySession, getClient, publicKey, refreshRelaySession, relaySession]
+  );
+
+  const revokeRelaySession = useCallback(
+    async (revokeOnChain = true) => {
+      const current = relaySession;
+      if (!current) return;
+
+      if (revokeOnChain) {
+        const ctx = getClient();
+        if (!ctx) {
+          throw new Error("Trading client unavailable.");
+        }
+        await ctx.client.revokeTradeSession(
+          ctx.runtime.marketAddress,
+          new BN(current.sessionId, 10)
+        );
+      }
+
+      setRelaySession(null);
+      clearStoredSession(current.owner, current.market);
+    },
+    [relaySession, getClient]
+  );
+
+  useEffect(() => {
+    void refreshRelayAvailability();
+  }, [refreshRelayAvailability]);
+
+  useEffect(() => {
+    const ctx = getClient();
+    if (!publicKey || !ctx) {
+      setRelaySession(null);
+      return;
+    }
+
+    const owner = publicKey.toBase58();
+    const market = ctx.runtime.marketAddress.toBase58();
+    const stored = readStoredSession(owner, market);
+    if (!stored) return;
+
+    if (
+      stored.expiresAt - Math.floor(Date.now() / 1000) <=
+        RELAY_SESSION_RENEW_BEFORE_SECONDS ||
+      stored.usedActions >= stored.maxActions
+    ) {
+      setRelaySession(null);
+      clearStoredSession(owner, market);
+      return;
+    }
+
+    setRelaySession(stored);
+  }, [getClient, publicKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncFromStorage = () => {
+      const ctx = getClient();
+      const owner = publicKey?.toBase58();
+      if (!ctx || !owner) {
+        setRelaySession(null);
+        return;
+      }
+      const market = ctx.runtime.marketAddress.toBase58();
+      const stored = readStoredSession(owner, market);
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      if (
+        !isUsableRelaySession(
+          stored,
+          owner,
+          market,
+          nowSeconds
+        )
+      ) {
+        setRelaySession(null);
+        return;
+      }
+      setRelaySession(stored);
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (isRelayStorageKey(event.key)) syncFromStorage();
+    };
+    const onSessionUpdated = () => syncFromStorage();
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(
+      RELAY_SESSION_UPDATED_EVENT,
+      onSessionUpdated as EventListener
+    );
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(
+        RELAY_SESSION_UPDATED_EVENT,
+        onSessionUpdated as EventListener
+      );
+    };
+  }, [getClient, publicKey]);
 
   const submitPrivateOrder = useCallback(
     async (
@@ -126,13 +522,59 @@ export const useArciumPrivacy = () => {
       requireFinitePositive(requiredMarginUi, "required margin");
       const marginBase = toScaledPositiveBn(requiredMarginUi, SCALE_MARGIN, "required margin");
 
-      const { txSignature, positionAddress } = await client.openPosition(runtime.marketAddress, {
-        size: sizeBase,
-        entryPrice,
-        leverage: order.leverage,
-        direction: order.side,
-        margin: marginBase,
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const activeRelaySession: SessionRelayInfo | null =
+        isUsableRelaySession(
+          relaySession,
+          anchorWallet?.publicKey?.toBase58(),
+          runtime.marketAddress.toBase58(),
+          nowSeconds
+        )
+          ? relaySession
+          : null;
+
+      if (!activeRelaySession) {
+        throw new Error(
+          "Delegated session required. Please sign a new session to continue trading."
+        );
+      }
+
+      setStatus("queued");
+      setStatusMessage("Queued on Arcium cluster via delegated session...");
+
+      const response = await fetch("/api/relay/open", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          owner: activeRelaySession.owner,
+          sessionId: activeRelaySession.sessionId,
+          side: order.side,
+          leverage: order.leverage,
+          sizeRaw: sizeBase.toString(),
+          entryPriceRaw: entryPrice.toString(),
+          marginRaw: marginBase.toString(),
+          auth: {
+            expiresAt: activeRelaySession.expiresAt,
+            signature: activeRelaySession.authSignature,
+          },
+        }),
       });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok) {
+        throw new Error(
+          payload?.error || `Delegated session submit failed (${response.status}).`
+        );
+      }
+
+      const txSignature = payload.txSignature as string;
+      const positionAddress = payload.positionAddress as string;
+
+      const nextSession: SessionRelayInfo = {
+        ...activeRelaySession,
+        usedActions: activeRelaySession.usedActions + 1,
+      };
+      setRelaySession(nextSession);
+      persistSession(nextSession);
 
       setLastSignature(txSignature);
       setStatus("queued");
@@ -145,11 +587,11 @@ export const useArciumPrivacy = () => {
 
       return {
         txSignature,
-        positionAddress: positionAddress.toBase58(),
+        positionAddress,
         usedPrivatePath: true,
       };
     },
-    [getClient]
+    [getClient, relaySession, anchorWallet]
   );
 
   const setError = useCallback((message: string) => {
@@ -165,5 +607,12 @@ export const useArciumPrivacy = () => {
     arciumRpcUrl: ARCIUM_RPC_URL,
     setError,
     resetStatus,
+    relayAvailable,
+    relayError,
+    relaySession,
+    createRelaySession,
+    ensureRelaySession,
+    revokeRelaySession,
+    refreshRelaySession,
   };
 };

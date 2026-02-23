@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
 import TradingPanel from "../components/TradingPanel";
 import MarketInfo from "../components/MarketInfo";
+import PrivateOrderbook from "../components/PrivateOrderbook";
 import PrivacyBadge from "../components/PrivacyBadge";
 import NetworkIndicator from "../components/NetworkIndicator";
+import V2Panel from "../components/ui-v2/V2Panel";
+import V2SectionMotion from "../components/ui-v2/V2SectionMotion";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 
 const NeuralShadowBackground = dynamic(
@@ -31,16 +34,64 @@ const PriceChart = dynamic(() => import("../components/PriceChart"), {
   ssr: false,
 });
 
+const TOP_RIGHT_INFO_PANEL_HEIGHT = 315;
+const BOTTOM_RIGHT_ORDERBOOK_PANEL_HEIGHT = 315;
+
 export default function TradingAppPage() {
   const [selectedPair, setSelectedPair] = useState<TradingPair>(TRADING_PAIRS[0]);
+  const [displayPrice, setDisplayPrice] = useState<number | null>(null);
+  const [displayChange24h, setDisplayChange24h] = useState<number | null>(null);
+  const [chartPanelHeight, setChartPanelHeight] = useState<number | null>(null);
+  const chartPanelRef = useRef<HTMLDivElement | null>(null);
+  const uiV2Enabled =
+    process.env.NEXT_PUBLIC_UI_V2 === "1" ||
+    process.env.NEXT_PUBLIC_SAFE_UI_ADAPT === "1";
+
+  const handlePairChange = useCallback((pair: TradingPair) => {
+    setSelectedPair(pair);
+    setDisplayPrice(null);
+    setDisplayChange24h(null);
+  }, []);
+
+  const handlePriceUpdate = useCallback(
+    (update: { pairLabel: string; price: number; change24h: number | null }) => {
+      if (update.pairLabel !== selectedPair.label) return;
+      setDisplayPrice(update.price);
+      setDisplayChange24h(update.change24h);
+    },
+    [selectedPair.label]
+  );
+
+  const rightRailRowsStyle = {
+    gridTemplateRows: `${TOP_RIGHT_INFO_PANEL_HEIGHT}px ${BOTTOM_RIGHT_ORDERBOOK_PANEL_HEIGHT}px`,
+  };
+
+  useEffect(() => {
+    const target = chartPanelRef.current;
+    if (!target || typeof ResizeObserver === "undefined") return;
+
+    const applyHeight = (height: number) => {
+      if (!Number.isFinite(height) || height <= 0) return;
+      setChartPanelHeight(Math.round(height));
+    };
+
+    applyHeight(target.getBoundingClientRect().height);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        applyHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [selectedPair.label]);
 
   return (
     <>
       <Head>
-        <title>ShadowPerp - Private Perpetuals on Solana</title>
+        <title>Shadow - Private Perpetuals on Solana</title>
         <meta
           name="description"
-          content="ShadowPerp private perpetual futures trading terminal powered by Arcium MPC."
+          content="Shadow private perpetual futures trading terminal powered by Arcium MPC."
         />
       </Head>
 
@@ -71,7 +122,7 @@ export default function TradingAppPage() {
                   className="flex items-center gap-2 text-xl font-bold bg-gradient-to-r from-accent-purple to-accent-blue bg-clip-text text-transparent"
                 >
                   <ShadowLogo className="h-7 w-7 shrink-0 header-logo-animate" />
-                  ShadowPerp
+                  Shadow
                 </Link>
                 <PrivacyBadge />
               </div>
@@ -85,22 +136,71 @@ export default function TradingAppPage() {
 
           {/* Main terminal */}
           <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 py-3 flex flex-col gap-3">
-            <PortfolioSummary />
+            <V2SectionMotion enabled={uiV2Enabled} delay={0.02}>
+              <PortfolioSummary />
+            </V2SectionMotion>
 
             {/* Top row: chart + market info */}
-            <div className="grid gap-3 grid-cols-1 lg:grid-cols-[1fr_340px]">
-              <div className="min-w-0">
-                <PriceChart selectedPair={selectedPair} onPairChange={setSelectedPair} />
+            <V2SectionMotion
+              enabled={uiV2Enabled}
+              delay={0.07}
+              className="grid gap-3 grid-cols-1 lg:grid-cols-[1fr_340px]"
+            >
+              <div ref={chartPanelRef} className="min-w-0">
+                <V2Panel enabled={uiV2Enabled} className="min-w-0">
+                  <PriceChart
+                    selectedPair={selectedPair}
+                    onPairChange={handlePairChange}
+                    displayPrice={displayPrice}
+                    displayChange24h={displayChange24h}
+                  />
+                </V2Panel>
               </div>
-              <div className="flex flex-col gap-3">
-                <MarketInfo pair={selectedPair} />
+              <div
+                className="min-h-0"
+                style={chartPanelHeight ? { height: `${chartPanelHeight}px` } : undefined}
+              >
+                <V2Panel
+                  enabled={uiV2Enabled}
+                  className="h-full min-h-0 overflow-hidden"
+                >
+                  <div
+                    className="flex h-full min-h-0 flex-col gap-2 lg:grid lg:gap-0"
+                    style={rightRailRowsStyle}
+                  >
+                    <MarketInfo
+                      pair={selectedPair}
+                      className="h-full min-h-0 shrink-0 overflow-hidden"
+                      onPriceUpdate={handlePriceUpdate}
+                    />
+                    <PrivateOrderbook
+                      pair={selectedPair}
+                      referencePrice={displayPrice}
+                      className="h-full min-h-0 overflow-hidden"
+                    />
+                  </div>
+                </V2Panel>
               </div>
-            </div>
+            </V2SectionMotion>
 
             {/* Open position panel under chart */}
-            <TradingPanel pair={selectedPair} layout="horizontal" />
+            <V2SectionMotion
+              enabled={uiV2Enabled}
+              delay={0.12}
+            >
+              <V2Panel enabled={uiV2Enabled}>
+                <TradingPanel pair={selectedPair} layout="horizontal" />
+              </V2Panel>
+            </V2SectionMotion>
 
-            <BottomPositionsPanel />
+            <V2SectionMotion
+              enabled={uiV2Enabled}
+              delay={0.16}
+            >
+              <V2Panel enabled={uiV2Enabled} className="p-1.5">
+                <BottomPositionsPanel />
+              </V2Panel>
+            </V2SectionMotion>
           </main>
 
           {/* Footer */}

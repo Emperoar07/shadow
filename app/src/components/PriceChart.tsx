@@ -33,9 +33,16 @@ type TFValue = (typeof TIMEFRAMES)[number]["value"];
 interface PriceChartProps {
   selectedPair?: TradingPair;
   onPairChange?: (pair: TradingPair) => void;
+  displayPrice?: number | null;
+  displayChange24h?: number | null;
 }
 
-export default function PriceChart({ selectedPair, onPairChange }: PriceChartProps) {
+export default function PriceChart({
+  selectedPair,
+  onPairChange,
+  displayPrice,
+  displayChange24h,
+}: PriceChartProps) {
   const [activePair, setActivePair] = useState<TradingPair>(selectedPair ?? TRADING_PAIRS[0]);
   const [isLoading, setIsLoading] = useState(true);
   const [feedIndex, setFeedIndex] = useState(0);
@@ -96,6 +103,8 @@ export default function PriceChart({ selectedPair, onPairChange }: PriceChartPro
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-shadow-600 gap-3">
         <PairSelector
           activePair={activePair}
+          displayPrice={displayPrice}
+          displayChange24h={displayChange24h}
           onSelect={(pair) => {
             setIsLoading(true);
             handlePairChange(pair);

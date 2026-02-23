@@ -20,4 +20,3 @@ codegen-units = 1
 
 [patch.crates-io]
 proc-macro2 = { git = "https://github.com/arcium-hq/proc-macro2.git" }
-arcis-interpreter = { path = "vendor/arcis-interpreter-0.8.4" }

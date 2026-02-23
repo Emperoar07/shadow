@@ -6,7 +6,7 @@ use crate::state::Market;
 
 // ============ OPEN POSITION COMP DEF ============
 
-#[init_computation_definition_accounts("open_position", payer)]
+#[init_computation_definition_accounts("open_position_v2", payer)]
 #[derive(Accounts)]
 pub struct InitOpenPositionCompDef<'info> {
     #[account(mut)]

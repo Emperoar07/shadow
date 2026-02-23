@@ -5,9 +5,16 @@ import { getCachedPrice, fetchPrices, PriceData } from "../lib/prices";
 interface PairSelectorProps {
   activePair: TradingPair;
   onSelect: (pair: TradingPair) => void;
+  displayPrice?: number | null;
+  displayChange24h?: number | null;
 }
 
-export default function PairSelector({ activePair, onSelect }: PairSelectorProps) {
+export default function PairSelector({
+  activePair,
+  onSelect,
+  displayPrice,
+  displayChange24h,
+}: PairSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
@@ -54,7 +61,15 @@ export default function PairSelector({ activePair, onSelect }: PairSelectorProps
     [onSelect]
   );
 
-  const activePrice = prices[activePair.label];
+  const activeLivePrice = prices[activePair.label];
+  const activeDisplayPrice =
+    typeof displayPrice === "number" && Number.isFinite(displayPrice) && displayPrice > 0
+      ? displayPrice
+      : activeLivePrice?.price;
+  const activeDisplayChange =
+    typeof displayChange24h === "number" && Number.isFinite(displayChange24h)
+      ? displayChange24h
+      : activeLivePrice?.change24h;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -68,19 +83,19 @@ export default function PairSelector({ activePair, onSelect }: PairSelectorProps
           style={{ backgroundColor: activePair.base.color }}
         />
         <span className="font-medium text-sm text-white">{activePair.label}</span>
-        {activePrice && (
+        {typeof activeDisplayPrice === "number" && Number.isFinite(activeDisplayPrice) && (
           <span className="text-xs text-gray-400 hidden sm:inline">
-            ${activePrice.price < 0.01 ? activePrice.price.toFixed(6) : activePrice.price.toFixed(2)}
+            ${activeDisplayPrice < 0.01 ? activeDisplayPrice.toFixed(6) : activeDisplayPrice.toFixed(2)}
           </span>
         )}
-        {activePrice && (
+        {typeof activeDisplayChange === "number" && Number.isFinite(activeDisplayChange) && (
           <span
             className={`text-xs hidden sm:inline ${
-              activePrice.change24h >= 0 ? "text-accent-green" : "text-accent-red"
+              activeDisplayChange >= 0 ? "text-accent-green" : "text-accent-red"
             }`}
           >
-            {activePrice.change24h >= 0 ? "+" : ""}
-            {activePrice.change24h.toFixed(1)}%
+            {activeDisplayChange >= 0 ? "+" : ""}
+            {activeDisplayChange.toFixed(1)}%
           </span>
         )}
         <svg

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+﻿import { useState, useCallback, useEffect, useRef } from "react";
 import BN from "bn.js";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
@@ -7,7 +7,10 @@ import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import { fetchPrices, getLastPriceMeta } from "../lib/prices";
 import TradeConfirmationModal, { TradeStep } from "./TradeConfirmationModal";
 import CollateralModal from "./CollateralModal";
-import { useArciumPrivacy } from "../hooks/useArcium";
+import {
+  RELAY_SESSION_RENEW_BEFORE_SECONDS,
+  useArciumPrivacy,
+} from "../hooks/useArcium";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import {
@@ -131,11 +134,24 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   const handleSubmitRef = useRef<() => void>(() => undefined);
   const limitExecutorRunningRef = useRef(false);
   const processingOrderIdsRef = useRef<Set<string>>(new Set());
+  const autoSessionInFlightRef = useRef(false);
+  const autoSessionCooldownUntilRef = useRef(0);
   const {
     submitPrivateOrder,
     setError: setPrivacyError,
     resetStatus: resetPrivacyStatus,
+    relayAvailable,
+    relaySession,
+    ensureRelaySession,
+    refreshRelaySession,
   } = useArciumPrivacy();
+
+  const isRelaySessionActive =
+    !!relaySession &&
+    relaySession.owner === publicKey?.toBase58() &&
+    relaySession.usedActions < relaySession.maxActions &&
+    relaySession.expiresAt - Math.floor(Date.now() / 1000) >
+      RELAY_SESSION_RENEW_BEFORE_SECONDS;
 
   const parsedLimitPrice = parseOptionalPositive(limitPrice);
   const entryPrice = orderType === "limit" ? parsedLimitPrice ?? marketPrice : marketPrice;
@@ -307,6 +323,60 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     return () => clearInterval(interval);
   }, [refreshMarketData]);
 
+  useEffect(() => {
+    if (!publicKey) return;
+    void refreshRelaySession();
+    const interval = setInterval(() => void refreshRelaySession(), 30_000);
+    return () => clearInterval(interval);
+  }, [publicKey, refreshRelaySession]);
+
+  useEffect(() => {
+    const owner = publicKey?.toBase58() ?? null;
+    if (!owner) {
+      autoSessionInFlightRef.current = false;
+      autoSessionCooldownUntilRef.current = 0;
+      return;
+    }
+    if (!relayAvailable || isRelaySessionActive) return;
+    if (autoSessionInFlightRef.current) return;
+    const nowMs = Date.now();
+    if (nowMs < autoSessionCooldownUntilRef.current) return;
+    autoSessionInFlightRef.current = true;
+    autoSessionCooldownUntilRef.current = nowMs + 30_000;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        toast.loading("Initializing delegated session...", {
+          id: "relay-auto-session",
+        });
+        const session = await ensureRelaySession();
+        if (cancelled || !session) return;
+        const remainingMinutes = Math.max(
+          1,
+          Math.floor((session.expiresAt - Math.floor(Date.now() / 1000)) / 60)
+        );
+        toast.success(`Delegated session active (${remainingMinutes}m)`, {
+          id: "relay-auto-session",
+          duration: 5000,
+        });
+      } catch (error: any) {
+        if (cancelled) return;
+        const message =
+          typeof error?.message === "string" && error.message.trim().length > 0
+            ? error.message
+            : "Failed to initialize delegated session.";
+        toast.error(message, { id: "relay-auto-session", duration: 7000 });
+      } finally {
+        autoSessionInFlightRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ensureRelaySession, isRelaySessionActive, publicKey, relayAvailable]);
+
   const handleDeposit = useCallback(async () => {
     const amt = parseFloat(depositAmount);
     if (!amt || amt <= 0) { toast.error("Enter a valid deposit amount"); return; }
@@ -435,6 +505,10 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     }
     if (!publicKey) { toast.error("Please connect your wallet"); return; }
     if (!anchorWallet) { toast.error("Wallet does not support signing transactions"); return; }
+    if (!isRelaySessionActive) {
+      toast.error("Delegated session required. Please sign a new session.");
+      return;
+    }
     if (marginBalance !== null) {
       if (marginBalance <= 0) {
         toast.error("Deposit collateral first before opening a position");
@@ -552,6 +626,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     activePair.quote.decimals,
     marginBalance,
     margin,
+    isRelaySessionActive,
     positionValue,
     takeProfit,
     stopLoss,
@@ -589,6 +664,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
 
   const runLimitExecutor = useCallback(async () => {
     if (!publicKey || !anchorWallet) return;
+    if (!isRelaySessionActive) return;
     if (limitExecutorRunningRef.current) return;
     limitExecutorRunningRef.current = true;
 
@@ -643,7 +719,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     } finally {
       limitExecutorRunningRef.current = false;
     }
-  }, [activePair.label, anchorWallet, marketPrice, publicKey, refreshMarketData, submitEncryptedOrder]);
+  }, [activePair.label, anchorWallet, isRelaySessionActive, marketPrice, publicKey, refreshMarketData, submitEncryptedOrder]);
 
   useEffect(() => {
     const id = setInterval(() => void runLimitExecutor(), 4_000);
@@ -657,23 +733,27 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       <div className={isHorizontal ? "grid grid-cols-1 items-start gap-4 lg:grid-cols-12" : "space-y-4"}>
         <div className={isHorizontal ? "space-y-4 lg:col-span-7" : "space-y-4"}>
           {publicKey && (
-            <div className="flex items-center justify-between rounded-xl border border-shadow-500 bg-shadow-700/70 px-4 py-3">
-              <div>
-                <p className="mb-0.5 text-[11px] uppercase tracking-[0.16em] text-gray-500">Margin Balance</p>
-                <p
-                  className={`text-sm font-semibold ${
-                    marginBalance === 0 ? "text-yellow-400" : "text-white"
-                  }`}
-                >
-                  {marginBalance !== null ? `$${marginBalance.toFixed(2)} USDC` : "--"}
-                </p>
+            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="mb-0.5 text-[11px] uppercase tracking-[0.16em] text-gray-500">Margin Balance</p>
+                  <p
+                    className={`text-sm font-semibold ${
+                      marginBalance === 0 ? "text-yellow-400" : "text-white"
+                    }`}
+                  >
+                    {marginBalance !== null ? `$${marginBalance.toFixed(2)} USDC` : "--"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCollateralModalOpen(true)}
+                    className="rounded-lg border border-accent-purple/35 bg-accent-purple/15 px-3 py-1.5 text-xs font-medium text-accent-purple transition-colors hover:bg-accent-purple/25"
+                  >
+                    {marginBalance === 0 ? "Deposit Collateral" : "Manage"}
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => setCollateralModalOpen(true)}
-                className="rounded-lg border border-accent-purple/35 bg-accent-purple/15 px-3 py-1.5 text-xs font-medium text-accent-purple transition-colors hover:bg-accent-purple/25"
-              >
-                {marginBalance === 0 ? "Deposit Collateral" : "Manage"}
-              </button>
             </div>
           )}
 
@@ -867,7 +947,13 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
 
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting || !size || sizeInBase <= 0 || (orderType === "limit" && !parsedLimitPrice)}
+            disabled={
+              isSubmitting ||
+              !isRelaySessionActive ||
+              !size ||
+              sizeInBase <= 0 ||
+              (orderType === "limit" && !parsedLimitPrice)
+            }
             className={`mb-1 w-full rounded-lg py-3.5 text-xl font-semibold transition-all btn-press ${
               direction === "long"
                 ? "bg-gradient-to-r from-accent-green to-emerald-600 hover:from-emerald-600 hover:to-accent-green"
@@ -894,6 +980,8 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 </svg>
                 Processing via MPC...
               </span>
+            ) : !isRelaySessionActive ? (
+              "Session Required"
             ) : orderType === "limit" ? (
               `Place Limit ${direction.charAt(0).toUpperCase() + direction.slice(1)}`
             ) : (

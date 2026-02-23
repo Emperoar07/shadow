@@ -40,7 +40,7 @@ export default function TerminalV2Page() {
   return (
     <>
       <Head>
-        <title>ShadowPerp Terminal V2</title>
+        <title>Shadow Terminal V2</title>
       </Head>
       <div className="min-h-screen bg-[#0b0b13] text-white">
         <header className="border-b border-white/10 bg-[#0b0b13]/90 backdrop-blur">
@@ -50,7 +50,7 @@ export default function TerminalV2Page() {
                 <Sparkles className="h-5 w-5 text-violet-400" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold">ShadowPerp</h1>
+                <h1 className="text-xl font-semibold">Shadow</h1>
                 <p className="text-xs text-slate-400">PRIVATE PERPS ON SOLANA</p>
               </div>
             </div>

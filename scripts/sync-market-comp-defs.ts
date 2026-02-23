@@ -1,9 +1,10 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Connection, Keypair, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { getCompDefAccAddress, getCompDefAccOffset } from "@arcium-hq/client";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { resolveRpcEndpoint } from "./rpc";
 
 type SyncArgs = {
   programId: PublicKey;
@@ -38,7 +39,7 @@ function parseArgs(): SyncArgs {
 
   const programId = new PublicKey(programRaw);
   const mxeProgramId = new PublicKey(readArg("mxe-program") || process.env.NEXT_PUBLIC_ARCIUM_MXE_PROGRAM_ID || programRaw);
-  const rpcUrl = readArg("rpc") || process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL || clusterApiUrl("devnet");
+  const rpcUrl = readArg("rpc") || process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
   return {
     programId,
@@ -84,8 +85,11 @@ async function main(): Promise<void> {
   const wallet = Keypair.fromSecretKey(
     new Uint8Array(JSON.parse(fs.readFileSync(resolveWalletPath(), "utf8")))
   );
-
-  const connection = new Connection(args.rpcUrl, "confirmed");
+  const rpcSelection = await resolveRpcEndpoint({
+    preferred: args.rpcUrl,
+    commitment: "confirmed",
+  });
+  const connection = new Connection(rpcSelection.rpcUrl, "confirmed");
   const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(wallet), {
     commitment: "confirmed",
   });
@@ -112,6 +116,7 @@ async function main(): Promise<void> {
     .rpc();
 
   console.log("sync_comp_defs signature:", signature);
+  console.log("rpc:", rpcSelection.rpcUrl);
   console.log("open_position:", openCompDef.toBase58());
   console.log("close_position:", closeCompDef.toBase58());
   console.log("check_liquidation:", liqCompDef.toBase58());

@@ -7,6 +7,7 @@ pub mod init_comp_defs;
 pub mod initialize;
 pub mod open_position;
 pub mod private_orders;
+pub mod session_trading;
 #[cfg(feature = "shielded-collateral")]
 pub mod shielded_collateral;
 pub mod sync_comp_defs;
@@ -22,6 +23,7 @@ pub use init_comp_defs::*;
 pub use initialize::*;
 pub use open_position::*;
 pub use private_orders::*;
+pub use session_trading::*;
 #[cfg(feature = "shielded-collateral")]
 pub use shielded_collateral::*;
 pub use sync_comp_defs::*;
