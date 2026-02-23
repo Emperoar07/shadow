@@ -94,20 +94,37 @@ pub fn check_liquidation_callback_handler(
     let position = &mut ctx.accounts.position;
     let clock = Clock::get()?;
 
-    // Verify the callback is consuming the exact computation that was authorised for this
-    // liquidation check. The last-submitted check wins if multiple were queued concurrently;
-    // earlier callbacks will fail this guard and return harmlessly.
+    // Verify the callback is consuming the exact computation that was authorised
+    // for this liquidation check.
     require!(
         position.pending_computation_account != Pubkey::default(),
+        ShadowPerpError::InvalidAccountData
+    );
+    require!(
+        position.pending_callback_seq() > 0,
+        ShadowPerpError::InvalidAccountData
+    );
+    require!(
+        position.pending_callback_kind() == Position::CALLBACK_KIND_LIQUIDATION,
+        ShadowPerpError::InvalidAccountData
+    );
+    let expected_computation_account = derive_comp_pda!(
+        position.pending_computation_offset(),
+        ctx.accounts.mxe_account,
+        ErrorCode::ClusterNotSet
+    );
+    require!(
+        expected_computation_account == position.pending_computation_account,
         ShadowPerpError::InvalidAccountData
     );
     require!(
         ctx.accounts.computation_account.key() == position.pending_computation_account,
         ShadowPerpError::Unauthorized
     );
-    // Clear the binding immediately — even if liquidation doesn't occur, the computation
-    // is consumed and must not be reusable.
+    // Clear the binding immediately even if liquidation does not occur.
+    // The computation is consumed and must not be reusable.
     position.pending_computation_account = Pubkey::default();
+    position.clear_pending_callback_meta();
 
     // Extract revealed liquidation decision.
     // Health factor remains private in MPC output.
@@ -218,3 +235,4 @@ pub fn check_liquidation_callback_handler(
 
     Ok(())
 }
+

@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use crate::errors::ShadowPerpError;
 
 /// Encrypted position account - all sensitive data stored encrypted
 #[account]
@@ -80,6 +81,67 @@ impl Default for Position {
 }
 
 impl Position {
+    // _reserved callback metadata layout (no account size expansion):
+    // [0..8)   callback_seq_counter (u64)
+    // [8..16)  pending_callback_seq (u64; 0 means none)
+    // [16]     pending_callback_kind (u8)
+    // [17..25) pending_computation_offset (u64)
+    const CALLBACK_SEQ_COUNTER_OFFSET: usize = 0;
+    const PENDING_CALLBACK_SEQ_OFFSET: usize = 8;
+    const PENDING_CALLBACK_KIND_OFFSET: usize = 16;
+    const PENDING_COMP_OFFSET_OFFSET: usize = 17;
+
+    pub const CALLBACK_KIND_NONE: u8 = 0;
+    pub const CALLBACK_KIND_OPEN: u8 = 1;
+    pub const CALLBACK_KIND_CLOSE: u8 = 2;
+    pub const CALLBACK_KIND_LIQUIDATION: u8 = 3;
+
+    fn read_u64_reserved(&self, offset: usize) -> u64 {
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&self._reserved[offset..offset + 8]);
+        u64::from_le_bytes(buf)
+    }
+
+    fn write_u64_reserved(&mut self, offset: usize, value: u64) {
+        self._reserved[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+    }
+
+    pub fn callback_seq_counter(&self) -> u64 {
+        self.read_u64_reserved(Self::CALLBACK_SEQ_COUNTER_OFFSET)
+    }
+
+    pub fn pending_callback_seq(&self) -> u64 {
+        self.read_u64_reserved(Self::PENDING_CALLBACK_SEQ_OFFSET)
+    }
+
+    pub fn pending_callback_kind(&self) -> u8 {
+        self._reserved[Self::PENDING_CALLBACK_KIND_OFFSET]
+    }
+
+    pub fn pending_computation_offset(&self) -> u64 {
+        self.read_u64_reserved(Self::PENDING_COMP_OFFSET_OFFSET)
+    }
+
+    pub fn set_pending_callback_meta(&mut self, kind: u8, computation_offset: u64) -> Result<()> {
+        require!(kind != Self::CALLBACK_KIND_NONE, ShadowPerpError::InvalidAccountData);
+
+        let next_seq = self
+            .callback_seq_counter()
+            .checked_add(1)
+            .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+        self.write_u64_reserved(Self::CALLBACK_SEQ_COUNTER_OFFSET, next_seq);
+        self.write_u64_reserved(Self::PENDING_CALLBACK_SEQ_OFFSET, next_seq);
+        self._reserved[Self::PENDING_CALLBACK_KIND_OFFSET] = kind;
+        self.write_u64_reserved(Self::PENDING_COMP_OFFSET_OFFSET, computation_offset);
+        Ok(())
+    }
+
+    pub fn clear_pending_callback_meta(&mut self) {
+        self.write_u64_reserved(Self::PENDING_CALLBACK_SEQ_OFFSET, 0);
+        self._reserved[Self::PENDING_CALLBACK_KIND_OFFSET] = Self::CALLBACK_KIND_NONE;
+        self.write_u64_reserved(Self::PENDING_COMP_OFFSET_OFFSET, 0);
+    }
+
     pub const LEN: usize = 8 +   // discriminator
         32 +  // owner
         32 +  // market

@@ -1267,3 +1267,33 @@ SLOT_OFFSET=100 and SLOT_COUNTER_OFFSET=108 in arcium-anchor source confirm the 
 - Next safe step:
   1. add explicit callback reference nonce/sequence storage + verification (using reserved bytes, no account size expansion)
   2. run localnet regression for open/close/liquidation queue lifecycle and duplicate queue rejection.
+
+## Session Update: Callback Reference Sequence Binding (Step 2) (2026-02-23 UTC)
+- Implemented explicit callback reference metadata lifecycle using existing `Position._reserved` bytes (no account size changes).
+- Added `Position` callback metadata API in `programs/shadowperp/src/state/position.rs`:
+  - callback kinds: open/close/liquidation
+  - monotonic `callback_seq_counter`
+  - `pending_callback_seq`
+  - `pending_callback_kind`
+  - `pending_computation_offset`
+  - setters/clear helpers
+- Queue handlers now persist callback metadata at queue time:
+  - `open_position.rs`
+  - `close_position.rs`
+  - `check_liquidation.rs`
+- All callbacks now verify:
+  - pending seq > 0
+  - expected callback kind
+  - expected computation PDA derived from stored offset and MXE cluster
+  - computation account matches stored pending key
+  - metadata is cleared on consume
+- Verification:
+  - `cargo check -p shadowperp` -> PASS
+  - `npm run check:preflight` -> transient RPC fetch failures observed on initial tries
+  - re-run preflight -> PASS
+- Notes:
+  - no UI/config changes in this step
+  - no account layout expansion; migration-safe for existing positions.
+- Next safe step:
+  1. add localnet integration test for duplicate queue rejection + callback consume-once semantics.
+  2. then proceed to `ShieldedPool`/`NullifierSet` scaffolding behind feature flag.

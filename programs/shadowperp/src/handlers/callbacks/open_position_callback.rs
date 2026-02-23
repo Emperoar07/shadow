@@ -6,9 +6,9 @@ use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionOpened, PositionStatus};
 
 /// Callback account for storing validated position data from MPC
-#[callback_accounts("open_position")]
+#[callback_accounts("open_position_v2")]
 #[derive(Accounts)]
-pub struct OpenPositionCallback<'info> {
+pub struct OpenPositionV2Callback<'info> {
     // Standard Arcium callback accounts
     pub arcium_program: Program<'info, Arcium>,
     pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
@@ -44,7 +44,7 @@ pub struct OpenPositionCallback<'info> {
 
 /// Handler logic for the open_position callback (called from lib.rs via #[arcium_callback])
 pub fn open_position_callback_handler(
-    ctx: Context<OpenPositionCallback>,
+    ctx: Context<OpenPositionV2Callback>,
     output: SignedComputationOutputs<OpenPositionOutput>,
 ) -> Result<()> {
     // Verify the computation output from the MPC cluster
@@ -84,33 +84,46 @@ pub fn open_position_callback_handler(
         ShadowPerpError::InvalidAccountData
     );
     require!(
+        position.pending_callback_seq() > 0,
+        ShadowPerpError::InvalidAccountData
+    );
+    require!(
+        position.pending_callback_kind() == Position::CALLBACK_KIND_OPEN,
+        ShadowPerpError::InvalidAccountData
+    );
+    let expected_computation_account = derive_comp_pda!(
+        position.pending_computation_offset(),
+        ctx.accounts.mxe_account,
+        ErrorCode::ClusterNotSet
+    );
+    require!(
+        expected_computation_account == position.pending_computation_account,
+        ShadowPerpError::InvalidAccountData
+    );
+    require!(
         ctx.accounts.computation_account.key() == position.pending_computation_account,
         ShadowPerpError::Unauthorized
     );
     // Clear the binding so it cannot be consumed a second time.
     position.pending_computation_account = Pubkey::default();
+    position.clear_pending_callback_meta();
 
     // Enforce MPC validation outcome.
-    // Circuit returns tuple → wrapped in OutputStruct0: field_0=bool, field_1=encrypted, field_2=u64
+    // Circuit returns tuple -> wrapped in OutputStruct0:
+    // field_0=bool, field_1=encrypted OI.
     let result = &verified_output.field_0;
     require!(result.field_0, ShadowPerpError::InvalidComputationResult);
 
-    // field_1: encrypted (position, open_interest) payload
-    // field_2: required margin returned by MPC
-    let combined_ciphertexts = &result.field_1.ciphertexts;
-    let required_margin = result.field_2;
+    // field_1: encrypted open_interest payload
+    let oi_ciphertexts = &result.field_1.ciphertexts;
 
     // Update position with MPC-validated encrypted data
-    // The MPC has verified margin sufficiency and parameter validity
+    // The MPC has verified margin sufficiency and parameter validity.
     position.status = PositionStatus::Open;
 
-    // Bind on-chain locked collateral to MPC-calculated requirement.
-    // During pending->open we still keep an explicit user-provided cap
-    // (`requested_margin`) to prevent unexpected lock expansion.
-    require!(
-        required_margin == position.requested_margin,
-        ShadowPerpError::InvalidComputationResult
-    );
+    // Bind on-chain locked collateral to the user-requested margin.
+    // Circuit enforces encrypted_margin == requested_margin.
+    let required_margin = position.requested_margin;
     let available_margin = margin_account
         .balance
         .checked_sub(margin_account.locked_balance)
@@ -132,24 +145,13 @@ pub fn open_position_callback_handler(
     // The requested margin is only needed during pending->open transition.
     position.requested_margin = 0;
 
-    // Replace encrypted position payload with MPC-produced ciphertexts.
-    // Require exactly 9 elements (7 position fields + 2 OI fields).
-    require!(
-        combined_ciphertexts.len() == 9,
-        ShadowPerpError::InvalidComputationResult
-    );
-    position.encrypted_data[0..32].copy_from_slice(&combined_ciphertexts[0]);
-    position.encrypted_data[32..64].copy_from_slice(&combined_ciphertexts[1]);
-    position.encrypted_data[64..96].copy_from_slice(&combined_ciphertexts[2]);
-    position.encrypted_data[96..128].copy_from_slice(&combined_ciphertexts[3]);
-    position.encrypted_data[128..160].copy_from_slice(&combined_ciphertexts[4]);
-    position.encrypted_data[160..192].copy_from_slice(&combined_ciphertexts[5]);
-    position.encrypted_data[192..224].copy_from_slice(&combined_ciphertexts[6]);
-
-    // Update encrypted open interest from combined MPC output (last 2 ciphertexts).
-    // Lengths already validated in the loop above.
-    market.encrypted_total_long_oi = combined_ciphertexts[7];
-    market.encrypted_total_short_oi = combined_ciphertexts[8];
+    // Open-position inputs were already persisted on position creation.
+    // Here we only need OI updates produced by MPC.
+    require!(oi_ciphertexts.len() == 2, ShadowPerpError::InvalidComputationResult);
+    market.encrypted_total_long_oi = oi_ciphertexts[0];
+    market.encrypted_total_short_oi = oi_ciphertexts[1];
+    // Persist the MXE-assigned nonce so subsequent computations can pass it back.
+    market.oi_nonce = result.field_1.nonce;
 
     // Increment active positions counter
     market.active_positions = market

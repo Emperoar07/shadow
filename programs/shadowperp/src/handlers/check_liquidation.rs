@@ -193,6 +193,7 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
     // output from the exact liquidation computation that was authorised for this position.
     // Combined with the guard above, this enforces a strict one-at-a-time lifecycle.
     position.pending_computation_account = ctx.accounts.computation_account.key();
+    position.set_pending_callback_meta(Position::CALLBACK_KIND_LIQUIDATION, computation_offset)?;
 
     let callback_ix = CheckLiquidationCallback::callback_ix(
         computation_offset,

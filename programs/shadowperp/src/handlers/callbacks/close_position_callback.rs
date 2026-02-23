@@ -105,11 +105,29 @@ pub fn close_position_callback_handler(
         ShadowPerpError::InvalidAccountData
     );
     require!(
+        position.pending_callback_seq() > 0,
+        ShadowPerpError::InvalidAccountData
+    );
+    require!(
+        position.pending_callback_kind() == Position::CALLBACK_KIND_CLOSE,
+        ShadowPerpError::InvalidAccountData
+    );
+    let expected_computation_account = derive_comp_pda!(
+        position.pending_computation_offset(),
+        ctx.accounts.mxe_account,
+        ErrorCode::ClusterNotSet
+    );
+    require!(
+        expected_computation_account == position.pending_computation_account,
+        ShadowPerpError::InvalidAccountData
+    );
+    require!(
         ctx.accounts.computation_account.key() == position.pending_computation_account,
         ShadowPerpError::Unauthorized
     );
     // Clear the binding so it cannot be consumed a second time.
     position.pending_computation_account = Pubkey::default();
+    position.clear_pending_callback_meta();
 
     // Settlement outputs from MPC.
     // Circuit returns flat tuple (i64, u64, u64, u64, Enc<Mxe, (u64, u64)>) in OutputStruct0:

@@ -173,6 +173,7 @@ pub fn handler(
     // Bind this position to the specific computation account that will execute it.
     // The callback will verify this key before accepting any MPC output.
     position.pending_computation_account = ctx.accounts.computation_account.key();
+    position.set_pending_callback_meta(Position::CALLBACK_KIND_OPEN, computation_offset)?;
 
     // Pack encrypted inputs into position data for on-chain storage
     let mut encrypted_data = [0u8; 256];
