@@ -11,13 +11,18 @@ use handlers::__client_accounts_check_liquidation_callback;
 use handlers::__client_accounts_close_position;
 use handlers::__client_accounts_close_position_callback;
 use handlers::__client_accounts_deposit_collateral;
+use handlers::__client_accounts_init_arcium_signer;
 use handlers::__client_accounts_init_close_position_comp_def;
 use handlers::__client_accounts_init_liquidation_comp_def;
 use handlers::__client_accounts_init_open_position_comp_def;
 use handlers::__client_accounts_init_private_order_book;
 use handlers::__client_accounts_initialize;
 use handlers::__client_accounts_open_position;
-use handlers::__client_accounts_open_position_callback;
+use handlers::__client_accounts_open_position_v2_callback;
+#[cfg(feature = "shielded-collateral")]
+use handlers::__client_accounts_set_shielded_collateral_feature;
+#[cfg(feature = "shielded-collateral")]
+use handlers::__client_accounts_init_shielded_pool;
 use handlers::__client_accounts_sync_comp_defs;
 use handlers::__client_accounts_update_price;
 use handlers::__client_accounts_withdraw_collateral;
@@ -27,22 +32,25 @@ use handlers::callbacks::close_position_callback::ClosePositionCallback;
 pub use handlers::callbacks::close_position_callback::ClosePositionOutput;
 use handlers::callbacks::liquidation_callback::CheckLiquidationCallback;
 pub use handlers::callbacks::liquidation_callback::CheckLiquidationOutput;
-use handlers::callbacks::open_position_callback::OpenPositionCallback;
+use handlers::callbacks::open_position_callback::OpenPositionV2Callback;
 pub use handlers::callbacks::open_position_callback::OpenPositionOutput;
 use handlers::check_liquidation::CheckLiquidation;
 use handlers::close_position::ClosePosition;
 use handlers::deposit_collateral::DepositCollateral;
+use handlers::init_arcium_signer::InitArciumSigner;
 use handlers::init_comp_defs::{
     InitClosePositionCompDef, InitLiquidationCompDef, InitOpenPositionCompDef,
 };
 use handlers::initialize::Initialize;
 use handlers::open_position::OpenPosition;
 use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
+#[cfg(feature = "shielded-collateral")]
+use handlers::shielded_collateral::{InitShieldedPool, SetShieldedCollateralFeature};
 use handlers::sync_comp_defs::SyncCompDefs;
 use handlers::update_price::UpdatePrice;
 use handlers::withdraw_collateral::WithdrawCollateral;
 
-declare_id!("6JSACVRd4TxePjsfvy3d5sXP5ykS4m3wbtkYJjHK8SCA");
+declare_id!("2Gz35PAHBkggSfV77mCENobt5YEURuYMAjgpvKXoL61d");
 
 #[arcium_program]
 pub mod shadowperp {
@@ -59,6 +67,11 @@ pub mod shadowperp {
     }
 
     /// Initialize computation definitions for MPC operations
+    pub fn init_arcium_signer(ctx: Context<InitArciumSigner>) -> Result<()> {
+        handlers::init_arcium_signer::handler(ctx)
+    }
+
+    /// Initialize computation definitions for MPC operations
     pub fn init_open_position_comp_def(ctx: Context<InitOpenPositionCompDef>) -> Result<()> {
         handlers::init_comp_defs::init_open_position_handler(ctx)
     }
@@ -69,6 +82,28 @@ pub mod shadowperp {
 
     pub fn init_liquidation_comp_def(ctx: Context<InitLiquidationCompDef>) -> Result<()> {
         handlers::init_comp_defs::init_liquidation_handler(ctx)
+    }
+
+    /// Initialize shielded collateral scaffolding accounts (feature-gated).
+    /// This does not alter current public deposit/withdraw flow.
+    #[cfg(feature = "shielded-collateral")]
+    pub fn init_shielded_pool(
+        ctx: Context<InitShieldedPool>,
+        enable_private_collateral: bool,
+    ) -> Result<()> {
+        handlers::shielded_collateral::init_shielded_pool_handler(
+            ctx,
+            enable_private_collateral,
+        )
+    }
+
+    /// Toggle shielded collateral activation bit on an initialized pool.
+    #[cfg(feature = "shielded-collateral")]
+    pub fn set_shielded_collateral_feature(
+        ctx: Context<SetShieldedCollateralFeature>,
+        enabled: bool,
+    ) -> Result<()> {
+        handlers::shielded_collateral::set_shielded_collateral_feature_handler(ctx, enabled)
     }
 
     /// Sync market comp-def pointers to already-initialized Arcium accounts.
@@ -84,8 +119,6 @@ pub mod shadowperp {
         encrypted_leverage: [u8; 32],
         encrypted_is_long: [u8; 32],
         encrypted_margin: [u8; 32],
-        encrypted_owner_lo: [u8; 32],
-        encrypted_owner_hi: [u8; 32],
         margin: u64,
         client_pubkey: [u8; 32],
         nonce: u128,
@@ -98,8 +131,6 @@ pub mod shadowperp {
             encrypted_leverage,
             encrypted_is_long,
             encrypted_margin,
-            encrypted_owner_lo,
-            encrypted_owner_hi,
             margin,
             client_pubkey,
             nonce,
@@ -108,9 +139,9 @@ pub mod shadowperp {
     }
 
     /// Callback after position opening MPC completes
-    #[arcium_callback(encrypted_ix = "open_position")]
-    pub fn open_position_callback(
-        ctx: Context<OpenPositionCallback>,
+    #[arcium_callback(encrypted_ix = "open_position_v2", auto_serialize = false)]
+    pub fn open_position_v2_callback(
+        ctx: Context<OpenPositionV2Callback>,
         output: SignedComputationOutputs<OpenPositionOutput>,
     ) -> Result<()> {
         handlers::callbacks::open_position_callback::open_position_callback_handler(ctx, output)

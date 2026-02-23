@@ -2,10 +2,13 @@ pub mod callbacks;
 pub mod check_liquidation;
 pub mod close_position;
 pub mod deposit_collateral;
+pub mod init_arcium_signer;
 pub mod init_comp_defs;
 pub mod initialize;
 pub mod open_position;
 pub mod private_orders;
+#[cfg(feature = "shielded-collateral")]
+pub mod shielded_collateral;
 pub mod sync_comp_defs;
 pub mod update_price;
 pub mod withdraw_collateral;
@@ -14,10 +17,13 @@ pub use callbacks::*;
 pub use check_liquidation::*;
 pub use close_position::*;
 pub use deposit_collateral::*;
+pub use init_arcium_signer::*;
 pub use init_comp_defs::*;
 pub use initialize::*;
 pub use open_position::*;
 pub use private_orders::*;
+#[cfg(feature = "shielded-collateral")]
+pub use shielded_collateral::*;
 pub use sync_comp_defs::*;
 pub use update_price::*;
 pub use withdraw_collateral::*;

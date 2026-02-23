@@ -1342,3 +1342,43 @@ SLOT_OFFSET=100 and SLOT_COUNTER_OFFSET=108 in arcium-anchor source confirm the 
 - Next safe step (updated):
   1. continue devnet-safe protocol hardening behind feature flags (`ShieldedPool` / `NullifierSet` scaffolding)
   2. add devnet-focused smoke/assert scripts only (no localnet dependency)
+## Session Update: Devnet Canary + Shielded Collateral Scaffold (2026-02-23 UTC)
+- Implemented a new devnet canary command:
+  - `scripts/devnet-canary.ts`
+  - `npm run check:canary`
+- Canary checks now include:
+  - oracle freshness
+  - comp-def pointer/finalization status
+  - client encryption bootstrap (`x25519` + `RescueCipher`)
+  - non-destructive `open_position` queue simulation health
+- Added feature-gated shielded collateral scaffolding (no live flow wiring):
+  - new state (feature `shielded-collateral`):
+    - `programs/shadowperp/src/state/shielded_collateral.rs`
+    - `ShieldedPool`, `NullifierSet`
+  - new handlers (feature `shielded-collateral`):
+    - `init_shielded_pool`
+    - `set_shielded_collateral_feature`
+  - integration wiring:
+    - `programs/shadowperp/src/state/mod.rs`
+    - `programs/shadowperp/src/handlers/mod.rs`
+    - `programs/shadowperp/src/lib.rs`
+    - `programs/shadowperp/Cargo.toml` (added feature flag)
+- Safety guarantee:
+  - `deposit_collateral`/`withdraw_collateral` behavior unchanged in default build.
+
+### Verification
+- `cargo check -p shadowperp` -> PASS
+- `cargo check -p shadowperp --features shielded-collateral` -> PASS
+- `npm run check:preflight` -> PASS
+- `npm run check:canary` -> FAIL (expected current blocker surfaced clearly):
+  - `Queue call health (open_position simulate): AccountDidNotSerialize (queue computation account serialization)`
+
+### Current blocker
+- Arcium devnet queue path serialization issue (`AccountDidNotSerialize`) remains unresolved.
+
+### Next safe step
+1. Keep using `npm run check:canary` as the single readiness gate before smoke tests.
+2. After Arcium-side queue serialization fix is confirmed, rerun canary then full devnet smoke.
+3. Only then consider wiring shielded collateral into runtime flows behind explicit enablement.
+- Canary command:
+  - `npx ts-node scripts/devnet-canary.ts --max-oracle-age-seconds 300`

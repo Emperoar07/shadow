@@ -59,6 +59,7 @@ Note:
 
 - Current collateral transfer path is public at L1.
 - Planned shielded internal collateral accounting is specified in `PRIVATE_COLLATERAL_SPEC.md`.
+- Scaffold accounts (`ShieldedPool`, `NullifierSet`) are now feature-gated and isolated from live deposit/withdraw flow until explicitly enabled.
 
 ## 5. Oracle Flow
 
@@ -83,13 +84,21 @@ Operational scripts:
 Use this sequence before real testing:
 
 1. `npm run check:preflight`
-2. `npm run oracle:once` or daemon
-3. `npm run check:stable`
-4. run smoke path (`_smoke_devnet.ts`) and verify:
+2. `npx ts-node scripts/devnet-canary.ts --max-oracle-age-seconds 300`
+3. `npm run oracle:once` or daemon
+4. `npm run check:stable`
+5. run smoke path (`_smoke_devnet.ts`) and verify:
    - deposit
    - open
    - callback progression
    - close
+
+Canary scope:
+
+- oracle freshness
+- finalized comp-def pointers
+- client encryption init
+- non-destructive `open_position` queue simulation health
 
 ## 8. Typical Failure Classes
 

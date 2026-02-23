@@ -58,6 +58,9 @@ Main handlers:
 - `deposit_collateral`
 - `withdraw_collateral`
 - `update_price`
+- feature-gated shielded collateral scaffold:
+  - `init_shielded_pool` (`shielded-collateral` feature only)
+  - `set_shielded_collateral_feature` (`shielded-collateral` feature only)
 
 State accounts:
 
@@ -65,6 +68,9 @@ State accounts:
 - `MarginAccount`
 - `Position`
 - optional private orderbook state
+- feature-gated shielded collateral state:
+  - `ShieldedPool`
+  - `NullifierSet`
 
 ### 3. Arcium MPC Layer
 
@@ -107,6 +113,7 @@ See scripts:
 - `scripts/init-comp-defs.ts`
 - `scripts/price-oracle.ts`
 - `scripts/stable-preflight.ts`
+- `scripts/devnet-canary.ts`
 
 ## Known Architectural Risk Area
 
