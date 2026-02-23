@@ -200,3 +200,55 @@ pub struct PositionLiquidated {
     pub position: Pubkey,
     pub timestamp: i64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn callback_meta_roundtrip_and_clear() {
+        let mut position = Position::default();
+
+        position
+            .set_pending_callback_meta(Position::CALLBACK_KIND_OPEN, 42)
+            .expect("set callback meta");
+
+        assert_eq!(position.callback_seq_counter(), 1);
+        assert_eq!(position.pending_callback_seq(), 1);
+        assert_eq!(position.pending_callback_kind(), Position::CALLBACK_KIND_OPEN);
+        assert_eq!(position.pending_computation_offset(), 42);
+
+        position.clear_pending_callback_meta();
+
+        assert_eq!(position.callback_seq_counter(), 1);
+        assert_eq!(position.pending_callback_seq(), 0);
+        assert_eq!(position.pending_callback_kind(), Position::CALLBACK_KIND_NONE);
+        assert_eq!(position.pending_computation_offset(), 0);
+    }
+
+    #[test]
+    fn callback_seq_is_monotonic_across_cycles() {
+        let mut position = Position::default();
+
+        position
+            .set_pending_callback_meta(Position::CALLBACK_KIND_OPEN, 11)
+            .expect("set first callback");
+        position.clear_pending_callback_meta();
+
+        position
+            .set_pending_callback_meta(Position::CALLBACK_KIND_CLOSE, 22)
+            .expect("set second callback");
+
+        assert_eq!(position.callback_seq_counter(), 2);
+        assert_eq!(position.pending_callback_seq(), 2);
+        assert_eq!(position.pending_callback_kind(), Position::CALLBACK_KIND_CLOSE);
+        assert_eq!(position.pending_computation_offset(), 22);
+    }
+
+    #[test]
+    fn callback_kind_none_is_rejected() {
+        let mut position = Position::default();
+        let result = position.set_pending_callback_meta(Position::CALLBACK_KIND_NONE, 7);
+        assert!(result.is_err());
+    }
+}

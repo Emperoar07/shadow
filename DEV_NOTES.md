@@ -1297,3 +1297,16 @@ SLOT_OFFSET=100 and SLOT_COUNTER_OFFSET=108 in arcium-anchor source confirm the 
 - Next safe step:
   1. add localnet integration test for duplicate queue rejection + callback consume-once semantics.
   2. then proceed to `ShieldedPool`/`NullifierSet` scaffolding behind feature flag.
+## Session Update: Callback Metadata Unit Tests Added (2026-02-23 UTC)
+- Added focused unit tests in `programs/shadowperp/src/state/position.rs` for callback metadata lifecycle:
+  - set + read + clear roundtrip
+  - sequence monotonicity across callback cycles
+  - rejection of invalid callback kind (`CALLBACK_KIND_NONE`)
+- Verification:
+  - `cargo test -p shadowperp state::position::tests -- --nocapture` -> PASS (3 passed)
+  - `npm run check:preflight` -> PASS
+- Current blocker (unchanged):
+  - Arcium devnet `QueueComputation` serialization issue on open-position path.
+- Next safe step:
+  1. add localnet integration test path for duplicate queue rejection + consume-once callback semantics.
+  2. begin `ShieldedPool`/`NullifierSet` scaffolding behind feature flag after test path is in place.
