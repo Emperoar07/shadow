@@ -1,4 +1,4 @@
-# ShadowPerp
+# Shadow
 
 > **Trade in the shadows, settle in the light.**
 
