@@ -100,13 +100,8 @@ pub fn open_position_callback_handler(
         expected_computation_account == position.pending_computation_account,
         ShadowPerpError::InvalidAccountData
     );
-    require!(
-        ctx.accounts.computation_account.key() == position.pending_computation_account,
-        ShadowPerpError::Unauthorized
-    );
-    // Clear the binding so it cannot be consumed a second time.
-    position.pending_computation_account = Pubkey::default();
-    position.clear_pending_callback_meta();
+    // Consume the binding so this callback result cannot be replayed.
+    position.consume_pending_computation(ctx.accounts.computation_account.key())?;
 
     // Enforce MPC validation outcome.
     // Circuit returns tuple -> wrapped in OutputStruct0:

@@ -117,14 +117,9 @@ pub fn check_liquidation_callback_handler(
         expected_computation_account == position.pending_computation_account,
         ShadowPerpError::InvalidAccountData
     );
-    require!(
-        ctx.accounts.computation_account.key() == position.pending_computation_account,
-        ShadowPerpError::Unauthorized
-    );
     // Clear the binding immediately even if liquidation does not occur.
     // The computation is consumed and must not be reusable.
-    position.pending_computation_account = Pubkey::default();
-    position.clear_pending_callback_meta();
+    position.consume_pending_computation(ctx.accounts.computation_account.key())?;
 
     // Extract revealed liquidation decision.
     // Health factor remains private in MPC output.

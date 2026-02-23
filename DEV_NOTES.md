@@ -1310,3 +1310,27 @@ SLOT_OFFSET=100 and SLOT_COUNTER_OFFSET=108 in arcium-anchor source confirm the 
 - Next safe step:
   1. add localnet integration test path for duplicate queue rejection + consume-once callback semantics.
   2. begin `ShieldedPool`/`NullifierSet` scaffolding behind feature flag after test path is in place.
+## Session Update: Pending-Computation Helpers + Consume-Once Wiring (2026-02-23 UTC)
+- Added `Position` lifecycle helpers in `programs/shadowperp/src/state/position.rs`:
+  - `begin_pending_computation(...)`
+  - `consume_pending_computation(...)`
+- Queue handlers now use helper-based binding:
+  - `programs/shadowperp/src/handlers/open_position.rs`
+  - `programs/shadowperp/src/handlers/close_position.rs`
+  - `programs/shadowperp/src/handlers/check_liquidation.rs`
+- Callback handlers now consume bindings via helper (single-use semantics):
+  - `programs/shadowperp/src/handlers/callbacks/open_position_callback.rs`
+  - `programs/shadowperp/src/handlers/callbacks/close_position_callback.rs`
+  - `programs/shadowperp/src/handlers/callbacks/liquidation_callback.rs`
+- Expanded unit coverage in `position.rs` to assert:
+  - duplicate bind rejection
+  - consume-once behavior
+- Verification:
+  - `cargo test -p shadowperp state::position::tests -- --nocapture` -> PASS (5 passed)
+  - `cargo check -p shadowperp` -> PASS
+  - `npm run check:preflight` -> PASS
+- Current blocker (unchanged):
+  - Arcium devnet `QueueComputation` serialization issue on open-position path.
+- Next safe step:
+  1. Add localnet integration test for duplicate queue rejection + callback consume-once path.
+  2. Start `ShieldedPool`/`NullifierSet` scaffolding behind feature flag.

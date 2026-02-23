@@ -142,6 +142,34 @@ impl Position {
         self.write_u64_reserved(Self::PENDING_COMP_OFFSET_OFFSET, 0);
     }
 
+    pub fn begin_pending_computation(
+        &mut self,
+        computation_account: Pubkey,
+        callback_kind: u8,
+        computation_offset: u64,
+    ) -> Result<()> {
+        require!(
+            self.pending_computation_account == Pubkey::default(),
+            ShadowPerpError::ComputationInProgress
+        );
+        self.pending_computation_account = computation_account;
+        self.set_pending_callback_meta(callback_kind, computation_offset)
+    }
+
+    pub fn consume_pending_computation(&mut self, computation_account: Pubkey) -> Result<()> {
+        require!(
+            self.pending_computation_account != Pubkey::default(),
+            ShadowPerpError::InvalidAccountData
+        );
+        require!(
+            self.pending_computation_account == computation_account,
+            ShadowPerpError::Unauthorized
+        );
+        self.pending_computation_account = Pubkey::default();
+        self.clear_pending_callback_meta();
+        Ok(())
+    }
+
     pub const LEN: usize = 8 +   // discriminator
         32 +  // owner
         32 +  // market
@@ -250,5 +278,45 @@ mod tests {
         let mut position = Position::default();
         let result = position.set_pending_callback_meta(Position::CALLBACK_KIND_NONE, 7);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn begin_pending_computation_rejects_overlap() {
+        let mut position = Position::default();
+        let first = Pubkey::new_unique();
+        let second = Pubkey::new_unique();
+
+        position
+            .begin_pending_computation(first, Position::CALLBACK_KIND_OPEN, 5)
+            .expect("bind first pending computation");
+
+        let duplicate = position.begin_pending_computation(second, Position::CALLBACK_KIND_CLOSE, 9);
+        assert!(duplicate.is_err());
+        assert_eq!(position.pending_computation_account, first);
+        assert_eq!(position.pending_callback_kind(), Position::CALLBACK_KIND_OPEN);
+        assert_eq!(position.pending_computation_offset(), 5);
+    }
+
+    #[test]
+    fn consume_pending_computation_is_single_use() {
+        let mut position = Position::default();
+        let computation = Pubkey::new_unique();
+
+        position
+            .begin_pending_computation(computation, Position::CALLBACK_KIND_LIQUIDATION, 77)
+            .expect("bind pending computation");
+
+        position
+            .consume_pending_computation(computation)
+            .expect("consume pending computation");
+
+        assert_eq!(position.pending_computation_account, Pubkey::default());
+        assert_eq!(position.pending_callback_seq(), 0);
+        assert_eq!(position.pending_callback_kind(), Position::CALLBACK_KIND_NONE);
+        assert_eq!(position.pending_computation_offset(), 0);
+        assert_eq!(position.callback_seq_counter(), 1);
+
+        let consumed_again = position.consume_pending_computation(computation);
+        assert!(consumed_again.is_err());
     }
 }

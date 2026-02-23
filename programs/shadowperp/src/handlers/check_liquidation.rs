@@ -111,13 +111,6 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
         position.status == PositionStatus::Open,
         ShadowPerpError::PositionNotOpen
     );
-    // Enforce one in-flight computation per position for liquidation checks.
-    // This avoids replacement of an existing callback binding before consumption.
-    require!(
-        position.pending_computation_account == Pubkey::default(),
-        ShadowPerpError::ComputationInProgress
-    );
-
     // Validate price is not stale (within 300 seconds)
     let price_age = clock.unix_timestamp - market.last_price_update;
     require!(price_age < 300, ShadowPerpError::StalePrice);
@@ -191,9 +184,12 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
 
     // Bind to the specific computation account so the callback can verify it is consuming
     // output from the exact liquidation computation that was authorised for this position.
-    // Combined with the guard above, this enforces a strict one-at-a-time lifecycle.
-    position.pending_computation_account = ctx.accounts.computation_account.key();
-    position.set_pending_callback_meta(Position::CALLBACK_KIND_LIQUIDATION, computation_offset)?;
+    // This helper enforces strict one-at-a-time lifecycle semantics.
+    position.begin_pending_computation(
+        ctx.accounts.computation_account.key(),
+        Position::CALLBACK_KIND_LIQUIDATION,
+        computation_offset,
+    )?;
 
     let callback_ix = CheckLiquidationCallback::callback_ix(
         computation_offset,

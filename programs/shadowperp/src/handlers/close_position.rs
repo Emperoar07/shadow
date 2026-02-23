@@ -114,19 +114,15 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         position.status == PositionStatus::Open,
         ShadowPerpError::PositionNotOpen
     );
-    // Enforce one in-flight computation per position. Prevents overwriting
-    // an existing callback binding before it is consumed.
-    require!(
-        position.pending_computation_account == Pubkey::default(),
-        ShadowPerpError::ComputationInProgress
-    );
-
     // Update status to closing
     position.status = PositionStatus::Closing;
     // Bind to the specific computation account so the callback can verify it is consuming
     // output from the exact computation that was authorised for this close request.
-    position.pending_computation_account = ctx.accounts.computation_account.key();
-    position.set_pending_callback_meta(Position::CALLBACK_KIND_CLOSE, computation_offset)?;
+    position.begin_pending_computation(
+        ctx.accounts.computation_account.key(),
+        Position::CALLBACK_KIND_CLOSE,
+        computation_offset,
+    )?;
 
     // Build arguments for close_position MPC circuit
     // position: Enc<Mxe, Position> - pass the encrypted position data stored on-chain

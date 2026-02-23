@@ -164,16 +164,14 @@ pub fn handler(
     position.client_pubkey = client_pubkey;
     position.index = next_position_index;
     position.bump = ctx.bumps.position;
-    // Defensive guard: a freshly initialized position must not already carry
-    // an in-flight computation binding.
-    require!(
-        position.pending_computation_account == Pubkey::default(),
-        ShadowPerpError::ComputationInProgress
-    );
     // Bind this position to the specific computation account that will execute it.
     // The callback will verify this key before accepting any MPC output.
-    position.pending_computation_account = ctx.accounts.computation_account.key();
-    position.set_pending_callback_meta(Position::CALLBACK_KIND_OPEN, computation_offset)?;
+    // This helper also enforces one in-flight computation at a time.
+    position.begin_pending_computation(
+        ctx.accounts.computation_account.key(),
+        Position::CALLBACK_KIND_OPEN,
+        computation_offset,
+    )?;
 
     // Pack encrypted inputs into position data for on-chain storage
     let mut encrypted_data = [0u8; 256];
