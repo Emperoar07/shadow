@@ -1334,3 +1334,11 @@ SLOT_OFFSET=100 and SLOT_COUNTER_OFFSET=108 in arcium-anchor source confirm the 
 - Next safe step:
   1. Add localnet integration test for duplicate queue rejection + callback consume-once path.
   2. Start `ShieldedPool`/`NullifierSet` scaffolding behind feature flag.
+## Session Update: Operator Directive - Devnet Only (2026-02-23 UTC)
+- User directive received: do not integrate localnet anymore.
+- Policy update applied:
+  - localnet integration testing is deferred
+  - next hardening/verification steps will be devnet-only
+- Next safe step (updated):
+  1. continue devnet-safe protocol hardening behind feature flags (`ShieldedPool` / `NullifierSet` scaffolding)
+  2. add devnet-focused smoke/assert scripts only (no localnet dependency)
