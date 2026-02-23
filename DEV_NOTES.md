@@ -1382,3 +1382,223 @@ SLOT_OFFSET=100 and SLOT_COUNTER_OFFSET=108 in arcium-anchor source confirm the 
 3. Only then consider wiring shielded collateral into runtime flows behind explicit enablement.
 - Canary command:
   - `npx ts-node scripts/devnet-canary.ts --max-oracle-age-seconds 300`
+
+## Unified Hosting Orchestrator (2026-02-23 UTC)
+- User request: one command should start all required runtime services together, and one command should stop all together.
+- Added new orchestrator:
+  - `scripts/hosting-stack.ts`
+  - Manages:
+    - Next.js app dev server
+    - oracle daemon (`scripts/price-oracle.ts`)
+  - Uses detached processes + PID state file:
+    - state: `.runtime/hosting-stack.json`
+    - logs:
+      - `.runtime/app-dev.log`
+      - `.runtime/oracle-daemon.log`
+- Added package scripts:
+  - `npm run hosting:start`
+  - `npm run hosting:stop`
+  - `npm run hosting:status`
+  - `npm run hosting:restart`
+  - `npm run canary:devnet`
+
+### Verification Run (post-change)
+- Required session checklist completed:
+  - read `DEV_NOTES.md`
+  - `git status --short`
+  - verified env values in `app/.env.local`
+  - `npm run check:preflight` -> FAIL (oracle stale), then `npm run oracle:once`, then PASS
+- Orchestrator validation:
+  - `npx ts-node scripts/hosting-stack.ts start` -> starts app + oracle
+  - `npx ts-node scripts/hosting-stack.ts status` -> both running with PIDs/logs
+  - verified logs:
+    - app ready on `http://localhost:3000`
+    - oracle daemon publishing/skipping as expected
+  - `npx ts-node scripts/hosting-stack.ts stop` -> both stopped cleanly
+- Canary check:
+  - `npx ts-node scripts/devnet-canary.ts --max-oracle-age-seconds 300` -> still fails only on known blocker:
+    - `Queue call health (open_position simulate): AccountDidNotSerialize (queue computation account serialization)`
+
+### Current blocker
+- Arcium queue serialization failure on `open_position` (`AccountDidNotSerialize`) remains the protocol blocker for real open-position flow.
+
+### Next safe step
+1. Use unified runtime commands during testing:
+   - `npm run hosting:start`
+   - `npm run canary:devnet`
+   - `npm run hosting:stop`
+2. Continue Arcium-side queue serialization unblock path while keeping this orchestrator unchanged.
+
+## Repo Hygiene + README Cleanup (2026-02-23 UTC)
+- Request addressed: clean public-facing repo metadata and make README human-readable.
+- Updated `.gitignore` to explicit allow/deny patterns:
+  - removed brittle global `*.json` ignore
+  - added targeted secret/key ignores (`*keypair*.json`, `**/id.json`, `*.pem`, `*.key`)
+  - added runtime/scratch/tooling ignores (`.runtime/`, `_*.log`, `_tmp_*`, temp clones, archives, preview html)
+  - ensured `.env.example` files remain trackable while `.env*` stays ignored
+- Rewrote `README.md` into concise, accurate sections:
+  - current status with known devnet blocker (`AccountDidNotSerialize` queue path)
+  - quick start and unified hosting commands
+  - ops command map and onboarding read order
+  - safety rules for public repo hygiene
+- Secret scan result:
+  - no committed keypair/env-local files detected in tracked set
+  - no hardcoded user API keys found in tracked docs/scripts
+
+### Verification
+- Reviewed current tracked/untracked repo state with `git status --short`
+- Scanned repo for key-like strings and known leaked values via `rg`
+- Confirmed README renders cleanly (ASCII, no mojibake)
+
+### Current blocker
+- Protocol-side queue serialization (`AccountDidNotSerialize`) remains unchanged.
+
+### Next safe step
+1. Commit only docs/hygiene files (`README.md`, `.gitignore`) as a small isolated commit.
+2. Keep operational/protocol fixes in separate commits to avoid release confusion.
+
+## UI Minimal Privacy Label (2026-02-23 UTC)
+- User request: hide oracle + long privacy sentence in bottom panel header and keep only minimal lock + `encrypted`.
+- Updated:
+  - `app/src/components/BottomPositionsPanel.tsx`
+  - removed `Oracle: $...` inline label from the header right side
+  - replaced long copy `Size, leverage & direction encrypted via Arcium MPC` with `encrypted`
+  - kept lock icon indicator.
+
+### Verification
+- `npm run check:preflight` -> PASS
+- `pnpm --dir app exec tsc --noEmit` -> PASS
+
+### Current blocker
+- Unchanged: Arcium queue path `AccountDidNotSerialize` on `open_position`.
+
+### Next safe step
+1. Refresh UI and confirm header now shows only lock icon + `encrypted`.
+2. Keep protocol-debug work isolated from UI changes.
+
+## Delegated Session Batching Scaffold (2026-02-23 UTC)
+- User request: implement safe "single owner approval + many encrypted executions" flow.
+- Implemented on-chain delegated session model:
+  - New state: `TradeSession`
+    - file: `programs/shadowperp/src/state/trade_session.rs`
+    - fields: owner, market, relayer, session_id, max_actions, used_actions, max_margin_per_action, expires_at, revoked
+    - guards: relayer binding, expiry, action cap, per-open margin cap, owner revocation
+  - New instructions:
+    - `create_trade_session`
+    - `revoke_trade_session`
+    - `open_position_with_session`
+    - `close_position_with_session`
+  - New handler module:
+    - `programs/shadowperp/src/handlers/session_trading.rs`
+  - Wiring updates:
+    - `programs/shadowperp/src/state/mod.rs`
+    - `programs/shadowperp/src/handlers/mod.rs`
+    - `programs/shadowperp/src/lib.rs`
+    - `programs/shadowperp/src/errors/mod.rs` (session-specific errors)
+- Safety properties:
+  - owner signs once to create session
+  - relayer can execute multiple encrypted open/close queue txs without repeated owner signatures
+  - session is bounded by expiry + max actions + max margin per open
+  - owner can revoke at any time
+  - existing direct open/close path unchanged
+  - collateral transfer path unchanged/public (by design)
+
+### Frontend SDK support
+- Added client methods in `app/src/lib/client.ts`:
+  - `getTradeSessionAddress`
+  - `getTradeSession`
+  - `createTradeSession`
+  - `revokeTradeSession`
+  - `openPositionWithSession`
+  - `closePositionWithSession`
+- Added `TradeSession` type in `app/src/types/index.ts`.
+
+### Verification
+- `cargo check -p shadowperp` -> PASS
+- `pnpm --dir app exec tsc --noEmit` -> PASS
+- `npm run check:preflight` -> FAIL initially (oracle stale), then:
+  - `npm run oracle:once`
+  - `npm run check:preflight` -> PASS
+
+### Current blocker
+- Unchanged protocol blocker: Arcium queue path still fails on open-position with `AccountDidNotSerialize` in current devnet namespace.
+
+### Next safe step
+1. Rebuild/deploy program and regenerate IDL, then sync `app/src/idl/shadowperp.json` so new session instructions are callable at runtime.
+2. Add a relayer ops script (`create-session`, `queue-open`, `queue-close`) and UI controls for owner session lifecycle.
+3. Keep delegated path behind an explicit runtime flag until end-to-end devnet smoke passes.
+
+## Session Update: Relayer Ops Live + 5h Session Default + UI Hide (2026-02-23 UTC)
+- User request handled:
+  - keep `Privacy degraded` indicator hidden in trade UI
+  - move delegated session flow from source-only to live deploy path
+  - make session default duration 5 hours
+  - keep hosting stack live.
+
+### Code changes
+- Hidden degraded UI indicator:
+  - `app/src/components/TradingPanel.tsx`
+  - removed render block for `Privacy degraded` badge (`privacyStatus === "error"`).
+- Session default duration:
+  - `app/src/lib/client.ts`
+  - added `DEFAULT_TRADE_SESSION_DURATION_SECONDS = 5 * 60 * 60`
+  - `createTradeSession(...)` now accepts optional `expiresAt` and defaults to current time + 5h.
+- New relayer runbook script:
+  - `scripts/session-relayer.ts`
+  - commands: `create | status | revoke | open | close | smoke`
+  - supports owner/relayer wallets, session id, limits, and default 5h expiry.
+- Added package scripts:
+  - `session:relayer:create`
+  - `session:relayer:status`
+  - `session:relayer:open`
+  - `session:relayer:close`
+  - `session:relayer:revoke`
+  - `session:relayer:smoke`
+
+### Deploy / IDL / runtime verification
+- Build:
+  - `npm run build:anchor:safe` -> PASS
+- Deploy:
+  - `npx ts-node scripts/deploy-devnet.ts` (with Helius RPC) -> PASS
+  - program confirmed: `2Gz35PAHBkggSfV77mCENobt5YEURuYMAjgpvKXoL61d`
+  - market confirmed: `C3UcQ3FnjqUsFPWfDgKNoq4cGzpWw6tSEqM6bf1MoFv8`
+- IDL sync:
+  - `npm run app:sync-idl` -> PASS
+  - deploy script also synced `target/idl/shadowperp.json` to `app/src/idl/shadowperp.json`
+- Relayer flow:
+  - `npm run session:relayer:smoke`
+  - step 1 (create session) -> PASS
+    - sample session id: `1771850982`
+    - sample session pda: `AdHsSWitkufv5kMHBVAZ9WupYgoAHdm3HWDkv1Ydhz8n`
+    - expiry: `2026-02-23T17:49:42.000Z` (5h)
+  - step 2 (delegated open queue) -> FAIL
+    - `AnchorError account: comp`
+    - `AccountDidNotSerialize (3004)`
+- Session status check:
+  - `npm run session:relayer:status -- --session-id 1771850982` -> PASS
+  - confirms active, unrevoked, `used_actions=0`, expiry set correctly.
+- Preflight:
+  - `npm run check:preflight` -> PASS
+- Canary:
+  - `npm run canary:devnet` -> FAIL only on queue simulation with same `AccountDidNotSerialize`.
+- Hosting:
+  - `npm run hosting:restart` + `npm run hosting:status` -> PASS
+  - app + oracle daemon running from `.runtime` logs.
+
+### Operational note
+- Deploy script writes initial oracle to `$103.00`; this can trigger oracle safety freeze if external sources are far from that price.
+- Performed one-shot correction with temporary env:
+  - `ORACLE_MAX_DEVIATION_BPS=10000 npm run oracle:once`
+- Restarted hosting stack so daemon baseline reset to live market level.
+
+### Current blocker
+- Primary protocol blocker unchanged:
+  - Arcium queue path for `open_position` / `open_position_with_session` fails at `queue_computation` with `AccountDidNotSerialize (3004)` on `comp`.
+
+### Next safe step
+1. Keep delegated session ops available (create/revoke/status) and treat delegated open/close as blocked by Arcium queue serialization until resolved.
+2. Use `npm run canary:devnet` as the hard gate before trade tests.
+3. Continue with the fresh finalized-comp-def reset + Arcium-side serialization unblock track; once fixed, rerun:
+   - `npm run session:relayer:smoke`
+   - open/close end-to-end smoke
+   - then mark delegated batching live-ready.

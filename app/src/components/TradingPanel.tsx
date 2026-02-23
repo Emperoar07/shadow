@@ -4,22 +4,19 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
-import { fetchPrices } from "../lib/prices";
+import { fetchPrices, getLastPriceMeta } from "../lib/prices";
 import TradeConfirmationModal, { TradeStep } from "./TradeConfirmationModal";
 import CollateralModal from "./CollateralModal";
 import { useArciumPrivacy } from "../hooks/useArcium";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import {
-  PendingLimitOrder,
   disableEncryptedAutomationPersistence,
   enableEncryptedAutomationPersistence,
   createLimitOrderId,
   getLimitOrders,
-  removeLimitOrder,
   setOwnerPositionView,
   setPositionRule,
-  subscribeAutomationUpdates,
   updateLimitOrder,
   upsertLimitOrder,
 } from "../lib/trade-automation";
@@ -28,7 +25,9 @@ type Direction = "long" | "short";
 type SizeUnit = "base" | "usd";
 type OrderType = "market" | "limit";
 
-const LEVERAGE_PRESETS = [2, 5, 10, 25, 50] as const;
+const LEVERAGE_MARKERS = [1, 5, 10, 25, 50] as const;
+const MIN_LEVERAGE = LEVERAGE_MARKERS[0];
+const MAX_LEVERAGE = LEVERAGE_MARKERS[LEVERAGE_MARKERS.length - 1];
 const TP_SL_MIN_GAP_BPS = 10; // 0.10%
 const MAX_POSITION_SIZE_BASE = 1_000_000;
 const MAX_POSITION_NOTIONAL_USDC = 5_000_000;
@@ -114,7 +113,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   const [limitPrice, setLimitPrice] = useState("");
   const [takeProfit, setTakeProfit] = useState("");
   const [stopLoss, setStopLoss] = useState("");
-  const [leverage, setLeverage] = useState(5);
+  const [leverage, setLeverage] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
@@ -127,18 +126,13 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   const [tradeTxSig, setTradeTxSig] = useState<string | undefined>();
   const [tradeError, setTradeError] = useState<string | undefined>();
   const [clientInitError, setClientInitError] = useState<string | null>(null);
-  const [priceWarning, setPriceWarning] = useState<string | null>(null);
-  const [limitOrders, setLimitOrders] = useState<PendingLimitOrder[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
   const refreshSeqRef = useRef(0);
-  const priceWarningToastOpenRef = useRef(false);
   const handleSubmitRef = useRef<() => void>(() => undefined);
   const limitExecutorRunningRef = useRef(false);
   const processingOrderIdsRef = useRef<Set<string>>(new Set());
   const {
     submitPrivateOrder,
-    status: privacyStatus,
     setError: setPrivacyError,
     resetStatus: resetPrivacyStatus,
   } = useArciumPrivacy();
@@ -193,15 +187,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     setStopLoss("");
   }, [activePair.label, sizeUnit]);
 
-  const loadAutomationState = useCallback(() => {
-    setLimitOrders(getLimitOrders());
-  }, []);
-
-  useEffect(() => {
-    loadAutomationState();
-    return subscribeAutomationUpdates(loadAutomationState);
-  }, [loadAutomationState]);
-
   useEffect(() => {
     let cancelled = false;
     const owner = publicKey?.toBase58();
@@ -219,7 +204,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           owner,
           signMessage,
         });
-        if (!cancelled) loadAutomationState();
+        if (cancelled) return;
       } catch (error: any) {
         disableEncryptedAutomationPersistence();
         if (cancelled) return;
@@ -234,39 +219,29 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     return () => {
       cancelled = true;
     };
-  }, [publicKey, signMessage, loadAutomationState]);
-
-  useEffect(() => {
-    return () => {
-      toast.dismiss("price-feed-warning");
-    };
-  }, []);
+  }, [publicKey, signMessage]);
 
   const refreshMarketData = useCallback(async () => {
     const requestSeq = ++refreshSeqRef.current;
-    const fallbackWarning = "Price feed degraded. Showing fallback market data.";
-    const clientWarning = "Trading client unavailable. Price shown is fallback data.";
+    const fallbackWarning = "Live price feed unavailable. Showing cached market data.";
     const setWarning = (message: string | null) => {
-      if (requestSeq !== refreshSeqRef.current) return;
-      setPriceWarning(message);
-      if (message) {
-        toast.error(message, { id: "price-feed-warning" });
-        priceWarningToastOpenRef.current = true;
-      } else if (priceWarningToastOpenRef.current) {
-        toast.dismiss("price-feed-warning");
-        priceWarningToastOpenRef.current = false;
-      }
+      // Price-source warnings are intentionally hidden in the UI.
+      // Keep this hook as a placeholder for internal logging/debug channels.
+      void requestSeq;
+      void message;
     };
 
     const livePrices = await fetchPrices().catch(() => null);
     const livePairPrice = livePrices?.[activePair.label]?.price ?? null;
     const fallbackPrice = livePairPrice ?? activePair.mockPrice;
+    const priceMeta = getLastPriceMeta();
+    const hasLivePrice = priceMeta.quality === "live";
 
     if (!anchorWallet) {
       if (requestSeq !== refreshSeqRef.current) return;
       setMarketPrice(fallbackPrice);
       setMarginBalance(null);
-      setWarning(livePairPrice === null ? fallbackWarning : null);
+      setWarning(hasLivePrice ? null : fallbackWarning);
       return;
     }
 
@@ -275,7 +250,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       if (requestSeq !== refreshSeqRef.current) return;
       setMarketPrice(fallbackPrice);
       setMarginBalance(null);
-      setWarning(clientWarning);
+      setWarning(hasLivePrice ? null : fallbackWarning);
       return;
     }
 
@@ -318,11 +293,11 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         setMarginBalance(0);
       }
 
-      setWarning(usedFallbackPrice ? fallbackWarning : null);
+      setWarning(usedFallbackPrice && !hasLivePrice ? fallbackWarning : null);
     } catch {
       if (requestSeq !== refreshSeqRef.current) return;
       setMarketPrice(fallbackPrice);
-      setWarning(fallbackWarning);
+      setWarning(hasLivePrice ? null : fallbackWarning);
     }
   }, [anchorWallet, publicKey, getClient, activePair]);
 
@@ -340,7 +315,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     try {
       const ctx = getClient();
       if (!ctx) {
-        toast.error("Deposits unavailable in demo mode.", { id: "deposit" });
+        toast.error(clientInitError || "Deposits unavailable. Check runtime configuration.", { id: "deposit" });
         return;
       }
       const { client, runtime } = ctx;
@@ -365,11 +340,19 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       void refreshMarketData();
     } catch (error: any) {
       const msg = error?.message || "Deposit failed";
-      if (!msg.includes("env var")) toast.error(msg, { id: "deposit" });
+      if (msg.includes("env var")) {
+        const matched = msg.match(/env var:\s*([A-Z0-9_]+)/i);
+        const detail = matched?.[1]
+          ? `Deposits unavailable: missing ${matched[1]}. Set it in app/.env.local and restart Next.js.`
+          : "Deposits unavailable. Check app/.env.local and restart Next.js.";
+        toast.error(detail, { id: "deposit" });
+      } else {
+        toast.error(msg, { id: "deposit" });
+      }
     } finally {
       setIsDepositing(false);
     }
-  }, [depositAmount, anchorWallet, publicKey, getClient, refreshMarketData]);
+  }, [depositAmount, anchorWallet, publicKey, getClient, refreshMarketData, clientInitError]);
 
   const submitEncryptedOrder = useCallback(
     async (input: {
@@ -667,434 +650,359 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     return () => clearInterval(id);
   }, [runLimitExecutor]);
 
-  const updateOrderField = useCallback(
-    (
-      orderId: string,
-      field: "limitPrice" | "takeProfit" | "stopLoss",
-      raw: string
-    ) => {
-      const parsed = parseOptionalPositive(raw);
-      const patch: Partial<PendingLimitOrder> = {
-        status: "pending",
-        error: undefined,
-      };
-      if (field === "limitPrice") {
-        if (parsed === null) {
-          toast.error("Limit price must be greater than 0");
-          return;
-        }
-        patch.limitPrice = parsed;
-      } else if (field === "takeProfit") {
-        patch.takeProfit = parsed;
-      } else {
-        patch.stopLoss = parsed;
-      }
-      updateLimitOrder(orderId, patch);
-    },
-    []
-  );
-
   return (
-    <div className="position-card rounded-xl p-6">
-      <h2 className="text-xl font-semibold mb-6">Open Position</h2>
+    <div className="position-card rounded-xl border border-accent-purple/20 bg-[#0a0f1f]/85 p-4 sm:p-5">
+      <h2 className="mb-5 text-xl font-semibold text-white">Open Position</h2>
 
-      <div className={isHorizontal ? "grid grid-cols-1 lg:grid-cols-12 gap-4 items-start" : ""}>
-        <div className={isHorizontal ? "lg:col-span-7" : ""}>
-      {/* Margin Balance + Manage button */}
-      {publicKey && (
-        <div className="flex items-center justify-between bg-shadow-700 rounded-lg px-4 py-3 mb-6">
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">Margin Balance</p>
-            <p
-              className={`text-sm font-semibold ${
-                marginBalance === 0 ? "text-yellow-400" : "text-white"
+      <div className={isHorizontal ? "grid grid-cols-1 items-start gap-4 lg:grid-cols-12" : "space-y-4"}>
+        <div className={isHorizontal ? "space-y-4 lg:col-span-7" : "space-y-4"}>
+          {publicKey && (
+            <div className="flex items-center justify-between rounded-xl border border-shadow-500 bg-shadow-700/70 px-4 py-3">
+              <div>
+                <p className="mb-0.5 text-[11px] uppercase tracking-[0.16em] text-gray-500">Margin Balance</p>
+                <p
+                  className={`text-sm font-semibold ${
+                    marginBalance === 0 ? "text-yellow-400" : "text-white"
+                  }`}
+                >
+                  {marginBalance !== null ? `$${marginBalance.toFixed(2)} USDC` : "--"}
+                </p>
+              </div>
+              <button
+                onClick={() => setCollateralModalOpen(true)}
+                className="rounded-lg border border-accent-purple/35 bg-accent-purple/15 px-3 py-1.5 text-xs font-medium text-accent-purple transition-colors hover:bg-accent-purple/25"
+              >
+                {marginBalance === 0 ? "Deposit Collateral" : "Manage"}
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setDirection("long")}
+              className={`rounded-lg py-3 font-semibold transition-all btn-press ${
+                direction === "long"
+                  ? "bg-accent-green text-white shadow-[0_0_18px_rgba(16,185,129,0.26)]"
+                  : "bg-shadow-600 text-gray-400 hover:bg-shadow-500"
               }`}
             >
-              {marginBalance !== null ? `$${marginBalance.toFixed(2)} USDC` : "--"}
-            </p>
+              Long
+            </button>
+            <button
+              onClick={() => setDirection("short")}
+              className={`rounded-lg py-3 font-semibold transition-all btn-press ${
+                direction === "short"
+                  ? "bg-accent-red text-white shadow-[0_0_18px_rgba(239,68,68,0.26)]"
+                  : "bg-shadow-600 text-gray-400 hover:bg-shadow-500"
+              }`}
+            >
+              Short
+            </button>
           </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setOrderType("market")}
+              className={`rounded-lg border py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                orderType === "market"
+                  ? "border-accent-purple/50 bg-accent-purple/20 text-white"
+                  : "border-shadow-500 bg-shadow-700 text-gray-300 hover:text-white"
+              }`}
+            >
+              Market
+            </button>
+            <button
+              onClick={() => setOrderType("limit")}
+              className={`rounded-lg border py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                orderType === "limit"
+                  ? "border-accent-purple/50 bg-accent-purple/20 text-white"
+                  : "border-shadow-500 bg-shadow-700 text-gray-300 hover:text-white"
+              }`}
+            >
+              Limit
+            </button>
+          </div>
+
+          <div className="flex justify-between px-0.5 text-[10px] text-gray-600">
+            <span>
+              Hotkey:{" "}
+              <kbd className="rounded bg-shadow-600 px-1 py-0.5 text-gray-500">L</kbd> Long
+            </span>
+            <span>
+              <kbd className="rounded bg-shadow-600 px-1 py-0.5 text-gray-500">S</kbd> Short
+              {" | "}
+              <kbd className="rounded bg-shadow-600 px-1 py-0.5 text-gray-500">Enter</kbd> Submit
+            </span>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-xs uppercase tracking-[0.14em] text-gray-500">Size</label>
+              <div className="flex overflow-hidden rounded-md border border-shadow-500 text-xs">
+                <button
+                  onClick={() => setSizeUnit("base")}
+                  className={`px-2.5 py-1 transition-colors ${
+                    sizeUnit === "base"
+                      ? "bg-accent-purple/35 text-white"
+                      : "bg-shadow-700 text-gray-400 hover:text-gray-200"
+                  }`}
+                >
+                  {activePair.base.symbol}
+                </button>
+                <button
+                  onClick={() => setSizeUnit("usd")}
+                  className={`px-2.5 py-1 transition-colors ${
+                    sizeUnit === "usd"
+                      ? "bg-accent-purple/35 text-white"
+                      : "bg-shadow-700 text-gray-400 hover:text-gray-200"
+                  }`}
+                >
+                  USD
+                </button>
+              </div>
+            </div>
+            <div className="relative">
+              <input
+                type="number"
+                value={size}
+                onChange={(e) => setSize(e.target.value)}
+                placeholder="0.00"
+                className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-4 py-3 text-2xl leading-none text-white transition-colors focus:border-accent-purple focus:outline-none pr-16"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                {sizeUnit === "usd" ? "USDC" : activePair.base.symbol}
+              </span>
+            </div>
+            <div className="mt-2 flex gap-2">
+              {sizeUnit === "base"
+                ? ["0.1", "0.5", "1", "5"].map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setSize(v)}
+                      className="rounded bg-shadow-600 px-2 py-0.5 text-[11px] text-gray-400 transition-colors hover:bg-shadow-500 hover:text-accent-purple"
+                    >
+                      {v}
+                    </button>
+                  ))
+                : ["10", "50", "100", "500"].map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setSize(v)}
+                      className="rounded bg-shadow-600 px-2 py-0.5 text-[11px] text-gray-400 transition-colors hover:bg-shadow-500 hover:text-accent-purple"
+                    >
+                      ${v}
+                    </button>
+                  ))}
+            </div>
+          </div>
+
+          {orderType === "limit" && (
+            <div>
+              <label className="mb-2 block text-xs uppercase tracking-[0.14em] text-gray-500">
+                Limit Price
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={limitPrice}
+                  onChange={(e) => setLimitPrice(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-4 py-3 text-xl text-white transition-colors focus:border-accent-purple focus:outline-none pr-16"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                  USDC
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="mb-2 block text-xs uppercase tracking-[0.14em] text-gray-500">
+              Take Profit / Stop Loss
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <input
+                  type="number"
+                  value={takeProfit}
+                  onChange={(e) => setTakeProfit(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2.5 pr-10 text-sm text-white transition-colors focus:border-accent-green focus:outline-none"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-accent-green">
+                  TP
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={stopLoss}
+                  onChange={(e) => setStopLoss(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2.5 pr-10 text-sm text-white transition-colors focus:border-accent-red focus:outline-none"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-accent-red">
+                  SL
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 rounded-xl border border-shadow-500 bg-shadow-700/60 p-3 sm:grid-cols-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500">Margin</p>
+              <p className="text-lg font-semibold text-white">~${margin.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500">Notional</p>
+              <p className="text-lg font-semibold text-white">~${positionValue.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500">Liq. Price</p>
+              <p className={`text-lg font-semibold ${direction === "long" ? "text-accent-red" : "text-accent-green"}`}>
+                {estimatedLiqPrice ? `~${formatPrice(estimatedLiqPrice)}` : "--"}
+              </p>
+            </div>
+          </div>
+
           <button
-            onClick={() => setCollateralModalOpen(true)}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-accent-purple/20 text-accent-purple hover:bg-accent-purple/30 transition-colors border border-accent-purple/30"
+            onClick={handleSubmit}
+            disabled={isSubmitting || !size || sizeInBase <= 0 || (orderType === "limit" && !parsedLimitPrice)}
+            className={`mb-1 w-full rounded-lg py-3.5 text-xl font-semibold transition-all btn-press ${
+              direction === "long"
+                ? "bg-gradient-to-r from-accent-green to-emerald-600 hover:from-emerald-600 hover:to-accent-green"
+                : "bg-gradient-to-r from-accent-red to-rose-600 hover:from-rose-600 hover:to-accent-red"
+            } disabled:cursor-not-allowed disabled:opacity-50`}
           >
-            {marginBalance === 0 ? "Deposit Collateral" : "Manage"}
+            {isSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Processing via MPC...
+              </span>
+            ) : orderType === "limit" ? (
+              `Place Limit ${direction.charAt(0).toUpperCase() + direction.slice(1)}`
+            ) : (
+              `Open ${direction.charAt(0).toUpperCase() + direction.slice(1)} Position`
+            )}
           </button>
         </div>
-      )}
 
-      {/* Direction Toggle */}
-      <div className="grid grid-cols-2 gap-2 mb-1">
-        <button
-          onClick={() => setDirection("long")}
-          className={`py-3 rounded-lg font-medium transition-all btn-press ${
-            direction === "long"
-              ? "bg-accent-green text-white"
-              : "bg-shadow-600 text-gray-400 hover:bg-shadow-500"
-          }`}
-        >
-          Long
-        </button>
-        <button
-          onClick={() => setDirection("short")}
-          className={`py-3 rounded-lg font-medium transition-all btn-press ${
-            direction === "short"
-              ? "bg-accent-red text-white"
-              : "bg-shadow-600 text-gray-400 hover:bg-shadow-500"
-          }`}
-        >
-          Short
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 mt-3 mb-1">
-        <button
-          onClick={() => setOrderType("market")}
-          className={`py-2 rounded-lg text-xs border transition-colors ${
-            orderType === "market"
-              ? "bg-accent-purple/20 border-accent-purple/40 text-white"
-              : "bg-shadow-700 border-shadow-500 text-gray-300 hover:text-white"
-          }`}
-        >
-          Market
-        </button>
-        <button
-          onClick={() => setOrderType("limit")}
-          className={`py-2 rounded-lg text-xs border transition-colors ${
-            orderType === "limit"
-              ? "bg-accent-purple/20 border-accent-purple/40 text-white"
-              : "bg-shadow-700 border-shadow-500 text-gray-300 hover:text-white"
-          }`}
-        >
-          Limit
-        </button>
-      </div>
-
-      <div className="flex justify-between text-[10px] text-gray-600 mb-5 px-0.5">
-        <span>
-          Hotkey:{" "}
-          <kbd className="px-1 py-0.5 rounded bg-shadow-600 text-gray-500">L</kbd> Long
-        </span>
-        <span>
-          <kbd className="px-1 py-0.5 rounded bg-shadow-600 text-gray-500">S</kbd> Short
-          {" | "}
-          <kbd className="px-1 py-0.5 rounded bg-shadow-600 text-gray-500">Enter</kbd> Submit
-        </span>
-      </div>
-      {/* Size Input */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-sm text-gray-400">Position Size</label>
-          <div className="flex rounded-md overflow-hidden border border-shadow-500 text-xs">
-            <button
-              onClick={() => setSizeUnit("base")}
-              className={`px-2.5 py-1 transition-colors ${
-                sizeUnit === "base"
-                  ? "bg-accent-purple/30 text-white"
-                  : "bg-shadow-700 text-gray-400 hover:text-gray-200"
-              }`}
-            >
-              {activePair.base.symbol}
-            </button>
-            <button
-              onClick={() => setSizeUnit("usd")}
-              className={`px-2.5 py-1 transition-colors ${
-                sizeUnit === "usd"
-                  ? "bg-accent-purple/30 text-white"
-                  : "bg-shadow-700 text-gray-400 hover:text-gray-200"
-              }`}
-            >
-              USD
-            </button>
-          </div>
-        </div>
-        <div className="relative">
-          <input
-            type="number"
-            value={size}
-            onChange={(e) => setSize(e.target.value)}
-            placeholder="0.00"
-            className="w-full bg-shadow-700 border border-shadow-500 rounded-lg px-4 py-3 text-lg focus:outline-none focus:border-accent-purple transition-colors pr-16"
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 pointer-events-none">
-            {sizeUnit === "usd" ? "USDC" : activePair.base.symbol}
-          </span>
-        </div>
-        <div className="flex gap-2 mt-1.5">
-          {sizeUnit === "base"
-            ? ["0.1", "0.5", "1", "5"].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setSize(v)}
-                  className="text-[11px] px-2 py-0.5 rounded bg-shadow-600 text-gray-400 hover:text-accent-purple hover:bg-shadow-500 transition-colors"
-                >
-                  {v}
-                </button>
-              ))
-            : ["10", "50", "100", "500"].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setSize(v)}
-                  className="text-[11px] px-2 py-0.5 rounded bg-shadow-600 text-gray-400 hover:text-accent-purple hover:bg-shadow-500 transition-colors"
-                >
-                  ${v}
-                </button>
-              ))}
-        </div>
-      </div>
-
-      {orderType === "limit" && (
-        <div className="mb-6">
-          <label className="text-sm text-gray-400 block mb-2">Limit Price</label>
-          <div className="relative">
-            <input
-              type="number"
-              value={limitPrice}
-              onChange={(e) => setLimitPrice(e.target.value)}
-              placeholder="0.00"
-              className="w-full bg-shadow-700 border border-shadow-500 rounded-lg px-4 py-3 text-lg focus:outline-none focus:border-accent-purple transition-colors pr-16"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
-              USDC
-            </span>
-          </div>
-        </div>
-      )}
-
-      <div className="mb-6">
-        <label className="text-sm text-gray-400 block mb-2">Take Profit / Stop Loss</label>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="number"
-            value={takeProfit}
-            onChange={(e) => setTakeProfit(e.target.value)}
-            placeholder="Take Profit"
-            className="bg-shadow-700 border border-shadow-500 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-accent-green"
-          />
-          <input
-            type="number"
-            value={stopLoss}
-            onChange={(e) => setStopLoss(e.target.value)}
-            placeholder="Stop Loss"
-            className="bg-shadow-700 border border-shadow-500 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-accent-red"
-          />
-        </div>
-      </div>
-
-      {priceWarning && (
-        <div className="mb-3 text-[11px] text-yellow-300 border border-yellow-500/30 bg-yellow-500/10 rounded px-2.5 py-1.5">
-          {priceWarning}
-        </div>
-      )}
-
-      {/* Hidden by default; only surface if privacy path degrades */}
-      {privacyStatus === "error" && (
-        <div className="mb-3 flex items-center gap-2 text-[11px] text-red-400">
-          <span className="inline-block h-2 w-2 rounded-full bg-red-400" />
-          <span>Privacy degraded</span>
-        </div>
-      )}
-
-      <button
-        onClick={handleSubmit}
-        disabled={isSubmitting || !size || sizeInBase <= 0 || (orderType === "limit" && !parsedLimitPrice)}
-        className={`w-full py-3.5 rounded-lg font-semibold text-base transition-all btn-press mb-2 ${
-          direction === "long"
-            ? "bg-gradient-to-r from-accent-green to-emerald-600 hover:from-emerald-600 hover:to-accent-green"
-            : "bg-gradient-to-r from-accent-red to-rose-600 hover:from-rose-600 hover:to-accent-red"
-        } disabled:opacity-50 disabled:cursor-not-allowed`}
-      >
-        {isSubmitting ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+        <div className={isHorizontal ? "space-y-4 lg:col-span-5" : "space-y-4"}>
+          <div className="space-y-1.5">
+            <label className="text-xs uppercase tracking-[0.16em] text-gray-500">Leverage</label>
+            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 p-3.5">
+              <div className="mb-2.5 flex items-center justify-between">
+                <span className="text-xs uppercase tracking-[0.12em] text-gray-500">Adjust</span>
+                <span className="text-3xl font-semibold text-accent-purple">{leverage}x</span>
+              </div>
+              <input
+                type="range"
+                min={MIN_LEVERAGE}
+                max={MAX_LEVERAGE}
+                value={leverage}
+                onChange={(e) => setLeverage(Number.parseInt(e.target.value, 10))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-shadow-600 accent-accent-purple"
               />
-            </svg>
-            Processing via MPC...
-          </span>
-        ) : (
-          orderType === "limit"
-            ? `Place Limit ${direction.charAt(0).toUpperCase() + direction.slice(1)}`
-            : `Open ${direction.charAt(0).toUpperCase() + direction.slice(1)}`
-        )}
-      </button>
-      </div>
-
-      <div className={isHorizontal ? "lg:col-span-5" : ""}>
-      {/* Leverage */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-2">
-          <label className="text-sm text-gray-400">Leverage</label>
-          <span className="text-lg font-semibold">{leverage}x</span>
-        </div>
-        <div className="flex gap-1.5 mb-3">
-          {LEVERAGE_PRESETS.map((preset) => (
-            <button
-              key={preset}
-              onClick={() => setLeverage(preset)}
-              className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${
-                leverage === preset
-                  ? "bg-accent-purple text-white"
-                  : "bg-shadow-600 text-gray-400 hover:bg-shadow-500 hover:text-white"
-              }`}
-            >
-              {preset}x
-            </button>
-          ))}
-        </div>
-        <input
-          type="range"
-          min="1"
-          max="50"
-          value={leverage}
-          onChange={(e) => setLeverage(parseInt(e.target.value))}
-          className="w-full h-2 bg-shadow-600 rounded-lg appearance-none cursor-pointer accent-accent-purple"
-        />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>1x</span>
-          <span>10x</span>
-          <span>20x</span>
-          <span>35x</span>
-          <span>50x</span>
-        </div>
-      </div>
-
-      {/* Order Summary */}
-      <div className="bg-shadow-700 rounded-lg p-4 mb-6 space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-400">Order Type</span>
-          <span className="uppercase">{orderType}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-400">Position Value</span>
-          <span>${positionValue.toFixed(2)} USDC</span>
-        </div>
-        {sizeUnit === "usd" && sizeInBase > 0 && (
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Size ({activePair.base.symbol})</span>
-            <span>
-              {sizeInBase.toFixed(sizeInBase < 0.01 ? 6 : 4)} {activePair.base.symbol}
-            </span>
+              <div className="relative mt-1.5 h-4">
+                {LEVERAGE_MARKERS.map((v) => (
+                  <span
+                    key={v}
+                    className={`absolute text-xs ${
+                      v === leverage ? "font-semibold text-accent-purple" : "text-gray-500"
+                    } ${
+                      v === MIN_LEVERAGE
+                        ? "left-0"
+                        : v === MAX_LEVERAGE
+                        ? "right-0"
+                        : "-translate-x-1/2"
+                    }`}
+                    style={
+                      v === MIN_LEVERAGE || v === MAX_LEVERAGE
+                        ? undefined
+                        : {
+                            left: `${((v - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%`,
+                          }
+                    }
+                  >
+                    {v}x
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
-        )}
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-400">Required Margin</span>
-          <span>${margin.toFixed(2)} USDC</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-400">Entry Price</span>
-          <span>
-            {orderType === "limit"
-              ? formatPrice(parsedLimitPrice)
-              : marketPrice
-              ? formatPrice(marketPrice)
-              : "From oracle at execution"}
-          </span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-400">Trading Fee</span>
-          <span>0.1%</span>
-        </div>
-        <div className="border-t border-shadow-500 my-2" />
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-400">
-            Est. Liq. Price
-            <span className="ml-1 text-[10px] text-gray-600">(approx)</span>
-          </span>
-          {estimatedLiqPrice ? (
-            <span className={direction === "long" ? "text-accent-red" : "text-accent-green"}>
-              {formatPrice(estimatedLiqPrice)}
-            </span>
-          ) : (
-            <span className="text-gray-500">--</span>
+
+          {!isHorizontal && (
+            <div className="space-y-2 rounded-lg border border-shadow-500 bg-shadow-700 p-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Order Type</span>
+                <span className="uppercase">{orderType}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Position Value</span>
+                <span>${positionValue.toFixed(2)} USDC</span>
+              </div>
+              {sizeUnit === "usd" && sizeInBase > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Size ({activePair.base.symbol})</span>
+                  <span>
+                    {sizeInBase.toFixed(sizeInBase < 0.01 ? 6 : 4)} {activePair.base.symbol}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Required Margin</span>
+                <span>${margin.toFixed(2)} USDC</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Entry Price</span>
+                <span>
+                  {orderType === "limit"
+                    ? formatPrice(parsedLimitPrice)
+                    : marketPrice
+                    ? formatPrice(marketPrice)
+                    : "From oracle at execution"}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Trading Fee</span>
+                <span>0.1%</span>
+              </div>
+              <div className="my-2 border-t border-shadow-500" />
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">
+                  Est. Liq. Price
+                  <span className="ml-1 text-[10px] text-gray-600">(approx)</span>
+                </span>
+                {estimatedLiqPrice ? (
+                  <span className={direction === "long" ? "text-accent-red" : "text-accent-green"}>
+                    {formatPrice(estimatedLiqPrice)}
+                  </span>
+                ) : (
+                  <span className="text-gray-500">--</span>
+                )}
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Health Factor</span>
+                <span className="encrypted-blur text-accent-purple">Encrypted</span>
+              </div>
+            </div>
           )}
         </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-400">Health Factor</span>
-          <span className="encrypted-blur text-accent-purple">Encrypted</span>
-        </div>
-      </div>
-      </div>
-
-      </div>
-
-      <div className="mt-5 border border-shadow-500 rounded-lg overflow-hidden">
-        <div className="px-3 py-2 border-b border-shadow-500 text-sm font-medium bg-shadow-700">
-          Open Limit Orders
-        </div>
-        {limitOrders.filter((o) => ["pending", "triggered", "failed"].includes(o.status)).length === 0 ? (
-          <p className="text-xs text-gray-500 p-3">No active limit orders.</p>
-        ) : (
-          <div className="max-h-56 overflow-y-auto">
-            {limitOrders
-              .filter((o) => ["pending", "triggered", "failed"].includes(o.status))
-              .map((order) => (
-                <div key={order.id} className="p-3 border-b border-shadow-700 last:border-b-0">
-                  <div className="flex justify-between gap-2">
-                    <div className="text-xs">
-                      <p className="font-medium">
-                        {order.pairLabel} | {order.side.toUpperCase()} | {order.leverage}x
-                      </p>
-                      <p className="text-gray-400 mt-1">
-                        Limit {formatPrice(order.limitPrice)} | TP {formatPrice(order.takeProfit)} | SL{" "}
-                        {formatPrice(order.stopLoss)}
-                      </p>
-                      {order.error && <p className="text-red-400 mt-1">{order.error}</p>}
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="text-[10px] px-2 py-0.5 rounded border border-shadow-500 text-gray-300">
-                        {order.status}
-                      </span>
-                      <div className="flex gap-1">
-                        {(order.status === "pending" || order.status === "failed") && (
-                          <button
-                            onClick={() => setEditingId(editingId === order.id ? null : order.id)}
-                            className="text-[10px] px-2 py-1 rounded bg-shadow-600 text-gray-300"
-                          >
-                            Edit
-                          </button>
-                        )}
-                        <button
-                          onClick={() => removeLimitOrder(order.id)}
-                          className="text-[10px] px-2 py-1 rounded bg-red-500/15 text-red-300"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  {editingId === order.id && (
-                    <div className="mt-2 grid grid-cols-3 gap-1.5">
-                      <input
-                        type="number"
-                        defaultValue={order.limitPrice}
-                        onBlur={(e) => updateOrderField(order.id, "limitPrice", e.target.value)}
-                        placeholder="Limit"
-                        className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1 text-[11px]"
-                      />
-                      <input
-                        type="number"
-                        defaultValue={order.takeProfit ?? ""}
-                        onBlur={(e) => updateOrderField(order.id, "takeProfit", e.target.value)}
-                        placeholder="TP"
-                        className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1 text-[11px]"
-                      />
-                      <input
-                        type="number"
-                        defaultValue={order.stopLoss ?? ""}
-                        onBlur={(e) => updateOrderField(order.id, "stopLoss", e.target.value)}
-                        placeholder="SL"
-                        className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1 text-[11px]"
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-          </div>
-        )}
       </div>
 
       <TradeConfirmationModal

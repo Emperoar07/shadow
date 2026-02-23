@@ -1,5 +1,5 @@
 {
-  "address": "6JSACVRd4TxePjsfvy3d5sXP5ykS4m3wbtkYJjHK8SCA",
+  "address": "2Gz35PAHBkggSfV77mCENobt5YEURuYMAjgpvKXoL61d",
   "metadata": {
     "name": "shadowperp",
     "version": "0.1.0",
@@ -311,14 +311,45 @@
         },
         {
           "name": "pool_account",
-          "writable": true
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
         },
         {
-          "name": "sign_pda_account"
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "clock_account",
-          "writable": true
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
         },
         {
           "name": "arcium_program",
@@ -686,14 +717,45 @@
         },
         {
           "name": "pool_account",
-          "writable": true
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
         },
         {
-          "name": "sign_pda_account"
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "clock_account",
-          "writable": true
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
         },
         {
           "name": "arcium_program",
@@ -888,6 +950,383 @@
               ]
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "close_position_with_session",
+      "docs": [
+        "Relayer closes an encrypted position under an active owner-approved session."
+      ],
+      "discriminator": [
+        252,
+        41,
+        115,
+        18,
+        22,
+        126,
+        146,
+        37
+      ],
+      "accounts": [
+        {
+          "name": "relayer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "Session owner whose position is being closed."
+          ],
+          "relations": [
+            "session",
+            "position",
+            "margin_account"
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "session",
+            "position",
+            "margin_account"
+          ]
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "session.session_id",
+                "account": "TradeSession"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.index",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "margin_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_token_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "cluster_account",
+          "writable": true
+        },
+        {
+          "name": "mempool_account",
+          "writable": true
+        },
+        {
+          "name": "executing_pool",
+          "writable": true
+        },
+        {
+          "name": "computation_account",
+          "writable": true
+        },
+        {
+          "name": "pool_account",
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
+        },
+        {
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "clock_account",
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "computation_offset",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_trade_session",
+      "docs": [
+        "Create an owner-approved delegated trading session for a relayer."
+      ],
+      "discriminator": [
+        166,
+        212,
+        244,
+        139,
+        14,
+        224,
+        27,
+        114
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "session_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "session_id",
+          "type": "u64"
+        },
+        {
+          "name": "relayer",
+          "type": "pubkey"
+        },
+        {
+          "name": "max_actions",
+          "type": "u32"
+        },
+        {
+          "name": "max_margin_per_action",
+          "type": "u64"
+        },
+        {
+          "name": "expires_at",
+          "type": "i64"
         }
       ]
     },
@@ -1621,7 +2060,8 @@
           "name": "cluster_account",
           "docs": [
             "Cluster must match the one recorded in the market at initialisation.",
-            "Prevents a caller from substituting a different (potentially malicious) cluster."
+            "Prevents a caller from substituting a different (potentially malicious) cluster and",
+            "enforces canonical Arcium cluster PDA for the active MXE."
           ],
           "writable": true
         },
@@ -1639,14 +2079,45 @@
         },
         {
           "name": "pool_account",
-          "writable": true
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
         },
         {
-          "name": "sign_pda_account"
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "clock_account",
-          "writable": true
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
         },
         {
           "name": "arcium_program",
@@ -1704,24 +2175,6 @@
           }
         },
         {
-          "name": "encrypted_owner_lo",
-          "type": {
-            "array": [
-              "u8",
-              32
-            ]
-          }
-        },
-        {
-          "name": "encrypted_owner_hi",
-          "type": {
-            "array": [
-              "u8",
-              32
-            ]
-          }
-        },
-        {
           "name": "margin",
           "type": "u64"
         },
@@ -1745,19 +2198,19 @@
       ]
     },
     {
-      "name": "open_position_callback",
+      "name": "open_position_v2_callback",
       "docs": [
         "Callback after position opening MPC completes"
       ],
       "discriminator": [
-        137,
-        83,
-        174,
-        196,
-        194,
-        90,
-        89,
-        250
+        45,
+        178,
+        244,
+        79,
+        225,
+        229,
+        104,
+        57
       ],
       "accounts": [
         {
@@ -1887,6 +2340,399 @@
           }
         }
       ]
+    },
+    {
+      "name": "open_position_with_session",
+      "docs": [
+        "Relayer opens an encrypted position under an active owner-approved session."
+      ],
+      "discriminator": [
+        212,
+        62,
+        97,
+        14,
+        25,
+        68,
+        87,
+        67
+      ],
+      "accounts": [
+        {
+          "name": "relayer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "Session owner whose margin account/position are touched."
+          ],
+          "relations": [
+            "session",
+            "margin_account"
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "session",
+            "margin_account"
+          ]
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "session.session_id",
+                "account": "TradeSession"
+              }
+            ]
+          }
+        },
+        {
+          "name": "margin_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "margin_account.positions_opened",
+                "account": "MarginAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "cluster_account",
+          "writable": true
+        },
+        {
+          "name": "mempool_account",
+          "writable": true
+        },
+        {
+          "name": "executing_pool",
+          "writable": true
+        },
+        {
+          "name": "computation_account",
+          "writable": true
+        },
+        {
+          "name": "pool_account",
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
+        },
+        {
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "clock_account",
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "encrypted_size",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "encrypted_entry_price",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "encrypted_leverage",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "encrypted_is_long",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "encrypted_margin",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "margin",
+          "type": "u64"
+        },
+        {
+          "name": "client_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nonce",
+          "type": "u128"
+        },
+        {
+          "name": "computation_offset",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "revoke_trade_session",
+      "docs": [
+        "Owner can revoke a delegated trading session at any time."
+      ],
+      "discriminator": [
+        171,
+        110,
+        193,
+        174,
+        246,
+        38,
+        42,
+        140
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "session"
+          ]
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "session"
+          ]
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "session.session_id",
+                "account": "TradeSession"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
     },
     {
       "name": "sync_comp_defs",
@@ -2249,6 +3095,19 @@
         247,
         208
       ]
+    },
+    {
+      "name": "TradeSession",
+      "discriminator": [
+        43,
+        20,
+        111,
+        188,
+        176,
+        148,
+        140,
+        69
+      ]
     }
   ],
   "events": [
@@ -2368,6 +3227,32 @@
         0,
         240
       ]
+    },
+    {
+      "name": "TradeSessionCreated",
+      "discriminator": [
+        58,
+        231,
+        172,
+        64,
+        114,
+        129,
+        160,
+        123
+      ]
+    },
+    {
+      "name": "TradeSessionRevoked",
+      "discriminator": [
+        164,
+        80,
+        60,
+        54,
+        247,
+        227,
+        88,
+        189
+      ]
     }
   ],
   "errors": [
@@ -2450,6 +3335,26 @@
       "code": 6015,
       "name": "InvalidAccountData",
       "msg": "Invalid account data"
+    },
+    {
+      "code": 6016,
+      "name": "SessionExpired",
+      "msg": "Trade session is expired"
+    },
+    {
+      "code": 6017,
+      "name": "SessionRevoked",
+      "msg": "Trade session is revoked"
+    },
+    {
+      "code": 6018,
+      "name": "SessionActionLimitReached",
+      "msg": "Trade session action limit reached"
+    },
+    {
+      "code": 6019,
+      "name": "SessionMarginLimitExceeded",
+      "msg": "Trade session per-action margin limit exceeded"
     }
   ],
   "types": [
@@ -3445,14 +4350,24 @@
             "type": "u8"
           },
           {
+            "name": "oi_nonce",
+            "docs": [
+              "Nonce used by the MXE cluster for the OI state ciphertext.",
+              "Must be passed back to Arcium on each open/close/liquidation computation.",
+              "Placed at end of struct so existing on-chain accounts (reserved bytes = 0)",
+              "naturally initialise this to 0 without requiring account re-initialisation."
+            ],
+            "type": "u128"
+          },
+          {
             "name": "_reserved",
             "docs": [
-              "Reserved space for future upgrades"
+              "Reserved space for future upgrades (128 - 16 = 112 bytes after oi_nonce)"
             ],
             "type": {
               "array": [
                 "u8",
-                128
+                112
               ]
             }
           }
@@ -3636,15 +4551,11 @@
                 "generics": [
                   {
                     "kind": "const",
-                    "value": "9"
+                    "value": "2"
                   }
                 ]
               }
             }
-          },
-          {
-            "name": "field_2",
-            "type": "u64"
           }
         ]
       }
@@ -4169,6 +5080,159 @@
         "fields": [
           {
             "name": "timestamp",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TradeSession",
+      "docs": [
+        "Delegated trading session approved by owner once, then consumed by relayer."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "docs": [
+              "Session owner whose margin/positions are affected."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "docs": [
+              "Market scope for this session."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "relayer",
+            "docs": [
+              "Authorized relayer signer."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "session_id",
+            "docs": [
+              "User-chosen session id for deterministic PDA derivation."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_actions",
+            "docs": [
+              "Hard cap on how many delegated actions can be executed."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "used_actions",
+            "docs": [
+              "Number of delegated actions already consumed."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "max_margin_per_action",
+            "docs": [
+              "Per-open cap to reduce blast radius if relayer misbehaves."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "expires_at",
+            "docs": [
+              "Unix timestamp after which this session is invalid."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "revoked",
+            "docs": [
+              "Explicit owner revocation bit."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump for PDA."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Reserved for upgrades."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                30
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "TradeSessionCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "relayer",
+            "type": "pubkey"
+          },
+          {
+            "name": "session_id",
+            "type": "u64"
+          },
+          {
+            "name": "max_actions",
+            "type": "u32"
+          },
+          {
+            "name": "max_margin_per_action",
+            "type": "u64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TradeSessionRevoked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "relayer",
+            "type": "pubkey"
+          },
+          {
+            "name": "session_id",
             "type": "u64"
           }
         ]
