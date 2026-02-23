@@ -1,16 +1,17 @@
 use crate::ArciumSignerAccount;
 use crate::ID;
+use crate::ID_CONST;
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
 use arcium_anchor::traits::CallbackCompAccs;
 use arcium_client::idl::arcium::types::CallbackAccount;
 
-use crate::errors::ShadowPerpError;
+use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
-use crate::handlers::callbacks::open_position_callback::OpenPositionCallback;
+use crate::handlers::callbacks::open_position_callback::OpenPositionV2Callback;
 
-#[queue_computation_accounts("open_position", owner)]
+#[queue_computation_accounts("open_position_v2", owner)]
 #[derive(Accounts)]
 #[instruction(
     encrypted_size: [u8; 32],
@@ -18,8 +19,6 @@ use crate::handlers::callbacks::open_position_callback::OpenPositionCallback;
     encrypted_leverage: [u8; 32],
     encrypted_is_long: [u8; 32],
     encrypted_margin: [u8; 32],
-    encrypted_owner_lo: [u8; 32],
-    encrypted_owner_hi: [u8; 32],
     margin: u64,
     client_pubkey: [u8; 32],
     nonce: u128,
@@ -57,26 +56,42 @@ pub struct OpenPosition<'info> {
     // --- Arcium accounts (populated by queue_computation_accounts macro) ---
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
+    #[account(address = market.open_position_comp_def)]
     pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
     /// Cluster must match the one recorded in the market at initialisation.
-    /// Prevents a caller from substituting a different (potentially malicious) cluster.
-    #[account(mut, constraint = cluster_account.key() == market.mxe_cluster @ ShadowPerpError::Unauthorized)]
+    /// Prevents a caller from substituting a different (potentially malicious) cluster and
+    /// enforces canonical Arcium cluster PDA for the active MXE.
+    #[account(
+        mut,
+        address = derive_cluster_pda!(mxe_account, ErrorCode::ClusterNotSet),
+        constraint = cluster_account.key() == market.mxe_cluster @ ShadowPerpError::Unauthorized
+    )]
     pub cluster_account: Box<Account<'info, Cluster>>,
-    /// CHECK: Validated by Arcium
-    #[account(mut)]
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = derive_mempool_pda!(mxe_account, ErrorCode::ClusterNotSet))]
     pub mempool_account: UncheckedAccount<'info>,
-    /// CHECK: Validated by Arcium
-    #[account(mut)]
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = derive_execpool_pda!(mxe_account, ErrorCode::ClusterNotSet))]
     pub executing_pool: UncheckedAccount<'info>,
-    /// CHECK: Validated by Arcium
-    #[account(mut)]
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(
+        mut,
+        address = derive_comp_pda!(computation_offset, mxe_account, ErrorCode::ClusterNotSet)
+    )]
     pub computation_account: UncheckedAccount<'info>,
-    /// CHECK: Validated by Arcium
-    #[account(mut)]
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = ARCIUM_FEE_POOL_ACCOUNT_ADDRESS)]
     pub pool_account: Box<Account<'info, FeePool>>,
-    /// CHECK: Validated by Arcium
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 9,
+        seeds = [&SIGN_PDA_SEED],
+        bump,
+        address = derive_sign_pda!(),
+    )]
     pub sign_pda_account: Account<'info, ArciumSignerAccount>,
-    #[account(mut)]
+    #[account(mut, address = ARCIUM_CLOCK_ACCOUNT_ADDRESS)]
     pub clock_account: Box<Account<'info, ClockAccount>>,
 
     pub arcium_program: Program<'info, Arcium>,
@@ -90,13 +105,14 @@ pub fn handler(
     encrypted_leverage: [u8; 32],
     encrypted_is_long: [u8; 32],
     encrypted_margin: [u8; 32],
-    encrypted_owner_lo: [u8; 32],
-    encrypted_owner_hi: [u8; 32],
     margin: u64,
     client_pubkey: [u8; 32],
     nonce: u128,
     computation_offset: u64,
 ) -> Result<()> {
+    // Required by Arcium queue flow when this account is initialized on demand.
+    ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+
     let market = &mut ctx.accounts.market;
     let margin_account = &mut ctx.accounts.margin_account;
     let position = &mut ctx.accounts.position;
@@ -148,6 +164,12 @@ pub fn handler(
     position.client_pubkey = client_pubkey;
     position.index = next_position_index;
     position.bump = ctx.bumps.position;
+    // Defensive guard: a freshly initialized position must not already carry
+    // an in-flight computation binding.
+    require!(
+        position.pending_computation_account == Pubkey::default(),
+        ShadowPerpError::ComputationInProgress
+    );
     // Bind this position to the specific computation account that will execute it.
     // The callback will verify this key before accepting any MPC output.
     position.pending_computation_account = ctx.accounts.computation_account.key();
@@ -159,48 +181,44 @@ pub fn handler(
     encrypted_data[64..96].copy_from_slice(&encrypted_leverage);
     encrypted_data[96..128].copy_from_slice(&encrypted_is_long);
     encrypted_data[128..160].copy_from_slice(&encrypted_margin);
-    encrypted_data[160..192].copy_from_slice(&encrypted_owner_lo);
-    encrypted_data[192..224].copy_from_slice(&encrypted_owner_hi);
     position.encrypted_data = encrypted_data;
 
-    // Build encrypted arguments for the MPC computation using ArgBuilder
-    // Each Enc<Shared, T> param needs: x25519_pubkey, nonce, ciphertext
+    // Build encrypted arguments for the MPC computation using ArgBuilder.
+    // Circuit: open_position(inputs: Enc<Shared,(u64,u64,u8,bool,u64)>, ...)
+    // All five user-encrypted values share one pubkey+nonce (batched Enc<Shared, tuple>).
+    // This reduces the argument count from 23 → 15, keeping within Arcium's
+    // computation account space budget.
+    //
+    // Param layout (15 total):
+    //   inputs: Enc<Shared, (u64,u64,u8,bool,u64)>
+    //     1. x25519_pubkey (shared for all 5 values)
+    //     2. plaintext_u128 (shared nonce)
+    //     3. encrypted_u64  (size ciphertext)
+    //     4. encrypted_u64  (entry_price ciphertext)
+    //     5. encrypted_u8   (leverage ciphertext)
+    //     6. encrypted_bool (is_long ciphertext)
+    //     7. encrypted_u64  (margin ciphertext)
+    //   requested_margin: u64     8.
+    //   market_params: (u8,u16,u16,u64)  9-12.
+    //   oi_state: Enc<Mxe,(u64,u64)>  13-15.
     let args = ArgBuilder::new()
-        // size: Enc<Shared, u64>
+        // inputs: Enc<Shared, (u64, u64, u8, bool, u64)>
         .x25519_pubkey(client_pubkey)
         .plaintext_u128(nonce)
         .encrypted_u64(encrypted_size)
-        // entry_price: Enc<Shared, u64>
-        .x25519_pubkey(client_pubkey)
-        .plaintext_u128(nonce)
         .encrypted_u64(encrypted_entry_price)
-        // leverage: Enc<Shared, u8>
-        .x25519_pubkey(client_pubkey)
-        .plaintext_u128(nonce)
         .encrypted_u8(encrypted_leverage)
-        // is_long: Enc<Shared, bool>
-        .x25519_pubkey(client_pubkey)
-        .plaintext_u128(nonce)
         .encrypted_bool(encrypted_is_long)
-        // margin: Enc<Shared, u64>
-        .x25519_pubkey(client_pubkey)
-        .plaintext_u128(nonce)
         .encrypted_u64(encrypted_margin)
-        // owner_lo: Enc<Shared, u128>
-        .x25519_pubkey(client_pubkey)
-        .plaintext_u128(nonce)
-        .encrypted_u128(encrypted_owner_lo)
-        // owner_hi: Enc<Shared, u128>
-        .x25519_pubkey(client_pubkey)
-        .plaintext_u128(nonce)
-        .encrypted_u128(encrypted_owner_hi)
-        // market_params: MarketParams (plaintext - public data)
+        // requested_margin: plaintext mirror for MPC consistency check
+        .plaintext_u64(margin)
+        // market_params: (max_leverage, liquidation_threshold, trading_fee, oracle_price)
         .plaintext_u8(market.max_leverage)
         .plaintext_u16(market.liquidation_threshold)
         .plaintext_u16(market.trading_fee)
         .plaintext_u64(market.oracle_price)
-        // oi_state: Enc<Mxe, OpenInterest> - MXE-encrypted aggregate state
-        .plaintext_u128(nonce)
+        // oi_state: Enc<Mxe, (long_oi, short_oi)>
+        .plaintext_u128(market.oi_nonce)
         .encrypted_u64(market.encrypted_total_long_oi)
         .encrypted_u64(market.encrypted_total_short_oi)
         .build();
@@ -221,7 +239,7 @@ pub fn handler(
         },
     ];
 
-    let callback_ix = OpenPositionCallback::callback_ix(
+    let callback_ix = OpenPositionV2Callback::callback_ix(
         computation_offset,
         &ctx.accounts.mxe_account,
         &callback_accounts,
@@ -233,7 +251,7 @@ pub fn handler(
         computation_offset,
         args,
         vec![callback_ix],
-        1, // single transaction
+        1,
         0, // no priority fee
     )?;
 

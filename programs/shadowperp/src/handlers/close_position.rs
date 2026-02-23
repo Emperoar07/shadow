@@ -1,12 +1,13 @@
 use crate::ArciumSignerAccount;
 use crate::ID;
+use crate::ID_CONST;
 use anchor_lang::prelude::*;
 use anchor_spl::token::TokenAccount;
 use arcium_anchor::prelude::*;
 use arcium_anchor::traits::CallbackCompAccs;
 use arcium_client::idl::arcium::types::CallbackAccount;
 
-use crate::errors::ShadowPerpError;
+use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
 use crate::handlers::callbacks::close_position_callback::ClosePositionCallback;
@@ -61,25 +62,40 @@ pub struct ClosePosition<'info> {
     // --- Arcium accounts ---
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
+    #[account(address = market.close_position_comp_def)]
     pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
     /// Cluster must match the one recorded in the market at initialisation.
-    #[account(mut, constraint = cluster_account.key() == market.mxe_cluster @ ShadowPerpError::Unauthorized)]
+    #[account(
+        mut,
+        address = derive_cluster_pda!(mxe_account, ErrorCode::ClusterNotSet),
+        constraint = cluster_account.key() == market.mxe_cluster @ ShadowPerpError::Unauthorized
+    )]
     pub cluster_account: Box<Account<'info, Cluster>>,
-    /// CHECK: Validated by Arcium
-    #[account(mut)]
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = derive_mempool_pda!(mxe_account, ErrorCode::ClusterNotSet))]
     pub mempool_account: UncheckedAccount<'info>,
-    /// CHECK: Validated by Arcium
-    #[account(mut)]
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = derive_execpool_pda!(mxe_account, ErrorCode::ClusterNotSet))]
     pub executing_pool: UncheckedAccount<'info>,
-    /// CHECK: Validated by Arcium
-    #[account(mut)]
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(
+        mut,
+        address = derive_comp_pda!(computation_offset, mxe_account, ErrorCode::ClusterNotSet)
+    )]
     pub computation_account: UncheckedAccount<'info>,
-    /// CHECK: Validated by Arcium
-    #[account(mut)]
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = ARCIUM_FEE_POOL_ACCOUNT_ADDRESS)]
     pub pool_account: Box<Account<'info, FeePool>>,
-    /// CHECK: Validated by Arcium
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 9,
+        seeds = [&SIGN_PDA_SEED],
+        bump,
+        address = derive_sign_pda!(),
+    )]
     pub sign_pda_account: Account<'info, ArciumSignerAccount>,
-    #[account(mut)]
+    #[account(mut, address = ARCIUM_CLOCK_ACCOUNT_ADDRESS)]
     pub clock_account: Box<Account<'info, ClockAccount>>,
 
     pub arcium_program: Program<'info, Arcium>,
@@ -87,6 +103,9 @@ pub struct ClosePosition<'info> {
 }
 
 pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<()> {
+    // Required by Arcium queue flow when this account is initialized on demand.
+    ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+
     let market = &ctx.accounts.market;
     let position = &mut ctx.accounts.position;
 
@@ -94,6 +113,12 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
     require!(
         position.status == PositionStatus::Open,
         ShadowPerpError::PositionNotOpen
+    );
+    // Enforce one in-flight computation per position. Prevents overwriting
+    // an existing callback binding before it is consumed.
+    require!(
+        position.pending_computation_account == Pubkey::default(),
+        ShadowPerpError::ComputationInProgress
     );
 
     // Update status to closing
@@ -123,23 +148,15 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
     let encrypted_margin: [u8; 32] = position.encrypted_data[128..160]
         .try_into()
         .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
-    let encrypted_owner_lo: [u8; 32] = position.encrypted_data[160..192]
-        .try_into()
-        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
-    let encrypted_owner_hi: [u8; 32] = position.encrypted_data[192..224]
-        .try_into()
-        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
 
     let args = ArgBuilder::new()
-        // position: Enc<Mxe, Position> - 7 fields (size, entry_price, leverage, is_long, margin, owner_lo, owner_hi)
+        // position: Enc<Mxe, Position> - 5 fields (size, entry_price, leverage, is_long, margin)
         .plaintext_u128(nonce)
         .encrypted_u64(encrypted_size) // size
         .encrypted_u64(encrypted_entry_price) // entry_price
         .encrypted_u8(encrypted_leverage) // leverage
         .encrypted_bool(encrypted_is_long) // is_long
         .encrypted_u64(encrypted_margin) // margin
-        .encrypted_u128(encrypted_owner_lo) // owner_lo
-        .encrypted_u128(encrypted_owner_hi) // owner_hi
         // exit_price: u64 (plaintext - current oracle price)
         .plaintext_u64(market.oracle_price)
         // market_params: MarketParams (plaintext)
