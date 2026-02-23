@@ -93,6 +93,7 @@ app/package-lock.json
 # Scratch / previews
 header-logo-preview.html
 landing-preview.html
+landing-preview-v2.html
 ui-previews.html
 faucet.html
 faucet-page.js
