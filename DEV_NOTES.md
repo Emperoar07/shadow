@@ -2053,3 +2053,21 @@ Full multi-dimensional audit run across all TypeScript, Rust, scripts, and confi
 ### Next safe step
 1. User-side confirm: spinner clears after session activation and no repeated session-create tx fees.
 2. If any repeat persists, log `/api/relay/session` payload cadence + wallet adapter sign events for exact retry trigger.
+
+## Trading Panel Layout Tweak (2026-02-23 UTC)
+
+### What changed
+- Moved the leverage slider panel to sit directly under the size panel in `app/src/components/TradingPanel.tsx`.
+- Removed the now-empty secondary column for horizontal layout and expanded the primary form column to full width (`lg:col-span-12`) so no dead space remains.
+- Kept leverage logic/behavior unchanged (same markers, same slider, same values).
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit` -> PASS
+- `npm run check:preflight` -> PASS
+
+### Current blocker
+- Unchanged runtime blocker in some queue paths: `QueueComputation -> AccountDidNotSerialize (3004)`.
+
+### Next safe step
+1. Visually verify the new order in the live form (`Size` then `Leverage`) on desktop and mobile widths.
+2. Continue Arcium queue-path unblock track in parallel with UI refinement work.

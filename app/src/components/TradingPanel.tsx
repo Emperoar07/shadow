@@ -746,7 +746,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       <h2 className="mb-5 text-xl font-semibold text-white">Open Position</h2>
 
       <div className={isHorizontal ? "grid grid-cols-1 items-start gap-4 lg:grid-cols-12" : "space-y-4"}>
-        <div className={isHorizontal ? "space-y-4 lg:col-span-7" : "space-y-4"}>
+        <div className={isHorizontal ? "space-y-4 lg:col-span-12" : "space-y-4"}>
           {publicKey && (
             <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
@@ -891,6 +891,49 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-xs uppercase tracking-[0.16em] text-gray-500">Leverage</label>
+            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 p-3.5">
+              <div className="mb-2.5 flex items-center justify-between">
+                <span className="text-xs uppercase tracking-[0.12em] text-gray-500">Adjust</span>
+                <span className="text-3xl font-semibold text-accent-purple">{leverage}x</span>
+              </div>
+              <input
+                type="range"
+                min={MIN_LEVERAGE}
+                max={MAX_LEVERAGE}
+                value={leverage}
+                onChange={(e) => setLeverage(Number.parseInt(e.target.value, 10))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-shadow-600 accent-accent-purple"
+              />
+              <div className="relative mt-1.5 h-4">
+                {LEVERAGE_MARKERS.map((v) => (
+                  <span
+                    key={v}
+                    className={`absolute text-xs ${
+                      v === leverage ? "font-semibold text-accent-purple" : "text-gray-500"
+                    } ${
+                      v === MIN_LEVERAGE
+                        ? "left-0"
+                        : v === MAX_LEVERAGE
+                        ? "right-0"
+                        : "-translate-x-1/2"
+                    }`}
+                    style={
+                      v === MIN_LEVERAGE || v === MAX_LEVERAGE
+                        ? undefined
+                        : {
+                            left: `${((v - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%`,
+                          }
+                    }
+                  >
+                    {v}x
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {orderType === "limit" && (
             <div>
               <label className="mb-2 block text-xs uppercase tracking-[0.14em] text-gray-500">
@@ -1005,51 +1048,8 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           </button>
         </div>
 
-        <div className={isHorizontal ? "space-y-4 lg:col-span-5" : "space-y-4"}>
-          <div className="space-y-1.5">
-            <label className="text-xs uppercase tracking-[0.16em] text-gray-500">Leverage</label>
-            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 p-3.5">
-              <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-xs uppercase tracking-[0.12em] text-gray-500">Adjust</span>
-                <span className="text-3xl font-semibold text-accent-purple">{leverage}x</span>
-              </div>
-              <input
-                type="range"
-                min={MIN_LEVERAGE}
-                max={MAX_LEVERAGE}
-                value={leverage}
-                onChange={(e) => setLeverage(Number.parseInt(e.target.value, 10))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-shadow-600 accent-accent-purple"
-              />
-              <div className="relative mt-1.5 h-4">
-                {LEVERAGE_MARKERS.map((v) => (
-                  <span
-                    key={v}
-                    className={`absolute text-xs ${
-                      v === leverage ? "font-semibold text-accent-purple" : "text-gray-500"
-                    } ${
-                      v === MIN_LEVERAGE
-                        ? "left-0"
-                        : v === MAX_LEVERAGE
-                        ? "right-0"
-                        : "-translate-x-1/2"
-                    }`}
-                    style={
-                      v === MIN_LEVERAGE || v === MAX_LEVERAGE
-                        ? undefined
-                        : {
-                            left: `${((v - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%`,
-                          }
-                    }
-                  >
-                    {v}x
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {!isHorizontal && (
+        {!isHorizontal && (
+          <div className="space-y-4">
             <div className="space-y-2 rounded-lg border border-shadow-500 bg-shadow-700 p-4">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Order Type</span>
@@ -1104,8 +1104,8 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 <span className="encrypted-blur text-accent-purple">Encrypted</span>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <TradeConfirmationModal
