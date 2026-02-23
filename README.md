@@ -2,7 +2,7 @@
 
 > **Trade in the shadows, settle in the light.**
 
-ShadowPerp is a private perpetual futures protocol built on Solana using [Arcium's](https://arcium.com) Multi-Party Execution (MXE) network. Your trading positions, leverage, and strategy remain completely private — only your final PnL is revealed when you close.
+Shadow is a private perpetual futures protocol built on Solana using [Arcium's](https://arcium.com) Multi-Party Execution (MXE) network. Your trading positions, leverage, and strategy remain completely private — only your final PnL is revealed when you close.
 
 ## The Problem
 
@@ -200,54 +200,6 @@ shadowperp/
 - [Node.js](https://nodejs.org/) (20.x LTS recommended)
 - Linux/macOS/WSL2 for Solana + Anchor + Arcium CLI
 
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/Emperoar07/shadow.git shadowperp
-cd shadowperp
-
-# Install dependencies
-npm install
-cd app && npm install && cd ..
-
-# Build the Solana program + Arcium circuits
-anchor build && arcium build
-
-# Deploy to devnet
-npx ts-node scripts/deploy-devnet.ts
-```
-
-### Initialize Computation Definitions
-
-After deploying, initialize the three MPC computation definitions:
-
-```bash
-# Registers all three circuit binaries on-chain in one pass
-npx ts-node scripts/init-comp-defs.ts \
-  --program <PROGRAM_ID> \
-  --market <MARKET_PDA> \
-  --rpc https://api.devnet.solana.com
-```
-
-### Running the Frontend
-
-```bash
-cd app
-npm install
-cp .env.example .env.local  # fill in deployed addresses
-npm run dev  # opens at http://localhost:3000
-
-### Running Tests
-
-```bash
-# Full test suite (encryption, privacy, integration)
-anchor test
-
-# Frontend development
-cd app && npm run dev
-```
-
 ## Key Design Decisions
 
 ### Why Enc<Shared, T> for User Inputs?
@@ -294,44 +246,6 @@ Position state after MPC uses `Enc<Mxe, T>` (MXE-only decryptable) because:
 - Callback verification via `verify_output()` against cluster signatures
 - Oracle price freshness validation (< 300 second staleness)
 - Overflow checks enabled via Cargo profile
-
-## Stable Trading Run Order
-
-Run these in order before live devnet testing:
-
-```bash
-# 1) Validate deployed accounts, comp-def completion, oracle freshness, and operator balances
-npm run check:preflight
-
-# 2) Validate oracle freshness only (quick health check)
-npm run check:oracle
-
-# 3) Keep oracle fresh continuously (required for open/close/liquidation)
-npm run oracle:daemon
-
-# 4) Start frontend in another terminal
-npm run dev
-```
-
-Notes:
-- If step 1 fails with stale oracle, run `npm run oracle:once` and re-run checks.
-- If step 1 fails with missing env vars, update `app/.env.local` and restart the dev server.
-- GitHub Actions cron keeps the oracle fresh on hosted deployments; run `npm run oracle:daemon` when testing locally.
-- If preflight passes but callbacks fail after a circuit-interface change, force re-upload the specific circuit:
-  `npm run circuit:force-upload -- --circuit close_position`
-  (or `open_position` / `check_liquidation`), then rerun `npm run check:preflight`.
-
-## Hosting
-
-You can deploy ShadowPerp with a split model:
-
-1. **Frontend** (`app/`) on Vercel, Netlify, or Cloudflare Pages
-2. **Solana program** deployed via Anchor to devnet/mainnet
-3. **Arcium computation definitions** initialized on target cluster
-4. **Frontend** configured with deployed program + Arcium account addresses
-5. **Oracle cron** — the on-chain price must be refreshed every ≤300 seconds or trades/liquidations revert with `StalePrice`. On Vercel free tier (no persistent processes), use the included GitHub Actions workflow (`.github/workflows/oracle-cron.yml`) which runs `scripts/price-oracle.ts --once` every 4 minutes. Set the `SOLANA_WALLET_KEYPAIR_JSON` repository secret and the three `NEXT_PUBLIC_*` repository variables to enable it.
-
-Note: Static hosting providers only serve the web app. On-chain program logic and MPC execution run on Solana + Arcium infrastructure.
 
 ## Tech Stack
 
