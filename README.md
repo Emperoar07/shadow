@@ -189,8 +189,6 @@ shadowperp/
 └── Cargo.toml
 ```
 
-## Getting Started
-
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (1.70+)
@@ -265,9 +263,5 @@ Position state after MPC uses `Enc<Mxe, T>` (MXE-only decryptable) because:
 - [Arcium Documentation](https://docs.arcium.com/)
 - [Solana Documentation](https://docs.solana.com/)
 - [Anchor Framework](https://www.anchor-lang.com/)
-
----
-
-**Built for the Arcium Private Perps Bounty**
-
+  
 *Trade privately. Settle transparently. ShadowPerp.*
