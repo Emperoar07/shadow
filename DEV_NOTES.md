@@ -6,6 +6,26 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-24 (UTC)
 - Author: Codex
 
+## Landing Theme Toggle Placement + Default Light (2026-02-24 UTC)
+- User request:
+  - landing page should default to light mode.
+  - replace top nav mini toggle with `LIGHT MODE PREVIEW` style button at bottom that toggles light/dark.
+- Implemented:
+  - `app/src/pages/index.tsx`
+    - theme state now initializes to light-first (`useState(true)` + existing saved-theme load).
+    - toggle now switches theme live via `document.documentElement.classList` and updates localStorage without page reload.
+    - removed top nav sun/moon toggle control.
+    - added bottom fixed preview button:
+      - shows `LIGHT MODE PREVIEW` in light mode, `DARK MODE PREVIEW` in dark mode.
+      - styled to match provided pill-style purple button.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+- Current blocker:
+  - none introduced by this change.
+- Next safe step:
+  1. hard refresh landing page (`/`) and verify bottom toggle behavior
+  2. verify theme persistence by reloading page and reopening browser tab
+
 ## Compact Panel Height Pass (2026-02-24 UTC)
 - User request:
   - reduce panel heights in the terminal area by ~60% for a denser layout.

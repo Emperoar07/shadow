@@ -10,7 +10,7 @@ export default function LandingPage() {
   const orb3Ref = useRef<HTMLDivElement>(null);
   const orb4Ref = useRef<HTMLDivElement>(null);
   const decryptRef = useRef<HTMLSpanElement>(null);
-  const [isLight, setIsLight] = useState(false);
+  const [isLight, setIsLight] = useState(true);
 
   // ── Theme init ────────────────────────────────────────────────
   useEffect(() => {
@@ -27,8 +27,13 @@ export default function LandingPage() {
 
   const toggleTheme = () => {
     const next = !isLight;
+    setIsLight(next);
     localStorage.setItem("shadow-theme", next ? "light" : "dark");
-    window.location.reload();
+    if (next) {
+      document.documentElement.classList.add("light");
+      return;
+    }
+    document.documentElement.classList.remove("light");
   };
 
   // ── Particle canvas ──────────────────────────────────────────
@@ -259,21 +264,22 @@ export default function LandingPage() {
             box-shadow:0 0 20px rgba(139,92,246,.25);transition:all .15s;
           }
           .lp-nav-cta:hover { box-shadow:0 0 28px rgba(139,92,246,.45);transform:translateY(-1px) }
-          /* THEME TOGGLE */
-          .lp-theme-toggle {
-            position: relative; width: 50px; height: 24px; border-radius: 12px;
-            background: ${dark ? "#1a1a25" : "#e2e8f0"};
-            border: 1.5px solid ${dark ? "#35354a" : "#c8d0e0"};
-            cursor: pointer; display: flex; align-items: center; justify-content: space-between;
-            padding: 0 5px; outline: none; transition: background .25s, border-color .25s;
+          /* THEME TOGGLE (bottom landing control) */
+          .lp-theme-preview-btn {
+            position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+            z-index: 150; border: 2px solid #111827;
+            border-radius: 14px; padding: 9px 18px; line-height: 1;
+            font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+            color: #fff; background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+            box-shadow: 0 8px 20px rgba(124, 58, 237, .35);
+            transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
           }
-          .lp-theme-toggle:active { transform: scale(.94); }
-          .lp-t-sun { font-size: 11px; line-height: 1; z-index: 1; color: #f59e0b; opacity: ${dark ? ".3" : "1"}; }
-          .lp-t-moon { font-size: 11px; line-height: 1; z-index: 1; color: #8b5cf6; opacity: ${dark ? "1" : ".3"}; }
-          .lp-t-knob {
-            position: absolute; top: 3px; left: ${dark ? "3px" : "calc(100% - 21px)"}; width: 16px; height: 16px;
-            border-radius: 50%; background: ${dark ? "#35354a" : "#fff"};
-            box-shadow: 0 1px 4px rgba(0,0,0,.25); transition: left .22s cubic-bezier(.4,0,.2,1), background .22s;
+          .lp-theme-preview-btn:hover {
+            filter: brightness(1.05);
+            box-shadow: 0 10px 24px rgba(124, 58, 237, .45);
+          }
+          .lp-theme-preview-btn:active {
+            transform: translateX(-50%) scale(.98);
           }
           /* HERO */
           .lp-hero {
@@ -453,6 +459,7 @@ export default function LandingPage() {
             .lp-footer{flex-direction:column;gap:16px;text-align:center}
             .lp-session-card{grid-template-columns:1fr}
             .lp-session-stats{flex-wrap:wrap}
+            .lp-theme-preview-btn { bottom: 12px; padding: 8px 14px; font-size: 11px; }
           }
         `}</style>
 
@@ -481,11 +488,6 @@ export default function LandingPage() {
             <a href="#session" className="lp-nav-link">Session Trading</a>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <button className="lp-theme-toggle" onClick={toggleTheme} title={dark ? "Switch to light mode" : "Switch to dark mode"} aria-label="Toggle theme">
-              <span className="lp-t-sun">☀</span>
-              <span className="lp-t-moon">☽</span>
-              <span className="lp-t-knob" />
-            </button>
             <Link href="/app" className="lp-nav-cta">Launch App →</Link>
           </div>
         </nav>
@@ -640,6 +642,15 @@ export default function LandingPage() {
             <a href="#">Docs</a>
           </span>
         </footer>
+
+        <button
+          className="lp-theme-preview-btn"
+          onClick={toggleTheme}
+          title={isLight ? "Switch to dark mode" : "Switch to light mode"}
+          aria-label="Toggle theme"
+        >
+          {isLight ? "LIGHT MODE PREVIEW" : "DARK MODE PREVIEW"}
+        </button>
       </div>
     </>
   );
