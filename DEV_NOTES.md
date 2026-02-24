@@ -59,6 +59,23 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - leave `ENABLE_DEVNET_HEALTH_CRON` unset to suppress scheduled health-run failures/emails.
   - set it to `1` only when you want continuous GitHub-based health monitoring.
 
+## Session Popup/SOL Drain Fix (2026-02-24 UTC)
+- User issue:
+  - every page refresh triggered a new delegated session signature and on-chain session creation.
+- Root cause:
+  - automatic session bootstrap in `TradingPanel` could create sessions without explicit user intent (on refresh/reconnect paths).
+- Implemented:
+  - `app/src/components/TradingPanel.tsx`
+    - removed auto session-init effect on mount/refresh.
+    - trade button is now enabled without pre-existing session and shows `Sign Session & ...` when session is missing.
+  - `app/src/hooks/useArcium.ts`
+    - `submitPrivateOrder()` now ensures a valid session on-demand before relay submission.
+    - if no valid session exists, it prompts a single session signature at trade time, then reuses it.
+- Outcome:
+  - no automatic session creation on page refresh.
+  - no repeated SOL spend from refresh loops.
+  - session is created only when user performs an action (trade/deposit/withdraw) requiring it.
+
 ## Chart Height Reduction (2026-02-24 UTC)
 - User request:
   - reduce chart height by 60%.

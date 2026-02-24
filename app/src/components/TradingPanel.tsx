@@ -34,8 +34,6 @@ const MAX_LEVERAGE = LEVERAGE_MARKERS[LEVERAGE_MARKERS.length - 1];
 const TP_SL_MIN_GAP_BPS = 10; // 0.10%
 const MAX_POSITION_SIZE_BASE = 1_000_000;
 const MAX_POSITION_NOTIONAL_USDC = 5_000_000;
-const AUTO_SESSION_BASE_COOLDOWN_MS = 30_000;
-const AUTO_SESSION_ERROR_COOLDOWN_MS = 5 * 60_000;
 
 interface TradingPanelProps {
   pair?: TradingPair;
@@ -136,16 +134,12 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   const handleSubmitRef = useRef<() => void>(() => undefined);
   const limitExecutorRunningRef = useRef(false);
   const processingOrderIdsRef = useRef<Set<string>>(new Set());
-  const autoSessionInFlightRef = useRef(false);
-  const autoSessionCooldownUntilRef = useRef(0);
   const {
     submitPrivateOrder,
     setError: setPrivacyError,
     resetStatus: resetPrivacyStatus,
     relayAvailable,
     relaySession,
-    relaySessionHydrated,
-    ensureRelaySession,
     refreshRelaySession,
   } = useArciumPrivacy();
 
@@ -332,67 +326,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     const interval = setInterval(() => void refreshRelaySession(), 30_000);
     return () => clearInterval(interval);
   }, [publicKey, refreshRelaySession]);
-
-  useEffect(() => {
-    const owner = publicKey?.toBase58() ?? null;
-    if (!owner) {
-      autoSessionInFlightRef.current = false;
-      autoSessionCooldownUntilRef.current = 0;
-      toast.dismiss("relay-auto-session");
-      return;
-    }
-    if (isRelaySessionActive) {
-      toast.dismiss("relay-auto-session");
-      return;
-    }
-    if (!relaySessionHydrated) return;
-    if (!relayAvailable) return;
-    if (autoSessionInFlightRef.current) return;
-    const nowMs = Date.now();
-    if (nowMs < autoSessionCooldownUntilRef.current) return;
-    autoSessionInFlightRef.current = true;
-    autoSessionCooldownUntilRef.current = nowMs + AUTO_SESSION_BASE_COOLDOWN_MS;
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        toast.loading("Initializing delegated session...", {
-          id: "relay-auto-session",
-        });
-        const session = await ensureRelaySession();
-        if (cancelled || !session) {
-          toast.dismiss("relay-auto-session");
-          return;
-        }
-        const remainingMinutes = Math.max(
-          1,
-          Math.floor((session.expiresAt - Math.floor(Date.now() / 1000)) / 60)
-        );
-        toast.success(`Delegated session active (${remainingMinutes}m)`, {
-          id: "relay-auto-session",
-          duration: 5000,
-        });
-      } catch (error: any) {
-        if (cancelled) return;
-        autoSessionCooldownUntilRef.current = Date.now() + AUTO_SESSION_ERROR_COOLDOWN_MS;
-        const message =
-          typeof error?.message === "string" && error.message.trim().length > 0
-            ? error.message
-            : "Failed to initialize delegated session.";
-        toast.error(message, { id: "relay-auto-session", duration: 7000 });
-      } finally {
-        autoSessionInFlightRef.current = false;
-        if (cancelled) {
-          toast.dismiss("relay-auto-session");
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      toast.dismiss("relay-auto-session");
-    };
-  }, [ensureRelaySession, isRelaySessionActive, publicKey, relayAvailable, relaySessionHydrated]);
 
   const handleDeposit = useCallback(async () => {
     const amt = parseFloat(depositAmount);
@@ -1011,7 +944,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             onClick={handleSubmit}
             disabled={
               isSubmitting ||
-              !isRelaySessionActive ||
               !size ||
               sizeInBase <= 0 ||
               (orderType === "limit" && !parsedLimitPrice)
@@ -1043,7 +975,9 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 Processing via MPC...
               </span>
             ) : !isRelaySessionActive ? (
-              "Session Required"
+              `Sign Session & ${orderType === "limit"
+                ? `Place Limit ${direction.charAt(0).toUpperCase() + direction.slice(1)}`
+                : `Open ${direction.charAt(0).toUpperCase() + direction.slice(1)} Position`}`
             ) : orderType === "limit" ? (
               `Place Limit ${direction.charAt(0).toUpperCase() + direction.slice(1)}`
             ) : (

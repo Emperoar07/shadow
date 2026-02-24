@@ -688,7 +688,7 @@ export const useArciumPrivacy = () => {
       const marginBase = toScaledPositiveBn(requiredMarginUi, SCALE_MARGIN, "required margin");
 
       const nowSeconds = Math.floor(Date.now() / 1000);
-      const activeRelaySession: SessionRelayInfo | null =
+      let activeRelaySession: SessionRelayInfo | null =
         isUsableRelaySession(
           relaySession,
           anchorWallet?.publicKey?.toBase58(),
@@ -697,6 +697,20 @@ export const useArciumPrivacy = () => {
         )
           ? relaySession
           : null;
+
+      if (!activeRelaySession) {
+        const ensured = await ensureRelaySession();
+        if (
+          isUsableRelaySession(
+            ensured,
+            anchorWallet?.publicKey?.toBase58(),
+            runtime.marketAddress.toBase58(),
+            Math.floor(Date.now() / 1000)
+          )
+        ) {
+          activeRelaySession = ensured;
+        }
+      }
 
       if (!activeRelaySession) {
         throw new Error(
@@ -767,7 +781,7 @@ export const useArciumPrivacy = () => {
         usedPrivatePath: true,
       };
     },
-    [getClient, relaySession, anchorWallet, invalidateRelaySession]
+    [getClient, relaySession, anchorWallet, ensureRelaySession, invalidateRelaySession]
   );
 
   const setError = useCallback((message: string) => {
