@@ -45,6 +45,20 @@ Internal handoff notes for the next engineer. Do not publish secrets.
      - open position (session path)
   2. if auth error reappears, capture exact relay API response and tx signature for targeted replay.
 
+## GitHub Health-Check Email Noise Guard (2026-02-24 UTC)
+- Issue:
+  - `Devnet Health Check` workflow emails were triggering while operator was offline.
+- Cause:
+  - workflow had scheduled cron every 10 minutes and failures emit GitHub notifications regardless of local online status.
+- Implemented:
+  - `.github/workflows/devnet-health.yml`
+    - job now runs only when:
+      - manually triggered (`workflow_dispatch`), or
+      - repo variable `ENABLE_DEVNET_HEALTH_CRON=1` is set.
+- Operational note:
+  - leave `ENABLE_DEVNET_HEALTH_CRON` unset to suppress scheduled health-run failures/emails.
+  - set it to `1` only when you want continuous GitHub-based health monitoring.
+
 ## Chart Height Reduction (2026-02-24 UTC)
 - User request:
   - reduce chart height by 60%.

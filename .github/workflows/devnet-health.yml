@@ -7,6 +7,7 @@ on:
 
 jobs:
   health:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_DEVNET_HEALTH_CRON == '1' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
