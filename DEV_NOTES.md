@@ -6,6 +6,25 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-24 (UTC)
 - Author: Codex
 
+## Hosting Incident: "missing required error components" loop (2026-02-24 UTC)
+- User symptom:
+  - browser showed `missing required error components, refreshing...` and page did not load.
+- Verification:
+  - `npm run hosting:status` showed `oracle: running` but `app: stopped`.
+  - env and chain preflight were valid (`npm run check:preflight` PASS).
+  - after app restart, `http://127.0.0.1:3000/` and `/app` both returned HTTP 200.
+- Root cause:
+  - hosting stack was partially up (oracle-only), so browser sat in refresh loop waiting for Next error/runtime components from a non-running app server.
+- Recovery used:
+  - `npm run hosting:start`
+  - (or deterministic reset) `npm run hosting:restart`
+- Current blocker:
+  - none for hosting/runtime startup.
+- Next safe step:
+  1. always use `npm run hosting:status` first when UI appears blank
+  2. if app is stopped, run `npm run hosting:restart`
+  3. hard refresh browser once app is confirmed running
+
 ## Light Mode UI Alignment + Session Collateral Relay Fix (2026-02-24 UTC)
 - User issue:
   - delegated collateral withdraw returned `Invalid session authorization signature`
