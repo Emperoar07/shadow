@@ -1,10 +1,12 @@
 import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
 import {
+  Transaction,
   PublicKey,
   SystemProgram,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
+  createApproveInstruction,
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 import {
@@ -288,6 +290,32 @@ export class ShadowPerpClient {
     return tx;
   }
 
+  /**
+   * Owner-authorized token delegate approval for session-based collateral deposits.
+   * This is the one-time token allowance grant to the relayer.
+   */
+  async approveCollateralDelegate(
+    market: PublicKey,
+    delegate: PublicKey,
+    amount: BN
+  ): Promise<string> {
+    const owner = this.provider.wallet.publicKey;
+    const marketAccount = await this.getMarket(market);
+    const ownerTokenAccount = await getAssociatedTokenAddress(
+      marketAccount.collateralMint,
+      owner
+    );
+
+    const approveIx = createApproveInstruction(
+      ownerTokenAccount,
+      delegate,
+      owner,
+      BigInt(amount.toString())
+    );
+    const tx = new Transaction().add(approveIx);
+    return this.provider.sendAndConfirm(tx, []);
+  }
+
   // ============ COLLATERAL ============
 
   async depositCollateral(market: PublicKey, amount: BN): Promise<string> {
@@ -305,6 +333,53 @@ export class ShadowPerpClient {
       .depositCollateral(amount)
       .accounts({
         owner, market, marginAccount, userTokenAccount, vault,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    return tx;
+  }
+
+  /**
+   * Relayer path: deposit owner collateral under an active delegated session.
+   * Requires prior SPL delegate approval from owner -> relayer.
+   */
+  async depositCollateralWithSession(
+    market: PublicKey,
+    owner: PublicKey,
+    sessionId: BN | number,
+    amount: BN
+  ): Promise<string> {
+    const relayer = this.provider.wallet.publicKey;
+    const marketAccount = await this.getMarket(market);
+    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const ownerTokenAccount = await getAssociatedTokenAddress(
+      marketAccount.collateralMint,
+      owner
+    );
+    const sessionAddress = this.getTradeSessionAddress(
+      market,
+      owner,
+      this.toU64Bn(sessionId)
+    );
+
+    const methods = (this.program as any).methods;
+    if (!methods?.depositCollateralWithSession) {
+      throw new Error(
+        "depositCollateralWithSession is unavailable in the loaded IDL. Rebuild/sync IDL first."
+      );
+    }
+
+    const tx = await methods
+      .depositCollateralWithSession(amount)
+      .accounts({
+        relayer,
+        owner,
+        market,
+        session: sessionAddress,
+        marginAccount,
+        ownerTokenAccount,
+        vault: marketAccount.vault,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })

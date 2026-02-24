@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 
@@ -10,6 +10,26 @@ export default function LandingPage() {
   const orb3Ref = useRef<HTMLDivElement>(null);
   const orb4Ref = useRef<HTMLDivElement>(null);
   const decryptRef = useRef<HTMLSpanElement>(null);
+  const [isLight, setIsLight] = useState(false);
+
+  // ── Theme init ────────────────────────────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem("shadow-theme");
+    const light = saved !== "dark"; // default to light
+    setIsLight(light);
+    if (light) {
+      document.documentElement.classList.add("light");
+      if (!saved) localStorage.setItem("shadow-theme", "light");
+    } else {
+      document.documentElement.classList.remove("light");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !isLight;
+    localStorage.setItem("shadow-theme", next ? "light" : "dark");
+    window.location.reload();
+  };
 
   // ── Particle canvas ──────────────────────────────────────────
   useEffect(() => {
@@ -37,7 +57,7 @@ export default function LandingPage() {
         vx: (Math.random() - 0.5) * 0.6,
         vy: (Math.random() - 0.5) * 0.6,
         r: Math.random() * 2.2 + 0.8,
-        alpha: Math.random() * 0.6 + 0.25,
+        alpha: Math.random() * 0.4 + 0.15,
         color: COLORS[Math.floor(Math.random() * 3)],
       });
     }
@@ -64,7 +84,7 @@ export default function LandingPage() {
             ctx!.beginPath();
             ctx!.moveTo(particles[i].x, particles[i].y);
             ctx!.lineTo(particles[j].x, particles[j].y);
-            ctx!.strokeStyle = `rgba(99,92,246,${0.28 * (1 - dist / 160)})`;
+            ctx!.strokeStyle = `rgba(99,92,246,${0.15 * (1 - dist / 160)})`;
             ctx!.lineWidth = 0.8;
             ctx!.stroke();
           }
@@ -146,7 +166,6 @@ export default function LandingPage() {
     document.addEventListener("mousemove", onMove);
     rafId = requestAnimationFrame(orbLoop);
 
-    // Card 3-D tilt
     type L = { card: HTMLElement; move: (e: MouseEvent) => void; leave: () => void };
     const listeners: L[] = [];
     document.querySelectorAll<HTMLElement>(".lp-tilt").forEach((card) => {
@@ -172,6 +191,8 @@ export default function LandingPage() {
     };
   }, []);
 
+  const dark = !isLight;
+
   return (
     <>
       <Head>
@@ -180,13 +201,13 @@ export default function LandingPage() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div className="relative min-h-screen overflow-x-hidden bg-[#05081a] text-slate-200">
+      <div className="relative min-h-screen overflow-x-hidden" style={{ background: dark ? "#05081a" : "#f8f9fc", color: dark ? "#e2e8f0" : "#0f172a" }}>
         <style jsx global>{`
           .lp-grid-bg {
             position: fixed; inset: 0; z-index: 0; pointer-events: none;
             background-image:
-              linear-gradient(rgba(36,56,114,0.18) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(36,56,114,0.18) 1px, transparent 1px);
+              linear-gradient(${dark ? "rgba(36,56,114,0.18)" : "rgba(124,58,237,0.07)"} 1px, transparent 1px),
+              linear-gradient(90deg, ${dark ? "rgba(36,56,114,0.18)" : "rgba(124,58,237,0.07)"} 1px, transparent 1px);
             background-size: 52px 52px;
             mask-image: radial-gradient(ellipse 100% 80% at 50% 0%, black 50%, transparent 100%);
           }
@@ -194,10 +215,10 @@ export default function LandingPage() {
             position: fixed; border-radius: 50%; filter: blur(55px);
             pointer-events: none; animation: lp-drift 12s ease-in-out infinite;
           }
-          .lp-orb1 { width:700px;height:700px;background:rgba(109,40,217,.22);top:-150px;left:-150px;animation-duration:14s }
-          .lp-orb2 { width:560px;height:560px;background:rgba(37,99,235,.16);top:80px;right:-120px;animation-duration:10s;animation-delay:-4s }
-          .lp-orb3 { width:420px;height:420px;background:rgba(16,185,129,.10);top:40%;left:28%;animation-duration:16s;animation-delay:-7s }
-          .lp-orb4 { width:360px;height:360px;background:rgba(217,70,160,.12);bottom:10%;right:10%;animation-duration:18s;animation-delay:-10s }
+          .lp-orb1 { width:700px;height:700px;background:${dark ? "rgba(109,40,217,.22)" : "rgba(124,58,237,.1)"};top:-150px;left:-150px;animation-duration:14s }
+          .lp-orb2 { width:560px;height:560px;background:${dark ? "rgba(37,99,235,.16)" : "rgba(37,99,235,.08)"};top:80px;right:-120px;animation-duration:10s;animation-delay:-4s }
+          .lp-orb3 { width:420px;height:420px;background:${dark ? "rgba(16,185,129,.10)" : "rgba(16,185,129,.06)"};top:40%;left:28%;animation-duration:16s;animation-delay:-7s }
+          .lp-orb4 { width:360px;height:360px;background:${dark ? "rgba(217,70,160,.12)" : "rgba(217,70,160,.06)"};bottom:10%;right:10%;animation-duration:18s;animation-delay:-10s }
           @keyframes lp-drift {
             0%,100% { transform: translate(0,0) scale(1) }
             33%      { transform: translate(50px,-35px) scale(1.08) }
@@ -205,7 +226,7 @@ export default function LandingPage() {
           }
           .lp-cursor-glow {
             position: fixed; width: 600px; height: 600px; border-radius: 50%; z-index: 1;
-            background: radial-gradient(circle, rgba(139,92,246,.18) 0%, rgba(59,130,246,.09) 40%, transparent 70%);
+            background: radial-gradient(circle, rgba(139,92,246,${dark ? ".18" : ".10"}) 0%, rgba(59,130,246,${dark ? ".09" : ".05"}) 40%, transparent 70%);
             pointer-events: none; transform: translate(-50%,-50%); transition: opacity .4s;
           }
           /* NAV */
@@ -213,8 +234,9 @@ export default function LandingPage() {
             position: fixed; top: 0; left: 0; right: 0; z-index: 100;
             padding: 0 40px; height: 64px;
             display: flex; align-items: center; justify-content: space-between;
-            background: transparent;
-            border-bottom: none;
+            background: ${dark ? "transparent" : "rgba(248,249,252,.88)"};
+            backdrop-filter: ${dark ? "none" : "blur(12px)"};
+            border-bottom: ${dark ? "none" : "1px solid rgba(221,226,238,.6)"};
           }
           .lp-nav-logo { display:flex;align-items:center;gap:10px;text-decoration:none;transition:transform .15s ease,filter .15s ease;user-select:none }
           .lp-nav-logo:active { transform:scale(0.88);filter:drop-shadow(0 0 14px rgba(139,92,246,.8)) }
@@ -229,19 +251,36 @@ export default function LandingPage() {
             -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
           }
           .lp-nav-links { display:flex;align-items:center;gap:28px }
-          .lp-nav-link { font-size:13px;font-weight:500;color:#6b7280;text-decoration:none;transition:color .15s }
-          .lp-nav-link:hover { color:#e2e8f0 }
+          .lp-nav-link { font-size:13px;font-weight:500;color:${dark ? "#6b7280" : "#475569"};text-decoration:none;transition:color .15s }
+          .lp-nav-link:hover { color:${dark ? "#e2e8f0" : "#7c3aed"} }
           .lp-nav-cta {
             padding:8px 20px;border-radius:8px;font-size:13px;font-weight:700;
             background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:#fff;text-decoration:none;
             box-shadow:0 0 20px rgba(139,92,246,.25);transition:all .15s;
           }
           .lp-nav-cta:hover { box-shadow:0 0 28px rgba(139,92,246,.45);transform:translateY(-1px) }
+          /* THEME TOGGLE */
+          .lp-theme-toggle {
+            position: relative; width: 50px; height: 24px; border-radius: 12px;
+            background: ${dark ? "#1a1a25" : "#e2e8f0"};
+            border: 1.5px solid ${dark ? "#35354a" : "#c8d0e0"};
+            cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 5px; outline: none; transition: background .25s, border-color .25s;
+          }
+          .lp-theme-toggle:active { transform: scale(.94); }
+          .lp-t-sun { font-size: 11px; line-height: 1; z-index: 1; color: #f59e0b; opacity: ${dark ? ".3" : "1"}; }
+          .lp-t-moon { font-size: 11px; line-height: 1; z-index: 1; color: #8b5cf6; opacity: ${dark ? "1" : ".3"}; }
+          .lp-t-knob {
+            position: absolute; top: 3px; left: ${dark ? "3px" : "calc(100% - 21px)"}; width: 16px; height: 16px;
+            border-radius: 50%; background: ${dark ? "#35354a" : "#fff"};
+            box-shadow: 0 1px 4px rgba(0,0,0,.25); transition: left .22s cubic-bezier(.4,0,.2,1), background .22s;
+          }
           /* HERO */
           .lp-hero {
             position:relative;min-height:100vh;z-index:1;
             display:flex;flex-direction:column;align-items:center;justify-content:center;
             padding:100px 24px 60px;text-align:center;overflow:hidden;
+            background: ${dark ? "transparent" : "linear-gradient(180deg,#f0eeff 0%,#f8f9fc 55%,#f8f9fc 100%)"};
           }
           .lp-badge {
             display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;
@@ -258,16 +297,15 @@ export default function LandingPage() {
             font-size:clamp(44px,7vw,88px);font-weight:900;line-height:1.05;letter-spacing:-.03em;
             margin-bottom:24px;animation:lp-fade-up .7s .1s ease both;
           }
-          .lp-plain { color:#e2e8f0 }
+          .lp-plain { color: ${dark ? "#e2e8f0" : "#0f172a"} }
           .lp-accent {
             background:linear-gradient(135deg,#a78bfa 0%,#60a5fa 50%,#34d399 100%);
             -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
           }
           .lp-hero-sub {
-            max-width:560px;font-size:18px;font-weight:500;color:#94a3b8;line-height:1.7;
+            max-width:560px;font-size:18px;font-weight:500;color:${dark ? "#94a3b8" : "#475569"};line-height:1.7;
             margin-bottom:40px;animation:lp-fade-up .7s .2s ease both;
           }
-          .lp-hero-sub em { color:#94a3b8;font-style:normal }
           .lp-hero-ctas { display:flex;gap:12px;justify-content:center;flex-wrap:wrap;animation:lp-fade-up .7s .3s ease both }
           .lp-btn-primary {
             padding:14px 32px;border-radius:10px;font-size:15px;font-weight:700;
@@ -278,24 +316,23 @@ export default function LandingPage() {
           .lp-btn-primary:hover { transform:translateY(-2px);box-shadow:0 0 45px rgba(139,92,246,.5) }
           .lp-powered {
             display:flex;align-items:center;justify-content:center;gap:20px;margin-top:48px;width:100%;
-            font-size:11px;font-weight:600;color:#374151;letter-spacing:.1em;text-transform:uppercase;
+            font-size:11px;font-weight:600;color:${dark ? "#374151" : "#94a3b8"};letter-spacing:.1em;text-transform:uppercase;
             animation:lp-fade-up .7s .6s ease both;
           }
           .lp-powered-badge {
             padding:5px 12px;border-radius:6px;
-            background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
-            font-size:12px;font-weight:600;color:#6b7280;
+            background:${dark ? "rgba(255,255,255,.03)" : "rgba(0,0,0,.04)"};
+            border:1px solid ${dark ? "rgba(255,255,255,.07)" : "rgba(0,0,0,.08)"};
+            font-size:12px;font-weight:600;color:${dark ? "#6b7280" : "#64748b"};
           }
           .lp-arc { color:#a78bfa } .lp-sol { color:#9945ff }
           .lp-scroll-hint {
             position:absolute;bottom:32px;left:0;right:0;
             display:flex;flex-direction:column;align-items:center;gap:8px;
-            font-size:13px;color:#94a3b8;letter-spacing:.1em;text-transform:uppercase;
+            font-size:13px;color:${dark ? "#94a3b8" : "#64748b"};letter-spacing:.1em;text-transform:uppercase;
             animation:lp-fade-up .7s .8s ease both;
           }
-          .lp-scroll-arrow {
-            color:#a78bfa;animation:lp-arrow-bounce 1.6s ease-in-out infinite;
-          }
+          .lp-scroll-arrow { color:#a78bfa;animation:lp-arrow-bounce 1.6s ease-in-out infinite; }
           @keyframes lp-arrow-bounce {
             0%,100% { transform:translateY(0);opacity:1 }
             50%     { transform:translateY(7px);opacity:.6 }
@@ -303,8 +340,8 @@ export default function LandingPage() {
           /* SECTIONS */
           .lp-section { padding:100px 24px;max-width:1100px;margin:0 auto;position:relative;z-index:1 }
           .lp-section-tag { font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#8b5cf6;margin-bottom:12px }
-          .lp-section-title { font-size:clamp(28px,4vw,44px);font-weight:800;letter-spacing:-.02em;color:#e2e8f0;margin-bottom:16px }
-          .lp-section-sub { font-size:16px;color:#94a3b8;font-weight:500;max-width:500px;line-height:1.7 }
+          .lp-section-title { font-size:clamp(28px,4vw,44px);font-weight:800;letter-spacing:-.02em;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:16px }
+          .lp-section-sub { font-size:16px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;max-width:500px;line-height:1.7 }
           /* HOW IT WORKS */
           .lp-steps { display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:56px;position:relative }
           .lp-steps::before {
@@ -319,13 +356,14 @@ export default function LandingPage() {
             position:relative;z-index:1;transition:all .3s;
           }
           .lp-step:hover .lp-step-num { background:rgba(139,92,246,.18);box-shadow:0 0 24px rgba(139,92,246,.25);transform:scale(1.08) }
-          .lp-step-title { font-size:16px;font-weight:700;color:#e2e8f0;margin-bottom:8px }
-          .lp-step-desc { font-size:13px;color:#94a3b8;font-weight:500;line-height:1.7 }
+          .lp-step-title { font-size:16px;font-weight:700;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:8px }
+          .lp-step-desc { font-size:13px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.7 }
           /* FEATURES */
           .lp-features-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:48px }
           .lp-feat-card {
-            background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);
-            border-radius:14px;padding:28px 24px;transition:border-color .25s;
+            background:${dark ? "rgba(255,255,255,.02)" : "#ffffff"};
+            border:1px solid ${dark ? "rgba(255,255,255,.06)" : "#dde2ee"};
+            border-radius:14px;padding:28px 24px;transition:border-color .25s,box-shadow .25s;
             cursor:default;position:relative;overflow:hidden;
             transform-style:preserve-3d;will-change:transform;
           }
@@ -333,72 +371,79 @@ export default function LandingPage() {
             content:'';position:absolute;inset:0;border-radius:14px;
             background:linear-gradient(135deg,rgba(139,92,246,.06),transparent);opacity:0;transition:opacity .25s;
           }
-          .lp-feat-card:hover { border-color:rgba(139,92,246,.25) }
+          .lp-feat-card:hover { border-color:rgba(139,92,246,.3);box-shadow:0 4px 20px rgba(139,92,246,.08) }
           .lp-feat-card:hover::before { opacity:1 }
-          .lp-feat-title { font-size:16px;font-weight:700;color:#e2e8f0;margin-bottom:8px }
-          .lp-feat-desc { font-size:13px;color:#94a3b8;font-weight:500;line-height:1.7 }
+          .lp-feat-title { font-size:16px;font-weight:700;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:8px }
+          .lp-feat-desc { font-size:13px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.7 }
           /* PRIVACY */
           .lp-privacy-section {
             position:relative;z-index:1;padding:80px 24px;
-            border-top:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.04);
-            background:rgba(139,92,246,.02);
+            border-top:1px solid ${dark ? "rgba(255,255,255,.04)" : "#e8ebf4"};
+            border-bottom:1px solid ${dark ? "rgba(255,255,255,.04)" : "#e8ebf4"};
+            background:${dark ? "rgba(139,92,246,.02)" : "#f6f8fc"};
           }
           .lp-privacy-inner { max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center }
           .lp-privacy-visual {
-            background:rgba(255,255,255,.02);border:1px solid rgba(139,92,246,.15);
+            background:${dark ? "rgba(255,255,255,.02)" : "#ffffff"};
+            border:1px solid ${dark ? "rgba(139,92,246,.15)" : "#dde2ee"};
             border-radius:14px;padding:24px;font-family:'Courier New',monospace;font-size:12px;
           }
-          .lp-pv-header { font-size:10px;color:#374151;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06) }
-          .lp-pv-row { display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04) }
+          .lp-pv-header { font-size:10px;color:${dark ? "#374151" : "#94a3b8"};letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid ${dark ? "rgba(255,255,255,.06)" : "#e8ebf4"} }
+          .lp-pv-row { display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid ${dark ? "rgba(255,255,255,.04)" : "#f0f2f7"} }
           .lp-pv-row:last-of-type { border-bottom:none }
-          .lp-pv-label { color:#4b5563;min-width:100px;font-size:11px }
+          .lp-pv-label { color:${dark ? "#4b5563" : "#94a3b8"};min-width:100px;font-size:11px }
           .lp-pv-enc { color:#8b5cf6;letter-spacing:.05em;filter:blur(3.5px);transition:filter .3s }
           .lp-pv-enc:hover { filter:blur(0) }
           .lp-pv-plain { color:#10b981 }
           .lp-pv-lock { font-size:10px;color:#8b5cf6;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;white-space:nowrap }
           .lp-pv-lock-green { font-size:10px;color:#10b981;background:rgba(16,185,129,.1);padding:1px 5px;border-radius:4px;white-space:nowrap }
           .lp-pv-lock-blue { font-size:10px;color:#60a5fa;background:rgba(96,165,250,.1);padding:1px 5px;border-radius:4px;white-space:nowrap }
-          .lp-pv-hint { font-size:10px;color:#374151;margin-top:10px;text-align:right }
+          .lp-pv-hint { font-size:10px;color:${dark ? "#374151" : "#94a3b8"};margin-top:10px;text-align:right }
+          /* SESSION CALLOUT */
+          .lp-session-callout { max-width:1100px;margin:0 auto 80px;position:relative;z-index:1;padding:0 24px }
+          .lp-session-card {
+            background:${dark ? "rgba(139,92,246,.04)" : "linear-gradient(135deg,rgba(124,58,237,.05),rgba(37,99,235,.04))"};
+            border:1px solid ${dark ? "rgba(139,92,246,.18)" : "rgba(124,58,237,.2)"};
+            border-radius:16px;padding:36px 40px;display:grid;grid-template-columns:1fr auto;gap:32px;align-items:center;
+          }
+          .lp-session-label { font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8b5cf6;margin-bottom:8px }
+          .lp-session-title { font-size:22px;font-weight:800;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:10px;letter-spacing:-.02em }
+          .lp-session-desc { font-size:14px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.7;max-width:520px }
+          .lp-session-stats { display:flex;gap:24px }
+          .lp-session-stat { text-align:center;padding:16px 24px;background:${dark ? "rgba(255,255,255,.03)" : "#ffffff"};border:1px solid ${dark ? "rgba(255,255,255,.06)" : "#dde2ee"};border-radius:12px }
+          .lp-session-stat-val { font-size:22px;font-weight:800;color:#a78bfa;letter-spacing:-.02em }
+          .lp-session-stat-lbl { font-size:10px;color:${dark ? "#6b7280" : "#64748b"};font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-top:4px }
           /* CTA */
-          .lp-cta-section { position:relative;z-index:1;padding:120px 24px;text-align:center;overflow:hidden }
+          .lp-cta-section {
+            position:relative;z-index:1;padding:120px 24px;text-align:center;overflow:hidden;
+            background: ${dark ? "transparent" : "linear-gradient(180deg,#f8f9fc 0%,#f0eeff 60%,#f8f9fc 100%)"};
+          }
           .lp-cta-glow {
             position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
             width:600px;height:400px;border-radius:50%;pointer-events:none;
-            background:radial-gradient(ellipse,rgba(109,40,217,.15) 0%,transparent 70%);
+            background:radial-gradient(ellipse,rgba(109,40,217,${dark ? ".15" : ".08"}) 0%,transparent 70%);
           }
           .lp-cta-title {
             font-size:clamp(32px,5vw,56px);font-weight:900;letter-spacing:-.03em;
-            background:linear-gradient(135deg,#e2e8f0 0%,#a78bfa 50%,#60a5fa 100%);
+            background:${dark ? "linear-gradient(135deg,#e2e8f0 0%,#a78bfa 50%,#60a5fa 100%)" : "linear-gradient(135deg,#0f172a 0%,#7c3aed 50%,#2563eb 100%)"};
             -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;
           }
-          .lp-cta-sub { font-size:17px;color:#94a3b8;font-weight:500;max-width:440px;margin:0 auto 40px;line-height:1.7 }
+          .lp-cta-sub { font-size:17px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;max-width:440px;margin:0 auto 40px;line-height:1.7 }
           /* FOOTER */
           .lp-footer {
-            position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.04);
+            position:relative;z-index:1;
+            border-top:1px solid ${dark ? "rgba(255,255,255,.04)" : "#e8ebf4"};
+            background: ${dark ? "transparent" : "#ffffff"};
             padding:32px 40px;display:flex;align-items:center;justify-content:space-between;
-            font-size:12px;color:#374151;
+            font-size:12px;color:${dark ? "#374151" : "#64748b"};
           }
-          .lp-footer a { color:#6b7280;text-decoration:none;transition:color .15s }
+          .lp-footer a { color:${dark ? "#6b7280" : "#94a3b8"};text-decoration:none;transition:color .15s }
           .lp-footer a:hover { color:#a78bfa }
           /* REVEAL */
           .lp-reveal { opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease }
           .lp-reveal.lp-visible { opacity:1;transform:translateY(0) }
           .lp-delay-1 { transition-delay:.1s } .lp-delay-2 { transition-delay:.2s } .lp-delay-3 { transition-delay:.3s }
           @keyframes lp-fade-up { from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)} }
-          /* RESPONSIVE */
-          /* SESSION CALLOUT */
-          .lp-session-callout { max-width:1100px;margin:0 auto 80px;position:relative;z-index:1;padding:0 24px }
-          .lp-session-card {
-            background:rgba(139,92,246,.04);border:1px solid rgba(139,92,246,.18);
-            border-radius:16px;padding:36px 40px;display:grid;grid-template-columns:1fr auto;gap:32px;align-items:center;
-          }
-          .lp-session-label { font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8b5cf6;margin-bottom:8px }
-          .lp-session-title { font-size:22px;font-weight:800;color:#e2e8f0;margin-bottom:10px;letter-spacing:-.02em }
-          .lp-session-desc { font-size:14px;color:#94a3b8;font-weight:500;line-height:1.7;max-width:520px }
-          .lp-session-stats { display:flex;gap:24px }
-          .lp-session-stat { text-align:center;padding:16px 24px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px }
-          .lp-session-stat-val { font-size:22px;font-weight:800;color:#a78bfa;letter-spacing:-.02em }
-          .lp-session-stat-lbl { font-size:10px;color:#6b7280;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-top:4px }
           @media(max-width:768px){
             .lp-steps{grid-template-columns:1fr}
             .lp-steps::before{display:none}
@@ -415,7 +460,7 @@ export default function LandingPage() {
         <div ref={cursorGlowRef} className="lp-cursor-glow" />
 
         {/* Particle canvas */}
-        <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none" style={{ opacity: 0.4 }} aria-hidden="true" />
+        <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none" style={{ opacity: dark ? 0.4 : 0.25 }} aria-hidden="true" />
 
         {/* Grid + orbs */}
         <div className="lp-grid-bg" />
@@ -427,7 +472,7 @@ export default function LandingPage() {
         {/* NAV */}
         <nav className="lp-nav">
           <Link href="/" className="lp-nav-logo">
-            <ShadowLogo className="lp-nav-logo-svg" />
+            <ShadowLogo className="lp-nav-logo-svg" dark={dark} />
             <span className="lp-nav-name">SHADOW</span>
           </Link>
           <div className="lp-nav-links">
@@ -435,7 +480,14 @@ export default function LandingPage() {
             <a href="#features" className="lp-nav-link">Features</a>
             <a href="#session" className="lp-nav-link">Session Trading</a>
           </div>
-          <Link href="/app" className="lp-nav-cta">Launch App →</Link>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button className="lp-theme-toggle" onClick={toggleTheme} title={dark ? "Switch to light mode" : "Switch to dark mode"} aria-label="Toggle theme">
+              <span className="lp-t-sun">☀</span>
+              <span className="lp-t-moon">☽</span>
+              <span className="lp-t-knob" />
+            </button>
+            <Link href="/app" className="lp-nav-cta">Launch App →</Link>
+          </div>
         </nav>
 
         {/* HERO */}
@@ -449,7 +501,7 @@ export default function LandingPage() {
             <span className="lp-accent"><span ref={decryptRef}>the Dark.</span></span>
           </h1>
           <p className="lp-hero-sub">
-            A <em>fully confidential</em> perpetual exchange on Solana.<br />
+            A fully confidential perpetual exchange on Solana.<br />
             Your size, leverage and liquidation price are encrypted end-to-end.
           </p>
           <div className="lp-hero-ctas">
@@ -462,7 +514,7 @@ export default function LandingPage() {
           </div>
           <div className="lp-powered">
             <span className="lp-powered-badge">Built on <span className="lp-sol">Solana</span></span>
-            <span style={{ color: "#1e293b" }}>·</span>
+            <span style={{ color: dark ? "#1e293b" : "#c8d0e0" }}>·</span>
             <span className="lp-powered-badge">Powered by <span className="lp-arc">Arcium</span></span>
           </div>
           <div className="lp-scroll-hint">
@@ -505,7 +557,7 @@ export default function LandingPage() {
               <div className="lp-section-title" style={{ fontSize: "clamp(24px,3.5vw,38px)" }}>
                 What others see vs.<br />what you see
               </div>
-              <p style={{ fontSize: "14px", color: "#94a3b8", fontWeight: 500, lineHeight: 1.7, marginTop: "12px" }}>
+              <p style={{ fontSize: "14px", color: dark ? "#94a3b8" : "#475569", fontWeight: 500, lineHeight: 1.7, marginTop: "12px" }}>
                 On Shadow, sensitive fields are encrypted on chain. Hover the blurred values to see what a watcher would observe. Nothing.
               </p>
             </div>
@@ -593,7 +645,7 @@ export default function LandingPage() {
   );
 }
 
-function ShadowLogo({ className }: { className?: string }) {
+function ShadowLogo({ className, dark }: { className?: string; dark?: boolean }) {
   return (
     <svg viewBox="0 0 100 100" className={className} aria-hidden="true">
       <defs>
@@ -603,9 +655,7 @@ function ShadowLogo({ className }: { className?: string }) {
         </linearGradient>
       </defs>
       <circle cx="50" cy="50" r="40" fill="url(#lp-logo-grad)" />
-      <circle cx="62" cy="38" r="41" fill="#05081a" />
+      <circle cx="62" cy="38" r="41" fill={dark ? "#05081a" : "#f8f9fc"} />
     </svg>
   );
 }
-
-

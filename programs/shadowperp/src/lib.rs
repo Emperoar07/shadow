@@ -13,6 +13,7 @@ use handlers::__client_accounts_close_position_callback;
 use handlers::__client_accounts_close_position_with_session;
 use handlers::__client_accounts_create_trade_session;
 use handlers::__client_accounts_deposit_collateral;
+use handlers::__client_accounts_deposit_collateral_with_session;
 use handlers::__client_accounts_init_arcium_signer;
 use handlers::__client_accounts_init_close_position_comp_def;
 use handlers::__client_accounts_init_liquidation_comp_def;
@@ -52,6 +53,7 @@ use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
 use handlers::session_trading::{
     ClosePositionWithSession,
     CreateTradeSession,
+    DepositCollateralWithSession,
     OpenPositionWithSession,
     RevokeTradeSession,
     WithdrawCollateralWithSession,
@@ -260,6 +262,15 @@ pub mod shadowperp {
         amount: u64,
     ) -> Result<()> {
         handlers::session_trading::withdraw_collateral_with_session_handler(ctx, amount)
+    }
+
+    /// Relayer deposits collateral for owner under an active delegated session.
+    /// Requires prior SPL token delegate approval from owner to relayer.
+    pub fn deposit_collateral_with_session(
+        ctx: Context<DepositCollateralWithSession>,
+        amount: u64,
+    ) -> Result<()> {
+        handlers::session_trading::deposit_collateral_with_session_handler(ctx, amount)
     }
 
     /// Initialize a user-scoped encrypted private orderbook account.

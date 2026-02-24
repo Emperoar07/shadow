@@ -742,9 +742,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   }, [runLimitExecutor]);
 
   return (
-    <div className="position-card rounded-xl border border-accent-purple/20 bg-[#0a0f1f]/85 p-4 sm:p-5">
-      <h2 className="mb-5 text-xl font-semibold text-white">Open Position</h2>
-
+    <div className="trade-trading-panel flex flex-col bg-shadow-900 p-4 h-full overflow-y-auto">
       <div className={isHorizontal ? "grid grid-cols-1 items-start gap-4 lg:grid-cols-12" : "space-y-4"}>
         <div className={isHorizontal ? "space-y-4 lg:col-span-12" : "space-y-4"}>
           {publicKey && (
@@ -772,52 +770,79 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setDirection("long")}
-              className={`rounded-lg py-3 font-semibold transition-all btn-press ${
-                direction === "long"
-                  ? "bg-accent-green text-white shadow-[0_0_18px_rgba(16,185,129,0.26)]"
-                  : "bg-shadow-600 text-gray-400 hover:bg-shadow-500"
-              }`}
-            >
-              Long
-            </button>
-            <button
-              onClick={() => setDirection("short")}
-              className={`rounded-lg py-3 font-semibold transition-all btn-press ${
-                direction === "short"
-                  ? "bg-accent-red text-white shadow-[0_0_18px_rgba(239,68,68,0.26)]"
-                  : "bg-shadow-600 text-gray-400 hover:bg-shadow-500"
-              }`}
-            >
-              Short
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
+          {/* Market / Limit — underlined text tabs */}
+          <div className="flex items-center gap-4 border-b border-shadow-600 pb-0">
             <button
               onClick={() => setOrderType("market")}
-              className={`rounded-lg border py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
+              className={`pb-2 text-xs font-semibold transition-colors border-b-2 -mb-px ${
                 orderType === "market"
-                  ? "border-accent-purple/50 bg-accent-purple/20 text-white"
-                  : "border-shadow-500 bg-shadow-700 text-gray-300 hover:text-white"
+                  ? "text-white border-accent-purple"
+                  : "text-gray-500 border-transparent hover:text-gray-300"
               }`}
             >
               Market
             </button>
             <button
               onClick={() => setOrderType("limit")}
-              className={`rounded-lg border py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
+              className={`pb-2 text-xs font-semibold transition-colors border-b-2 -mb-px ${
                 orderType === "limit"
-                  ? "border-accent-purple/50 bg-accent-purple/20 text-white"
-                  : "border-shadow-500 bg-shadow-700 text-gray-300 hover:text-white"
+                  ? "text-white border-accent-purple"
+                  : "text-gray-500 border-transparent hover:text-gray-300"
               }`}
             >
               Limit
             </button>
           </div>
 
+          {/* Long / Short — direction buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setDirection("long")}
+              className={`rounded-lg py-2.5 text-sm font-bold transition-all btn-press ${
+                direction === "long"
+                  ? "bg-accent-green text-white"
+                  : "bg-accent-green/10 text-accent-green border border-accent-green/25 hover:bg-accent-green/20"
+              }`}
+            >
+              Long
+            </button>
+            <button
+              onClick={() => setDirection("short")}
+              className={`rounded-lg py-2.5 text-sm font-bold transition-all btn-press ${
+                direction === "short"
+                  ? "bg-accent-red text-white"
+                  : "bg-accent-red/8 text-accent-red border border-accent-red/25 hover:bg-accent-red/15"
+              }`}
+            >
+              Short
+            </button>
+          </div>
+
+          {/* Market / Limit — small toggle */}
+          <div className="grid grid-cols-2 gap-0.5 rounded-lg bg-shadow-700 p-0.5">
+            <button
+              onClick={() => setOrderType("market")}
+              className={`rounded-md py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+                orderType === "market"
+                  ? "bg-accent-purple/25 text-accent-purple"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              Market
+            </button>
+            <button
+              onClick={() => setOrderType("limit")}
+              className={`rounded-md py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+                orderType === "limit"
+                  ? "bg-accent-purple/25 text-accent-purple"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              Limit
+            </button>
+          </div>
+
+          {/* Hotkeys */}
           <div className="flex justify-between px-0.5 text-[10px] text-gray-600">
             <span>
               Hotkey:{" "}
@@ -868,26 +893,56 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 {sizeUnit === "usd" ? "USDC" : activePair.base.symbol}
               </span>
             </div>
-            <div className="mt-2 flex gap-2">
-              {sizeUnit === "base"
-                ? ["0.1", "0.5", "1", "5"].map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => setSize(v)}
-                      className="rounded bg-shadow-600 px-2 py-0.5 text-[11px] text-gray-400 transition-colors hover:bg-shadow-500 hover:text-accent-purple"
-                    >
-                      {v}
-                    </button>
-                  ))
-                : ["10", "50", "100", "500"].map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => setSize(v)}
-                      className="rounded bg-shadow-600 px-2 py-0.5 text-[11px] text-gray-400 transition-colors hover:bg-shadow-500 hover:text-accent-purple"
-                    >
-                      ${v}
-                    </button>
-                  ))}
+            <div className="mt-3">
+              {(() => {
+                const maxNotional = marginBalance && marginBalance > 0 ? marginBalance * leverage : null;
+                const currentNotional = sizeUnit === "usd"
+                  ? parseFloat(size) || 0
+                  : ((parseFloat(size) || 0) * (marketPrice ?? 0));
+                const sliderPct = maxNotional && maxNotional > 0
+                  ? Math.min(100, Math.round((currentNotional / maxNotional) * 100))
+                  : 0;
+                const handleSlider = (pct: number) => {
+                  if (!maxNotional) return;
+                  const notional = (pct / 100) * maxNotional;
+                  if (sizeUnit === "usd") {
+                    setSize(notional.toFixed(2));
+                  } else {
+                    const price = marketPrice ?? 0;
+                    if (price > 0) setSize((notional / price).toFixed(4));
+                  }
+                };
+                return (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-end mb-1">
+                      <span className="text-[10px] font-semibold text-accent-purple">{sliderPct}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={sliderPct}
+                      onChange={(e) => handleSlider(Number(e.target.value))}
+                      className="h-1.5 w-full cursor-pointer appearance-none rounded-full accent-accent-purple"
+                      style={{
+                        background: `linear-gradient(to right, #8b5cf6 ${sliderPct}%, #35354a ${sliderPct}%)`,
+                      }}
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-600">
+                      {[0, 25, 50, 75, 100].map((tick) => (
+                        <button
+                          key={tick}
+                          onClick={() => handleSlider(tick)}
+                          className="hover:text-accent-purple transition-colors"
+                        >
+                          {tick}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -984,6 +1039,13 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 </span>
               </div>
             </div>
+          </div>
+
+          <div className="flex items-center gap-1 text-[10px] text-gray-600 px-0.5 -mt-1">
+            <svg className="w-2.5 h-2.5 text-accent-purple/60" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+            </svg>
+            <span>encrypted</span>
           </div>
 
           <div className="grid grid-cols-1 gap-2 rounded-xl border border-shadow-500 bg-shadow-700/60 p-3 sm:grid-cols-3">

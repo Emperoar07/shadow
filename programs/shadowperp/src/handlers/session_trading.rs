@@ -2,6 +2,7 @@ use crate::ArciumSignerAccount;
 use crate::ID;
 use crate::ID_CONST;
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::program_option::COption;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use arcium_anchor::prelude::*;
 use arcium_anchor::traits::CallbackCompAccs;
@@ -10,7 +11,10 @@ use arcium_client::idl::arcium::types::CallbackAccount;
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::handlers::callbacks::close_position_callback::ClosePositionCallback;
 use crate::handlers::callbacks::open_position_callback::OpenPositionV2Callback;
-use crate::state::{MarginAccount, Market, Position, PositionStatus, TradeSession, TradeSessionCreated, TradeSessionRevoked};
+use crate::state::{
+    CollateralDeposited, MarginAccount, Market, Position, PositionStatus, TradeSession,
+    TradeSessionCreated, TradeSessionRevoked,
+};
 
 #[derive(Accounts)]
 #[instruction(session_id: u64)]
@@ -519,6 +523,127 @@ pub fn close_position_with_session_handler(
         1,
         0,
     )?;
+
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct DepositCollateralWithSession<'info> {
+    #[account(mut)]
+    pub relayer: Signer<'info>,
+
+    /// Session owner whose margin account is affected.
+    pub owner: SystemAccount<'info>,
+
+    #[account(
+        seeds = [b"market", market.collateral_mint.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Box<Account<'info, Market>>,
+
+    #[account(
+        mut,
+        seeds = [b"trade_session", market.key().as_ref(), owner.key().as_ref(), &session.session_id.to_le_bytes()],
+        bump = session.bump,
+        has_one = owner,
+        has_one = market,
+    )]
+    pub session: Box<Account<'info, TradeSession>>,
+
+    #[account(
+        init_if_needed,
+        payer = relayer,
+        space = MarginAccount::LEN,
+        seeds = [b"margin", market.key().as_ref(), owner.key().as_ref()],
+        bump
+    )]
+    pub margin_account: Box<Account<'info, MarginAccount>>,
+
+    #[account(
+        mut,
+        constraint = owner_token_account.owner == owner.key(),
+        constraint = owner_token_account.mint == market.collateral_mint
+    )]
+    pub owner_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        seeds = [b"vault", market.key().as_ref()],
+        bump,
+        constraint = vault.key() == market.vault
+    )]
+    pub vault: Box<Account<'info, TokenAccount>>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn deposit_collateral_with_session_handler(
+    ctx: Context<DepositCollateralWithSession>,
+    amount: u64,
+) -> Result<()> {
+    require!(amount > 0, ShadowPerpError::ZeroAmount);
+
+    let clock = Clock::get()?;
+    let relayer = ctx.accounts.relayer.key();
+    let market = &ctx.accounts.market;
+    let margin_account = &mut ctx.accounts.margin_account;
+    let session = &mut ctx.accounts.session;
+    let owner_token_account = &ctx.accounts.owner_token_account;
+
+    session.assert_active(relayer, market.key(), clock.unix_timestamp)?;
+    require!(
+        amount <= session.max_margin_per_action,
+        ShadowPerpError::SessionMarginLimitExceeded
+    );
+
+    require!(
+        owner_token_account.delegate == COption::Some(relayer),
+        ShadowPerpError::Unauthorized
+    );
+    require!(
+        owner_token_account.delegated_amount >= amount,
+        ShadowPerpError::InsufficientBalance
+    );
+
+    if margin_account.owner == Pubkey::default() {
+        margin_account.owner = ctx.accounts.owner.key();
+        margin_account.market = market.key();
+        margin_account.bump = ctx.bumps.margin_account;
+    } else {
+        require!(
+            margin_account.owner == ctx.accounts.owner.key(),
+            ShadowPerpError::Unauthorized
+        );
+        require!(margin_account.market == market.key(), ShadowPerpError::Unauthorized);
+    }
+
+    let transfer_ctx = CpiContext::new(
+        ctx.accounts.token_program.to_account_info(),
+        Transfer {
+            from: owner_token_account.to_account_info(),
+            to: ctx.accounts.vault.to_account_info(),
+            authority: ctx.accounts.relayer.to_account_info(),
+        },
+    );
+    token::transfer(transfer_ctx, amount)?;
+
+    margin_account.balance = margin_account
+        .balance
+        .checked_add(amount)
+        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+    margin_account.total_deposited = margin_account
+        .total_deposited
+        .checked_add(amount)
+        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+
+    session.consume_action()?;
+
+    emit!(CollateralDeposited {
+        owner: margin_account.owner,
+        amount,
+        new_balance: margin_account.balance,
+    });
 
     Ok(())
 }

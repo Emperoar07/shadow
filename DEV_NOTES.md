@@ -3,8 +3,56 @@
 Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
-- Date: 2026-02-22 (UTC)
+- Date: 2026-02-24 (UTC)
 - Author: Codex
+
+## Light Mode UI Alignment + Session Collateral Relay Fix (2026-02-24 UTC)
+- User issue:
+  - delegated collateral withdraw returned `Invalid session authorization signature`
+  - requested app UI to match provided light-mode terminal preview exactly
+  - requested TradingView chart palette alignment without changing chart functionality
+- Session collateral updates now in repo:
+  - `app/src/components/CollateralModal.tsx`
+    - relay auth now uses session-bound `authExpiresAt` (`session.authExpiresAt ?? session.expiresAt`) instead of ad-hoc short TTL, removing signature mismatch source
+    - added delegated deposit call path via `/api/relay/deposit`
+    - safe fallback to wallet-signed deposit when delegated deposit instruction is not active on current deployed IDL
+  - `app/src/pages/api/relay/deposit.ts` added (session-verified relay endpoint)
+  - `app/src/hooks/useArcium.ts` / `app/src/lib/client.ts` include session/delegate support plumbing for collateral path
+  - on-chain additions for delegated deposit exist in:
+    - `programs/shadowperp/src/handlers/session_trading.rs`
+    - `programs/shadowperp/src/lib.rs`
+  - runtime gate:
+    - `NEXT_PUBLIC_SESSION_DEPOSIT_ENABLED=1` enables delegated deposit path
+- Light mode terminal alignment pass:
+  - shell/grid/header tuned to preview proportions in `app/src/pages/app.tsx`
+    - main grid now `chart | orderbook | trading` with fixed right columns
+    - header includes inline preview theme button
+  - theme toggle reworked in `app/src/components/ThemeToggle.tsx`
+    - header variant: `LIGHT MODE PREVIEW` style button
+    - floating variant retained
+  - light-mode visual system tightened in `app/src/styles/globals.css`
+    - neutral light surfaces, border hierarchy, typography contrast, header/market/portfolio bar treatment
+    - component-scoped light overrides for chart/orderbook/trading/positions panels
+  - class hooks added for styling only (no execution logic changes):
+    - `MarketInfo`, `PriceChart`, `PrivateOrderbook`, `TradingPanel`, `BottomPositionsPanel`, `PortfolioSummary`, `PairSelector`, `NeuralShadowBackground`
+  - TradingView styling:
+    - `app/src/components/PriceChart.tsx` uses light toolbar background (`toolbarbg=#f8f9fc`) when light mode is active
+- Verification run:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `cargo check -p shadowperp` -> PASS (warnings only)
+  - `npm run check:preflight` -> PASS
+  - `pnpm --dir app exec next build` -> FAIL on pre-existing export/page mapping issue (`PageNotFoundError` for `/` and `/terminal-v2`), not introduced by this light-mode pass
+- Current blocker:
+  - end-to-end open/close trade queue remains blocked by Arcium `QueueComputation` serialization (`AccountDidNotSerialize`) in devnet open-position path
+  - delegated deposit will only be fully relay-native live after updated program+IDL deployment and enabling `NEXT_PUBLIC_SESSION_DEPOSIT_ENABLED=1`
+- Next safe step:
+  1. deploy/sync latest program + IDL including `deposit_collateral_with_session`
+  2. set `NEXT_PUBLIC_SESSION_DEPOSIT_ENABLED=1`
+  3. run delegated collateral smoke:
+     - create/refresh session
+     - deposit via session
+     - withdraw via session
+     - verify both tx signatures on explorer
 
 ## Leverage UI Consistency Fix (2026-02-22 UTC)
 - User-reported UI issue: leverage scale looked inconsistent/misaligned.

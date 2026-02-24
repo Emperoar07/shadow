@@ -76,28 +76,14 @@ export default function PairSelector({
       {/* Trigger button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-shadow-600 border border-shadow-500 hover:border-shadow-400 transition-all btn-press"
+        className="pair-btn flex items-center gap-2 px-3 py-1.5 rounded-lg bg-shadow-600 border border-shadow-500 hover:border-shadow-400 transition-all btn-press"
       >
         <div
           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
           style={{ backgroundColor: activePair.base.color }}
         />
         <span className="font-medium text-sm text-white">{activePair.label}</span>
-        {typeof activeDisplayPrice === "number" && Number.isFinite(activeDisplayPrice) && (
-          <span className="text-xs text-gray-400 hidden sm:inline">
-            ${activeDisplayPrice < 0.01 ? activeDisplayPrice.toFixed(6) : activeDisplayPrice.toFixed(2)}
-          </span>
-        )}
-        {typeof activeDisplayChange === "number" && Number.isFinite(activeDisplayChange) && (
-          <span
-            className={`text-xs hidden sm:inline ${
-              activeDisplayChange >= 0 ? "text-accent-green" : "text-accent-red"
-            }`}
-          >
-            {activeDisplayChange >= 0 ? "+" : ""}
-            {activeDisplayChange.toFixed(1)}%
-          </span>
-        )}
+
         <svg
           className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
           fill="none"
@@ -111,9 +97,7 @@ export default function PairSelector({
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-72 z-50 rounded-xl border border-shadow-500 overflow-hidden pair-dropdown"
-          style={{ background: "linear-gradient(135deg, #1a1a25 0%, #12121a 100%)" }}
-        >
+        <div className="absolute top-full left-0 mt-1 w-72 z-50 rounded-xl border border-shadow-500 overflow-hidden pair-dropdown bg-shadow-800">
           {/* Search */}
           <div className="p-2 border-b border-shadow-600">
             <input

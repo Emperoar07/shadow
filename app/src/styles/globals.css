@@ -146,6 +146,304 @@ input[type="range"]::-webkit-slider-thumb:active {
   transform: scale(0.95);
 }
 
+/* THEME TOGGLE */
+.theme-toggle-floating {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 9999;
+}
+
+.theme-toggle-btn {
+  position: relative;
+  width: 52px;
+  height: 26px;
+  border-radius: 13px;
+  background: #1a1a25;
+  border: 1.5px solid #35354a;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px;
+  transition: background 0.25s, border-color 0.25s;
+  outline: none;
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.94);
+}
+
+.theme-toggle-sun,
+.theme-toggle-moon {
+  width: 11px;
+  height: 11px;
+  line-height: 1;
+  z-index: 1;
+  transition: opacity 0.2s;
+}
+
+.theme-toggle-sun {
+  color: #f59e0b;
+  opacity: 0.3;
+}
+
+.theme-toggle-moon {
+  color: #8b5cf6;
+}
+
+.theme-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #35354a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), background 0.22s;
+}
+
+.theme-toggle-preview-btn {
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  border-radius: 9px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.theme-toggle-preview-btn:hover {
+  filter: brightness(1.05);
+}
+
+.theme-toggle-preview-btn:active {
+  transform: scale(0.98);
+}
+
+/* LIGHT MODE */
+html.light body {
+  background: #f8f9fc;
+  color: #0f172a;
+  --foreground-rgb: 15, 23, 42;
+  --background-rgb: 248, 249, 252;
+}
+
+html.light ::-webkit-scrollbar-track {
+  background: #eef1f7;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #cfd6e3;
+}
+
+html.light .gradient-bg {
+  background: #f8f9fc;
+  animation: none;
+}
+
+html.light .neural-bg-canvas {
+  opacity: 0.08;
+}
+
+html.light .trade-shell {
+  border-left: 1px solid #d8dce8;
+  border-right: 1px solid #d8dce8;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+html.light .trade-header,
+html.light .trade-market-bar,
+html.light .trade-portfolio-inner,
+html.light .trade-trading-panel,
+html.light .trade-orderbook,
+html.light .trade-bottom-panel,
+html.light footer {
+  background-color: #ffffff !important;
+}
+
+html.light .trade-market-bar,
+html.light .trade-portfolio-inner {
+  background-color: #f8f9fc !important;
+}
+
+html.light .trade-main {
+  background-color: #f8f9fc;
+}
+
+html.light .trade-header {
+  backdrop-filter: blur(10px);
+}
+
+html.light .trade-terminal-grid {
+  border-top: 1px solid #d8dce8;
+}
+
+html.light .trade-price-chart-toolbar {
+  background: #f8f9fc;
+}
+
+html.light .trade-price-chart .bg-shadow-700 {
+  background-color: #eef1f7 !important;
+}
+
+html.light .trade-price-chart .bg-shadow-800 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-shadow-900 {
+  background-color: #f8f9fc !important;
+}
+
+html.light .bg-shadow-800 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-shadow-700 {
+  background-color: #f1f3f9 !important;
+}
+
+html.light .bg-shadow-600 {
+  background-color: #e8ebf4 !important;
+}
+
+html.light .bg-shadow-600\/50 {
+  background-color: rgba(232, 235, 244, 0.75) !important;
+}
+
+html.light .bg-shadow-800\/90 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.light .border-shadow-600,
+html.light .border-shadow-500 {
+  border-color: #d8dce8 !important;
+}
+
+html.light .text-white {
+  color: #0f172a !important;
+}
+
+html.light .text-gray-200 {
+  color: #0f172a !important;
+}
+
+html.light .text-gray-300 {
+  color: #334155 !important;
+}
+
+html.light .text-gray-400,
+html.light .text-gray-500,
+html.light .text-gray-600 {
+  color: #64748b !important;
+}
+
+html.light .trade-orderbook .bg-shadow-800 {
+  background-color: #f8f9fc !important;
+}
+
+html.light .trade-orderbook .text-accent-red {
+  color: #ef4444 !important;
+}
+
+html.light .trade-orderbook .text-accent-green {
+  color: #10b981 !important;
+}
+
+html.light .trade-orderbook .text-gray-300 {
+  color: #1e293b !important;
+}
+
+html.light .trade-orderbook .text-gray-500,
+html.light .trade-orderbook .text-gray-600 {
+  color: #64748b !important;
+}
+
+html.light .trade-trading-panel .bg-shadow-700,
+html.light .trade-trading-panel .bg-shadow-700\/60,
+html.light .trade-trading-panel .bg-shadow-700\/70 {
+  background-color: #f1f3f9 !important;
+}
+
+html.light .trade-trading-panel .bg-shadow-600 {
+  background-color: #e8ebf4 !important;
+}
+
+html.light .trade-trading-panel .border-shadow-500,
+html.light .trade-trading-panel .border-shadow-600,
+html.light .trade-orderbook .border-shadow-500,
+html.light .trade-orderbook .border-shadow-600,
+html.light .trade-bottom-panel .border-shadow-500,
+html.light .trade-bottom-panel .border-shadow-600 {
+  border-color: #d8dce8 !important;
+}
+
+html.light .trade-trading-panel .text-gray-500,
+html.light .trade-trading-panel .text-gray-600,
+html.light .trade-bottom-panel .text-gray-500 {
+  color: #64748b !important;
+}
+
+html.light .trade-trading-panel .text-gray-300,
+html.light .trade-bottom-panel .text-gray-300 {
+  color: #334155 !important;
+}
+
+html.light .trade-bottom-panel {
+  border-color: rgba(124, 58, 237, 0.2);
+}
+
+html.light .position-card {
+  background: #ffffff;
+  border-color: rgba(124, 58, 237, 0.2);
+}
+
+html.light .position-card:hover {
+  border-color: rgba(124, 58, 237, 0.35);
+}
+
+html.light .wallet-adapter-button-trigger {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9) !important;
+  color: #fff !important;
+}
+
+html.light .theme-toggle-btn {
+  background: #e2e8f0;
+  border-color: #c8d0e0;
+}
+
+html.light .theme-toggle-knob {
+  transform: translateX(26px);
+  background: #ffffff;
+}
+
+html.light .theme-toggle-moon {
+  opacity: 0.3;
+}
+
+html.light .theme-toggle-sun {
+  opacity: 1;
+}
+
+/* Keep action buttons white text in light mode */
+html.light button.bg-accent-green,
+html.light button.bg-accent-red,
+html.light button.bg-accent-purple,
+html.light button[class*='from-accent-green'],
+html.light button[class*='from-accent-red'] {
+  color: #fff !important;
+}
+
+html.light .pair-btn.active {
+  box-shadow: 0 2px 10px rgba(124, 58, 237, 0.2);
+}
 /* Pair button hover lift */
 .pair-btn {
   transition: transform 0.15s ease, box-shadow 0.15s ease;

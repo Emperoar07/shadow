@@ -8,6 +8,7 @@ import { getExplorerTxUrl } from "../lib/explorer";
 import type { SessionRelayInfo } from "../hooks/useArcium";
 
 type Tab = "deposit" | "withdraw";
+const SESSION_DEPOSIT_ENABLED = process.env.NEXT_PUBLIC_SESSION_DEPOSIT_ENABLED === "1";
 
 interface CollateralModalProps {
   isOpen: boolean;
@@ -70,11 +71,86 @@ export default function CollateralModal({
   const handleDeposit = useCallback(async () => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) { toast.error("Enter a valid amount"); return; }
-    if (!anchorWallet || !publicKey) { toast.error("Connect your wallet"); return; }
+    if (!publicKey) { toast.error("Connect your wallet"); return; }
     setIsBusy(true);
     try {
-      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
       const amountBN = new BN(Math.round(amt * 1_000_000));
+      let delegatedDepositComplete = false;
+
+      if (SESSION_DEPOSIT_ENABLED && relayAvailable) {
+        try {
+          const owner = publicKey.toBase58();
+          const existing =
+            isRelaySessionActive && relaySession?.owner === owner ? relaySession : null;
+          const session = existing ?? (await ensureRelaySession());
+          if (!session || session.owner !== owner) {
+            throw new Error("Delegated session required. Please sign a new session.");
+          }
+
+          const authExpiresAt = session.authExpiresAt ?? session.expiresAt;
+          toast.loading("Depositing via delegated session...", { id: "collateral" });
+          const response = await fetch("/api/relay/deposit", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              owner: session.owner,
+              sessionId: session.sessionId,
+              amountRaw: amountBN.toString(),
+              auth: {
+                expiresAt: authExpiresAt,
+                signature: session.authSignature,
+              },
+            }),
+          });
+          const payload = await response.json().catch(() => null);
+          if (!response.ok || !payload?.ok || !payload?.txSignature) {
+            throw new Error(
+              payload?.error ||
+                `Delegated deposit failed (${response.status}).`
+            );
+          }
+          const tx = payload.txSignature as string;
+          await refreshRelaySession();
+          toast.success(
+            <div>
+              <p className="font-medium">Deposited ${amt.toFixed(2)} USDC</p>
+              <a
+                href={getExplorerTxUrl(tx)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-accent-purple underline"
+              >
+                View transaction
+              </a>
+            </div>,
+            { id: "collateral", duration: 8000 }
+          );
+          setAmount("");
+          onSuccess();
+          delegatedDepositComplete = true;
+        } catch (sessionDepositError: any) {
+          const delegatedMsg =
+            typeof sessionDepositError?.message === "string"
+              ? sessionDepositError.message
+              : "Delegated deposit failed";
+          const unsupportedDelegatedPath =
+            delegatedMsg.includes("depositCollateralWithSession is unavailable") ||
+            delegatedMsg.includes("InstructionFallbackNotFound") ||
+            delegatedMsg.includes("Method not found");
+          if (!unsupportedDelegatedPath) {
+            throw sessionDepositError;
+          }
+          toast(
+            "Delegated deposit not active on current deployment, using wallet deposit.",
+            { id: "collateral" }
+          );
+        }
+      }
+
+      if (delegatedDepositComplete) return;
+
+      if (!anchorWallet || !publicKey) { throw new Error("Connect your wallet"); }
+      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
       toast.loading("Depositing collateral...", { id: "collateral" });
       const tx = await client.depositCollateral(runtime.marketAddress, amountBN);
       toast.success(
@@ -104,7 +180,19 @@ export default function CollateralModal({
     } finally {
       setIsBusy(false);
     }
-  }, [amount, anchorWallet, publicKey, connection, getRuntimeErrorMessage, onSuccess]);
+  }, [
+    amount,
+    anchorWallet,
+    connection,
+    ensureRelaySession,
+    getRuntimeErrorMessage,
+    isRelaySessionActive,
+    onSuccess,
+    publicKey,
+    refreshRelaySession,
+    relayAvailable,
+    relaySession,
+  ]);
 
   const handleWithdraw = useCallback(async () => {
     const amt = parseFloat(amount);
@@ -129,10 +217,7 @@ export default function CollateralModal({
         throw new Error("Delegated session required. Please sign a new session.");
       }
 
-      const authExpiresAt = Math.min(
-        session.expiresAt,
-        Math.floor(Date.now() / 1000) + 120
-      );
+      const authExpiresAt = session.authExpiresAt ?? session.expiresAt;
       toast.loading("Withdrawing via delegated session...", { id: "collateral" });
       const response = await fetch("/api/relay/withdraw", {
         method: "POST",

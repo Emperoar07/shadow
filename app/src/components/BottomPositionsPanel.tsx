@@ -445,7 +445,7 @@ export default function BottomPositionsPanel() {
   );
 
   return (
-    <div className="position-card rounded-xl overflow-hidden">
+    <div className="trade-bottom-panel position-card rounded-xl overflow-hidden">
       {/* Tab bar */}
       <div className="flex items-center justify-between border-b border-shadow-600 pl-1">
         <div className="flex">

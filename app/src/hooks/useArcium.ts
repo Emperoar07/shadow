@@ -33,10 +33,12 @@ export interface SessionRelayInfo {
   sessionId: string;
   sessionAddress: string;
   expiresAt: number;
+  authExpiresAt: number;
   maxActions: number;
   usedActions: number;
   maxMarginPerActionRaw: string;
   authSignature: string;
+  collateralDelegateApproved: boolean;
 }
 
 export const RELAY_SESSION_STORAGE_KEY = "shadowperp.relay.session.v1";
@@ -64,6 +66,7 @@ const ARCIUM_RPC_URL = resolveArciumRpcUrl();
 const SCALE_PRICE = 1_000_000;
 const SCALE_BASE_SIZE = 1_000_000_000;
 const SCALE_MARGIN = 1_000_000;
+const U64_MAX_BN = new BN("18446744073709551615");
 
 function storageKey(owner: string, market: string): string {
   return `${RELAY_SESSION_STORAGE_KEY}:${owner}:${market}`;
@@ -87,10 +90,28 @@ function parseSession(raw: string | null): SessionRelayInfo | null {
     ) {
       return null;
     }
-    return parsed;
+    return {
+      ...parsed,
+      authExpiresAt:
+        typeof (parsed as Partial<SessionRelayInfo>).authExpiresAt === "number"
+          ? (parsed as Partial<SessionRelayInfo>).authExpiresAt!
+          : parsed.expiresAt,
+      collateralDelegateApproved:
+        typeof (parsed as Partial<SessionRelayInfo>).collateralDelegateApproved === "boolean"
+          ? (parsed as Partial<SessionRelayInfo>).collateralDelegateApproved!
+          : false,
+    };
   } catch {
     return null;
   }
+}
+
+function computeSessionDelegateAllowanceRaw(session: Pick<SessionRelayInfo, "maxActions" | "maxMarginPerActionRaw">): BN {
+  const marginPerAction = new BN(session.maxMarginPerActionRaw, 10);
+  const maxActionsBn = new BN(session.maxActions.toString(), 10);
+  const raw = marginPerAction.mul(maxActionsBn);
+  if (raw.isNeg() || raw.isZero()) return marginPerAction;
+  return raw.gt(U64_MAX_BN) ? U64_MAX_BN : raw;
 }
 
 function readStoredSession(owner?: string, market?: string): SessionRelayInfo | null {
@@ -279,6 +300,40 @@ export const useArciumPrivacy = () => {
     }
   }, [publicKey, relaySession]);
 
+  const ensureCollateralDelegateApproval = useCallback(
+    async (
+      session: SessionRelayInfo,
+      runtimeMarketAddress?: PublicKey
+    ): Promise<SessionRelayInfo> => {
+      if (session.collateralDelegateApproved) return session;
+
+      const ctx = getClient();
+      if (!ctx) {
+        throw new Error("Trading client unavailable. Check wallet + env.");
+      }
+      const marketAddress = runtimeMarketAddress ?? ctx.runtime.marketAddress;
+      const allowanceRaw = computeSessionDelegateAllowanceRaw(session);
+
+      setStatus("verifying");
+      setStatusMessage("Granting delegated collateral allowance...");
+      const approveSignature = await ctx.client.approveCollateralDelegate(
+        marketAddress,
+        new PublicKey(session.relayer),
+        allowanceRaw
+      );
+      setLastSignature(approveSignature);
+
+      const next: SessionRelayInfo = {
+        ...session,
+        collateralDelegateApproved: true,
+      };
+      setRelaySession(next);
+      persistSession(next);
+      return next;
+    },
+    [getClient]
+  );
+
   const createRelaySession = useCallback(
     async (options?: { maxActions?: number; maxMarginPerActionUsdc?: number }) => {
       if (!publicKey) {
@@ -305,8 +360,12 @@ export const useArciumPrivacy = () => {
         relaySession ??
         readStoredSession(owner, marketAddress);
       if (isUsableRelaySession(existing, owner, marketAddress, nowSeconds)) {
-        setRelaySession(existing);
-        return existing;
+        const approved = await ensureCollateralDelegateApproval(
+          existing,
+          runtime.marketAddress
+        );
+        setRelaySession(approved);
+        return approved;
       }
 
       const sessionId = new BN(Math.floor(Date.now() / 1000));
@@ -351,19 +410,33 @@ export const useArciumPrivacy = () => {
         sessionId: sessionId.toString(),
         sessionAddress: sessionAddress.toBase58(),
         expiresAt,
+        authExpiresAt: expiresAt,
         maxActions,
         usedActions: 0,
         maxMarginPerActionRaw: maxMarginPerAction.toString(),
         authSignature: uint8ToBase64(signature),
+        collateralDelegateApproved: false,
       };
-      setRelaySession(nextSession);
-      persistSession(nextSession);
+      const approvedSession = await ensureCollateralDelegateApproval(
+        nextSession,
+        runtime.marketAddress
+      );
+      setRelaySession(approvedSession);
+      persistSession(approvedSession);
       setStatus("verified");
       setStatusMessage("Delegated session active. New trades can run without wallet popups.");
 
-      return nextSession;
+      return approvedSession;
     },
-    [publicKey, signMessage, getClient, refreshRelayAvailability, relayError, relaySession]
+    [
+      publicKey,
+      signMessage,
+      getClient,
+      refreshRelayAvailability,
+      relayError,
+      relaySession,
+      ensureCollateralDelegateApproval,
+    ]
   );
 
   const ensureRelaySession = useCallback(
@@ -374,17 +447,30 @@ export const useArciumPrivacy = () => {
       const nowSeconds = Math.floor(Date.now() / 1000);
 
       if (isUsableRelaySession(relaySession, owner, market, nowSeconds)) {
-        return relaySession;
+        return ensureCollateralDelegateApproval(
+          relaySession,
+          ctx?.runtime.marketAddress
+        );
       }
 
       const refreshed = await refreshRelaySession();
       if (isUsableRelaySession(refreshed, owner, market, nowSeconds)) {
-        return refreshed;
+        return ensureCollateralDelegateApproval(
+          refreshed,
+          ctx?.runtime.marketAddress
+        );
       }
 
       return createRelaySession(options);
     },
-    [createRelaySession, getClient, publicKey, refreshRelaySession, relaySession]
+    [
+      createRelaySession,
+      getClient,
+      publicKey,
+      refreshRelaySession,
+      relaySession,
+      ensureCollateralDelegateApproval,
+    ]
   );
 
   const revokeRelaySession = useCallback(
@@ -565,7 +651,7 @@ export const useArciumPrivacy = () => {
           entryPriceRaw: entryPrice.toString(),
           marginRaw: marginBase.toString(),
           auth: {
-            expiresAt: activeRelaySession.expiresAt,
+            expiresAt: activeRelaySession.authExpiresAt,
             signature: activeRelaySession.authSignature,
           },
         }),

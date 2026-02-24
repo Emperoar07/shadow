@@ -31,11 +31,7 @@ export default function NeuralShadowBackground() {
     const FRAME_INTERVAL = 1000 / TARGET_FPS;
     let lastFrameTime = 0;
 
-    const colors = {
-      bg: "#020617",
-      node: "6, 182, 212",
-      link: "79, 70, 229",
-    };
+    const isDark = () => !document.documentElement.classList.contains("light");
 
     const initParticles = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -64,8 +60,17 @@ export default function NeuralShadowBackground() {
       if (timestamp - lastFrameTime < FRAME_INTERVAL) return;
       lastFrameTime = timestamp;
 
-      ctx.fillStyle = colors.bg;
-      ctx.fillRect(0, 0, width, height);
+      const dark = isDark();
+      if (dark) {
+        ctx.fillStyle = "#020617";
+        ctx.fillRect(0, 0, width, height);
+      } else {
+        ctx.clearRect(0, 0, width, height);
+      }
+
+      const nodeRgb = dark ? "6, 182, 212" : "139, 92, 246";
+      const linkRgb = dark ? "79, 70, 229" : "139, 92, 246";
+      const nodeOpacity = dark ? 0.6 : 0.18;
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -77,7 +82,7 @@ export default function NeuralShadowBackground() {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${colors.node}, 0.6)`;
+        ctx.fillStyle = `rgba(${nodeRgb}, ${nodeOpacity})`;
         ctx.fill();
 
         for (let j = i + 1; j < particles.length; j++) {
@@ -88,7 +93,8 @@ export default function NeuralShadowBackground() {
 
           if (distance < connectionDistance) {
             ctx.beginPath();
-            ctx.strokeStyle = `rgba(${colors.link}, ${1 - distance / connectionDistance})`;
+            const alpha = (1 - distance / connectionDistance) * (dark ? 1 : 0.2);
+            ctx.strokeStyle = `rgba(${linkRgb}, ${alpha})`;
             ctx.lineWidth = 1;
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p2.x, p2.y);
@@ -112,9 +118,8 @@ export default function NeuralShadowBackground() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 z-0 pointer-events-none"
+      className="neural-bg-canvas fixed inset-0 z-0 pointer-events-none"
       aria-hidden="true"
     />
   );
 }
-
