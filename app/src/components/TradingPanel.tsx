@@ -201,37 +201,27 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   }, [activePair.label, sizeUnit]);
 
   useEffect(() => {
-    let cancelled = false;
-    const owner = publicKey?.toBase58();
-
-    if (!owner || !signMessage) {
+    if (!publicKey || !signMessage) {
       disableEncryptedAutomationPersistence();
-      return () => {
-        cancelled = true;
-      };
     }
+  }, [publicKey, signMessage]);
 
-    void (async () => {
-      try {
-        await enableEncryptedAutomationPersistence({
-          owner,
-          signMessage,
-        });
-        if (cancelled) return;
-      } catch (error: any) {
-        disableEncryptedAutomationPersistence();
-        if (cancelled) return;
-        const message =
-          typeof error?.message === "string" && error.message.trim().length > 0
-            ? error.message
-            : "Encrypted persistence unlock failed. Keeping automation in memory only.";
-        toast.error(message, { id: "automation-persistence" });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+  const ensureAutomationPersistenceUnlocked = useCallback(async () => {
+    const owner = publicKey?.toBase58();
+    if (!owner || !signMessage) return;
+    try {
+      await enableEncryptedAutomationPersistence({
+        owner,
+        signMessage,
+      });
+    } catch (error: any) {
+      disableEncryptedAutomationPersistence();
+      const message =
+        typeof error?.message === "string" && error.message.trim().length > 0
+          ? error.message
+          : "Encrypted persistence unlock failed. Keeping automation in memory only.";
+      toast.error(message, { id: "automation-persistence" });
+    }
   }, [publicKey, signMessage]);
 
   const refreshMarketData = useCallback(async () => {
@@ -455,10 +445,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     }
     if (!publicKey) { toast.error("Please connect your wallet"); return; }
     if (!anchorWallet) { toast.error("Wallet does not support signing transactions"); return; }
-    if (!isRelaySessionActive) {
-      toast.error("Delegated session required. Please sign a new session.");
-      return;
-    }
     if (marginBalance !== null) {
       if (marginBalance <= 0) {
         toast.error("Deposit collateral first before opening a position");
@@ -484,6 +470,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     }
 
     if (orderType === "limit") {
+      await ensureAutomationPersistenceUnlocked();
       const orderId = createLimitOrderId();
       upsertLimitOrder({
         id: orderId,
@@ -582,6 +569,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     stopLoss,
     refreshMarketData,
     submitEncryptedOrder,
+    ensureAutomationPersistenceUnlocked,
     setPrivacyError,
     resetPrivacyStatus,
   ]);

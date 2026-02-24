@@ -5,7 +5,10 @@ import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
-import type { SessionRelayInfo } from "../hooks/useArcium";
+import type {
+  EnsureRelaySessionOptions,
+  SessionRelayInfo,
+} from "../hooks/useArcium";
 
 type Tab = "deposit" | "withdraw";
 const SESSION_DEPOSIT_ENABLED = process.env.NEXT_PUBLIC_SESSION_DEPOSIT_ENABLED === "1";
@@ -18,7 +21,9 @@ interface CollateralModalProps {
   relayAvailable: boolean;
   relaySession: SessionRelayInfo | null;
   isRelaySessionActive: boolean;
-  ensureRelaySession: () => Promise<SessionRelayInfo | null>;
+  ensureRelaySession: (
+    options?: EnsureRelaySessionOptions
+  ) => Promise<SessionRelayInfo | null>;
   invalidateRelaySession: (owner?: string, market?: string) => void;
   refreshRelaySession: () => Promise<SessionRelayInfo | null>;
 }
@@ -99,7 +104,12 @@ export default function CollateralModal({
 
       const existing =
         isRelaySessionActive && relaySession?.owner === owner ? relaySession : null;
-      let session = existing ?? (await ensureRelaySession());
+      let session =
+        existing ??
+        (await ensureRelaySession({
+          reason: endpoint === "/api/relay/deposit" ? "deposit" : "withdraw",
+          userInitiated: true,
+        }));
       if (!session || session.owner !== owner) {
         throw new Error("Delegated session required. Please sign a new session.");
       }
@@ -113,7 +123,10 @@ export default function CollateralModal({
           throw error;
         }
         invalidateRelaySession(session.owner, session.market);
-        session = await ensureRelaySession();
+        session = await ensureRelaySession({
+          reason: endpoint === "/api/relay/deposit" ? "deposit" : "withdraw",
+          userInitiated: true,
+        });
         if (!session || session.owner !== owner) {
           throw new Error("Delegated session required. Please sign a new session.");
         }

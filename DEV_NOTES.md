@@ -76,6 +76,21 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - no repeated SOL spend from refresh loops.
   - session is created only when user performs an action (trade/deposit/withdraw) requiring it.
 
+## Refresh/Theme Signature Popup Hardening (2026-02-24 UTC)
+- User issue:
+  - wallet signature popup still appeared on refresh/theme switch.
+- Root cause:
+  - encrypted automation persistence was unlocking on component mount, which triggers `signMessage` every refresh.
+- Implemented:
+  - `app/src/components/TradingPanel.tsx`
+    - removed mount-time `enableEncryptedAutomationPersistence` call.
+    - unlock now runs only on explicit user action (limit-order queue path).
+    - kept auto-disable when wallet/signer is unavailable.
+  - also removed pre-submit hard block on missing session in `handleSubmit`; session creation is now on-demand inside private submit path.
+- Result:
+  - refresh/theme switch no longer triggers signature requests.
+  - signatures appear only on explicit actions (trade/deposit/withdraw or first encrypted limit-order persistence unlock).
+
 ## Chart Height Reduction (2026-02-24 UTC)
 - User request:
   - reduce chart height by 60%.

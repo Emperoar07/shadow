@@ -43,6 +43,13 @@ export interface SessionRelayInfo {
   collateralDelegateApproved: boolean;
 }
 
+export interface EnsureRelaySessionOptions {
+  maxActions?: number;
+  maxMarginPerActionUsdc?: number;
+  reason?: "trade" | "deposit" | "withdraw";
+  userInitiated?: boolean;
+}
+
 export const RELAY_SESSION_STORAGE_KEY = "shadowperp.relay.session.v1";
 export const RELAY_SESSION_UPDATED_EVENT = "shadowperp:relay-session-updated";
 export const RELAY_SESSION_RENEW_BEFORE_SECONDS = 15;
@@ -387,7 +394,7 @@ export const useArciumPrivacy = () => {
   );
 
   const createRelaySession = useCallback(
-    async (options?: { maxActions?: number; maxMarginPerActionUsdc?: number }) => {
+    async (options?: EnsureRelaySessionOptions) => {
       if (!publicKey) {
         throw new Error("Connect wallet first.");
       }
@@ -493,7 +500,7 @@ export const useArciumPrivacy = () => {
   );
 
   const ensureRelaySession = useCallback(
-    async (options?: { maxActions?: number; maxMarginPerActionUsdc?: number }) => {
+    async (options?: EnsureRelaySessionOptions) => {
       const ctx = getClient();
       const owner = publicKey?.toBase58();
       const market = ctx?.runtime.marketAddress.toBase58();
@@ -523,6 +530,12 @@ export const useArciumPrivacy = () => {
         return ensureCollateralDelegateApproval(
           refreshed,
           ctx?.runtime.marketAddress
+        );
+      }
+
+      if (!options?.userInitiated) {
+        throw new Error(
+          "Delegated session missing. Session creation is blocked unless triggered by an explicit user action."
         );
       }
 
@@ -699,7 +712,10 @@ export const useArciumPrivacy = () => {
           : null;
 
       if (!activeRelaySession) {
-        const ensured = await ensureRelaySession();
+        const ensured = await ensureRelaySession({
+          reason: "trade",
+          userInitiated: true,
+        });
         if (
           isUsableRelaySession(
             ensured,
