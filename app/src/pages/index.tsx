@@ -264,23 +264,28 @@ export default function LandingPage() {
             box-shadow:0 0 20px rgba(139,92,246,.25);transition:all .15s;
           }
           .lp-nav-cta:hover { box-shadow:0 0 28px rgba(139,92,246,.45);transform:translateY(-1px) }
-          /* THEME TOGGLE (bottom landing control) */
-          .lp-theme-preview-btn {
-            position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
-            z-index: 150; border: 2px solid #111827;
-            border-radius: 14px; padding: 9px 18px; line-height: 1;
-            font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
-            color: #fff; background: linear-gradient(135deg, #8b5cf6, #6d28d9);
-            box-shadow: 0 8px 20px rgba(124, 58, 237, .35);
-            transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+          /* THEME TOGGLE pill */
+          .lp-theme-toggle-btn {
+            position: relative; width: 52px; height: 26px; border-radius: 13px;
+            background: #1a1a25; border: 1.5px solid #35354a;
+            cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 6px; transition: background .25s, border-color .25s;
+            outline: none; flex-shrink: 0;
           }
-          .lp-theme-preview-btn:hover {
-            filter: brightness(1.05);
-            box-shadow: 0 10px 24px rgba(124, 58, 237, .45);
+          .lp-theme-toggle-btn[data-light="true"] { background: #e2e8f0; border-color: #c8d0e0; }
+          .lp-theme-toggle-btn:active { transform: scale(.94); }
+          .lp-toggle-sun, .lp-toggle-moon { width: 11px; height: 11px; line-height: 1; z-index: 1; transition: opacity .2s; }
+          .lp-toggle-sun { color: #f59e0b; opacity: .3; }
+          .lp-toggle-moon { color: #8b5cf6; }
+          .lp-theme-toggle-btn[data-light="true"] .lp-toggle-sun { opacity: 1; }
+          .lp-theme-toggle-btn[data-light="true"] .lp-toggle-moon { opacity: .3; }
+          .lp-toggle-knob {
+            position: absolute; top: 3px; left: 3px;
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #35354a; box-shadow: 0 1px 4px rgba(0,0,0,.4);
+            transition: transform .22s cubic-bezier(.4,0,.2,1), background .22s;
           }
-          .lp-theme-preview-btn:active {
-            transform: translateX(-50%) scale(.98);
-          }
+          .lp-theme-toggle-btn[data-light="true"] .lp-toggle-knob { transform: translateX(26px); background: #fff; }
           /* HERO */
           .lp-hero {
             position:relative;min-height:100vh;z-index:1;
@@ -459,7 +464,7 @@ export default function LandingPage() {
             .lp-footer{flex-direction:column;gap:16px;text-align:center}
             .lp-session-card{grid-template-columns:1fr}
             .lp-session-stats{flex-wrap:wrap}
-            .lp-theme-preview-btn { bottom: 12px; padding: 8px 14px; font-size: 11px; }
+            .lp-theme-toggle-btn { width: 44px; height: 22px; right: 0.75rem; bottom: 0.75rem; }
           }
         `}</style>
 
@@ -643,14 +648,24 @@ export default function LandingPage() {
           </span>
         </footer>
 
+        {/* Theme toggle — fixed bottom-right */}
         <button
-          className="lp-theme-preview-btn"
+          className="lp-theme-toggle-btn"
           onClick={toggleTheme}
+          data-light={isLight ? "true" : "false"}
           title={isLight ? "Switch to dark mode" : "Switch to light mode"}
           aria-label="Toggle theme"
+          style={{ position: "fixed", right: "1.25rem", bottom: "1.25rem", zIndex: 9999 }}
         >
-          {isLight ? "LIGHT MODE PREVIEW" : "DARK MODE PREVIEW"}
+          <span className="lp-toggle-sun" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="10" r="4" /><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.6 3.6l1.4 1.4M15 15l1.4 1.4M3.6 16.4 5 15M15 5l1.4-1.4" /></svg>
+          </span>
+          <span className="lp-toggle-moon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 2.1a7.2 7.2 0 1 0 4.1 11.7 8 8 0 1 1-4.1-11.7Z" /></svg>
+          </span>
+          <span className="lp-toggle-knob" />
         </button>
+
       </div>
     </>
   );

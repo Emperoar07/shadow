@@ -6,6 +6,62 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-24 (UTC)
 - Author: Codex
 
+## Session Stability + Collateral Relay Reliability (2026-02-24 UTC)
+- User issue:
+  - delegated session kept re-triggering wallet prompts
+  - delegated deposit/withdraw could fail with `Invalid session authorization signature`
+  - recent UI/runtime changes did not appear reflected consistently
+- Implemented:
+  - `app/src/hooks/useArcium.ts`
+    - added session auth scope tracking (`authScope`) and enforced scope check for usability.
+    - normalized stored/remote session numeric fields (`maxActions`, `usedActions`, `expiresAt`) to prevent stale/invalid comparisons.
+    - added local session hydration state (`relaySessionHydrated`) so auto-session init waits for stored-session load.
+    - `ensureRelaySession()` now checks storage-first before creating a new on-chain session, reducing duplicate signing prompts.
+    - added `invalidateRelaySession()` and integrated invalid-signature invalidation in submit path.
+  - `app/src/components/TradingPanel.tsx`
+    - auto session init now waits for `relaySessionHydrated` before creating session.
+  - `app/src/components/CollateralModal.tsx`
+    - added shared delegated collateral submit helper for both deposit/withdraw.
+    - added one-time auto-rotation on auth-signature/session-expiry errors:
+      - invalidate local session
+      - re-create session
+      - retry delegated request once
+  - `app/src/components/PortfolioSummary.tsx`
+    - wired `invalidateRelaySession` into `CollateralModal`.
+  - restarted hosting stack so latest frontend/runtime code is active.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `pnpm --dir app build` -> PASS
+  - `npm run hosting:status` -> app running + oracle running
+  - `npm run check:preflight` -> PASS (oracle fresh within 300s)
+- Current blocker:
+  - known Arcium devnet `QueueComputation` serialization blocker for open-position path (`AccountDidNotSerialize`) still remains protocol-side.
+- Next safe step:
+  1. smoke test delegated session flow in UI:
+     - connect wallet
+     - verify one session sign
+     - delegated deposit
+     - delegated withdraw
+     - open position (session path)
+  2. if auth error reappears, capture exact relay API response and tx signature for targeted replay.
+
+## Chart Height Reduction (2026-02-24 UTC)
+- User request:
+  - reduce chart height by 60%.
+- Implemented:
+  - `app/src/pages/app.tsx`
+    - terminal top row (`trade-terminal-grid`) changed from full remaining height to `basis-2/5` (40% of terminal body).
+    - positions wrapper changed to `flex-1 min-h-0` so remaining height is consumed by bottom panel.
+  - `app/src/components/BottomPositionsPanel.tsx`
+    - root panel now uses `h-full` so it fills the remaining terminal space cleanly.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+- Current blocker:
+  - none introduced by this layout change.
+- Next safe step:
+  1. visual QA on `/app` in light and dark mode
+  2. if exact pixel target is needed, replace `basis-2/5` with explicit `h-[...]` per breakpoint
+
 ## Landing Theme Toggle Placement + Default Light (2026-02-24 UTC)
 - User request:
   - landing page should default to light mode.

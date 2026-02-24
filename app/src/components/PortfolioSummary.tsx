@@ -8,6 +8,8 @@ import {
   getOwnerPositionViews,
   removeOwnerPositionView,
 } from "../lib/trade-automation";
+import CollateralModal from "./CollateralModal";
+import { useArciumPrivacy } from "../hooks/useArcium";
 
 interface PortfolioData {
   marginBalance: number;
@@ -22,6 +24,19 @@ export default function PortfolioSummary() {
   const { connection } = useConnection();
   const [data, setData] = useState<PortfolioData | null>(null);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
+  const [collateralModalOpen, setCollateralModalOpen] = useState(false);
+  const {
+    relayAvailable,
+    relaySession,
+    ensureRelaySession,
+    invalidateRelaySession,
+    refreshRelaySession,
+  } = useArciumPrivacy();
+  const isRelaySessionActive =
+    !!relaySession &&
+    relaySession.owner === publicKey?.toBase58() &&
+    relaySession.usedActions < relaySession.maxActions &&
+    relaySession.expiresAt - Math.floor(Date.now() / 1000) > 0;
 
   useEffect(() => {
     clientRef.current = null;
@@ -127,17 +142,11 @@ export default function PortfolioSummary() {
       : "bg-accent-red";
 
   return (
+    <>
     <div className="trade-portfolio-inner bg-shadow-800 px-5 py-2.5">
-      <div className="flex items-center gap-6 flex-wrap">
-          {/* Margin Balance */}
-          <SummaryStat
-            label="Margin Balance"
-            value={data ? `$${data.marginBalance.toFixed(2)}` : "--"}
-          />
-
-          {/* Divider */}
-          <div className="w-px h-8 bg-shadow-500 hidden sm:block" />
-
+      <div className="flex items-center justify-between gap-6 flex-wrap">
+        {/* Left stats */}
+        <div className="flex items-center gap-6 flex-wrap">
           {/* Open Positions */}
           <SummaryStat
             label="Open Positions"
@@ -183,8 +192,40 @@ export default function PortfolioSummary() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Right: Margin Balance + Manage button */}
+        <div className="flex items-center gap-3 shrink-0">
+          <SummaryStat
+            label="Margin Balance"
+            value={data ? `$${data.marginBalance.toFixed(2)}` : "--"}
+          />
+          <button
+            onClick={() => setCollateralModalOpen(true)}
+            className="rounded-lg border border-accent-purple/35 bg-accent-purple/15 px-3 py-1.5 text-[11px] font-medium text-accent-purple transition-colors hover:bg-accent-purple/25"
+          >
+            {(data?.marginBalance ?? 0) === 0 ? "Deposit Collateral" : "Manage"}
+          </button>
+        </div>
       </div>
     </div>
+
+    <CollateralModal
+      isOpen={collateralModalOpen}
+      marginBalance={data?.marginBalance ?? null}
+      relayAvailable={relayAvailable}
+      relaySession={relaySession}
+      isRelaySessionActive={isRelaySessionActive}
+      ensureRelaySession={ensureRelaySession}
+      invalidateRelaySession={invalidateRelaySession}
+      refreshRelaySession={refreshRelaySession}
+      onClose={() => setCollateralModalOpen(false)}
+      onSuccess={() => {
+        setCollateralModalOpen(false);
+        void loadPortfolio();
+      }}
+    />
+    </>
   );
 }
 

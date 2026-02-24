@@ -5,9 +5,7 @@ import Link from "next/link";
 import MarketInfo from "../components/MarketInfo";
 import PrivateOrderbook from "../components/PrivateOrderbook";
 import TradingPanel from "../components/TradingPanel";
-import PrivacyBadge from "../components/PrivacyBadge";
 import NetworkIndicator from "../components/NetworkIndicator";
-import ThemeToggle from "../components/ThemeToggle";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 
 const NeuralShadowBackground = dynamic(
@@ -85,11 +83,10 @@ export default function TradingAppPage() {
                   <ShadowLogo className="h-7 w-7 shrink-0 header-logo-animate" />
                   Shadow
                 </Link>
-                <PrivacyBadge />
+                <NetworkIndicator mode="network" />
               </div>
               <div className="flex items-center gap-2">
-                <NetworkIndicator />
-                <ThemeToggle variant="header" />
+                <NetworkIndicator mode="wallet" />
                 <WalletMultiButton />
               </div>
             </div>
@@ -111,7 +108,7 @@ export default function TradingAppPage() {
             </div>
 
             {/* Main grid — chart | orderbook | trading panel */}
-            <div className="trade-terminal-grid flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px_360px] border-b border-shadow-600">
+            <div className="trade-terminal-grid basis-2/5 shrink-0 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px_360px] border-b border-shadow-600">
 
               {/* Chart */}
               <div className="min-w-0 min-h-0 lg:border-r lg:border-shadow-600">
@@ -139,7 +136,7 @@ export default function TradingAppPage() {
             </div>
 
             {/* Positions panel */}
-            <div className="shrink-0">
+            <div className="flex-1 min-h-0">
               <BottomPositionsPanel />
             </div>
 

@@ -19,6 +19,7 @@ interface CollateralModalProps {
   relaySession: SessionRelayInfo | null;
   isRelaySessionActive: boolean;
   ensureRelaySession: () => Promise<SessionRelayInfo | null>;
+  invalidateRelaySession: (owner?: string, market?: string) => void;
   refreshRelaySession: () => Promise<SessionRelayInfo | null>;
 }
 
@@ -31,6 +32,7 @@ export default function CollateralModal({
   relaySession,
   isRelaySessionActive,
   ensureRelaySession,
+  invalidateRelaySession,
   refreshRelaySession,
 }: CollateralModalProps) {
   const { publicKey } = useWallet();
@@ -49,6 +51,84 @@ export default function CollateralModal({
     }
     return `${action === "deposit" ? "Deposits" : "Withdrawals"} unavailable. Check app/.env.local and restart Next.js.`;
   }, []);
+
+  const isSessionAuthError = useCallback((rawMessage: string) => {
+    return (
+      rawMessage.includes("Invalid session authorization signature") ||
+      rawMessage.includes("Session authorization expired") ||
+      rawMessage.includes("Authorization expiry exceeds session expiry")
+    );
+  }, []);
+
+  const submitDelegatedCollateral = useCallback(
+    async (
+      endpoint: "/api/relay/deposit" | "/api/relay/withdraw",
+      amountBN: BN,
+      loadingMessage: string
+    ): Promise<string> => {
+      if (!publicKey) throw new Error("Connect your wallet");
+      const owner = publicKey.toBase58();
+
+      const submitWithSession = async (session: SessionRelayInfo): Promise<string> => {
+        const authExpiresAt = session.authExpiresAt ?? session.expiresAt;
+        toast.loading(loadingMessage, { id: "collateral" });
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            owner: session.owner,
+            sessionId: session.sessionId,
+            amountRaw: amountBN.toString(),
+            auth: {
+              expiresAt: authExpiresAt,
+              signature: session.authSignature,
+            },
+          }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.ok || !payload?.txSignature) {
+          throw new Error(
+            payload?.error ||
+              `Delegated ${
+                endpoint === "/api/relay/deposit" ? "deposit" : "withdraw"
+              } failed (${response.status}).`
+          );
+        }
+        return payload.txSignature as string;
+      };
+
+      const existing =
+        isRelaySessionActive && relaySession?.owner === owner ? relaySession : null;
+      let session = existing ?? (await ensureRelaySession());
+      if (!session || session.owner !== owner) {
+        throw new Error("Delegated session required. Please sign a new session.");
+      }
+
+      try {
+        return await submitWithSession(session);
+      } catch (error: any) {
+        const message =
+          typeof error?.message === "string" ? error.message : "Delegated session failure";
+        if (!isSessionAuthError(message)) {
+          throw error;
+        }
+        invalidateRelaySession(session.owner, session.market);
+        session = await ensureRelaySession();
+        if (!session || session.owner !== owner) {
+          throw new Error("Delegated session required. Please sign a new session.");
+        }
+        return submitWithSession(session);
+      }
+    },
+    [
+      ensureRelaySession,
+      invalidateRelaySession,
+      isRelaySessionActive,
+      isSessionAuthError,
+      publicKey,
+      relaySession,
+    ]
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -79,37 +159,11 @@ export default function CollateralModal({
 
       if (SESSION_DEPOSIT_ENABLED && relayAvailable) {
         try {
-          const owner = publicKey.toBase58();
-          const existing =
-            isRelaySessionActive && relaySession?.owner === owner ? relaySession : null;
-          const session = existing ?? (await ensureRelaySession());
-          if (!session || session.owner !== owner) {
-            throw new Error("Delegated session required. Please sign a new session.");
-          }
-
-          const authExpiresAt = session.authExpiresAt ?? session.expiresAt;
-          toast.loading("Depositing via delegated session...", { id: "collateral" });
-          const response = await fetch("/api/relay/deposit", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              owner: session.owner,
-              sessionId: session.sessionId,
-              amountRaw: amountBN.toString(),
-              auth: {
-                expiresAt: authExpiresAt,
-                signature: session.authSignature,
-              },
-            }),
-          });
-          const payload = await response.json().catch(() => null);
-          if (!response.ok || !payload?.ok || !payload?.txSignature) {
-            throw new Error(
-              payload?.error ||
-                `Delegated deposit failed (${response.status}).`
-            );
-          }
-          const tx = payload.txSignature as string;
+          const tx = await submitDelegatedCollateral(
+            "/api/relay/deposit",
+            amountBN,
+            "Depositing via delegated session..."
+          );
           await refreshRelaySession();
           toast.success(
             <div>
@@ -192,6 +246,7 @@ export default function CollateralModal({
     refreshRelaySession,
     relayAvailable,
     relaySession,
+    submitDelegatedCollateral,
   ]);
 
   const handleWithdraw = useCallback(async () => {
@@ -209,37 +264,11 @@ export default function CollateralModal({
     setIsBusy(true);
     try {
       const amountBN = new BN(Math.round(amt * 1_000_000));
-      const owner = publicKey.toBase58();
-      const existing =
-        isRelaySessionActive && relaySession?.owner === owner ? relaySession : null;
-      const session = existing ?? (await ensureRelaySession());
-      if (!session || session.owner !== owner) {
-        throw new Error("Delegated session required. Please sign a new session.");
-      }
-
-      const authExpiresAt = session.authExpiresAt ?? session.expiresAt;
-      toast.loading("Withdrawing via delegated session...", { id: "collateral" });
-      const response = await fetch("/api/relay/withdraw", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          owner: session.owner,
-          sessionId: session.sessionId,
-          amountRaw: amountBN.toString(),
-          auth: {
-            expiresAt: authExpiresAt,
-            signature: session.authSignature,
-          },
-        }),
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.ok || !payload?.txSignature) {
-        throw new Error(
-          payload?.error ||
-            `Delegated withdraw failed (${response.status}).`
-        );
-      }
-      const tx = payload.txSignature as string;
+      const tx = await submitDelegatedCollateral(
+        "/api/relay/withdraw",
+        amountBN,
+        "Withdrawing via delegated session..."
+      );
       await refreshRelaySession();
       toast.success(
         <div>
@@ -278,7 +307,7 @@ export default function CollateralModal({
     publicKey,
     refreshRelaySession,
     relayAvailable,
-    relaySession,
+    submitDelegatedCollateral,
   ]);
 
   if (!isOpen) return null;
@@ -306,7 +335,7 @@ export default function CollateralModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className={`w-full max-w-sm mx-4 rounded-2xl border border-shadow-500 overflow-hidden transition-all duration-300 ${
+        className={`collateral-modal-panel w-full max-w-sm mx-4 rounded-2xl border border-shadow-500 overflow-hidden transition-all duration-300 ${
           visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"
         }`}
         style={{ background: "linear-gradient(135deg, #1a1a25 0%, #12121a 100%)" }}

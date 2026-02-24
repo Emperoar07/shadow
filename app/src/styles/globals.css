@@ -5,6 +5,11 @@
 :root {
   --foreground-rgb: 255, 255, 255;
   --background-rgb: 10, 10, 15;
+  --range-track-empty: #35354a;
+}
+
+html.light {
+  --range-track-empty: #d1d5e8;
 }
 
 body {
@@ -33,11 +38,24 @@ body {
 
 /* Wallet adapter styles override */
 .wallet-adapter-button {
-  background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%) !important;
+  background: rgba(139, 92, 246, 0.12) !important;
+  border: 1px solid rgba(139, 92, 246, 0.35) !important;
+  border-radius: 10px !important;
+  color: #c4b5fd !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  height: 32px !important;
+  padding: 0 12px !important;
+  transition: background 0.2s, border-color 0.2s !important;
 }
 
-.wallet-adapter-button:hover {
-  background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%) !important;
+.wallet-adapter-button:not([disabled]):hover {
+  background: rgba(139, 92, 246, 0.22) !important;
+  border-color: rgba(139, 92, 246, 0.55) !important;
+}
+
+.wallet-adapter-button-trigger {
+  background: rgba(139, 92, 246, 0.12) !important;
 }
 
 /* Glowing effect for privacy badge */
@@ -203,28 +221,6 @@ input[type="range"]::-webkit-slider-thumb:active {
   background: #35354a;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), background 0.22s;
-}
-
-.theme-toggle-preview-btn {
-  border: 1px solid rgba(139, 92, 246, 0.45);
-  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
-  color: #fff;
-  border-radius: 9px;
-  padding: 0.45rem 0.9rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  line-height: 1;
-  text-transform: uppercase;
-  transition: filter 0.15s ease, transform 0.15s ease;
-}
-
-.theme-toggle-preview-btn:hover {
-  filter: brightness(1.05);
-}
-
-.theme-toggle-preview-btn:active {
-  transform: scale(0.98);
 }
 
 /* LIGHT MODE */
@@ -444,6 +440,156 @@ html.light button[class*='from-accent-red'] {
 html.light .pair-btn.active {
   box-shadow: 0 2px 10px rgba(124, 58, 237, 0.2);
 }
+
+/* ── Collateral Modal ── */
+html.light .collateral-modal-panel {
+  background: #ffffff !important;
+}
+html.light .collateral-modal-panel .bg-shadow-800\/60 {
+  background-color: rgba(241, 243, 249, 0.8) !important;
+}
+html.light .collateral-modal-panel .border-shadow-700 {
+  border-color: #d8dce8 !important;
+}
+html.light .collateral-modal-panel .bg-shadow-600 {
+  background-color: #e8ebf4 !important;
+}
+html.light .collateral-modal-panel .hover\:bg-shadow-500:hover {
+  background-color: #dde1ec !important;
+}
+html.light .collateral-modal-panel .text-gray-400 { color: #64748b !important; }
+html.light .collateral-modal-panel .text-gray-500 { color: #64748b !important; }
+html.light .collateral-modal-panel .text-gray-600 { color: #94a3b8 !important; }
+html.light .collateral-modal-panel .text-white    { color: #0f172a !important; }
+
+/* ── text-gray-100 ── */
+html.light .text-gray-100 {
+  color: #0f172a !important;
+}
+
+/* ── Relay session / status badges ── */
+html.light .text-emerald-300 { color: #059669 !important; }
+html.light .text-cyan-200    { color: #0891b2 !important; }
+html.light .text-yellow-300  { color: #b45309 !important; }
+
+/* ── Bottom positions — cyan accents ── */
+html.light .trade-bottom-panel .text-cyan-300,
+html.light .trade-bottom-panel .text-cyan-200 {
+  color: #0891b2 !important;
+}
+html.light .trade-bottom-panel .bg-cyan-500\/15 {
+  background-color: rgba(6, 182, 212, 0.12) !important;
+}
+html.light .trade-bottom-panel .focus\:border-cyan-400\/50:focus {
+  border-color: rgba(6, 182, 212, 0.6) !important;
+}
+
+/* ── Bottom positions — red close/SL accents ── */
+html.light .trade-bottom-panel .text-red-300         { color: #dc2626 !important; }
+html.light .trade-bottom-panel .border-red-500\/45   { border-color: rgba(239,68,68,0.5) !important; }
+html.light .trade-bottom-panel .bg-red-500\/10       { background-color: rgba(239,68,68,0.08) !important; }
+html.light .trade-bottom-panel .bg-red-500\/15       { background-color: rgba(239,68,68,0.10) !important; }
+
+/* ── Bottom positions — side/encrypted badges ── */
+html.light .trade-bottom-panel .bg-accent-green\/20  { background-color: rgba(16,185,129,0.15) !important; }
+html.light .trade-bottom-panel .bg-accent-red\/20    { background-color: rgba(239,68,68,0.12) !important; }
+html.light .trade-bottom-panel .bg-accent-purple\/20 { background-color: rgba(139,92,246,0.12) !important; }
+
+/* ── Bottom positions — card background ── */
+html.light .trade-bottom-panel .bg-shadow-700\/55 {
+  background-color: rgba(241,243,249,0.85) !important;
+}
+
+/* ── Input placeholder text in light mode ── */
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* ── Input text color fallback (for inputs without explicit text class) ── */
+html.light input[type="number"],
+html.light input[type="text"] {
+  color: #0f172a;
+}
+
+/* Order summary panel (margin/notional/liq) */
+html.light .trade-trading-panel .bg-shadow-700\/40 {
+  background-color: #ffffff !important;
+}
+
+html.light .trade-trading-panel .divide-shadow-600 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #d1d5e8 !important;
+}
+
+/* Light mode: colour the leverage slider track via the element background only.
+   No ::-webkit-slider-runnable-track rules — they trigger pseudo-element track
+   rendering and make the track taller than the h-1/h-1.5 element height. */
+html.light .trade-trading-panel input[type=range].bg-shadow-600 {
+  background: #c4c9db !important;
+}
+
+/* Slider thumb border in light mode */
+html.light input[type="range"]::-webkit-slider-thumb {
+  border-color: #ffffff;
+}
+
+/* Skeleton loading in light mode */
+html.light .skeleton-pulse {
+  background: linear-gradient(90deg, #e8eaf2 25%, #f1f3f9 50%, #e8eaf2 75%);
+  background-size: 200% 100%;
+}
+
+/* Orderbook row hover in light mode */
+html.light .trade-orderbook .hover\:bg-shadow-700\/30:hover {
+  background-color: rgba(209, 213, 232, 0.4) !important;
+}
+
+/* Transparent panel backgrounds in trading panel */
+html.light .trade-trading-panel .bg-shadow-700\/60 {
+  background-color: rgba(241, 243, 249, 0.9) !important;
+}
+html.light .trade-trading-panel .bg-shadow-700\/80 {
+  background-color: rgba(241, 243, 249, 0.95) !important;
+}
+
+/* ── Hover states ── */
+html.light .hover\:text-gray-200:hover { color: #334155 !important; }
+html.light .hover\:text-gray-300:hover { color: #475569 !important; }
+html.light .trade-bottom-panel .hover\:bg-shadow-700\/30:hover {
+  background-color: rgba(209, 213, 232, 0.4) !important;
+}
+html.light .trade-bottom-panel .hover\:bg-cyan-500\/25:hover {
+  background-color: rgba(6, 182, 212, 0.18) !important;
+}
+html.light .trade-bottom-panel .hover\:bg-red-500\/20:hover {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+/* ── Status badge colours (yellow, green, red, gray) ── */
+html.light .text-yellow-400             { color: #b45309 !important; }
+html.light .bg-yellow-400\/15           { background-color: rgba(234,179,8,0.12) !important; }
+html.light .bg-accent-green\/15         { background-color: rgba(16,185,129,0.12) !important; }
+html.light .bg-accent-red\/15           { background-color: rgba(239,68,68,0.10) !important; }
+html.light .bg-gray-400\/15             { background-color: rgba(148,163,184,0.15) !important; }
+
+/* ── Border-shadow-500 (generic, not scoped to trade-* panels) ── */
+html.light .border-shadow-500           { border-color: #d8dce8 !important; }
+
+/* ── Health bar grey tone ── */
+html.light .bg-gray-500\/60             { background-color: rgba(100,116,139,0.25) !important; }
+
+/* ── Health bar gradients ── */
+html.light .from-accent-green.to-cyan-400 { }   /* keep vivid — fine on light bg */
+html.light .from-yellow-400.to-orange-400 { }   /* keep vivid */
+html.light .from-accent-red.to-rose-500   { }   /* keep vivid */
+
+/* ── Relay session badges (MarketInfo) ── */
+html.light .bg-emerald-500\/10          { background-color: rgba(16,185,129,0.10) !important; }
+html.light .border-emerald-400\/35      { border-color: rgba(52,211,153,0.45) !important; }
+html.light .bg-yellow-500\/10           { background-color: rgba(234,179,8,0.10) !important; }
+html.light .border-yellow-500\/35       { border-color: rgba(234,179,8,0.45) !important; }
+html.light .border-cyan-400\/35         { border-color: rgba(34,211,238,0.45) !important; }
+html.light .bg-cyan-500\/10             { background-color: rgba(6,182,212,0.10) !important; }
 /* Pair button hover lift */
 .pair-btn {
   transition: transform 0.15s ease, box-shadow 0.15s ease;

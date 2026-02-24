@@ -144,6 +144,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     resetStatus: resetPrivacyStatus,
     relayAvailable,
     relaySession,
+    relaySessionHydrated,
     ensureRelaySession,
     refreshRelaySession,
   } = useArciumPrivacy();
@@ -344,6 +345,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       toast.dismiss("relay-auto-session");
       return;
     }
+    if (!relaySessionHydrated) return;
     if (!relayAvailable) return;
     if (autoSessionInFlightRef.current) return;
     const nowMs = Date.now();
@@ -390,7 +392,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       cancelled = true;
       toast.dismiss("relay-auto-session");
     };
-  }, [ensureRelaySession, isRelaySessionActive, publicKey, relayAvailable]);
+  }, [ensureRelaySession, isRelaySessionActive, publicKey, relayAvailable, relaySessionHydrated]);
 
   const handleDeposit = useCallback(async () => {
     const amt = parseFloat(depositAmount);
@@ -745,31 +747,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     <div className="trade-trading-panel flex flex-col bg-shadow-900 p-2.5 h-full overflow-y-auto">
       <div className={isHorizontal ? "grid grid-cols-1 items-start gap-2 lg:grid-cols-12" : "space-y-1.5"}>
         <div className={isHorizontal ? "space-y-1.5 lg:col-span-12" : "space-y-1.5"}>
-          {publicKey && (
-            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 px-2.5 py-1.5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="mb-0.5 text-[10px] uppercase tracking-[0.14em] text-gray-500">Margin Balance</p>
-                  <p
-                    className={`text-sm font-semibold ${
-                      marginBalance === 0 ? "text-yellow-400" : "text-white"
-                    }`}
-                  >
-                    {marginBalance !== null ? `$${marginBalance.toFixed(2)} USDC` : "--"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCollateralModalOpen(true)}
-                    className="rounded-lg border border-accent-purple/35 bg-accent-purple/15 px-2.5 py-1 text-[11px] font-medium text-accent-purple transition-colors hover:bg-accent-purple/25"
-                  >
-                    {marginBalance === 0 ? "Deposit Collateral" : "Manage"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Market / Limit — underlined text tabs */}
           <div className="flex items-center gap-3 border-b border-shadow-600 pb-0">
             <button
@@ -818,29 +795,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </button>
           </div>
 
-          {/* Market / Limit — small toggle */}
-          <div className="grid grid-cols-2 gap-0.5 rounded-lg bg-shadow-700 p-0.5">
-            <button
-              onClick={() => setOrderType("market")}
-              className={`rounded-md py-1 text-[9px] font-semibold uppercase tracking-wide transition-colors ${
-                orderType === "market"
-                  ? "bg-accent-purple/25 text-accent-purple"
-                  : "text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              Market
-            </button>
-            <button
-              onClick={() => setOrderType("limit")}
-              className={`rounded-md py-1 text-[9px] font-semibold uppercase tracking-wide transition-colors ${
-                orderType === "limit"
-                  ? "bg-accent-purple/25 text-accent-purple"
-                  : "text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              Limit
-            </button>
-          </div>
 
           {/* Hotkeys */}
           <div className="flex justify-between px-0.5 text-[9px] text-gray-600">
@@ -926,7 +880,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                       onChange={(e) => handleSlider(Number(e.target.value))}
                       className="h-1 w-full cursor-pointer appearance-none rounded-full accent-accent-purple"
                       style={{
-                        background: `linear-gradient(to right, #8b5cf6 ${sliderPct}%, #35354a ${sliderPct}%)`,
+                        background: `linear-gradient(to right, #8b5cf6 ${sliderPct}%, var(--range-track-empty) ${sliderPct}%)`,
                       }}
                     />
                     <div className="flex justify-between text-[9px] text-gray-600">
@@ -946,51 +900,8 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Leverage</label>
-            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 p-2">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500">Adjust</span>
-                <span className="text-xl font-semibold text-accent-purple">{leverage}x</span>
-              </div>
-              <input
-                type="range"
-                min={MIN_LEVERAGE}
-                max={MAX_LEVERAGE}
-                value={leverage}
-                onChange={(e) => setLeverage(Number.parseInt(e.target.value, 10))}
-                className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-shadow-600 accent-accent-purple"
-              />
-              <div className="relative mt-1 h-3">
-                {LEVERAGE_MARKERS.map((v) => (
-                  <span
-                    key={v}
-                    className={`absolute text-[9px] ${
-                      v === leverage ? "font-semibold text-accent-purple" : "text-gray-500"
-                    } ${
-                      v === MIN_LEVERAGE
-                        ? "left-0"
-                        : v === MAX_LEVERAGE
-                        ? "right-0"
-                        : "-translate-x-1/2"
-                    }`}
-                    style={
-                      v === MIN_LEVERAGE || v === MAX_LEVERAGE
-                        ? undefined
-                        : {
-                            left: `${((v - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%`,
-                          }
-                    }
-                  >
-                    {v}x
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-
           {orderType === "limit" && (
-            <div>
+            <div className="mt-2 mb-2">
               <label className="mb-1 block text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 Limit Price
               </label>
@@ -1008,6 +919,37 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
               </div>
             </div>
           )}
+
+          <div>
+            <label className="mb-1 block text-[10px] uppercase tracking-[0.12em] text-gray-500">Leverage</label>
+            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 p-2.5">
+              <div className="mb-2 flex items-center justify-end">
+                <span className="text-xl font-semibold text-accent-purple">{leverage}x</span>
+              </div>
+              <input
+                type="range"
+                min={MIN_LEVERAGE}
+                max={MAX_LEVERAGE}
+                value={leverage}
+                onChange={(e) => setLeverage(Number.parseInt(e.target.value, 10))}
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-lg accent-accent-purple"
+                style={{
+                  background: `linear-gradient(to right, #8b5cf6 ${((leverage - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%, var(--range-track-empty) ${((leverage - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%)`,
+                }}
+              />
+              <div className="mt-1.5 flex justify-between text-[9px] text-gray-600">
+                {LEVERAGE_MARKERS.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setLeverage(m)}
+                    className="hover:text-accent-purple transition-colors"
+                  >
+                    {m}x
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
 
           <div>
             <label className="mb-1 block text-[10px] uppercase tracking-[0.12em] text-gray-500">
@@ -1048,19 +990,19 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             <span>encrypted</span>
           </div>
 
-          <div className="grid grid-cols-1 gap-1.5 rounded-xl border border-shadow-500 bg-shadow-700/60 p-2 sm:grid-cols-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Margin</p>
-              <p className="text-base font-semibold text-white">~${margin.toFixed(2)}</p>
+          <div className="flex items-stretch divide-x divide-shadow-600 rounded-xl border border-shadow-500 bg-shadow-700/40 overflow-hidden">
+            <div className="flex-1 px-3 py-2">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-gray-500 mb-0.5">Margin</p>
+              <p className="text-sm font-semibold text-gray-200">${margin.toFixed(2)}</p>
             </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Notional</p>
-              <p className="text-base font-semibold text-white">~${positionValue.toFixed(2)}</p>
+            <div className="flex-1 px-3 py-2">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-gray-500 mb-0.5">Notional</p>
+              <p className="text-sm font-semibold text-gray-200">${positionValue.toFixed(2)}</p>
             </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Liq. Price</p>
-              <p className={`text-base font-semibold ${direction === "long" ? "text-accent-red" : "text-accent-green"}`}>
-                {estimatedLiqPrice ? `~${formatPrice(estimatedLiqPrice)}` : "--"}
+            <div className="flex-1 px-3 py-2">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-gray-500 mb-0.5">Liq. Price</p>
+              <p className={`text-sm font-semibold ${estimatedLiqPrice ? (direction === "long" ? "text-accent-red" : "text-accent-green") : "text-gray-500"}`}>
+                {estimatedLiqPrice ? formatPrice(estimatedLiqPrice) : "--"}
               </p>
             </div>
           </div>
@@ -1182,20 +1124,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         onClose={() => setModalOpen(false)}
       />
 
-      <CollateralModal
-        isOpen={collateralModalOpen}
-        marginBalance={marginBalance}
-        relayAvailable={relayAvailable}
-        relaySession={relaySession}
-        isRelaySessionActive={isRelaySessionActive}
-        ensureRelaySession={ensureRelaySession}
-        refreshRelaySession={refreshRelaySession}
-        onClose={() => setCollateralModalOpen(false)}
-        onSuccess={() => {
-          setCollateralModalOpen(false);
-          void refreshMarketData();
-        }}
-      />
     </div>
   );
 }

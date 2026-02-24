@@ -8,6 +8,7 @@ import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { DEFAULT_TRADE_SESSION_DURATION_SECONDS } from "../lib/client";
 import {
   buildRelaySessionAuthMessage,
+  RELAY_SESSION_AUTH_SCOPE,
   uint8ToBase64,
 } from "../lib/relay-session-auth";
 
@@ -32,6 +33,7 @@ export interface SessionRelayInfo {
   relayer: string;
   sessionId: string;
   sessionAddress: string;
+  authScope: string;
   expiresAt: number;
   authExpiresAt: number;
   maxActions: number;
@@ -80,27 +82,48 @@ function isRelayStorageKey(key: string | null): boolean {
 function parseSession(raw: string | null): SessionRelayInfo | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as SessionRelayInfo;
+    const parsed = JSON.parse(raw) as Partial<SessionRelayInfo>;
     if (
       typeof parsed?.owner !== "string" ||
       typeof parsed?.market !== "string" ||
+      typeof parsed?.relayer !== "string" ||
       typeof parsed?.sessionId !== "string" ||
+      typeof parsed?.sessionAddress !== "string" ||
+      typeof parsed?.maxMarginPerActionRaw !== "string" ||
       typeof parsed?.authSignature !== "string" ||
-      typeof parsed?.expiresAt !== "number"
+      !Number.isFinite(Number(parsed?.expiresAt))
     ) {
       return null;
     }
+    const parsedExpiresAt = Number(parsed.expiresAt);
+    const parsedAuthExpiresAt = Number(parsed.authExpiresAt ?? parsedExpiresAt);
+    const parsedMaxActions = Number(parsed.maxActions);
+    const parsedUsedActions = Number(parsed.usedActions);
+    const maxActions =
+      Number.isFinite(parsedMaxActions) && parsedMaxActions > 0
+        ? Math.floor(parsedMaxActions)
+        : DEFAULT_SESSION_MAX_ACTIONS;
+    const usedActions =
+      Number.isFinite(parsedUsedActions) && parsedUsedActions >= 0
+        ? Math.floor(parsedUsedActions)
+        : 0;
     return {
       ...parsed,
-      authExpiresAt:
-        typeof (parsed as Partial<SessionRelayInfo>).authExpiresAt === "number"
-          ? (parsed as Partial<SessionRelayInfo>).authExpiresAt!
-          : parsed.expiresAt,
+      authScope:
+        typeof parsed.authScope === "string" && parsed.authScope.length > 0
+          ? parsed.authScope
+          : "__legacy__",
+      expiresAt: parsedExpiresAt,
+      authExpiresAt: Number.isFinite(parsedAuthExpiresAt)
+        ? Math.floor(parsedAuthExpiresAt)
+        : parsedExpiresAt,
+      maxActions,
+      usedActions: Math.min(usedActions, maxActions),
       collateralDelegateApproved:
-        typeof (parsed as Partial<SessionRelayInfo>).collateralDelegateApproved === "boolean"
-          ? (parsed as Partial<SessionRelayInfo>).collateralDelegateApproved!
+        typeof parsed.collateralDelegateApproved === "boolean"
+          ? parsed.collateralDelegateApproved
           : false,
-    };
+    } as SessionRelayInfo;
   } catch {
     return null;
   }
@@ -193,6 +216,7 @@ function isUsableRelaySession(
   if (!session || !owner || !market) return false;
   if (session.owner !== owner) return false;
   if (session.market !== market) return false;
+  if (session.authScope !== RELAY_SESSION_AUTH_SCOPE) return false;
   if (session.expiresAt - nowSeconds <= RELAY_SESSION_RENEW_BEFORE_SECONDS) return false;
   if (session.usedActions >= session.maxActions) return false;
   return true;
@@ -210,6 +234,7 @@ export const useArciumPrivacy = () => {
   const [relaySession, setRelaySession] = useState<SessionRelayInfo | null>(null);
   const [relayAvailable, setRelayAvailable] = useState<boolean>(false);
   const [relayError, setRelayError] = useState<string | null>(null);
+  const [relaySessionHydrated, setRelaySessionHydrated] = useState<boolean>(false);
 
   const getClient = useCallback(() => {
     if (!anchorWallet) return null;
@@ -272,12 +297,22 @@ export const useArciumPrivacy = () => {
         return null;
       }
       if (!payload.session) return current;
+      const nextMaxActionsRaw = Number(payload.session.maxActions);
+      const nextUsedActionsRaw = Number(payload.session.usedActions);
+      const nextMaxActions =
+        Number.isFinite(nextMaxActionsRaw) && nextMaxActionsRaw > 0
+          ? Math.floor(nextMaxActionsRaw)
+          : current.maxActions;
+      const nextUsedActions =
+        Number.isFinite(nextUsedActionsRaw) && nextUsedActionsRaw >= 0
+          ? Math.floor(nextUsedActionsRaw)
+          : current.usedActions;
 
       const next: SessionRelayInfo = {
         ...current,
         relayer: payload.session.relayer,
-        usedActions: payload.session.usedActions,
-        maxActions: payload.session.maxActions,
+        usedActions: Math.min(nextUsedActions, nextMaxActions),
+        maxActions: nextMaxActions,
         maxMarginPerActionRaw: payload.session.maxMarginPerAction,
         expiresAt: Number(payload.session.expiresAt),
       };
@@ -299,6 +334,23 @@ export const useArciumPrivacy = () => {
       return current;
     }
   }, [publicKey, relaySession]);
+
+  const invalidateRelaySession = useCallback(
+    (owner?: string, market?: string) => {
+      const resolvedOwner = owner ?? relaySession?.owner;
+      const resolvedMarket = market ?? relaySession?.market;
+      if (resolvedOwner && resolvedMarket) {
+        clearStoredSession(resolvedOwner, resolvedMarket);
+      }
+      setRelaySession((current) => {
+        if (!current) return null;
+        if (resolvedOwner && current.owner !== resolvedOwner) return current;
+        if (resolvedMarket && current.market !== resolvedMarket) return current;
+        return null;
+      });
+    },
+    [relaySession]
+  );
 
   const ensureCollateralDelegateApproval = useCallback(
     async (
@@ -409,6 +461,7 @@ export const useArciumPrivacy = () => {
         relayer: relayInfo.relayer,
         sessionId: sessionId.toString(),
         sessionAddress: sessionAddress.toBase58(),
+        authScope: RELAY_SESSION_AUTH_SCOPE,
         expiresAt,
         authExpiresAt: expiresAt,
         maxActions,
@@ -451,6 +504,18 @@ export const useArciumPrivacy = () => {
           relaySession,
           ctx?.runtime.marketAddress
         );
+      }
+
+      const stored = owner && market ? readStoredSession(owner, market) : null;
+      if (isUsableRelaySession(stored, owner, market, nowSeconds)) {
+        setRelaySession(stored);
+        return ensureCollateralDelegateApproval(
+          stored,
+          ctx?.runtime.marketAddress
+        );
+      }
+      if (stored && owner && market) {
+        clearStoredSession(owner, market);
       }
 
       const refreshed = await refreshRelaySession();
@@ -500,28 +565,31 @@ export const useArciumPrivacy = () => {
   }, [refreshRelayAvailability]);
 
   useEffect(() => {
+    setRelaySessionHydrated(false);
     const ctx = getClient();
     if (!publicKey || !ctx) {
       setRelaySession(null);
+      setRelaySessionHydrated(true);
       return;
     }
 
     const owner = publicKey.toBase58();
     const market = ctx.runtime.marketAddress.toBase58();
     const stored = readStoredSession(owner, market);
-    if (!stored) return;
+    if (!stored) {
+      setRelaySessionHydrated(true);
+      return;
+    }
 
-    if (
-      stored.expiresAt - Math.floor(Date.now() / 1000) <=
-        RELAY_SESSION_RENEW_BEFORE_SECONDS ||
-      stored.usedActions >= stored.maxActions
-    ) {
+    if (!isUsableRelaySession(stored, owner, market, Math.floor(Date.now() / 1000))) {
       setRelaySession(null);
       clearStoredSession(owner, market);
+      setRelaySessionHydrated(true);
       return;
     }
 
     setRelaySession(stored);
+    setRelaySessionHydrated(true);
   }, [getClient, publicKey]);
 
   useEffect(() => {
@@ -658,9 +726,20 @@ export const useArciumPrivacy = () => {
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload?.ok) {
-        throw new Error(
-          payload?.error || `Delegated session submit failed (${response.status}).`
-        );
+        const message =
+          payload?.error || `Delegated session submit failed (${response.status}).`;
+        if (
+          typeof message === "string" &&
+          (message.includes("Invalid session authorization signature") ||
+            message.includes("Session authorization expired") ||
+            message.includes("Authorization expiry exceeds session expiry"))
+        ) {
+          invalidateRelaySession(activeRelaySession.owner, activeRelaySession.market);
+          throw new Error(
+            "Delegated session expired or invalid. Please sign a new session."
+          );
+        }
+        throw new Error(message);
       }
 
       const txSignature = payload.txSignature as string;
@@ -688,7 +767,7 @@ export const useArciumPrivacy = () => {
         usedPrivatePath: true,
       };
     },
-    [getClient, relaySession, anchorWallet]
+    [getClient, relaySession, anchorWallet, invalidateRelaySession]
   );
 
   const setError = useCallback((message: string) => {
@@ -707,8 +786,10 @@ export const useArciumPrivacy = () => {
     relayAvailable,
     relayError,
     relaySession,
+    relaySessionHydrated,
     createRelaySession,
     ensureRelaySession,
+    invalidateRelaySession,
     revokeRelaySession,
     refreshRelaySession,
   };
