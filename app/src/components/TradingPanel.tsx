@@ -742,14 +742,14 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   }, [runLimitExecutor]);
 
   return (
-    <div className="trade-trading-panel flex flex-col bg-shadow-900 p-4 h-full overflow-y-auto">
-      <div className={isHorizontal ? "grid grid-cols-1 items-start gap-4 lg:grid-cols-12" : "space-y-4"}>
-        <div className={isHorizontal ? "space-y-4 lg:col-span-12" : "space-y-4"}>
+    <div className="trade-trading-panel flex flex-col bg-shadow-900 p-2.5 h-full overflow-y-auto">
+      <div className={isHorizontal ? "grid grid-cols-1 items-start gap-2 lg:grid-cols-12" : "space-y-1.5"}>
+        <div className={isHorizontal ? "space-y-1.5 lg:col-span-12" : "space-y-1.5"}>
           {publicKey && (
-            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 px-4 py-3">
+            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 px-2.5 py-1.5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="mb-0.5 text-[11px] uppercase tracking-[0.16em] text-gray-500">Margin Balance</p>
+                  <p className="mb-0.5 text-[10px] uppercase tracking-[0.14em] text-gray-500">Margin Balance</p>
                   <p
                     className={`text-sm font-semibold ${
                       marginBalance === 0 ? "text-yellow-400" : "text-white"
@@ -761,7 +761,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCollateralModalOpen(true)}
-                    className="rounded-lg border border-accent-purple/35 bg-accent-purple/15 px-3 py-1.5 text-xs font-medium text-accent-purple transition-colors hover:bg-accent-purple/25"
+                    className="rounded-lg border border-accent-purple/35 bg-accent-purple/15 px-2.5 py-1 text-[11px] font-medium text-accent-purple transition-colors hover:bg-accent-purple/25"
                   >
                     {marginBalance === 0 ? "Deposit Collateral" : "Manage"}
                   </button>
@@ -771,10 +771,10 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           )}
 
           {/* Market / Limit — underlined text tabs */}
-          <div className="flex items-center gap-4 border-b border-shadow-600 pb-0">
+          <div className="flex items-center gap-3 border-b border-shadow-600 pb-0">
             <button
               onClick={() => setOrderType("market")}
-              className={`pb-2 text-xs font-semibold transition-colors border-b-2 -mb-px ${
+              className={`pb-1 text-[11px] font-semibold transition-colors border-b-2 -mb-px ${
                 orderType === "market"
                   ? "text-white border-accent-purple"
                   : "text-gray-500 border-transparent hover:text-gray-300"
@@ -784,7 +784,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </button>
             <button
               onClick={() => setOrderType("limit")}
-              className={`pb-2 text-xs font-semibold transition-colors border-b-2 -mb-px ${
+              className={`pb-1 text-[11px] font-semibold transition-colors border-b-2 -mb-px ${
                 orderType === "limit"
                   ? "text-white border-accent-purple"
                   : "text-gray-500 border-transparent hover:text-gray-300"
@@ -795,10 +795,10 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           </div>
 
           {/* Long / Short — direction buttons */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-1.5">
             <button
               onClick={() => setDirection("long")}
-              className={`rounded-lg py-2.5 text-sm font-bold transition-all btn-press ${
+              className={`rounded-lg py-1.5 text-xs font-bold transition-all btn-press ${
                 direction === "long"
                   ? "bg-accent-green text-white"
                   : "bg-accent-green/10 text-accent-green border border-accent-green/25 hover:bg-accent-green/20"
@@ -808,7 +808,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </button>
             <button
               onClick={() => setDirection("short")}
-              className={`rounded-lg py-2.5 text-sm font-bold transition-all btn-press ${
+              className={`rounded-lg py-1.5 text-xs font-bold transition-all btn-press ${
                 direction === "short"
                   ? "bg-accent-red text-white"
                   : "bg-accent-red/8 text-accent-red border border-accent-red/25 hover:bg-accent-red/15"
@@ -822,7 +822,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           <div className="grid grid-cols-2 gap-0.5 rounded-lg bg-shadow-700 p-0.5">
             <button
               onClick={() => setOrderType("market")}
-              className={`rounded-md py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+              className={`rounded-md py-1 text-[9px] font-semibold uppercase tracking-wide transition-colors ${
                 orderType === "market"
                   ? "bg-accent-purple/25 text-accent-purple"
                   : "text-gray-500 hover:text-gray-300"
@@ -832,7 +832,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </button>
             <button
               onClick={() => setOrderType("limit")}
-              className={`rounded-md py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+              className={`rounded-md py-1 text-[9px] font-semibold uppercase tracking-wide transition-colors ${
                 orderType === "limit"
                   ? "bg-accent-purple/25 text-accent-purple"
                   : "text-gray-500 hover:text-gray-300"
@@ -843,7 +843,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           </div>
 
           {/* Hotkeys */}
-          <div className="flex justify-between px-0.5 text-[10px] text-gray-600">
+          <div className="flex justify-between px-0.5 text-[9px] text-gray-600">
             <span>
               Hotkey:{" "}
               <kbd className="rounded bg-shadow-600 px-1 py-0.5 text-gray-500">L</kbd> Long
@@ -856,12 +856,12 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           </div>
 
           <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-xs uppercase tracking-[0.14em] text-gray-500">Size</label>
-              <div className="flex overflow-hidden rounded-md border border-shadow-500 text-xs">
+            <div className="mb-1 flex items-center justify-between">
+              <label className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Size</label>
+              <div className="flex overflow-hidden rounded-md border border-shadow-500 text-[10px]">
                 <button
                   onClick={() => setSizeUnit("base")}
-                  className={`px-2.5 py-1 transition-colors ${
+                  className={`px-2 py-0.5 transition-colors ${
                     sizeUnit === "base"
                       ? "bg-accent-purple/35 text-white"
                       : "bg-shadow-700 text-gray-400 hover:text-gray-200"
@@ -871,7 +871,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 </button>
                 <button
                   onClick={() => setSizeUnit("usd")}
-                  className={`px-2.5 py-1 transition-colors ${
+                  className={`px-2 py-0.5 transition-colors ${
                     sizeUnit === "usd"
                       ? "bg-accent-purple/35 text-white"
                       : "bg-shadow-700 text-gray-400 hover:text-gray-200"
@@ -887,13 +887,13 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 value={size}
                 onChange={(e) => setSize(e.target.value)}
                 placeholder="0.00"
-                className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-4 py-3 text-2xl leading-none text-white transition-colors focus:border-accent-purple focus:outline-none pr-16"
+                className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-xl leading-none text-white transition-colors focus:border-accent-purple focus:outline-none pr-14"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
                 {sizeUnit === "usd" ? "USDC" : activePair.base.symbol}
               </span>
             </div>
-            <div className="mt-3">
+            <div className="mt-1.5">
               {(() => {
                 const maxNotional = marginBalance && marginBalance > 0 ? marginBalance * leverage : null;
                 const currentNotional = sizeUnit === "usd"
@@ -913,9 +913,9 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                   }
                 };
                 return (
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     <div className="flex items-center justify-end mb-1">
-                      <span className="text-[10px] font-semibold text-accent-purple">{sliderPct}%</span>
+                      <span className="text-[9px] font-semibold text-accent-purple">{sliderPct}%</span>
                     </div>
                     <input
                       type="range"
@@ -924,12 +924,12 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                       step={1}
                       value={sliderPct}
                       onChange={(e) => handleSlider(Number(e.target.value))}
-                      className="h-1.5 w-full cursor-pointer appearance-none rounded-full accent-accent-purple"
+                      className="h-1 w-full cursor-pointer appearance-none rounded-full accent-accent-purple"
                       style={{
                         background: `linear-gradient(to right, #8b5cf6 ${sliderPct}%, #35354a ${sliderPct}%)`,
                       }}
                     />
-                    <div className="flex justify-between text-[10px] text-gray-600">
+                    <div className="flex justify-between text-[9px] text-gray-600">
                       {[0, 25, 50, 75, 100].map((tick) => (
                         <button
                           key={tick}
@@ -946,12 +946,12 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs uppercase tracking-[0.16em] text-gray-500">Leverage</label>
-            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 p-3.5">
-              <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-xs uppercase tracking-[0.12em] text-gray-500">Adjust</span>
-                <span className="text-3xl font-semibold text-accent-purple">{leverage}x</span>
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Leverage</label>
+            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 p-2">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500">Adjust</span>
+                <span className="text-xl font-semibold text-accent-purple">{leverage}x</span>
               </div>
               <input
                 type="range"
@@ -959,13 +959,13 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 max={MAX_LEVERAGE}
                 value={leverage}
                 onChange={(e) => setLeverage(Number.parseInt(e.target.value, 10))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-shadow-600 accent-accent-purple"
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-shadow-600 accent-accent-purple"
               />
-              <div className="relative mt-1.5 h-4">
+              <div className="relative mt-1 h-3">
                 {LEVERAGE_MARKERS.map((v) => (
                   <span
                     key={v}
-                    className={`absolute text-xs ${
+                    className={`absolute text-[9px] ${
                       v === leverage ? "font-semibold text-accent-purple" : "text-gray-500"
                     } ${
                       v === MIN_LEVERAGE
@@ -991,7 +991,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
 
           {orderType === "limit" && (
             <div>
-              <label className="mb-2 block text-xs uppercase tracking-[0.14em] text-gray-500">
+              <label className="mb-1 block text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 Limit Price
               </label>
               <div className="relative">
@@ -1000,7 +1000,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                   value={limitPrice}
                   onChange={(e) => setLimitPrice(e.target.value)}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-4 py-3 text-xl text-white transition-colors focus:border-accent-purple focus:outline-none pr-16"
+                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-lg text-white transition-colors focus:border-accent-purple focus:outline-none pr-14"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
                   USDC
@@ -1010,17 +1010,17 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           )}
 
           <div>
-            <label className="mb-2 block text-xs uppercase tracking-[0.14em] text-gray-500">
+            <label className="mb-1 block text-[10px] uppercase tracking-[0.12em] text-gray-500">
               Take Profit / Stop Loss
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1.5">
               <div className="relative">
                 <input
                   type="number"
                   value={takeProfit}
                   onChange={(e) => setTakeProfit(e.target.value)}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2.5 pr-10 text-sm text-white transition-colors focus:border-accent-green focus:outline-none"
+                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 pr-10 text-xs text-white transition-colors focus:border-accent-green focus:outline-none"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-accent-green">
                   TP
@@ -1032,7 +1032,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                   value={stopLoss}
                   onChange={(e) => setStopLoss(e.target.value)}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2.5 pr-10 text-sm text-white transition-colors focus:border-accent-red focus:outline-none"
+                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 pr-10 text-xs text-white transition-colors focus:border-accent-red focus:outline-none"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-accent-red">
                   SL
@@ -1041,25 +1041,25 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </div>
           </div>
 
-          <div className="flex items-center gap-1 text-[10px] text-gray-600 px-0.5 -mt-1">
+          <div className="flex items-center gap-1 text-[9px] text-gray-600 px-0.5 -mt-1">
             <svg className="w-2.5 h-2.5 text-accent-purple/60" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
             </svg>
             <span>encrypted</span>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 rounded-xl border border-shadow-500 bg-shadow-700/60 p-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-1.5 rounded-xl border border-shadow-500 bg-shadow-700/60 p-2 sm:grid-cols-3">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500">Margin</p>
-              <p className="text-lg font-semibold text-white">~${margin.toFixed(2)}</p>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Margin</p>
+              <p className="text-base font-semibold text-white">~${margin.toFixed(2)}</p>
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500">Notional</p>
-              <p className="text-lg font-semibold text-white">~${positionValue.toFixed(2)}</p>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Notional</p>
+              <p className="text-base font-semibold text-white">~${positionValue.toFixed(2)}</p>
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500">Liq. Price</p>
-              <p className={`text-lg font-semibold ${direction === "long" ? "text-accent-red" : "text-accent-green"}`}>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Liq. Price</p>
+              <p className={`text-base font-semibold ${direction === "long" ? "text-accent-red" : "text-accent-green"}`}>
                 {estimatedLiqPrice ? `~${formatPrice(estimatedLiqPrice)}` : "--"}
               </p>
             </div>
@@ -1074,7 +1074,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
               sizeInBase <= 0 ||
               (orderType === "limit" && !parsedLimitPrice)
             }
-            className={`mb-1 w-full rounded-lg py-3.5 text-xl font-semibold transition-all btn-press ${
+            className={`mb-1 w-full rounded-lg py-2.5 text-base font-semibold transition-all btn-press ${
               direction === "long"
                 ? "bg-gradient-to-r from-accent-green to-emerald-600 hover:from-emerald-600 hover:to-accent-green"
                 : "bg-gradient-to-r from-accent-red to-rose-600 hover:from-rose-600 hover:to-accent-red"

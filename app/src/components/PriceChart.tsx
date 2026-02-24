@@ -110,13 +110,13 @@ export default function PriceChart({
   return (
     <div className="trade-price-chart flex flex-col h-full min-h-0">
       {/* Timeframe bar */}
-      <div className="trade-price-chart-toolbar flex items-center gap-2 px-4 py-2 border-b border-shadow-600 shrink-0">
+      <div className="trade-price-chart-toolbar flex items-center gap-1.5 px-2 py-1 border-b border-shadow-600 shrink-0">
         <div className="flex items-center gap-0.5 bg-shadow-700 rounded-lg p-0.5">
           {TIMEFRAMES.map((tf) => (
             <button
               key={tf.value}
               onClick={() => handleIntervalChange(tf.value)}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`px-2 py-0.5 text-[11px] font-medium rounded-md transition-colors ${
                 interval === tf.value
                   ? "bg-accent-purple text-white"
                   : "text-gray-400 hover:text-white"
@@ -133,7 +133,7 @@ export default function PriceChart({
               setIsLoading(true);
               setFeedIndex((prev) => (prev + 1) % symbolCandidates.length);
             }}
-            className="ml-auto px-2.5 py-1 text-xs rounded border border-shadow-500 text-gray-400 hover:text-white hover:border-shadow-400 transition-colors"
+            className="ml-auto px-2 py-0.5 text-[11px] rounded border border-shadow-500 text-gray-400 hover:text-white hover:border-shadow-400 transition-colors"
             title={`Switch data feed (${feedIndex + 1}/${symbolCandidates.length})`}
           >
             Feed {feedIndex + 1}/{symbolCandidates.length}

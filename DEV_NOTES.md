@@ -6,6 +6,24 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-24 (UTC)
 - Author: Codex
 
+## Compact Panel Height Pass (2026-02-24 UTC)
+- User request:
+  - reduce panel heights in the terminal area by ~60% for a denser layout.
+- Implemented (UI-only, no trading logic touched):
+  - `app/src/components/PriceChart.tsx`
+    - reduced timeframe toolbar vertical padding and button heights.
+  - `app/src/components/PrivateOrderbook.tsx`
+    - reduced tab/header/spread/footer row heights and book row line height.
+  - `app/src/components/TradingPanel.tsx`
+    - reduced panel padding, block spacing, button/input heights, leverage block size, summary card footprint, and submit button height.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+- Current blocker:
+  - none introduced by this pass.
+- Next safe step:
+  1. visual QA in light mode on `/app`
+  2. if needed, apply a second pass for exact pixel target per panel
+
 ## Hosting Incident: "missing required error components" loop (2026-02-24 UTC)
 - User symptom:
   - browser showed `missing required error components, refreshing...` and page did not load.

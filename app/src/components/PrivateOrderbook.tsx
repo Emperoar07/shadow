@@ -98,10 +98,10 @@ export default function PrivateOrderbook({
   return (
     <div className={`trade-orderbook flex flex-col bg-shadow-900 h-full ${className}`}>
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-shadow-600 px-3 shrink-0">
+      <div className="flex items-center gap-1 border-b border-shadow-600 px-2 shrink-0">
         <button
           onClick={() => setActiveTab("book")}
-          className={`mr-3 py-2 text-xs font-semibold transition-colors ${
+          className={`mr-2 py-1 text-[11px] font-semibold transition-colors ${
             activeTab === "book"
               ? "border-b-2 border-accent-purple text-white"
               : "text-gray-500 hover:text-gray-300"
@@ -111,7 +111,7 @@ export default function PrivateOrderbook({
         </button>
         <button
           onClick={() => setActiveTab("trades")}
-          className={`mr-3 py-2 text-xs font-semibold transition-colors ${
+          className={`mr-2 py-1 text-[11px] font-semibold transition-colors ${
             activeTab === "trades"
               ? "border-b-2 border-accent-purple text-white"
               : "text-gray-500 hover:text-gray-300"
@@ -119,7 +119,7 @@ export default function PrivateOrderbook({
         >
           Trades
         </button>
-        <button className="ml-auto py-2 text-gray-500 hover:text-gray-300">
+        <button className="ml-auto py-1 text-gray-500 hover:text-gray-300">
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
             <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
           </svg>
@@ -129,7 +129,7 @@ export default function PrivateOrderbook({
       {activeTab === "book" ? (
         <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
           {/* Column headers */}
-          <div className="grid grid-cols-3 px-2 py-1 text-[9px] uppercase tracking-[0.08em] text-gray-500 border-b border-shadow-600 shrink-0">
+          <div className="grid grid-cols-3 px-2 py-[3px] text-[8px] uppercase tracking-[0.08em] text-gray-500 border-b border-shadow-600 shrink-0">
             <span>Price ({activePair.quote.symbol})</span>
             <span className="text-right">Size ({baseSymbol})</span>
             <span className="text-right">Total ({baseSymbol})</span>
@@ -143,12 +143,12 @@ export default function PrivateOrderbook({
           </div>
 
           {/* Spread row — Hyperliquid style: 3 columns */}
-          <div className="grid grid-cols-3 px-2 py-[5px] border-y border-shadow-600 shrink-0 bg-shadow-800">
-            <span className="text-[10px] font-semibold text-gray-400">Spread</span>
-            <span className="text-[10px] font-semibold text-gray-200 text-center tabular-nums">
+          <div className="grid grid-cols-3 px-2 py-[3px] border-y border-shadow-600 shrink-0 bg-shadow-800">
+            <span className="text-[9px] font-semibold text-gray-400">Spread</span>
+            <span className="text-[9px] font-semibold text-gray-200 text-center tabular-nums">
               {spreadAbs.toFixed(decimals)}
             </span>
-            <span className="text-[10px] text-gray-500 text-right tabular-nums">
+            <span className="text-[9px] text-gray-500 text-right tabular-nums">
               {spreadPct.toFixed(3)}%
             </span>
           </div>
@@ -161,11 +161,11 @@ export default function PrivateOrderbook({
           </div>
 
           {/* MPC footer */}
-          <div className="shrink-0 px-2 py-1 border-t border-shadow-600 flex items-center gap-1">
+          <div className="shrink-0 px-2 py-[3px] border-t border-shadow-600 flex items-center gap-1">
             <svg className="w-2.5 h-2.5 text-accent-purple/60 shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
             </svg>
-            <span className="text-[9px] text-gray-600 italic">some rows MPC-encrypted</span>
+            <span className="text-[8px] text-gray-600 italic">some rows MPC-encrypted</span>
           </div>
         </div>
       ) : (
@@ -181,7 +181,7 @@ function BookRow({ level, decimals }: { level: BookLevel; decimals: number }) {
   const isBid = level.side === "bid";
 
   return (
-    <div className="relative grid grid-cols-3 items-center px-2 py-[2px] text-[11px] hover:bg-shadow-700/30 cursor-default">
+    <div className="relative grid grid-cols-3 items-center px-2 py-[1px] text-[10px] hover:bg-shadow-700/30 cursor-default">
       {/* Depth bar anchored to right */}
       <span
         className={`absolute inset-y-0 right-0 pointer-events-none ${
