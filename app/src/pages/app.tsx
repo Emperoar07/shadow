@@ -87,7 +87,7 @@ export default function TradingAppPage() {
               </div>
               <div className="flex items-center gap-2">
                 <NetworkIndicator mode="wallet" />
-                <WalletMultiButton />
+                <WalletMultiButton>Connect Wallet</WalletMultiButton>
               </div>
             </div>
           </header>

@@ -16,7 +16,7 @@ interface BookLevel {
   depthPct: number;
 }
 
-const LEVELS_PER_SIDE = 12;
+const LEVELS_PER_SIDE = 16;
 
 function getPriceDecimals(price: number): number {
   if (price < 0.01) return 8;
@@ -65,9 +65,9 @@ export default function PrivateOrderbook({
     }
     const asks = [...askRaw].reverse().map((l, displayIdx) => ({
       ...l,
-      // After reverse: displayIdx 0 = furthest (top), displayIdx 11 = closest (bottom)
+      // After reverse: displayIdx 0 = furthest (top), displayIdx N-1 = closest (bottom)
       // Bottom rows (closest to spread) are blurred
-      blurred: displayIdx >= LEVELS_PER_SIDE - 5,
+      blurred: displayIdx >= LEVELS_PER_SIDE - 6,
     }));
 
     const bids: BookLevel[] = [];
@@ -181,7 +181,7 @@ function BookRow({ level, decimals }: { level: BookLevel; decimals: number }) {
   const isBid = level.side === "bid";
 
   return (
-    <div className="relative grid grid-cols-3 items-center px-2 py-[1px] text-[10px] hover:bg-shadow-700/30 cursor-default">
+    <div className="relative grid grid-cols-3 items-center px-2 py-[2px] text-[10px] hover:bg-shadow-700/30 cursor-default">
       {/* Depth bar anchored to right */}
       <span
         className={`absolute inset-y-0 right-0 pointer-events-none ${
