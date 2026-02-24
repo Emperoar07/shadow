@@ -1051,65 +1051,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             )}
           </button>
         </div>
-
-        {!isHorizontal && (
-          <div className="space-y-4">
-            <div className="space-y-2 rounded-lg border border-shadow-500 bg-shadow-700 p-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Order Type</span>
-                <span className="uppercase">{orderType}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Position Value</span>
-                <span>${positionValue.toFixed(2)} USDC</span>
-              </div>
-              {sizeUnit === "usd" && sizeInBase > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Size ({activePair.base.symbol})</span>
-                  <span>
-                    {sizeInBase.toFixed(sizeInBase < 0.01 ? 6 : 4)} {activePair.base.symbol}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Required Margin</span>
-                <span>${margin.toFixed(2)} USDC</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Entry Price</span>
-                <span>
-                  {orderType === "limit"
-                    ? formatPrice(parsedLimitPrice)
-                    : marketPrice
-                    ? formatPrice(marketPrice)
-                    : "From oracle at execution"}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Trading Fee</span>
-                <span>0.1%</span>
-              </div>
-              <div className="my-2 border-t border-shadow-500" />
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">
-                  Est. Liq. Price
-                  <span className="ml-1 text-[10px] text-gray-600">(approx)</span>
-                </span>
-                {estimatedLiqPrice ? (
-                  <span className={direction === "long" ? "text-accent-red" : "text-accent-green"}>
-                    {formatPrice(estimatedLiqPrice)}
-                  </span>
-                ) : (
-                  <span className="text-gray-500">--</span>
-                )}
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Health Factor</span>
-                <span className="encrypted-blur text-accent-purple">Encrypted</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <TradeConfirmationModal
