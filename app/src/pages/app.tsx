@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
@@ -87,7 +88,7 @@ export default function TradingAppPage() {
               </div>
               <div className="flex items-center gap-2">
                 <NetworkIndicator mode="wallet" />
-                <WalletMultiButton>Connect Wallet</WalletMultiButton>
+                <ConnectWalletButton />
               </div>
             </div>
           </header>
@@ -165,6 +166,13 @@ export default function TradingAppPage() {
 
     </>
   );
+}
+
+function ConnectWalletButton() {
+  const { publicKey } = useWallet();
+  return publicKey
+    ? <WalletMultiButton />
+    : <WalletMultiButton>Connect Wallet</WalletMultiButton>;
 }
 
 function ShadowLogo({ className }: { className?: string }) {
