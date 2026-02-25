@@ -229,6 +229,18 @@ function isUsableRelaySession(
   return true;
 }
 
+function hasUsableRelayAuth(
+  session: SessionRelayInfo,
+  nowSeconds: number
+): boolean {
+  if (session.authScope !== RELAY_SESSION_AUTH_SCOPE) return false;
+  if (typeof session.authSignature !== "string" || session.authSignature.length === 0) return false;
+  if (!Number.isFinite(session.authExpiresAt)) return false;
+  if (session.authExpiresAt - nowSeconds <= RELAY_SESSION_RENEW_BEFORE_SECONDS) return false;
+  if (session.authExpiresAt > session.expiresAt) return false;
+  return true;
+}
+
 export const useArciumPrivacy = () => {
   const { connection } = useConnection();
   const anchorWallet = useAnchorWalletCompat();
@@ -283,8 +295,8 @@ export const useArciumPrivacy = () => {
     }
   }, []);
 
-  const refreshRelaySession = useCallback(async () => {
-    const current = relaySession;
+  const refreshRelaySession = useCallback(async (candidate?: SessionRelayInfo | null) => {
+    const current = candidate ?? relaySession;
     if (!current) return null;
     if (!publicKey || current.owner !== publicKey.toBase58()) {
       setRelaySession(null);
@@ -393,6 +405,138 @@ export const useArciumPrivacy = () => {
     [getClient]
   );
 
+  const ensureRelaySessionAuth = useCallback(
+    async (
+      session: SessionRelayInfo,
+      userInitiated = false
+    ): Promise<SessionRelayInfo> => {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      if (hasUsableRelayAuth(session, nowSeconds)) {
+        return session;
+      }
+      if (!userInitiated) {
+        return session;
+      }
+      if (!signMessage) {
+        throw new Error("Wallet does not support message signing.");
+      }
+
+      setStatus("preparing");
+      setStatusMessage("Authorizing delegated trading session...");
+      const authMessage = buildRelaySessionAuthMessage({
+        owner: session.owner,
+        market: session.market,
+        sessionId: session.sessionId,
+        expiresAt: session.expiresAt,
+      });
+      const signature = await signMessage(new TextEncoder().encode(authMessage));
+
+      const next: SessionRelayInfo = {
+        ...session,
+        authScope: RELAY_SESSION_AUTH_SCOPE,
+        authExpiresAt: session.expiresAt,
+        authSignature: uint8ToBase64(signature),
+      };
+      setRelaySession(next);
+      persistSession(next);
+      return next;
+    },
+    [signMessage]
+  );
+
+  const maybeEnsureCollateralForReason = useCallback(
+    async (
+      session: SessionRelayInfo,
+      reason: EnsureRelaySessionOptions["reason"],
+      runtimeMarketAddress?: PublicKey
+    ): Promise<SessionRelayInfo> => {
+      if (reason !== "deposit") {
+        return session;
+      }
+      return ensureCollateralDelegateApproval(session, runtimeMarketAddress);
+    },
+    [ensureCollateralDelegateApproval]
+  );
+
+  const recoverLatestRelaySession = useCallback(
+    async (userInitiatedAuth = false): Promise<SessionRelayInfo | null> => {
+      if (!publicKey) return null;
+      const ctx = getClient();
+      if (!ctx) return null;
+
+      const owner = publicKey.toBase58();
+      const market = ctx.runtime.marketAddress.toBase58();
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      try {
+        const query = new URLSearchParams({ owner });
+        const response = await fetch(`/api/relay/session?${query.toString()}`);
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.ok || !payload?.available || payload.exists === false || !payload.session) {
+          return null;
+        }
+
+        const maxActionsRaw = Number(payload.session.maxActions);
+        const usedActionsRaw = Number(payload.session.usedActions);
+        const maxActions =
+          Number.isFinite(maxActionsRaw) && maxActionsRaw > 0
+            ? Math.floor(maxActionsRaw)
+            : DEFAULT_SESSION_MAX_ACTIONS;
+        const usedActions =
+          Number.isFinite(usedActionsRaw) && usedActionsRaw >= 0
+            ? Math.floor(usedActionsRaw)
+            : 0;
+        const sessionId = String(payload.session.sessionId);
+        const expiresAt = Number(payload.session.expiresAt);
+
+        const sessionAddress = ctx.client
+          .getTradeSessionAddress(
+            ctx.runtime.marketAddress,
+            new PublicKey(owner),
+            new BN(sessionId, 10)
+          )
+          .toBase58();
+
+        const stored = readStoredSession(owner, market);
+        const candidate: SessionRelayInfo = {
+          owner,
+          market,
+          relayer: payload.session.relayer,
+          sessionId,
+          sessionAddress,
+          authScope:
+            typeof stored?.authScope === "string" && stored.authScope.length > 0
+              ? stored.authScope
+              : RELAY_SESSION_AUTH_SCOPE,
+          expiresAt,
+          authExpiresAt:
+            Number.isFinite(stored?.authExpiresAt)
+              ? Math.floor(stored!.authExpiresAt)
+              : expiresAt,
+          maxActions,
+          usedActions: Math.min(usedActions, maxActions),
+          maxMarginPerActionRaw: payload.session.maxMarginPerAction,
+          authSignature: typeof stored?.authSignature === "string" ? stored.authSignature : "",
+          collateralDelegateApproved:
+            typeof stored?.collateralDelegateApproved === "boolean"
+              ? stored.collateralDelegateApproved
+              : false,
+        };
+
+        if (!isUsableRelaySession(candidate, owner, market, nowSeconds)) {
+          return null;
+        }
+
+        const authed = await ensureRelaySessionAuth(candidate, userInitiatedAuth);
+        setRelaySession(authed);
+        persistSession(authed);
+        return authed;
+      } catch {
+        return null;
+      }
+    },
+    [publicKey, getClient, ensureRelaySessionAuth]
+  );
+
   const createRelaySession = useCallback(
     async (options?: EnsureRelaySessionOptions) => {
       if (!publicKey) {
@@ -418,13 +562,19 @@ export const useArciumPrivacy = () => {
       const existing =
         relaySession ??
         readStoredSession(owner, marketAddress);
+      const reason = options?.reason ?? "trade";
       if (isUsableRelaySession(existing, owner, marketAddress, nowSeconds)) {
-        const approved = await ensureCollateralDelegateApproval(
+        const authed = await ensureRelaySessionAuth(
           existing,
+          Boolean(options?.userInitiated)
+        );
+        const prepared = await maybeEnsureCollateralForReason(
+          authed,
+          reason,
           runtime.marketAddress
         );
-        setRelaySession(approved);
-        return approved;
+        setRelaySession(prepared);
+        return prepared;
       }
 
       const sessionId = new BN(Math.floor(Date.now() / 1000));
@@ -477,16 +627,17 @@ export const useArciumPrivacy = () => {
         authSignature: uint8ToBase64(signature),
         collateralDelegateApproved: false,
       };
-      const approvedSession = await ensureCollateralDelegateApproval(
+      const preparedSession = await maybeEnsureCollateralForReason(
         nextSession,
+        reason,
         runtime.marketAddress
       );
-      setRelaySession(approvedSession);
-      persistSession(approvedSession);
+      setRelaySession(preparedSession);
+      persistSession(preparedSession);
       setStatus("verified");
       setStatusMessage("Delegated session active. New trades can run without wallet popups.");
 
-      return approvedSession;
+      return preparedSession;
     },
     [
       publicKey,
@@ -495,7 +646,8 @@ export const useArciumPrivacy = () => {
       refreshRelayAvailability,
       relayError,
       relaySession,
-      ensureCollateralDelegateApproval,
+      ensureRelaySessionAuth,
+      maybeEnsureCollateralForReason,
     ]
   );
 
@@ -505,35 +657,43 @@ export const useArciumPrivacy = () => {
       const owner = publicKey?.toBase58();
       const market = ctx?.runtime.marketAddress.toBase58();
       const nowSeconds = Math.floor(Date.now() / 1000);
+      const reason = options?.reason ?? "trade";
+      const userInitiated = Boolean(options?.userInitiated);
 
-      if (isUsableRelaySession(relaySession, owner, market, nowSeconds)) {
-        return ensureCollateralDelegateApproval(
-          relaySession,
+      const finalize = async (session: SessionRelayInfo): Promise<SessionRelayInfo> => {
+        const authed = await ensureRelaySessionAuth(session, userInitiated);
+        return maybeEnsureCollateralForReason(
+          authed,
+          reason,
           ctx?.runtime.marketAddress
         );
+      };
+
+      if (isUsableRelaySession(relaySession, owner, market, nowSeconds)) {
+        return finalize(relaySession);
       }
 
       const stored = owner && market ? readStoredSession(owner, market) : null;
       if (isUsableRelaySession(stored, owner, market, nowSeconds)) {
         setRelaySession(stored);
-        return ensureCollateralDelegateApproval(
-          stored,
-          ctx?.runtime.marketAddress
-        );
+        return finalize(stored);
       }
+
+      const refreshed = await refreshRelaySession(stored ?? undefined);
+      if (isUsableRelaySession(refreshed, owner, market, nowSeconds)) {
+        return finalize(refreshed);
+      }
+
+      const recovered = await recoverLatestRelaySession(userInitiated);
+      if (isUsableRelaySession(recovered, owner, market, nowSeconds)) {
+        return finalize(recovered);
+      }
+
       if (stored && owner && market) {
         clearStoredSession(owner, market);
       }
 
-      const refreshed = await refreshRelaySession();
-      if (isUsableRelaySession(refreshed, owner, market, nowSeconds)) {
-        return ensureCollateralDelegateApproval(
-          refreshed,
-          ctx?.runtime.marketAddress
-        );
-      }
-
-      if (!options?.userInitiated) {
+      if (!userInitiated) {
         throw new Error(
           "Delegated session missing. Session creation is blocked unless triggered by an explicit user action."
         );
@@ -544,10 +704,12 @@ export const useArciumPrivacy = () => {
     [
       createRelaySession,
       getClient,
+      ensureRelaySessionAuth,
+      maybeEnsureCollateralForReason,
       publicKey,
       refreshRelaySession,
+      recoverLatestRelaySession,
       relaySession,
-      ensureCollateralDelegateApproval,
     ]
   );
 
@@ -578,6 +740,7 @@ export const useArciumPrivacy = () => {
   }, [refreshRelayAvailability]);
 
   useEffect(() => {
+    let cancelled = false;
     setRelaySessionHydrated(false);
     const ctx = getClient();
     if (!publicKey || !ctx) {
@@ -590,20 +753,38 @@ export const useArciumPrivacy = () => {
     const market = ctx.runtime.marketAddress.toBase58();
     const stored = readStoredSession(owner, market);
     if (!stored) {
-      setRelaySessionHydrated(true);
-      return;
-    }
-
-    if (!isUsableRelaySession(stored, owner, market, Math.floor(Date.now() / 1000))) {
       setRelaySession(null);
-      clearStoredSession(owner, market);
+      setRelaySessionHydrated(true);
+      void (async () => {
+        const recovered = await recoverLatestRelaySession(false);
+        if (cancelled || !recovered) return;
+        setRelaySession(recovered);
+      })();
+      return;
+    }
+
+    if (isUsableRelaySession(stored, owner, market, Math.floor(Date.now() / 1000))) {
+      setRelaySession(stored);
       setRelaySessionHydrated(true);
       return;
     }
 
-    setRelaySession(stored);
+    setRelaySession(null);
     setRelaySessionHydrated(true);
-  }, [getClient, publicKey]);
+    void (async () => {
+      const recovered = await recoverLatestRelaySession(false);
+      if (cancelled) return;
+      if (recovered) {
+        setRelaySession(recovered);
+        return;
+      }
+      clearStoredSession(owner, market);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getClient, publicKey, recoverLatestRelaySession]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

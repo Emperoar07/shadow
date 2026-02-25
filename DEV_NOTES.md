@@ -6,6 +6,36 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-25 (UTC)
 - Author: Codex
 
+## Session Reuse on Refresh + Gas Drain Reduction (2026-02-25 UTC)
+- User issue:
+  - refresh could still show "start/sign session" and lead to extra paid txs instead of reusing active delegated session.
+  - expectation: reuse active session across refresh/theme switch; only request wallet signature when needed, and avoid new on-chain fee if session already exists.
+- Implemented:
+  - `app/src/pages/api/relay/session.ts`
+    - added owner-only lookup path: `GET /api/relay/session?owner=<wallet>`
+    - scans on-chain `trade_session` accounts for `{owner, market, relayer}` and returns latest active session.
+    - keeps existing owner+sessionId lookup behavior unchanged.
+  - `app/src/hooks/useArcium.ts`
+    - added on-hydration recovery flow that attempts on-chain active-session adoption when storage is missing/stale.
+    - added explicit relay-auth validity helper and auth refresh flow:
+      - if on-chain session exists but auth signature is missing, user can continue with message signature only (no new session-create tx).
+    - changed collateral delegate approval behavior to be reason-scoped:
+      - only enforced for `reason: "deposit"`.
+      - `trade` and `withdraw` session ensure paths no longer trigger token delegate approval tx.
+    - improved ensure path order:
+      - in-memory -> local storage -> refresh specific candidate -> on-chain latest recovery -> create new session (user-initiated only).
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run check:preflight` -> PASS
+  - local relay endpoint check:
+    - `GET /api/relay/session?owner=<wallet>` returns availability + session existence status.
+- Current blocker:
+  - none introduced by this patch; remaining behavior depends on wallet localStorage availability and relay/API uptime.
+- Next safe step:
+  1. connect wallet and refresh page
+  2. confirm session indicator/trade CTA does not force new on-chain session creation when active session exists
+  3. capture one relay session payload if unexpected prompt still appears (to verify auth expiry/session counters)
+
 ## Market Stats Live Wiring (2026-02-25 UTC)
 - User issue:
   - top market strip showed `24H Volume`, `24H High`, `24H Low` as `--` even when price/change were live.
