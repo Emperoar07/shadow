@@ -1,16 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import BN from "bn.js";
-import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import { fetchPrices, PriceData } from "../lib/prices";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import PairSelector from "./PairSelector";
-import {
-  RELAY_SESSION_RENEW_BEFORE_SECONDS,
-  useArciumPrivacy,
-} from "../hooks/useArcium";
 
 interface MarketInfoProps {
   pair?: TradingPair;
@@ -32,10 +27,8 @@ export default function MarketInfo({
   className = "",
 }: MarketInfoProps) {
   const activePair = pair ?? TRADING_PAIRS[0];
-  const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
-  const { relaySession, relayAvailable, ensureRelaySession, refreshRelaySession } = useArciumPrivacy();
   const [market, setMarket] = useState<{
     oraclePrice: number;
     volume24h: number | null;
@@ -43,19 +36,12 @@ export default function MarketInfo({
     low24h: number | null;
   } | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const previousPriceRef = useRef<number | null>(null);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
 
   useEffect(() => {
     clientRef.current = null;
   }, [anchorWallet]);
-
-  useEffect(() => {
-    const interval = setInterval(() => setNowTs(Math.floor(Date.now() / 1000)), 1_000);
-    return () => clearInterval(interval);
-  }, []);
 
   const setFallbackData = useCallback(
     (livePrice?: PriceData) => {
@@ -156,41 +142,6 @@ export default function MarketInfo({
     onPriceUpdate({ pairLabel: activePair.label, price, change24h: priceChange });
   }, [onPriceUpdate, activePair.label, price, priceChange]);
 
-  const isRelaySessionActive =
-    !!relaySession &&
-    !!publicKey &&
-    relaySession.owner === publicKey.toBase58() &&
-    relaySession.expiresAt - nowTs > RELAY_SESSION_RENEW_BEFORE_SECONDS &&
-    relaySession.usedActions < relaySession.maxActions;
-  const relayMinutesLeft = isRelaySessionActive
-    ? Math.max(0, Math.floor((relaySession.expiresAt - nowTs) / 60))
-    : 0;
-
-  const handleStartSession = useCallback(async () => {
-    if (!publicKey) return;
-    if (isCreatingSession) return;
-    setIsCreatingSession(true);
-    try {
-      const session = await ensureRelaySession({
-        reason: "trade",
-        userInitiated: true,
-      });
-      if (!session) {
-        throw new Error("Session creation failed.");
-      }
-      await refreshRelaySession();
-      toast.success("Delegated session active.");
-    } catch (error: any) {
-      const message =
-        typeof error?.message === "string" && error.message.trim().length > 0
-          ? error.message
-          : "Failed to start delegated session.";
-      toast.error(message);
-    } finally {
-      setIsCreatingSession(false);
-    }
-  }, [ensureRelaySession, isCreatingSession, publicKey, refreshRelaySession]);
-
   const changePositive = (priceChange ?? 0) >= 0;
   const priceDelta =
     priceChange != null
@@ -203,7 +154,7 @@ export default function MarketInfo({
 
   return (
     <div
-      className={`trade-market-bar flex items-center gap-3 px-4 py-2 border-b border-shadow-600 bg-shadow-900 overflow-x-auto ${className}`}
+      className={`trade-market-bar relative z-[120] flex items-center gap-3 px-4 py-2 border-b border-shadow-600 bg-shadow-900 overflow-visible ${className}`}
     >
       {/* Pair selector */}
       <PairSelector
@@ -230,45 +181,6 @@ export default function MarketInfo({
         <MarketStat label="24H High" value={formattedHigh24h} />
         <div className="w-px h-5 bg-shadow-600 shrink-0" />
         <MarketStat label="24H Low" value={formattedLow24h} />
-      </div>
-
-      {/* Right badges */}
-      <div className="ml-auto flex items-center gap-2 shrink-0">
-        {publicKey && (
-          <div
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs ${
-              isRelaySessionActive
-                ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-300"
-                : relayAvailable
-                ? "border-cyan-400/35 bg-cyan-500/10 text-cyan-200"
-                : "border-yellow-500/35 bg-yellow-500/10 text-yellow-300"
-            }`}
-          >
-            <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />
-              <circle
-                cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                strokeDasharray="37.7" strokeDashoffset="37.7" transform="rotate(-90 8 8)"
-              >
-                <animate attributeName="stroke-dashoffset" from="37.7" to="0" dur="3s" repeatCount="indefinite" />
-              </circle>
-            </svg>
-            {isRelaySessionActive ? (
-              <span>Session · {relayMinutesLeft}m left</span>
-            ) : relayAvailable ? (
-              <button
-                type="button"
-                onClick={handleStartSession}
-                disabled={isCreatingSession}
-                className="underline-offset-2 hover:underline disabled:opacity-60"
-              >
-                {isCreatingSession ? "Starting session..." : "Start session"}
-              </button>
-            ) : (
-              <span>Relay unavailable</span>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

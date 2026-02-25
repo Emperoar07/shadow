@@ -72,7 +72,7 @@ export default function PairSelector({
       : activeLivePrice?.change24h;
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative z-[130]" ref={dropdownRef}>
       {/* Trigger button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -97,7 +97,7 @@ export default function PairSelector({
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-72 z-50 rounded-xl border border-shadow-500 overflow-hidden pair-dropdown bg-shadow-800">
+        <div className="absolute top-full left-0 mt-1 w-72 z-[140] rounded-xl border border-shadow-500 overflow-hidden pair-dropdown bg-shadow-800 shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
           {/* Search */}
           <div className="p-2 border-b border-shadow-600">
             <input

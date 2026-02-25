@@ -6,6 +6,25 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-25 (UTC)
 - Author: Codex
 
+## Pair Dropdown Front-Layer Fix (2026-02-25 UTC)
+- User issue:
+  - pair selector token list rendered under chart layer (remaining SPL tokens visually hidden behind chart).
+- Implemented:
+  - `app/src/components/MarketInfo.tsx`
+    - market bar now uses explicit stacking + visible overflow:
+      - `relative z-[120] overflow-visible`
+  - `app/src/components/PairSelector.tsx`
+    - selector wrapper raised to `z-[130]`
+    - dropdown raised to `z-[140]` with explicit shadow for visual separation.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run hosting:restart` -> PASS (app + oracle relaunched)
+- Current blocker:
+  - none introduced by this layering fix.
+- Next safe step:
+  1. hard refresh `/app`
+  2. open pair selector and confirm full token list is above chart layer
+
 ## Session Reuse on Refresh + Gas Drain Reduction (2026-02-25 UTC)
 - User issue:
   - refresh could still show "start/sign session" and lead to extra paid txs instead of reusing active delegated session.
