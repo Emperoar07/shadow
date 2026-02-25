@@ -73,7 +73,10 @@ pub fn close_position_callback_handler(
         &ctx.accounts.computation_account,
     ) {
         Ok(o) => o,
-        Err(_) => return Err(ShadowPerpError::InvalidComputationResult.into()),
+        Err(_) => {
+            msg!("MPC verify failed for position {}", ctx.accounts.position.key());
+            return Err(ShadowPerpError::InvalidComputationResult.into());
+        }
     };
 
     // Callback must be bound to this market's configured Arcium cluster + comp-def.

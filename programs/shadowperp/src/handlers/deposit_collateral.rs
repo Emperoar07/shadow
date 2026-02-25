@@ -20,7 +20,9 @@ pub struct DepositCollateral<'info> {
         payer = owner,
         space = MarginAccount::LEN,
         seeds = [b"margin", market.key().as_ref(), owner.key().as_ref()],
-        bump
+        bump,
+        constraint = margin_account.owner == Pubkey::default()
+            || margin_account.owner == owner.key(),
     )]
     pub margin_account: Account<'info, MarginAccount>,
 

@@ -7,6 +7,10 @@ import {
   buildRelaySessionAuthMessage,
 } from "../../../lib/relay-session-auth";
 import { createRelayRuntimeContext } from "../../../lib/server/relay-client";
+import { checkRateLimit } from "../../../lib/server/rate-limit";
+
+const OPEN_RATE_LIMIT = 10;   // max 10 open requests per owner per minute
+const RATE_WINDOW_MS = 60_000;
 
 type OpenRequestBody = {
   owner?: string;
@@ -68,6 +72,11 @@ export default async function handler(
     const body = (req.body || {}) as OpenRequestBody;
     if (!body.owner) throw new Error("Missing owner");
     if (!body.sessionId || !/^\d+$/.test(body.sessionId)) throw new Error("Invalid sessionId");
+
+    if (!checkRateLimit(`open:${body.owner}`, OPEN_RATE_LIMIT, RATE_WINDOW_MS)) {
+      res.status(429).json({ ok: false, error: "Rate limit exceeded. Try again later." });
+      return;
+    }
     if (body.side !== "long" && body.side !== "short") throw new Error("Invalid side");
     if (!Number.isInteger(body.leverage) || (body.leverage as number) < 1) {
       throw new Error("Invalid leverage");
@@ -80,27 +89,6 @@ export default async function handler(
     const size = parseU64Bn("sizeRaw", body.sizeRaw);
     const entryPrice = parseU64Bn("entryPriceRaw", body.entryPriceRaw);
     const margin = parseU64Bn("marginRaw", body.marginRaw);
-
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const authExpiresAt = Math.floor(body.auth.expiresAt as number);
-    if (authExpiresAt <= nowSeconds) {
-      throw new Error("Session authorization expired");
-    }
-
-    const message = buildRelaySessionAuthMessage({
-      owner: owner.toBase58(),
-      market: relay.config.marketAddress.toBase58(),
-      sessionId: sessionId.toString(),
-      expiresAt: authExpiresAt,
-    });
-    const verified = ed25519.verify(
-      base64ToUint8(body.auth.signature),
-      new TextEncoder().encode(message),
-      owner.toBytes()
-    );
-    if (!verified) {
-      throw new Error("Invalid session authorization signature");
-    }
 
     const sessionAddress = relay.client.getTradeSessionAddress(
       relay.config.marketAddress,
@@ -120,12 +108,28 @@ export default async function handler(
     if (session.revoked) {
       throw new Error("Session revoked");
     }
+    const nowSeconds = Math.floor(Date.now() / 1000);
     const sessionExpiry = Number(session.expiresAt.toString());
     if (sessionExpiry <= nowSeconds) {
       throw new Error("Session expired");
     }
+    const authExpiresAt = Math.floor(body.auth.expiresAt as number);
     if (authExpiresAt > sessionExpiry) {
       throw new Error("Authorization expiry exceeds session expiry");
+    }
+    const message = buildRelaySessionAuthMessage({
+      owner: owner.toBase58(),
+      market: relay.config.marketAddress.toBase58(),
+      sessionId: sessionId.toString(),
+      expiresAt: sessionExpiry,
+    });
+    const verified = ed25519.verify(
+      base64ToUint8(body.auth.signature),
+      new TextEncoder().encode(message),
+      owner.toBytes()
+    );
+    if (!verified) {
+      throw new Error("Invalid session authorization signature");
     }
     if (session.usedActions >= session.maxActions) {
       throw new Error("Session action limit reached");
