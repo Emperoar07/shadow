@@ -6,6 +6,34 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-25 (UTC)
 - Author: Codex
 
+## Equity Breakdown Card Added (2026-02-25 UTC)
+- User request:
+  - account equity UX should resemble a dedicated breakdown panel (Spot/Perps + Perps Overview).
+- Implemented:
+  - `app/src/components/PortfolioSummary.tsx`
+    - `Account Equity` stat is now clickable and opens a breakdown card.
+    - added panel rows:
+      - Spot
+      - Perps
+      - Balance
+      - Unrealized PNL
+      - Cross Margin Ratio
+      - Maintenance Margin
+      - Cross Account Leverage
+    - added supporting computed metrics:
+      - `estimatedNotional` (from active local position views at live price)
+      - `maintenanceMargin = estimatedNotional * 0.05` (UI estimate)
+      - `crossAccountLeverage = estimatedNotional / accountEquity` (when equity > 0)
+    - added click-outside close behavior for the card.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run hosting:restart` -> PASS
+- Current blocker:
+  - none introduced; some rows are estimations if full on-chain position decomposition is unavailable.
+- Next safe step:
+  1. click Account Equity in header strip and confirm card behavior
+  2. validate values while positions are open and prices move
+
 ## Account Equity Added to Portfolio Strip (2026-02-25 UTC)
 - User request:
   - add account equity support to perp UI.

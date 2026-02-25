@@ -16,6 +16,9 @@ interface PortfolioData {
   openPositions: number;
   accountEquity: number | null;
   unrealizedPnl: number | null; // null = unavailable
+  estimatedNotional: number;
+  maintenanceMargin: number;
+  crossAccountLeverage: number | null;
   accountHealth: number; // 0-100
 }
 
@@ -29,7 +32,9 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
   const { connection } = useConnection();
   const [data, setData] = useState<PortfolioData | null>(null);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
+  const equityCardRef = useRef<HTMLDivElement | null>(null);
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
+  const [equityCardOpen, setEquityCardOpen] = useState(false);
   const {
     relayAvailable,
     relaySession,
@@ -75,6 +80,7 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
       let openPositions = 0;
       let ownerUnrealizedEstimate = 0;
       let ownerUnrealizedCount = 0;
+      let estimatedNotional = 0;
       const ownerViews = getOwnerPositionViews();
       if (positionsResult.status === "fulfilled") {
         for (const p of positionsResult.value) {
@@ -104,6 +110,10 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
               ? (marketPrice - view.entryPrice) * view.sizeBase
               : (view.entryPrice - marketPrice) * view.sizeBase;
           if (!Number.isFinite(pnl)) continue;
+          const notional = Math.abs(view.sizeBase * marketPrice);
+          if (Number.isFinite(notional) && notional > 0) {
+            estimatedNotional += notional;
+          }
           ownerUnrealizedEstimate += pnl;
           ownerUnrealizedCount += 1;
         }
@@ -113,6 +123,11 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
       const equityRaw = marginBalance + (unrealizedPnl ?? 0);
       const accountEquity =
         Number.isFinite(equityRaw) ? Math.max(0, equityRaw) : null;
+      const maintenanceMargin = estimatedNotional * 0.05;
+      const crossAccountLeverage =
+        accountEquity && accountEquity > 0
+          ? estimatedNotional / accountEquity
+          : null;
 
       // Health estimate: equity relative to posted margin.
       // 100% means equity ~= posted margin; <100% means drawdown, >100% is clamped.
@@ -128,6 +143,9 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
         openPositions,
         accountEquity,
         unrealizedPnl,
+        estimatedNotional,
+        maintenanceMargin,
+        crossAccountLeverage,
         accountHealth: health,
       });
     } catch {
@@ -145,6 +163,18 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
   useEffect(() => {
     onMarginReady?.(data?.marginBalance ?? null, () => setCollateralModalOpen(true));
   }, [data, onMarginReady]);
+
+  useEffect(() => {
+    if (!equityCardOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!equityCardRef.current) return;
+      if (!equityCardRef.current.contains(event.target as Node)) {
+        setEquityCardOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [equityCardOpen]);
 
   if (!publicKey) return null;
 
@@ -174,22 +204,77 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
       <div className="w-px h-5 bg-shadow-600 shrink-0" />
 
       {/* Account Equity */}
-      <SummaryStat
-        label="Account Equity"
-        value={
-          (() => {
-            const equity = data?.accountEquity;
-            if (equity === null || equity === undefined) {
-              return <span className="text-gray-400 text-xs">--</span>;
+      <div className="relative" ref={equityCardRef}>
+        <button
+          type="button"
+          onClick={() => setEquityCardOpen((open) => !open)}
+          className="rounded-md px-1 py-0.5 text-left transition-colors hover:bg-shadow-700/40"
+        >
+          <SummaryStat
+            label="Account Equity"
+            value={
+              (() => {
+                const equity = data?.accountEquity;
+                if (equity === null || equity === undefined) {
+                  return <span className="text-gray-400 text-xs">--</span>;
+                }
+                return (
+                  <span className="text-gray-200 text-xs font-semibold">
+                    {formatUsd(equity)}
+                  </span>
+                );
+              })()
             }
-            return (
-              <span className="text-gray-200 text-xs font-semibold">
-                ${equity.toFixed(2)}
-              </span>
-            );
-          })()
-        }
-      />
+          />
+        </button>
+        {equityCardOpen && (
+          <div className="absolute left-0 top-full z-[170] mt-2 w-[290px] rounded-xl border border-shadow-500 bg-shadow-800 p-3 shadow-[0_18px_45px_rgba(0,0,0,0.5)]">
+            <h3 className="text-sm font-semibold text-gray-100">Account Equity</h3>
+            <div className="mt-3 space-y-2">
+              <EquityRow label="Spot" value={formatUsd(0)} />
+              <EquityRow label="Perps" value={formatUsd(data?.accountEquity)} />
+            </div>
+            <div className="mt-3 border-t border-shadow-600 pt-2">
+              <h4 className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
+                Perps Overview
+              </h4>
+              <div className="mt-2 space-y-1.5">
+                <EquityRow label="Balance" value={formatUsd(data?.marginBalance)} />
+                <EquityRow
+                  label="Unrealized PNL"
+                  value={formatSignedUsd(data?.unrealizedPnl)}
+                  valueClass={
+                    typeof data?.unrealizedPnl === "number"
+                      ? data.unrealizedPnl >= 0
+                        ? "text-accent-green"
+                        : "text-accent-red"
+                      : "text-gray-200"
+                  }
+                />
+                <EquityRow
+                  label="Cross Margin Ratio"
+                  value={formatPercent(data?.accountHealth)}
+                  valueClass={
+                    (data?.accountHealth ?? 0) > 70
+                      ? "text-accent-green"
+                      : (data?.accountHealth ?? 0) > 30
+                      ? "text-yellow-400"
+                      : "text-accent-red"
+                  }
+                />
+                <EquityRow
+                  label="Maintenance Margin"
+                  value={formatUsd(data?.maintenanceMargin)}
+                />
+                <EquityRow
+                  label="Cross Account Leverage"
+                  value={formatLeverage(data?.crossAccountLeverage)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="w-px h-5 bg-shadow-600 shrink-0" />
 
@@ -262,4 +347,41 @@ function SummaryStat({
       <span className="text-xs font-semibold text-gray-200">{value}</span>
     </div>
   );
+}
+
+function EquityRow({
+  label,
+  value,
+  valueClass = "text-gray-200",
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-sm text-gray-400">{label}</span>
+      <span className={`text-sm font-semibold ${valueClass}`}>{value}</span>
+    </div>
+  );
+}
+
+function formatUsd(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+  return `$${value.toFixed(2)}`;
+}
+
+function formatSignedUsd(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+  return `${value >= 0 ? "+" : "-"}$${Math.abs(value).toFixed(2)}`;
+}
+
+function formatPercent(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+  return `${value.toFixed(2)}%`;
+}
+
+function formatLeverage(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+  return `${value.toFixed(2)}x`;
 }
