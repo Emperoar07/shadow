@@ -14,11 +14,16 @@ import { useArciumPrivacy } from "../hooks/useArcium";
 interface PortfolioData {
   marginBalance: number;
   openPositions: number;
+  accountEquity: number | null;
   unrealizedPnl: number | null; // null = unavailable
   accountHealth: number; // 0-100
 }
 
-export default function PortfolioSummary() {
+interface PortfolioSummaryProps {
+  onMarginReady?: (balance: number | null, openModal: () => void) => void;
+}
+
+export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProps = {}) {
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
@@ -104,13 +109,25 @@ export default function PortfolioSummary() {
         }
       }
 
-      // Health is based on margin utilization (simplified)
-      const health = marginBalance > 0 ? Math.min(100, Math.max(0, (marginBalance / (marginBalance + 1)) * 100)) : 0;
+      const unrealizedPnl = ownerUnrealizedCount > 0 ? ownerUnrealizedEstimate : null;
+      const equityRaw = marginBalance + (unrealizedPnl ?? 0);
+      const accountEquity =
+        Number.isFinite(equityRaw) ? Math.max(0, equityRaw) : null;
+
+      // Health estimate: equity relative to posted margin.
+      // 100% means equity ~= posted margin; <100% means drawdown, >100% is clamped.
+      const health =
+        marginBalance > 0 && accountEquity !== null
+          ? Math.min(100, Math.max(0, (accountEquity / marginBalance) * 100))
+          : marginBalance > 0
+          ? 100
+          : 0;
 
       setData({
         marginBalance,
         openPositions,
-        unrealizedPnl: ownerUnrealizedCount > 0 ? ownerUnrealizedEstimate : null,
+        accountEquity,
+        unrealizedPnl,
         accountHealth: health,
       });
     } catch {
@@ -124,6 +141,10 @@ export default function PortfolioSummary() {
     const interval = setInterval(() => void loadPortfolio(), 15_000);
     return () => clearInterval(interval);
   }, [loadPortfolio]);
+
+  useEffect(() => {
+    onMarginReady?.(data?.marginBalance ?? null, () => setCollateralModalOpen(true));
+  }, [data, onMarginReady]);
 
   if (!publicKey) return null;
 
@@ -143,69 +164,68 @@ export default function PortfolioSummary() {
 
   return (
     <>
-    <div className="trade-portfolio-inner bg-shadow-800 px-5 py-2.5">
-      <div className="flex items-center justify-between gap-6 flex-wrap">
-        {/* Left stats */}
-        <div className="flex items-center gap-6 flex-wrap">
-          {/* Open Positions */}
-          <SummaryStat
-            label="Open Positions"
-            value={data ? `${data.openPositions}` : "--"}
-          />
+    <div className="flex items-center gap-4 shrink-0">
+      {/* Open Positions */}
+      <SummaryStat
+        label="Open Positions"
+        value={data ? `${data.openPositions}` : "--"}
+      />
 
-          <div className="w-px h-8 bg-shadow-500 hidden sm:block" />
+      <div className="w-px h-5 bg-shadow-600 shrink-0" />
 
-          {/* Unrealized PnL */}
-          <SummaryStat
-            label="Unrealized PnL"
-            value={
-              (() => {
-                const unrealized = data?.unrealizedPnl;
-                if (unrealized === null || unrealized === undefined) {
-                  return <span className="text-gray-400 text-sm">--</span>;
-                }
-                return (
-                  <span className={unrealized >= 0 ? "text-accent-green text-sm" : "text-accent-red text-sm"}>
-                    {unrealized >= 0 ? "+" : ""}${Math.abs(unrealized).toFixed(2)}
-                  </span>
-                );
-              })()
+      {/* Account Equity */}
+      <SummaryStat
+        label="Account Equity"
+        value={
+          (() => {
+            const equity = data?.accountEquity;
+            if (equity === null || equity === undefined) {
+              return <span className="text-gray-400 text-xs">--</span>;
             }
-          />
+            return (
+              <span className="text-gray-200 text-xs font-semibold">
+                ${equity.toFixed(2)}
+              </span>
+            );
+          })()
+        }
+      />
 
-          <div className="w-px h-8 bg-shadow-500 hidden sm:block" />
+      <div className="w-px h-5 bg-shadow-600 shrink-0" />
 
-          {/* Account Health */}
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Account Health</p>
-              <div className="flex items-center gap-2">
-                <div className="w-20 h-1.5 bg-shadow-600 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ${healthBarColor}`}
-                    style={{ width: `${data?.accountHealth ?? 0}%` }}
-                  />
-                </div>
-                <span className={`text-sm font-semibold ${healthColor}`}>
-                  {data ? `${data.accountHealth.toFixed(0)}%` : "--"}
-                </span>
-              </div>
-            </div>
+      {/* Unrealized PnL */}
+      <SummaryStat
+        label="Unrealized PnL"
+        value={
+          (() => {
+            const unrealized = data?.unrealizedPnl;
+            if (unrealized === null || unrealized === undefined) {
+              return <span className="text-gray-400 text-xs">--</span>;
+            }
+            return (
+              <span className={unrealized >= 0 ? "text-accent-green text-xs" : "text-accent-red text-xs"}>
+                {unrealized >= 0 ? "+" : ""}${Math.abs(unrealized).toFixed(2)}
+              </span>
+            );
+          })()
+        }
+      />
+
+      <div className="w-px h-5 bg-shadow-600 shrink-0" />
+
+      {/* Account Health */}
+      <div className="flex flex-col gap-0.5 shrink-0">
+        <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500">Account Health</span>
+        <div className="flex items-center gap-2">
+          <div className="w-16 h-1.5 bg-shadow-600 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${healthBarColor}`}
+              style={{ width: `${data?.accountHealth ?? 0}%` }}
+            />
           </div>
-        </div>
-
-        {/* Right: Margin Balance + Manage button */}
-        <div className="flex items-center gap-3 shrink-0">
-          <SummaryStat
-            label="Margin Balance"
-            value={data ? `$${data.marginBalance.toFixed(2)}` : "--"}
-          />
-          <button
-            onClick={() => setCollateralModalOpen(true)}
-            className="rounded-lg border border-accent-purple/35 bg-accent-purple/15 px-3 py-1.5 text-[11px] font-medium text-accent-purple transition-colors hover:bg-accent-purple/25"
-          >
-            {(data?.marginBalance ?? 0) === 0 ? "Deposit Collateral" : "Manage"}
-          </button>
+          <span className={`text-xs font-semibold ${healthColor}`}>
+            {data ? `${data.accountHealth.toFixed(0)}%` : "--"}
+          </span>
         </div>
       </div>
     </div>
@@ -237,11 +257,9 @@ function SummaryStat({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-sm font-semibold text-gray-200">
-        {value}
-      </p>
+    <div className="flex flex-col gap-0.5 shrink-0">
+      <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500">{label}</span>
+      <span className="text-xs font-semibold text-gray-200">{value}</span>
     </div>
   );
 }

@@ -6,6 +6,28 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-25 (UTC)
 - Author: Codex
 
+## Account Equity Added to Portfolio Strip (2026-02-25 UTC)
+- User request:
+  - add account equity support to perp UI.
+- Implemented:
+  - `app/src/components/PortfolioSummary.tsx`
+    - added `accountEquity` to portfolio data model.
+    - computes equity as:
+      - `accountEquity = marginBalance + (unrealizedPnl ?? 0)`
+      - clamped at `>= 0` for UI safety.
+    - updated health estimate to use equity ratio over posted margin:
+      - `health = clamp((accountEquity / marginBalance) * 100, 0..100)`
+      - falls back to `100` when margin exists but no unrealized signal.
+    - added new `Account Equity` stat in the top portfolio strip.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run hosting:restart` -> PASS
+- Current blocker:
+  - none introduced by this patch; equity uses client-side unrealized estimate when position views exist.
+- Next safe step:
+  1. confirm equity updates after opening position and as market price changes
+  2. if required, wire a strictly on-chain-equity surrogate metric for environments where local position views are unavailable
+
 ## Pair Dropdown Front-Layer Fix (2026-02-25 UTC)
 - User issue:
   - pair selector token list rendered under chart layer (remaining SPL tokens visually hidden behind chart).
