@@ -7,6 +7,10 @@ import {
   buildRelaySessionAuthMessage,
 } from "../../../lib/relay-session-auth";
 import { createRelayRuntimeContext } from "../../../lib/server/relay-client";
+import { checkRateLimit } from "../../../lib/server/rate-limit";
+
+const DEPOSIT_RATE_LIMIT = 5;  // max 5 deposit requests per owner per minute
+const RATE_WINDOW_MS = 60_000;
 
 type DepositRequestBody = {
   owner?: string;
@@ -63,6 +67,12 @@ export default async function handler(
     const body = (req.body || {}) as DepositRequestBody;
     if (!body.owner) throw new Error("Missing owner");
     if (!body.sessionId || !/^\d+$/.test(body.sessionId)) throw new Error("Invalid sessionId");
+
+    if (!checkRateLimit(`deposit:${body.owner}`, DEPOSIT_RATE_LIMIT, RATE_WINDOW_MS)) {
+      res.status(429).json({ ok: false, error: "Rate limit exceeded. Try again later." });
+      return;
+    }
+
     if (!body.auth?.signature) throw new Error("Missing auth signature");
     if (!Number.isFinite(body.auth?.expiresAt)) throw new Error("Missing auth expiry");
 
@@ -72,24 +82,6 @@ export default async function handler(
 
     const nowSeconds = Math.floor(Date.now() / 1000);
     const authExpiresAt = Math.floor(body.auth.expiresAt as number);
-    if (authExpiresAt <= nowSeconds) {
-      throw new Error("Session authorization expired");
-    }
-
-    const message = buildRelaySessionAuthMessage({
-      owner: owner.toBase58(),
-      market: relay.config.marketAddress.toBase58(),
-      sessionId: sessionId.toString(),
-      expiresAt: authExpiresAt,
-    });
-    const verified = ed25519.verify(
-      base64ToUint8(body.auth.signature),
-      new TextEncoder().encode(message),
-      owner.toBytes()
-    );
-    if (!verified) {
-      throw new Error("Invalid session authorization signature");
-    }
 
     const sessionAddress = relay.client.getTradeSessionAddress(
       relay.config.marketAddress,
@@ -115,6 +107,21 @@ export default async function handler(
     }
     if (authExpiresAt > sessionExpiry) {
       throw new Error("Authorization expiry exceeds session expiry");
+    }
+
+    const message = buildRelaySessionAuthMessage({
+      owner: owner.toBase58(),
+      market: relay.config.marketAddress.toBase58(),
+      sessionId: sessionId.toString(),
+      expiresAt: sessionExpiry,
+    });
+    const verified = ed25519.verify(
+      base64ToUint8(body.auth.signature),
+      new TextEncoder().encode(message),
+      owner.toBytes()
+    );
+    if (!verified) {
+      throw new Error("Invalid session authorization signature");
     }
     if (session.usedActions >= session.maxActions) {
       throw new Error("Session action limit reached");

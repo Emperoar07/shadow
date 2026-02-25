@@ -470,16 +470,11 @@ export default function BottomPositionsPanel() {
         </div>
 
         <div className="flex items-center pr-4">
-          <div className="flex items-center gap-1.5 text-[10px] text-accent-purple">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-                clipRule="evenodd"
-              />
-            </svg>
-            encrypted
-          </div>
+          <span className="text-[11px] text-gray-400">
+            Price is public | positions are{" "}
+            <span className="text-accent-purple font-semibold">MPC encrypted</span>
+            <span className="text-gray-500"> via Arcium</span>
+          </span>
         </div>
       </div>
 

@@ -842,9 +842,9 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           )}
 
           <div>
-            <label className="mb-1 block text-[10px] uppercase tracking-[0.12em] text-gray-500">Leverage</label>
             <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 p-2.5">
-              <div className="mb-2 flex items-center justify-end">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Leverage</span>
                 <span className="text-xl font-semibold text-accent-purple">{leverage}x</span>
               </div>
               <input
@@ -904,14 +904,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </div>
           </div>
 
-          <div className="flex items-center gap-1 text-[9px] text-gray-600 px-0.5 -mt-1">
-            <svg className="w-2.5 h-2.5 text-accent-purple/60" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-            </svg>
-            <span>encrypted</span>
-          </div>
-
-          <div className="flex items-stretch divide-x divide-shadow-600 rounded-xl border border-shadow-500 bg-shadow-700/40 overflow-hidden">
+<div className="flex items-stretch divide-x divide-shadow-600 rounded-xl border border-shadow-500 bg-shadow-700/40 overflow-hidden">
             <div className="flex-1 px-3 py-2">
               <p className="text-[9px] uppercase tracking-[0.12em] text-gray-500 mb-0.5">Margin</p>
               <p className="text-sm font-semibold text-gray-200">${margin.toFixed(2)}</p>

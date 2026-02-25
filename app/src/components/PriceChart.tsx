@@ -17,18 +17,6 @@ const TV_SYMBOL_CANDIDATES: Record<string, string[]> = {
   "HNT-PERP": ["COINBASE:HNTUSD", "KRAKEN:HNTUSD", "MEXC:HNTUSDT"],
 };
 
-// TradingView interval values
-const TIMEFRAMES = [
-  { label: "1m", value: "1" },
-  { label: "5m", value: "5" },
-  { label: "15m", value: "15" },
-  { label: "1H", value: "60" },
-  { label: "4H", value: "240" },
-  { label: "1D", value: "D" },
-] as const;
-
-type TFValue = (typeof TIMEFRAMES)[number]["value"];
-
 interface PriceChartProps {
   selectedPair?: TradingPair;
   onPairChange?: (pair: TradingPair) => void;
@@ -45,7 +33,6 @@ export default function PriceChart({
   const [activePair, setActivePair] = useState<TradingPair>(selectedPair ?? TRADING_PAIRS[0]);
   const [isLoading, setIsLoading] = useState(true);
   const [feedIndex, setFeedIndex] = useState(0);
-  const [interval, setInterval] = useState<TFValue>("60");
   const [tvTheme, setTvTheme] = useState<"dark" | "light">("dark");
 
   useEffect(() => {
@@ -85,11 +72,10 @@ export default function PriceChart({
     return () => clearTimeout(timeout);
   }, [tvSymbol, isLoading, canSwitchFeed, symbolCandidates.length]);
 
-  // Reload chart when interval or theme changes
   const iframeSrc = useMemo(() => {
     const params = new URLSearchParams({
       symbol: tvSymbol,
-      interval,
+      interval: "15",
       theme: tvTheme,
       style: "1",
       toolbarbg: tvTheme === "light" ? "#f8f9fc" : "#0a0f1f",
@@ -100,47 +86,10 @@ export default function PriceChart({
       saveimage: "0",
     });
     return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
-  }, [tvSymbol, interval, tvTheme]);
-
-  const handleIntervalChange = (val: TFValue) => {
-    setIsLoading(true);
-    setInterval(val);
-  };
+  }, [tvSymbol, tvTheme]);
 
   return (
     <div className="trade-price-chart flex flex-col h-full min-h-0">
-      {/* Timeframe bar */}
-      <div className="trade-price-chart-toolbar flex items-center gap-1.5 px-2 py-1 border-b border-shadow-600 shrink-0">
-        <div className="flex items-center gap-0.5 bg-shadow-700 rounded-lg p-0.5">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf.value}
-              onClick={() => handleIntervalChange(tf.value)}
-              className={`px-2 py-0.5 text-[11px] font-medium rounded-md transition-colors ${
-                interval === tf.value
-                  ? "bg-accent-purple text-white"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              {tf.label}
-            </button>
-          ))}
-        </div>
-
-        {canSwitchFeed && (
-          <button
-            onClick={() => {
-              setIsLoading(true);
-              setFeedIndex((prev) => (prev + 1) % symbolCandidates.length);
-            }}
-            className="ml-auto px-2 py-0.5 text-[11px] rounded border border-shadow-500 text-gray-400 hover:text-white hover:border-shadow-400 transition-colors"
-            title={`Switch data feed (${feedIndex + 1}/${symbolCandidates.length})`}
-          >
-            Feed {feedIndex + 1}/{symbolCandidates.length}
-          </button>
-        )}
-      </div>
-
       {/* Chart — fills remaining height */}
       <div className="relative flex-1 min-h-0">
         {isLoading && (
@@ -168,7 +117,7 @@ export default function PriceChart({
         )}
 
         <iframe
-          key={`${tvSymbol}-${interval}`}
+          key={tvSymbol}
           src={iframeSrc}
           className="w-full h-full"
           frameBorder="0"
@@ -177,13 +126,6 @@ export default function PriceChart({
           onLoad={() => setIsLoading(false)}
         />
 
-        <div className="absolute bottom-2 left-2 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-shadow-800/90 backdrop-blur-sm border border-accent-purple/20">
-          <div className="w-1.5 h-1.5 rounded-full bg-accent-purple animate-pulse" />
-          <span className="text-xs text-gray-400">
-            Price is public | positions are{" "}
-            <span className="text-accent-purple font-medium">MPC encrypted</span> via Arcium
-          </span>
-        </div>
       </div>
     </div>
   );

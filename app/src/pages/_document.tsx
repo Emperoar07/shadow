@@ -5,12 +5,10 @@ export default function Document() {
     <Html lang="en">
       <Head />
       <body>
-        {/* Apply saved theme before React hydrates to prevent theme flash. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){var t=localStorage.getItem('shadow-theme');if(t!=='dark')document.documentElement.classList.add('light');})()`
-          }}
-        />
+        {/* Apply saved theme before React hydrates to prevent theme flash.
+            Loaded as a static file to avoid dangerouslySetInnerHTML. */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script src="/theme-init.js" />
         <Main />
         <NextScript />
       </body>

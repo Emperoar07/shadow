@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConnection } from "@solana/wallet-adapter-react";
+import dynamic from "next/dynamic";
 import BN from "bn.js";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import { fetchPrices, PriceData } from "../lib/prices";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import PairSelector from "./PairSelector";
+
+const PortfolioSummary = dynamic(() => import("./PortfolioSummary"), { ssr: false });
 
 interface MarketInfoProps {
   pair?: TradingPair;
@@ -17,6 +20,7 @@ interface MarketInfoProps {
     price: number;
     change24h: number | null;
   }) => void;
+  onMarginReady?: (balance: number | null, openModal: () => void) => void;
   className?: string;
 }
 
@@ -24,6 +28,7 @@ export default function MarketInfo({
   pair,
   onPairChange,
   onPriceUpdate,
+  onMarginReady,
   className = "",
 }: MarketInfoProps) {
   const activePair = pair ?? TRADING_PAIRS[0];
@@ -182,6 +187,10 @@ export default function MarketInfo({
         <div className="w-px h-5 bg-shadow-600 shrink-0" />
         <MarketStat label="24H Low" value={formattedLow24h} />
       </div>
+
+      {/* Portfolio stats — renders only when wallet is connected */}
+      <div className="w-px h-6 bg-shadow-600 shrink-0" />
+      <PortfolioSummary onMarginReady={onMarginReady} />
     </div>
   );
 }

@@ -19,13 +19,17 @@ export default function NetworkIndicator({ mode = "all" }: { mode?: "all" | "net
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const rpcUrl = connection.rpcEndpoint;
-  const networkName = rpcUrl.includes("devnet")
-    ? "Devnet"
-    : rpcUrl.includes("testnet")
-    ? "Testnet"
-    : rpcUrl.includes("mainnet") || rpcUrl.includes("api.mainnet")
-    ? "Mainnet"
+  // Prefer the explicit cluster env var; fall back to inspecting the endpoint
+  // (the endpoint may point to /api/rpc proxy and not contain the cluster name).
+  const explicitCluster = (process.env.NEXT_PUBLIC_SOLANA_CLUSTER ?? "").toLowerCase();
+  const rpcUrl = connection.rpcEndpoint.toLowerCase();
+  const networkName =
+    explicitCluster === "devnet" ? "Devnet"
+    : explicitCluster === "testnet" ? "Testnet"
+    : explicitCluster === "mainnet-beta" ? "Mainnet"
+    : rpcUrl.includes("devnet") ? "Devnet"
+    : rpcUrl.includes("testnet") ? "Testnet"
+    : rpcUrl.includes("mainnet") || rpcUrl.includes("api.mainnet") ? "Mainnet"
     : "Localnet";
 
   const isDevnet = networkName === "Devnet";

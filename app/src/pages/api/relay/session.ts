@@ -9,7 +9,6 @@ type SessionResponse =
       available: true;
       relayer: string;
       market: string;
-      rpcUrl: string;
       exists?: boolean;
       session?: {
         owner: string;
@@ -125,7 +124,6 @@ export default async function handler(
       available: true,
       relayer: relay.relayer.publicKey.toBase58(),
       market: relay.config.marketAddress.toBase58(),
-      rpcUrl: relay.rpcUrl,
     });
     return;
   }
@@ -186,7 +184,6 @@ export default async function handler(
           available: true,
           relayer: relay.relayer.publicKey.toBase58(),
           market: relay.config.marketAddress.toBase58(),
-          rpcUrl: relay.rpcUrl,
           exists: false,
         });
         return;
@@ -197,7 +194,6 @@ export default async function handler(
         available: true,
         relayer: relay.relayer.publicKey.toBase58(),
         market: relay.config.marketAddress.toBase58(),
-        rpcUrl: relay.rpcUrl,
         exists: true,
         session: latest,
       });
@@ -229,7 +225,6 @@ export default async function handler(
       available: true,
       relayer: relay.relayer.publicKey.toBase58(),
       market: relay.config.marketAddress.toBase58(),
-      rpcUrl: relay.rpcUrl,
       exists: true,
       session: {
         owner: session.owner.toBase58(),
@@ -250,7 +245,6 @@ export default async function handler(
         available: true,
         relayer: relay.relayer.publicKey.toBase58(),
         market: relay.config.marketAddress.toBase58(),
-        rpcUrl: relay.rpcUrl,
         exists: false,
       });
       return;
