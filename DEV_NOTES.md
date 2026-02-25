@@ -91,6 +91,19 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - refresh/theme switch no longer triggers signature requests.
   - signatures appear only on explicit actions (trade/deposit/withdraw or first encrypted limit-order persistence unlock).
 
+## Delegated Withdraw Fallback Guard (2026-02-24 UTC)
+- User issue:
+  - delegated withdraw failed with `InstructionFallbackNotFound` (Anchor 101).
+- Cause:
+  - deployed program binary does not expose `withdraw_collateral_with_session` path expected by relay.
+- Implemented:
+  - `app/src/components/CollateralModal.tsx`
+    - when delegated withdraw hits unsupported-instruction errors (`InstructionFallbackNotFound` / method missing), UI now falls back to wallet withdraw path automatically.
+    - preserves delegated withdraw first when available.
+- Result:
+  - withdraw no longer hard-fails on this deployment mismatch.
+  - user can still withdraw collateral while relay/session withdraw instruction is pending deployment.
+
 ## Chart Height Reduction (2026-02-24 UTC)
 - User request:
   - reduce chart height by 60%.

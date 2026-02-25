@@ -270,19 +270,63 @@ export default function CollateralModal({
       toast.error("Amount exceeds available balance");
       return;
     }
-    if (!relayAvailable) {
-      toast.error("Delegated withdrawal unavailable: relay is offline.");
-      return;
-    }
     setIsBusy(true);
     try {
       const amountBN = new BN(Math.round(amt * 1_000_000));
-      const tx = await submitDelegatedCollateral(
-        "/api/relay/withdraw",
-        amountBN,
-        "Withdrawing via delegated session..."
-      );
-      await refreshRelaySession();
+      let delegatedWithdrawComplete = false;
+
+      if (relayAvailable) {
+        try {
+          const tx = await submitDelegatedCollateral(
+            "/api/relay/withdraw",
+            amountBN,
+            "Withdrawing via delegated session..."
+          );
+          await refreshRelaySession();
+          toast.success(
+            <div>
+              <p className="font-medium">Withdrew ${amt.toFixed(2)} USDC</p>
+              <a
+                href={getExplorerTxUrl(tx)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-accent-purple underline"
+              >
+                View transaction
+              </a>
+            </div>,
+            { id: "collateral", duration: 8000 }
+          );
+          setAmount("");
+          onSuccess();
+          delegatedWithdrawComplete = true;
+        } catch (sessionWithdrawError: any) {
+          const delegatedMsg =
+            typeof sessionWithdrawError?.message === "string"
+              ? sessionWithdrawError.message
+              : "Delegated withdraw failed";
+          const unsupportedDelegatedPath =
+            delegatedMsg.includes("withdrawCollateralWithSession is unavailable") ||
+            delegatedMsg.includes("InstructionFallbackNotFound") ||
+            delegatedMsg.includes("Method not found");
+          if (!unsupportedDelegatedPath) {
+            throw sessionWithdrawError;
+          }
+          toast(
+            "Delegated withdraw not active on current deployment, using wallet withdraw.",
+            { id: "collateral" }
+          );
+        }
+      }
+
+      if (delegatedWithdrawComplete) return;
+
+      if (!anchorWallet || !publicKey) {
+        throw new Error("Connect your wallet");
+      }
+      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
+      toast.loading("Withdrawing collateral...", { id: "collateral" });
+      const tx = await client.withdrawCollateral(runtime.marketAddress, amountBN);
       toast.success(
         <div>
           <p className="font-medium">Withdrew ${amt.toFixed(2)} USDC</p>
@@ -312,9 +356,9 @@ export default function CollateralModal({
     }
   }, [
     amount,
-    ensureRelaySession,
+    anchorWallet,
+    connection,
     getRuntimeErrorMessage,
-    isRelaySessionActive,
     marginBalance,
     onSuccess,
     publicKey,
