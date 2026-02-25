@@ -104,6 +104,17 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - withdraw no longer hard-fails on this deployment mismatch.
   - user can still withdraw collateral while relay/session withdraw instruction is pending deployment.
 
+## Explicit Session Start Control (2026-02-25 UTC)
+- User issue:
+  - session signing popup not appearing when expected.
+- Implemented:
+  - `app/src/components/MarketInfo.tsx`
+    - added explicit `Start session` action when relay is available but no active session exists.
+    - button calls `ensureRelaySession({ reason: "trade", userInitiated: true })`.
+    - success/error feedback now shown via toast.
+- Rationale:
+  - keeps no-auto-sign safety on refresh/theme switch while restoring a deterministic manual session entry point.
+
 ## Chart Height Reduction (2026-02-24 UTC)
 - User request:
   - reduce chart height by 60%.

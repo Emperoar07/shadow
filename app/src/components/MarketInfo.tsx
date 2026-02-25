@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import BN from "bn.js";
+import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import { fetchPrices, PriceData } from "../lib/prices";
@@ -34,9 +35,10 @@ export default function MarketInfo({
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
-  const { relaySession, relayAvailable } = useArciumPrivacy();
+  const { relaySession, relayAvailable, ensureRelaySession, refreshRelaySession } = useArciumPrivacy();
   const [market, setMarket] = useState<{ oraclePrice: number } | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const previousPriceRef = useRef<number | null>(null);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
@@ -122,6 +124,31 @@ export default function MarketInfo({
     ? Math.max(0, Math.floor((relaySession.expiresAt - nowTs) / 60))
     : 0;
 
+  const handleStartSession = useCallback(async () => {
+    if (!publicKey) return;
+    if (isCreatingSession) return;
+    setIsCreatingSession(true);
+    try {
+      const session = await ensureRelaySession({
+        reason: "trade",
+        userInitiated: true,
+      });
+      if (!session) {
+        throw new Error("Session creation failed.");
+      }
+      await refreshRelaySession();
+      toast.success("Delegated session active.");
+    } catch (error: any) {
+      const message =
+        typeof error?.message === "string" && error.message.trim().length > 0
+          ? error.message
+          : "Failed to start delegated session.";
+      toast.error(message);
+    } finally {
+      setIsCreatingSession(false);
+    }
+  }, [ensureRelaySession, isCreatingSession, publicKey, refreshRelaySession]);
+
   const changePositive = (priceChange ?? 0) >= 0;
   const priceDelta =
     priceChange != null
@@ -187,7 +214,14 @@ export default function MarketInfo({
             {isRelaySessionActive ? (
               <span>Session · {relayMinutesLeft}m left</span>
             ) : relayAvailable ? (
-              <span>Session required</span>
+              <button
+                type="button"
+                onClick={handleStartSession}
+                disabled={isCreatingSession}
+                className="underline-offset-2 hover:underline disabled:opacity-60"
+              >
+                {isCreatingSession ? "Starting session..." : "Start session"}
+              </button>
             ) : (
               <span>Relay unavailable</span>
             )}
