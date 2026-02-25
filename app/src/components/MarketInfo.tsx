@@ -36,7 +36,12 @@ export default function MarketInfo({
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
   const { relaySession, relayAvailable, ensureRelaySession, refreshRelaySession } = useArciumPrivacy();
-  const [market, setMarket] = useState<{ oraclePrice: number } | null>(null);
+  const [market, setMarket] = useState<{
+    oraclePrice: number;
+    volume24h: number | null;
+    high24h: number | null;
+    low24h: number | null;
+  } | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
@@ -56,7 +61,24 @@ export default function MarketInfo({
     (livePrice?: PriceData) => {
       const price = livePrice?.price ?? activePair.mockPrice;
       const change = livePrice?.change24h ?? activePair.mockPriceChange;
-      setMarket({ oraclePrice: price });
+      const volume24h =
+        typeof livePrice?.volume24h === "number" && Number.isFinite(livePrice.volume24h)
+          ? livePrice.volume24h
+          : null;
+      const high24h =
+        typeof livePrice?.high24h === "number" && Number.isFinite(livePrice.high24h) && livePrice.high24h > 0
+          ? livePrice.high24h
+          : null;
+      const low24h =
+        typeof livePrice?.low24h === "number" && Number.isFinite(livePrice.low24h) && livePrice.low24h > 0
+          ? livePrice.low24h
+          : null;
+      setMarket({
+        oraclePrice: price,
+        volume24h,
+        high24h,
+        low24h,
+      });
       setPriceChange(change);
     },
     [activePair]
@@ -72,6 +94,18 @@ export default function MarketInfo({
     const liveChangeValue =
       typeof livePrice?.change24h === "number" && Number.isFinite(livePrice.change24h)
         ? livePrice.change24h
+        : null;
+    const liveVolumeValue =
+      typeof livePrice?.volume24h === "number" && Number.isFinite(livePrice.volume24h)
+        ? livePrice.volume24h
+        : null;
+    const liveHighValue =
+      typeof livePrice?.high24h === "number" && Number.isFinite(livePrice.high24h) && livePrice.high24h > 0
+        ? livePrice.high24h
+        : null;
+    const liveLowValue =
+      typeof livePrice?.low24h === "number" && Number.isFinite(livePrice.low24h) && livePrice.low24h > 0
+        ? livePrice.low24h
         : null;
 
     if (!anchorWallet) {
@@ -94,7 +128,12 @@ export default function MarketInfo({
         setPriceChange(((uiDisplayPrice - previousPrice) / previousPrice) * 100);
       }
       previousPriceRef.current = uiDisplayPrice;
-      setMarket({ oraclePrice: uiDisplayPrice });
+      setMarket((previous) => ({
+        oraclePrice: uiDisplayPrice,
+        volume24h: liveVolumeValue ?? previous?.volume24h ?? null,
+        high24h: liveHighValue ?? previous?.high24h ?? null,
+        low24h: liveLowValue ?? previous?.low24h ?? null,
+      }));
     } catch {
       setFallbackData(livePrice);
     }
@@ -108,6 +147,9 @@ export default function MarketInfo({
 
   const price = market?.oraclePrice ?? activePair.mockPrice;
   const formattedPrice = price < 0.01 ? price.toFixed(8) : price.toFixed(2);
+  const formattedVolume24h = formatVolume(market?.volume24h);
+  const formattedHigh24h = formatPriceStat(market?.high24h);
+  const formattedLow24h = formatPriceStat(market?.low24h);
 
   useEffect(() => {
     if (!onPriceUpdate) return;
@@ -183,11 +225,11 @@ export default function MarketInfo({
           valueClass={changePositive ? "text-accent-green" : "text-accent-red"}
         />
         <div className="w-px h-5 bg-shadow-600 shrink-0" />
-        <MarketStat label="24H Volume" value="--" />
+        <MarketStat label="24H Volume" value={formattedVolume24h} />
         <div className="w-px h-5 bg-shadow-600 shrink-0" />
-        <MarketStat label="24H High" value="--" />
+        <MarketStat label="24H High" value={formattedHigh24h} />
         <div className="w-px h-5 bg-shadow-600 shrink-0" />
-        <MarketStat label="24H Low" value="--" />
+        <MarketStat label="24H Low" value={formattedLow24h} />
       </div>
 
       {/* Right badges */}
@@ -247,4 +289,30 @@ function MarketStat({
       <span className={`text-xs font-semibold ${valueClass}`}>{value}</span>
     </div>
   );
+}
+
+function formatPriceStat(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+  if (value < 0.01) {
+    return `$${value.toFixed(8)}`;
+  }
+  return `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatVolume(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return "--";
+  }
+  if (value < 1_000) {
+    return `$${value.toFixed(2)}`;
+  }
+  return `$${new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value)}`;
 }

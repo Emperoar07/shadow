@@ -3,6 +3,9 @@ import { TRADING_PAIRS } from "./tokens";
 export interface PriceData {
   price: number;
   change24h: number;
+  volume24h?: number;
+  high24h?: number;
+  low24h?: number;
 }
 
 export type PriceQuality = "live" | "cached" | "mock";
@@ -17,6 +20,16 @@ interface ApiPriceResponse {
   prices: Record<string, PriceData>;
   provider: "binance" | "mixed" | "coingecko" | "coinmarketcap" | "cache" | "mock";
   fetchedAt: number;
+}
+
+function finiteOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function positiveFiniteOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : undefined;
 }
 
 // In-memory cache shared across all components
@@ -86,6 +99,9 @@ async function _fetchFromBackendApi(): Promise<Record<string, PriceData> | null>
           change24h: Number.isFinite(live.change24h)
             ? live.change24h
             : pair.mockPriceChange,
+          volume24h: finiteOrUndefined(live.volume24h),
+          high24h: positiveFiniteOrUndefined(live.high24h),
+          low24h: positiveFiniteOrUndefined(live.low24h),
         };
       } else {
         result[pair.label] = {
@@ -126,20 +142,33 @@ async function _fetchCoinGeckoDirect(): Promise<Record<string, PriceData> | null
 
   try {
     const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&price_change_percentage=24h&per_page=250&page=1&sparkline=false`,
       { signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) return null;
 
-    const data = await res.json();
+    const payload = (await res.json()) as Array<{
+      id?: string;
+      current_price?: number;
+      price_change_percentage_24h?: number;
+      total_volume?: number;
+      high_24h?: number;
+      low_24h?: number;
+    }>;
+    if (!Array.isArray(payload)) return null;
+    const byId = new Map<string, (typeof payload)[number]>();
+    for (const row of payload) {
+      if (typeof row?.id !== "string") continue;
+      byId.set(row.id, row);
+    }
     const result: Record<string, PriceData> = {};
     let liveCount = 0;
 
     for (const pair of TRADING_PAIRS) {
       const cgId = pair.base.coingeckoId;
-      const source = cgId ? data[cgId] : null;
-      const price = source?.usd;
-      const change24h = source?.usd_24h_change;
+      const source = cgId ? byId.get(cgId) : null;
+      const price = source?.current_price;
+      const change24h = source?.price_change_percentage_24h;
       if (typeof price === "number" && Number.isFinite(price) && price > 0) {
         liveCount += 1;
         result[pair.label] = {
@@ -148,6 +177,9 @@ async function _fetchCoinGeckoDirect(): Promise<Record<string, PriceData> | null
             typeof change24h === "number" && Number.isFinite(change24h)
               ? change24h
               : pair.mockPriceChange,
+          volume24h: finiteOrUndefined(source?.total_volume),
+          high24h: positiveFiniteOrUndefined(source?.high_24h),
+          low24h: positiveFiniteOrUndefined(source?.low_24h),
         };
       } else {
         result[pair.label] = {

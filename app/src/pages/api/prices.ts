@@ -4,6 +4,9 @@ import { TRADING_PAIRS } from "../../lib/tokens";
 type PriceData = {
   price: number;
   change24h: number;
+  volume24h?: number;
+  high24h?: number;
+  low24h?: number;
 };
 
 type PriceResponse = {
@@ -61,6 +64,10 @@ function isFinitePositive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+function finiteOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 async function fetchCoinGecko(): Promise<Record<string, PriceData> | null> {
   const ids = Array.from(
     new Set(PAIRS.map((pair) => pair.coingeckoId).filter((id): id is string => Boolean(id)))
@@ -68,25 +75,38 @@ async function fetchCoinGecko(): Promise<Record<string, PriceData> | null> {
   if (ids.length === 0) return null;
 
   const response = await fetch(
-    `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(",")}&vs_currencies=usd&include_24hr_change=true`,
+    `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&price_change_percentage=24h&per_page=${ids.length}&page=1&sparkline=false`,
     { signal: AbortSignal.timeout(8_000) }
   );
   if (!response.ok) return null;
 
-  const data = (await response.json()) as Record<
-    string,
-    { usd?: number; usd_24h_change?: number }
-  >;
+  const payload = (await response.json()) as Array<{
+    id?: string;
+    current_price?: number;
+    price_change_percentage_24h?: number;
+    total_volume?: number;
+    high_24h?: number;
+    low_24h?: number;
+  }>;
+  if (!Array.isArray(payload)) return null;
+  const byId = new Map<string, (typeof payload)[number]>();
+  for (const row of payload) {
+    if (typeof row?.id !== "string") continue;
+    byId.set(row.id, row);
+  }
   const prices: Record<string, PriceData> = {};
 
   for (const pair of PAIRS) {
-    const source = pair.coingeckoId ? data[pair.coingeckoId] : undefined;
-    const price = source?.usd;
-    const change = source?.usd_24h_change;
+    const source = pair.coingeckoId ? byId.get(pair.coingeckoId) : undefined;
+    const price = source?.current_price;
+    const change = source?.price_change_percentage_24h;
     if (isFinitePositive(price)) {
       prices[pair.label] = {
         price,
         change24h: Number.isFinite(change) ? Number(change) : pair.mockPriceChange,
+        volume24h: finiteOrUndefined(source?.total_volume),
+        high24h: isFinitePositive(source?.high_24h) ? Number(source?.high_24h) : undefined,
+        low24h: isFinitePositive(source?.low_24h) ? Number(source?.low_24h) : undefined,
       };
     }
   }
@@ -115,7 +135,13 @@ async function fetchCoinMarketCap(): Promise<Record<string, PriceData> | null> {
       string,
       {
         quote?: {
-          USD?: { price?: number; percent_change_24h?: number };
+          USD?: {
+            price?: number;
+            percent_change_24h?: number;
+            volume_24h?: number;
+            high_24h?: number;
+            low_24h?: number;
+          };
         };
       }
     >;
@@ -132,6 +158,9 @@ async function fetchCoinMarketCap(): Promise<Record<string, PriceData> | null> {
       prices[pair.label] = {
         price,
         change24h: Number.isFinite(change) ? Number(change) : pair.mockPriceChange,
+        volume24h: finiteOrUndefined(quote?.volume_24h),
+        high24h: isFinitePositive(quote?.high_24h) ? Number(quote?.high_24h) : undefined,
+        low24h: isFinitePositive(quote?.low_24h) ? Number(quote?.low_24h) : undefined,
       };
     }
   }
@@ -149,24 +178,51 @@ async function fetchBinance(): Promise<Record<string, PriceData> | null> {
   );
   if (symbols.length === 0) return null;
 
-  const encodedSymbols = encodeURIComponent(JSON.stringify(symbols));
-  const response = await fetch(
-    `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodedSymbols}`,
-    { signal: AbortSignal.timeout(7_000) }
-  );
-  if (!response.ok) return null;
-
-  const payload = (await response.json()) as Array<{
+  type BinanceTicker = {
     symbol?: string;
     lastPrice?: string;
     priceChangePercent?: string;
-  }>;
-  if (!Array.isArray(payload)) return null;
+    quoteVolume?: string;
+    highPrice?: string;
+    lowPrice?: string;
+  };
 
-  const bySymbol = new Map<string, { lastPrice?: string; priceChangePercent?: string }>();
-  for (const ticker of payload) {
-    if (typeof ticker?.symbol !== "string") continue;
-    bySymbol.set(ticker.symbol, ticker);
+  const bySymbol = new Map<string, BinanceTicker>();
+  const encodedSymbols = encodeURIComponent(JSON.stringify(symbols));
+  const batchedResponse = await fetch(
+    `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodedSymbols}`,
+    { signal: AbortSignal.timeout(7_000) }
+  ).catch(() => null);
+
+  if (batchedResponse?.ok) {
+    const payload = (await batchedResponse.json()) as BinanceTicker[];
+    if (Array.isArray(payload)) {
+      for (const ticker of payload) {
+        if (typeof ticker?.symbol !== "string") continue;
+        bySymbol.set(ticker.symbol, ticker);
+      }
+    }
+  } else {
+    // Fallback to per-symbol requests when a single unsupported symbol breaks the batch response.
+    const results = await Promise.all(
+      symbols.map(async (symbol) => {
+        const response = await fetch(
+          `https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`,
+          { signal: AbortSignal.timeout(7_000) }
+        ).catch(() => null);
+        if (!response?.ok) return null;
+        const ticker = (await response.json()) as BinanceTicker;
+        return ticker;
+      })
+    );
+    for (const ticker of results) {
+      if (!ticker || typeof ticker.symbol !== "string") continue;
+      bySymbol.set(ticker.symbol, ticker);
+    }
+  }
+
+  if (bySymbol.size === 0) {
+    return null;
   }
 
   const prices: Record<string, PriceData> = {};
@@ -176,10 +232,16 @@ async function fetchBinance(): Promise<Record<string, PriceData> | null> {
     if (!ticker) continue;
     const price = Number.parseFloat(ticker.lastPrice ?? "");
     const change24h = Number.parseFloat(ticker.priceChangePercent ?? "");
+    const volume24h = Number.parseFloat(ticker.quoteVolume ?? "");
+    const high24h = Number.parseFloat(ticker.highPrice ?? "");
+    const low24h = Number.parseFloat(ticker.lowPrice ?? "");
     if (!isFinitePositive(price)) continue;
     prices[pair.label] = {
       price,
       change24h: Number.isFinite(change24h) ? change24h : pair.mockPriceChange,
+      volume24h: Number.isFinite(volume24h) ? volume24h : undefined,
+      high24h: isFinitePositive(high24h) ? high24h : undefined,
+      low24h: isFinitePositive(low24h) ? low24h : undefined,
     };
   }
 

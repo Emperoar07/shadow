@@ -3,8 +3,33 @@
 Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
-- Date: 2026-02-24 (UTC)
+- Date: 2026-02-25 (UTC)
 - Author: Codex
+
+## Market Stats Live Wiring (2026-02-25 UTC)
+- User issue:
+  - top market strip showed `24H Volume`, `24H High`, `24H Low` as `--` even when price/change were live.
+- Implemented:
+  - `app/src/pages/api/prices.ts`
+    - extended `PriceData` payload to include `volume24h`, `high24h`, `low24h`.
+    - upgraded CoinGecko source to `coins/markets` endpoint so high/low/volume are provided.
+    - hardened Binance fetch path with batch-first + per-symbol fallback so one invalid symbol no longer zeroes the whole source.
+  - `app/src/lib/prices.ts`
+    - extended frontend `PriceData` model to carry `volume24h`, `high24h`, `low24h`.
+    - upgraded direct CoinGecko fallback to `coins/markets` with full stat fields.
+  - `app/src/components/MarketInfo.tsx`
+    - removed hardcoded `--` placeholders for volume/high/low and bound stats to live feed values.
+    - added formatting helpers for compact USD volume and USD price stats.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `GET /api/prices` -> provider `mixed` and `SOL-PERP` now returns:
+    - `price`, `change24h`, `volume24h`, `high24h`, `low24h`
+  - `npm run hosting:status` -> app running + oracle running
+- Current blocker:
+  - none introduced by this patch; values still depend on upstream provider availability/rate limits.
+- Next safe step:
+  1. hard refresh `/app` and confirm market strip renders non-`--` values
+  2. if any pair still lacks high/low, log provider + pair label and extend fallback strategy per source
 
 ## Session Stability + Collateral Relay Reliability (2026-02-24 UTC)
 - User issue:
