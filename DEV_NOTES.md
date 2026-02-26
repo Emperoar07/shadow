@@ -57,6 +57,18 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Next safe step:
   - if you want stronger separation, we can add independent height constraints or drag-resizable widths without touching trade logic.
 
+## Layout Hotfix: Chart/Orderbook Height Collapse (2026-02-26 UTC)
+- Scope implemented:
+  - `app/src/pages/app.tsx`
+- Root cause:
+  - after separating the trading panel, the inner chart/orderbook grid no longer inherited full height from its wrapper.
+- Change:
+  - made chart/orderbook wrapper a flex height container (`flex h-full ...`).
+  - forced `trade-terminal-grid` to fill parent height (`h-full ... flex-1`).
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `GET /app` -> 200
+
 ## Security Hardening Batch Applied (2026-02-25 UTC)
 - Scope implemented:
   1. on-chain close path oracle safety guard

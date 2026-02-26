@@ -132,8 +132,8 @@ export default function TradingAppPage() {
             <div className="basis-[60%] shrink-0 min-h-0 border-b border-shadow-600 p-2">
               <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-row">
                 {/* Chart + Orderbook block */}
-                <div className="flex-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-shadow-600">
-                  <div className="trade-terminal-grid flex-1 min-w-0 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+                <div className="flex h-full flex-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-shadow-600">
+                  <div className="trade-terminal-grid h-full min-w-0 min-h-0 flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
                     {/* Chart */}
                     <div className="min-w-0 min-h-0 lg:border-r lg:border-shadow-600">
                       <PriceChart
