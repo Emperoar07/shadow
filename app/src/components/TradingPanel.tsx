@@ -469,6 +469,11 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       return;
     }
 
+    if (marginMode === "isolated") {
+      toast.error("Isolated mode is not live on-chain yet. Switch to Cross mode.");
+      return;
+    }
+
     if (orderType === "limit") {
       await ensureAutomationPersistenceUnlocked();
       const orderId = createLimitOrderId();
@@ -747,6 +752,11 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
                 </svg>
               </button>
+              {marginMode === "isolated" && (
+                <span className="inline-flex items-center rounded-lg border border-yellow-500/35 bg-yellow-500/10 px-2 py-1 text-[10px] font-semibold text-yellow-300">
+                  Preview only
+                </span>
+              )}
               {/* Leverage chip — click to expand slider */}
               <button
                 type="button"

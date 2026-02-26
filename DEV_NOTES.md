@@ -127,6 +127,33 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `pnpm --dir app exec tsc --noEmit` -> PASS
   - `GET /app` -> 200
 
+## Safety/Release Batch (No Queue-Path Changes) (2026-02-26 UTC)
+- Scope implemented:
+  - `app/src/components/TradingPanel.tsx`
+  - `.gitignore`
+  - `package.json`
+  - `app/package.json`
+  - `app/public/theme-init.js` (tracked runtime static asset)
+- Changes:
+  1. Margin mode safety hardening:
+     - isolated mode remains visible as preview, but trade submission is now blocked with explicit message:
+       - "Isolated mode is not live on-chain yet. Switch to Cross mode."
+     - prevents mismatch between UI selection and current on-chain accounting path.
+  2. Repo hygiene hardening:
+     - added ignore patterns for local preview/scratch HTML artifacts:
+       - `light-mode-*.html`
+       - `logo-previews*.html`
+       - `margin-mode-previews.html`
+       - `session-timer-previews.html`
+     - reduced noisy untracked workspace clutter.
+  3. Runtime consistency fix:
+     - aligned Node engine ranges in both root and app manifests:
+       - `>=20 <25`
+     - removes false engine mismatch warnings for current runtime while keeping floor at Node 20.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run check:preflight` -> PASS
+
 ## Security Hardening Batch Applied (2026-02-25 UTC)
 - Scope implemented:
   1. on-chain close path oracle safety guard

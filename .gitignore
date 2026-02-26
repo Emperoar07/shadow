@@ -98,6 +98,12 @@ ui-previews.html
 faucet.html
 faucet-page.js
 timer-icon-preview.html
+light-mode-preview.html
+light-mode-landing-preview.html
+light-mode-ui-preview.html
+logo-previews*.html
+margin-mode-previews.html
+session-timer-previews.html
 
 # OS / IDE
 .DS_Store
