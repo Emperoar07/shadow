@@ -6,6 +6,108 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-25 (UTC)
 - Author: Codex
 
+## Security Hardening Batch Applied (2026-02-25 UTC)
+- Scope implemented:
+  1. on-chain close path oracle safety guard
+  2. relay authorization binding hardening (action-bound signatures + auth TTL enforcement)
+  3. frontend dependency critical patch (`next` 14.1.0 -> 14.2.35)
+
+### 1) On-chain close-path stale oracle guard
+- Updated:
+  - `programs/shadowperp/src/handlers/close_position.rs`
+- Change:
+  - added `Clock::get()?` in close handler
+  - enforced:
+    - `price_age < 300`
+    - `market.oracle_price > 0`
+- Why:
+  - prevents queueing close-position MPC settlement against stale/invalid oracle state.
+
+### 2) Relay auth hardening
+- Updated shared auth schema:
+  - `app/src/lib/relay-session-auth.ts`
+  - scope upgraded to `shadowperp:relay-session:v2`
+  - message now binds:
+    - action (`open` | `deposit` | `withdraw`)
+    - session expiry
+    - auth expiry
+- Updated client session handling:
+  - `app/src/hooks/useArcium.ts`
+  - session now tracks `authAction`
+  - auth validity now requires:
+    - matching scope
+    - matching action
+    - non-expired `authExpiresAt`
+  - action signatures are created on-demand per reason (`trade`->`open`, `deposit`, `withdraw`)
+  - relay `/open` submission now sends `auth.action = "open"`
+  - auth error handling expanded for `Authorization action mismatch`
+- Updated collateral relay caller:
+  - `app/src/components/CollateralModal.tsx`
+  - always resolves session for current action reason before delegated submit
+  - sends endpoint-aligned `auth.action` in request body
+  - handles `Authorization action mismatch` as reauth condition
+- Updated relay API validators:
+  - `app/src/pages/api/relay/open.ts`
+  - `app/src/pages/api/relay/deposit.ts`
+  - `app/src/pages/api/relay/withdraw.ts`
+  - checks now enforce:
+    - endpoint/action alignment (`auth.action`)
+    - `authExpiresAt <= sessionExpiry`
+    - `authExpiresAt > now`
+    - signature verification against action-bound message payload
+
+### 3) Dependency patch
+- Updated:
+  - `app/package.json`
+  - `app/pnpm-lock.yaml`
+- Change:
+  - `next` bumped from `14.1.0` to `14.2.35`
+- Audit delta:
+  - before: `1 critical, 7 high, 9 moderate, 3 low`
+  - after: `0 critical, 2 high, 4 moderate, 1 low`
+  - remaining highs are transitive/line-level advisories requiring broader upgrades (not this safety patch).
+
+### Verification
+- `cargo check -p shadowperp` -> PASS (warnings only)
+- `pnpm --dir app exec tsc --noEmit` -> PASS
+- `npm run check:preflight` -> PASS
+- `pnpm --dir app audit --prod` -> PASS with residual advisories only (no critical)
+
+### Current blocker
+- Unchanged protocol blocker:
+  - Arcium devnet queue path can still fail on open-position with `AccountDidNotSerialize` in current namespace.
+
+### Next safe step
+1. run delegated-session smoke for all 3 actions (open/deposit/withdraw) using new v2 auth signatures.
+2. if stable, deploy/sync and confirm no stale close settles by forcing stale oracle and verifying close rejection.
+3. plan staged dependency upgrades for remaining advisories (likely Next 15 line + selected wallet stack transitive updates).
+
+## Security Audit Pass (2026-02-25 UTC)
+- Scope:
+  - on-chain program handlers + state
+  - relay API endpoints
+  - client crypto/session plumbing
+  - dependency vulnerabilities (pnpm audit)
+- Findings (no code changes yet):
+  - On-chain: `close_position` does not enforce oracle staleness or price>0 before queuing MPC; stale oracle can settle at an old price.
+    - file: `programs/shadowperp/src/handlers/close_position.rs`
+  - Relay auth scope: the session auth message is scoped as `shadowperp:relay-open:v1`, but the same signature is accepted for deposit/withdraw/open; no action-specific binding.
+    - file: `app/src/lib/relay-session-auth.ts`
+    - endpoints: `app/src/pages/api/relay/open.ts`, `app/src/pages/api/relay/deposit.ts`, `app/src/pages/api/relay/withdraw.ts`
+  - Relay auth expiry: request `auth.expiresAt` is checked only against session expiry, but the signed message always uses session expiry; shorter TTL is not enforced.
+    - file: `app/src/pages/api/relay/open.ts` (+ deposit/withdraw)
+  - Dependency risk: `pnpm --dir app audit --prod` reports 1 critical, 7 high, 9 moderate, 3 low (primarily Next.js < patched versions).
+    - critical: Next.js middleware auth bypass (`next` < 14.2.25)
+- Verification:
+  - `npm run check:preflight` -> PASS after `npm run oracle:once`
+  - Oracle refreshed (one-shot) to reset staleness.
+- Current blocker:
+  - unchanged: Arcium devnet `QueueComputation` serialization (`AccountDidNotSerialize`) still blocks open-position queue path.
+- Next safe step:
+  1. Decide whether to patch `close_position` staleness guard and relay auth scoping in one batch.
+  2. If yes, implement + `cargo check -p shadowperp` + `pnpm --dir app exec tsc --noEmit`.
+  3. Plan dependency upgrade for `next` to a patched version (>=14.2.35 or 15.x) with a staged branch.
+
 ## Equity Breakdown Card Added (2026-02-25 UTC)
 - User request:
   - account equity UX should resemble a dedicated breakdown panel (Spot/Perps + Perps Overview).

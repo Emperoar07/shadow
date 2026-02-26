@@ -1,10 +1,14 @@
-export const RELAY_SESSION_AUTH_SCOPE = "shadowperp:relay-open:v1";
+export const RELAY_SESSION_AUTH_SCOPE = "shadowperp:relay-session:v2";
+
+export type RelaySessionAction = "open" | "deposit" | "withdraw";
 
 export interface RelaySessionAuthPayload {
   owner: string;
   market: string;
   sessionId: string;
-  expiresAt: number;
+  action: RelaySessionAction;
+  sessionExpiresAt: number;
+  authExpiresAt: number;
 }
 
 export function buildRelaySessionAuthMessage(payload: RelaySessionAuthPayload): string {
@@ -14,7 +18,9 @@ export function buildRelaySessionAuthMessage(payload: RelaySessionAuthPayload): 
     `Owner: ${payload.owner}`,
     `Market: ${payload.market}`,
     `Session ID: ${payload.sessionId}`,
-    `Expires At (unix): ${payload.expiresAt}`,
+    `Action: ${payload.action}`,
+    `Session Expires At (unix): ${payload.sessionExpiresAt}`,
+    `Auth Expires At (unix): ${payload.authExpiresAt}`,
   ].join("\n");
 }
 

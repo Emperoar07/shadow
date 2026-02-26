@@ -21,6 +21,7 @@ type OpenRequestBody = {
   entryPriceRaw?: string;
   marginRaw?: string;
   auth?: {
+    action?: "open" | "deposit" | "withdraw";
     expiresAt?: number;
     signature?: string;
   };
@@ -83,6 +84,9 @@ export default async function handler(
     }
     if (!body.auth?.signature) throw new Error("Missing auth signature");
     if (!Number.isFinite(body.auth?.expiresAt)) throw new Error("Missing auth expiry");
+    if (body.auth?.action && body.auth.action !== "open") {
+      throw new Error("Authorization action mismatch");
+    }
 
     const owner = new PublicKey(body.owner);
     const sessionId = new BN(body.sessionId, 10);
@@ -117,11 +121,16 @@ export default async function handler(
     if (authExpiresAt > sessionExpiry) {
       throw new Error("Authorization expiry exceeds session expiry");
     }
+    if (authExpiresAt <= nowSeconds) {
+      throw new Error("Session authorization expired");
+    }
     const message = buildRelaySessionAuthMessage({
       owner: owner.toBase58(),
       market: relay.config.marketAddress.toBase58(),
       sessionId: sessionId.toString(),
-      expiresAt: sessionExpiry,
+      action: "open",
+      sessionExpiresAt: sessionExpiry,
+      authExpiresAt,
     });
     const verified = ed25519.verify(
       base64ToUint8(body.auth.signature),

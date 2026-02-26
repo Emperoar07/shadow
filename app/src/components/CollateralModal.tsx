@@ -61,7 +61,8 @@ export default function CollateralModal({
     return (
       rawMessage.includes("Invalid session authorization signature") ||
       rawMessage.includes("Session authorization expired") ||
-      rawMessage.includes("Authorization expiry exceeds session expiry")
+      rawMessage.includes("Authorization expiry exceeds session expiry") ||
+      rawMessage.includes("Authorization action mismatch")
     );
   }, []);
 
@@ -85,6 +86,7 @@ export default function CollateralModal({
             sessionId: session.sessionId,
             amountRaw: amountBN.toString(),
             auth: {
+              action: endpoint === "/api/relay/deposit" ? "deposit" : "withdraw",
               expiresAt: authExpiresAt,
               signature: session.authSignature,
             },
@@ -102,14 +104,10 @@ export default function CollateralModal({
         return payload.txSignature as string;
       };
 
-      const existing =
-        isRelaySessionActive && relaySession?.owner === owner ? relaySession : null;
-      let session =
-        existing ??
-        (await ensureRelaySession({
-          reason: endpoint === "/api/relay/deposit" ? "deposit" : "withdraw",
-          userInitiated: true,
-        }));
+      let session = await ensureRelaySession({
+        reason: endpoint === "/api/relay/deposit" ? "deposit" : "withdraw",
+        userInitiated: true,
+      });
       if (!session || session.owner !== owner) {
         throw new Error("Delegated session required. Please sign a new session.");
       }
@@ -136,10 +134,8 @@ export default function CollateralModal({
     [
       ensureRelaySession,
       invalidateRelaySession,
-      isRelaySessionActive,
       isSessionAuthError,
       publicKey,
-      relaySession,
     ]
   );
 

@@ -8,6 +8,7 @@ import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { DEFAULT_TRADE_SESSION_DURATION_SECONDS } from "../lib/client";
 import {
   buildRelaySessionAuthMessage,
+  RelaySessionAction,
   RELAY_SESSION_AUTH_SCOPE,
   uint8ToBase64,
 } from "../lib/relay-session-auth";
@@ -34,6 +35,7 @@ export interface SessionRelayInfo {
   sessionId: string;
   sessionAddress: string;
   authScope: string;
+  authAction: RelaySessionAction;
   expiresAt: number;
   authExpiresAt: number;
   maxActions: number;
@@ -55,6 +57,12 @@ export const RELAY_SESSION_UPDATED_EVENT = "shadowperp:relay-session-updated";
 export const RELAY_SESSION_RENEW_BEFORE_SECONDS = 15;
 const DEFAULT_SESSION_MAX_ACTIONS = 200;
 const DEFAULT_SESSION_MAX_MARGIN_USDC = 1_000;
+
+function actionFromReason(reason?: EnsureRelaySessionOptions["reason"]): RelaySessionAction {
+  if (reason === "deposit") return "deposit";
+  if (reason === "withdraw") return "withdraw";
+  return "open";
+}
 
 // Validated once at module load - throws immediately if required env var is absent
 // so misconfiguration is caught at startup rather than silently routing to devnet.
@@ -114,12 +122,19 @@ function parseSession(raw: string | null): SessionRelayInfo | null {
       Number.isFinite(parsedUsedActions) && parsedUsedActions >= 0
         ? Math.floor(parsedUsedActions)
         : 0;
+    const parsedAuthAction =
+      parsed.authAction === "open" ||
+      parsed.authAction === "deposit" ||
+      parsed.authAction === "withdraw"
+        ? parsed.authAction
+        : null;
     return {
       ...parsed,
       authScope:
         typeof parsed.authScope === "string" && parsed.authScope.length > 0
           ? parsed.authScope
           : "__legacy__",
+      authAction: parsedAuthAction ?? "open",
       expiresAt: parsedExpiresAt,
       authExpiresAt: Number.isFinite(parsedAuthExpiresAt)
         ? Math.floor(parsedAuthExpiresAt)
@@ -231,9 +246,11 @@ function isUsableRelaySession(
 
 function hasUsableRelayAuth(
   session: SessionRelayInfo,
+  action: RelaySessionAction,
   nowSeconds: number
 ): boolean {
   if (session.authScope !== RELAY_SESSION_AUTH_SCOPE) return false;
+  if (session.authAction !== action) return false;
   if (typeof session.authSignature !== "string" || session.authSignature.length === 0) return false;
   if (!Number.isFinite(session.authExpiresAt)) return false;
   if (session.authExpiresAt - nowSeconds <= RELAY_SESSION_RENEW_BEFORE_SECONDS) return false;
@@ -408,10 +425,11 @@ export const useArciumPrivacy = () => {
   const ensureRelaySessionAuth = useCallback(
     async (
       session: SessionRelayInfo,
+      action: RelaySessionAction,
       userInitiated = false
     ): Promise<SessionRelayInfo> => {
       const nowSeconds = Math.floor(Date.now() / 1000);
-      if (hasUsableRelayAuth(session, nowSeconds)) {
+      if (hasUsableRelayAuth(session, action, nowSeconds)) {
         return session;
       }
       if (!userInitiated) {
@@ -427,13 +445,16 @@ export const useArciumPrivacy = () => {
         owner: session.owner,
         market: session.market,
         sessionId: session.sessionId,
-        expiresAt: session.expiresAt,
+        action,
+        sessionExpiresAt: session.expiresAt,
+        authExpiresAt: session.expiresAt,
       });
       const signature = await signMessage(new TextEncoder().encode(authMessage));
 
       const next: SessionRelayInfo = {
         ...session,
         authScope: RELAY_SESSION_AUTH_SCOPE,
+        authAction: action,
         authExpiresAt: session.expiresAt,
         authSignature: uint8ToBase64(signature),
       };
@@ -507,6 +528,12 @@ export const useArciumPrivacy = () => {
             typeof stored?.authScope === "string" && stored.authScope.length > 0
               ? stored.authScope
               : RELAY_SESSION_AUTH_SCOPE,
+          authAction:
+            stored?.authAction === "open" ||
+            stored?.authAction === "deposit" ||
+            stored?.authAction === "withdraw"
+              ? stored.authAction
+              : actionFromReason("trade"),
           expiresAt,
           authExpiresAt:
             Number.isFinite(stored?.authExpiresAt)
@@ -526,7 +553,11 @@ export const useArciumPrivacy = () => {
           return null;
         }
 
-        const authed = await ensureRelaySessionAuth(candidate, userInitiatedAuth);
+        const authed = await ensureRelaySessionAuth(
+          candidate,
+          actionFromReason("trade"),
+          userInitiatedAuth
+        );
         setRelaySession(authed);
         persistSession(authed);
         return authed;
@@ -566,6 +597,7 @@ export const useArciumPrivacy = () => {
       if (isUsableRelaySession(existing, owner, marketAddress, nowSeconds)) {
         const authed = await ensureRelaySessionAuth(
           existing,
+          actionFromReason(reason),
           Boolean(options?.userInitiated)
         );
         const prepared = await maybeEnsureCollateralForReason(
@@ -595,7 +627,9 @@ export const useArciumPrivacy = () => {
         owner,
         market: marketAddress,
         sessionId: sessionId.toString(),
-        expiresAt,
+        action: actionFromReason(reason),
+        sessionExpiresAt: expiresAt,
+        authExpiresAt: expiresAt,
       });
       const signature = await signMessage(new TextEncoder().encode(authMessage));
 
@@ -619,6 +653,7 @@ export const useArciumPrivacy = () => {
         sessionId: sessionId.toString(),
         sessionAddress: sessionAddress.toBase58(),
         authScope: RELAY_SESSION_AUTH_SCOPE,
+        authAction: actionFromReason(reason),
         expiresAt,
         authExpiresAt: expiresAt,
         maxActions,
@@ -661,7 +696,11 @@ export const useArciumPrivacy = () => {
       const userInitiated = Boolean(options?.userInitiated);
 
       const finalize = async (session: SessionRelayInfo): Promise<SessionRelayInfo> => {
-        const authed = await ensureRelaySessionAuth(session, userInitiated);
+        const authed = await ensureRelaySessionAuth(
+          session,
+          actionFromReason(reason),
+          userInitiated
+        );
         return maybeEnsureCollateralForReason(
           authed,
           reason,
@@ -930,6 +969,7 @@ export const useArciumPrivacy = () => {
           entryPriceRaw: entryPrice.toString(),
           marginRaw: marginBase.toString(),
           auth: {
+            action: "open",
             expiresAt: activeRelaySession.authExpiresAt,
             signature: activeRelaySession.authSignature,
           },
@@ -943,7 +983,8 @@ export const useArciumPrivacy = () => {
           typeof message === "string" &&
           (message.includes("Invalid session authorization signature") ||
             message.includes("Session authorization expired") ||
-            message.includes("Authorization expiry exceeds session expiry"))
+            message.includes("Authorization expiry exceeds session expiry") ||
+            message.includes("Authorization action mismatch"))
         ) {
           invalidateRelaySession(activeRelaySession.owner, activeRelaySession.market);
           throw new Error(

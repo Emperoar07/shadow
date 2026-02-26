@@ -108,12 +108,19 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
 
     let market = &ctx.accounts.market;
     let position = &mut ctx.accounts.position;
+    let clock = Clock::get()?;
 
     // Validate position is open
     require!(
         position.status == PositionStatus::Open,
         ShadowPerpError::PositionNotOpen
     );
+    // Validate oracle freshness before closing a position.
+    let price_age = clock
+        .unix_timestamp
+        .saturating_sub(market.last_price_update);
+    require!(price_age < 300, ShadowPerpError::StalePrice);
+    require!(market.oracle_price > 0, ShadowPerpError::InvalidPrice);
     // Update status to closing
     position.status = PositionStatus::Closing;
     // Bind to the specific computation account so the callback can verify it is consuming
