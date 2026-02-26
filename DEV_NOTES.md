@@ -6,6 +6,24 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-25 (UTC)
 - Author: Codex
 
+## Workspace Hygiene: Preview Artifact Cleanup (2026-02-26 UTC)
+- Scope:
+  - repo root local preview files
+  - runtime theme bootstrap tracking check
+- Actions:
+  1. removed local preview artifacts from workspace:
+     - `light-mode-*.html`
+     - `logo-previews*.html`
+     - `margin-mode-previews.html`
+     - `session-timer-previews.html`
+  2. confirmed runtime theme bootstrap remains tracked:
+     - `app/public/theme-init.js`
+- Verification:
+  - preview file glob scan returns no matches.
+  - `git ls-files app/public/theme-init.js` returns tracked path.
+- Notes:
+  - cleanup is workspace-safe and does not affect app runtime logic.
+
 ## Trading UX: Isolated Mode Enabled for Execution (2026-02-26 UTC)
 - Scope implemented:
   - `app/src/components/TradingPanel.tsx`
