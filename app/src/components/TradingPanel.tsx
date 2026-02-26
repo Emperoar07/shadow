@@ -34,6 +34,7 @@ const MAX_LEVERAGE = LEVERAGE_MARKERS[LEVERAGE_MARKERS.length - 1];
 const TP_SL_MIN_GAP_BPS = 10; // 0.10%
 const MAX_POSITION_SIZE_BASE = 1_000_000;
 const MAX_POSITION_NOTIONAL_USDC = 5_000_000;
+const MARGIN_MODE_STORAGE_PREFIX = "shadowperp:ui:margin-mode:v1";
 
 interface TradingPanelProps {
   pair?: TradingPair;
@@ -55,6 +56,17 @@ function hasAllowedPrecision(value: string, maxDecimals: number): boolean {
   if (!normalized.includes(".")) return true;
   const [, decimals = ""] = normalized.split(".");
   return decimals.length <= maxDecimals;
+}
+
+function resolveMarginModeStorageKey(owner: string | null): string {
+  return owner
+    ? `${MARGIN_MODE_STORAGE_PREFIX}:${owner}`
+    : `${MARGIN_MODE_STORAGE_PREFIX}:guest`;
+}
+
+function parseStoredMarginMode(value: string | null): MarginMode | null {
+  if (value === "cross" || value === "isolated") return value;
+  return null;
 }
 
 function validateTpSl(
@@ -118,6 +130,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   const [takeProfit, setTakeProfit] = useState("");
   const [stopLoss, setStopLoss] = useState("");
   const [leverage, setLeverage] = useState(10);
+  const [leverageOpen, setLeverageOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
@@ -218,6 +231,25 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       disableEncryptedAutomationPersistence();
     }
   }, [publicKey, signMessage]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const owner = publicKey?.toBase58() ?? null;
+    const stored = parseStoredMarginMode(
+      window.localStorage.getItem(resolveMarginModeStorageKey(owner))
+    );
+    setMarginMode(stored ?? "cross");
+  }, [publicKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const owner = publicKey?.toBase58() ?? null;
+    try {
+      window.localStorage.setItem(resolveMarginModeStorageKey(owner), marginMode);
+    } catch {
+      // storage quota/private-mode failures should not block trading
+    }
+  }, [marginMode, publicKey]);
 
   const ensureAutomationPersistenceUnlocked = useCallback(async () => {
     const owner = publicKey?.toBase58();
@@ -333,6 +365,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   const submitEncryptedOrder = useCallback(
     async (input: {
       side: Direction;
+      marginMode: MarginMode;
       sizeBase: number;
       leverage: number;
       entryPrice: number;
@@ -365,6 +398,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         positionAddress,
         pairLabel: input.pairLabel,
         side: input.side,
+        marginMode: input.marginMode,
         sizeBase: input.sizeBase,
         entryPrice: input.entryPrice,
         leverage: input.leverage,
@@ -442,6 +476,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         id: orderId,
         pairLabel: activePair.label,
         side: direction,
+        marginMode,
         sizeBase: sizeInBase,
         leverage,
         limitPrice: entryPrice,
@@ -485,6 +520,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
 
       const { txSignature } = await submitEncryptedOrder({
         side: direction,
+        marginMode,
         sizeBase: sizeInBase,
         leverage,
         entryPrice,
@@ -524,6 +560,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     clientInitError,
     entryPrice,
     activePair.label,
+    marginMode,
     activePair.base.decimals,
     activePair.base.symbol,
     activePair.quote.decimals,
@@ -597,6 +634,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         try {
           const { txSignature, positionAddress } = await submitEncryptedOrder({
             side: order.side,
+            marginMode: order.marginMode ?? "cross",
             sizeBase: order.sizeBase,
             leverage: order.leverage,
             entryPrice: order.limitPrice,
@@ -696,58 +734,57 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-1.5">
-            <button
-              type="button"
-              onClick={() => setMarginMode("cross")}
-              className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-                marginMode === "cross"
-                  ? "border-accent-purple/50 bg-accent-purple/10"
-                  : "border-shadow-500 bg-shadow-700/50 hover:border-accent-purple/35"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-flex h-4 w-4 items-center justify-center rounded-sm border ${
-                    marginMode === "cross"
-                      ? "border-accent-purple bg-accent-purple/20 text-accent-purple"
-                      : "border-shadow-500 text-transparent"
-                  }`}
-                >
-                  ✓
-                </span>
-                <span className="text-sm font-semibold text-white">Cross</span>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              {/* Margin mode chip — click to cycle */}
+              <button
+                type="button"
+                onClick={() => setMarginMode(marginMode === "cross" ? "isolated" : "cross")}
+                className="flex items-center gap-1.5 rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:text-white hover:border-shadow-400 transition-colors"
+              >
+                <span className="capitalize">{marginMode}</span>
+                <svg className="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
+                </svg>
+              </button>
+              {/* Leverage chip — click to expand slider */}
+              <button
+                type="button"
+                onClick={() => setLeverageOpen((o) => !o)}
+                className="flex items-center gap-1.5 rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:text-white hover:border-shadow-400 transition-colors"
+              >
+                <span>{leverage}x</span>
+                <svg className="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+            {leverageOpen && (
+              <div className="rounded-lg border border-shadow-500 bg-shadow-700/70 px-3 py-2.5">
+                <input
+                  type="range"
+                  min={MIN_LEVERAGE}
+                  max={MAX_LEVERAGE}
+                  value={leverage}
+                  onChange={(e) => setLeverage(Number.parseInt(e.target.value, 10))}
+                  className="h-1.5 w-full cursor-pointer appearance-none rounded-lg accent-accent-purple"
+                  style={{
+                    background: `linear-gradient(to right, #8b5cf6 ${((leverage - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%, var(--range-track-empty) ${((leverage - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%)`,
+                  }}
+                />
+                <div className="mt-1.5 flex justify-between text-[9px] text-gray-600">
+                  {LEVERAGE_MARKERS.map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setLeverage(m)}
+                      className="hover:text-accent-purple transition-colors"
+                    >
+                      {m}x
+                    </button>
+                  ))}
+                </div>
               </div>
-              <p className="mt-1 text-xs text-gray-400">
-                All positions share account collateral.
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMarginMode("isolated")}
-              className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-                marginMode === "isolated"
-                  ? "border-accent-purple/50 bg-accent-purple/10"
-                  : "border-shadow-500 bg-shadow-700/50 hover:border-accent-purple/35"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-flex h-4 w-4 items-center justify-center rounded-sm border ${
-                    marginMode === "isolated"
-                      ? "border-accent-purple bg-accent-purple/20 text-accent-purple"
-                      : "border-shadow-500 text-transparent"
-                  }`}
-                >
-                  ✓
-                </span>
-                <span className="text-sm font-semibold text-white">Isolated</span>
-              </div>
-              <p className="mt-1 text-xs text-gray-400">
-                Margin is scoped to this position sizing flow.
-              </p>
-            </button>
+            )}
           </div>
 
           <div>
@@ -861,36 +898,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </div>
           )}
 
-          <div>
-            <div className="rounded-xl border border-shadow-500 bg-shadow-700/70 p-2.5">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Leverage</span>
-                <span className="text-xl font-semibold text-accent-purple">{leverage}x</span>
-              </div>
-              <input
-                type="range"
-                min={MIN_LEVERAGE}
-                max={MAX_LEVERAGE}
-                value={leverage}
-                onChange={(e) => setLeverage(Number.parseInt(e.target.value, 10))}
-                className="h-1.5 w-full cursor-pointer appearance-none rounded-lg accent-accent-purple"
-                style={{
-                  background: `linear-gradient(to right, #8b5cf6 ${((leverage - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%, var(--range-track-empty) ${((leverage - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%)`,
-                }}
-              />
-              <div className="mt-1.5 flex justify-between text-[9px] text-gray-600">
-                {LEVERAGE_MARKERS.map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setLeverage(m)}
-                    className="hover:text-accent-purple transition-colors"
-                  >
-                    {m}x
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
 
           <div>
             <label className="mb-1 block text-[10px] uppercase tracking-[0.12em] text-gray-500">
@@ -924,22 +931,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </div>
           </div>
 
-<div className="flex items-stretch divide-x divide-shadow-600 rounded-xl border border-shadow-500 bg-shadow-700/40 overflow-hidden">
-            <div className="flex-1 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-[0.12em] text-gray-500 mb-0.5">Margin</p>
-              <p className="text-sm font-semibold text-gray-200">${margin.toFixed(2)}</p>
-            </div>
-            <div className="flex-1 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-[0.12em] text-gray-500 mb-0.5">Notional</p>
-              <p className="text-sm font-semibold text-gray-200">${positionValue.toFixed(2)}</p>
-            </div>
-            <div className="flex-1 px-3 py-2">
-              <p className="text-[9px] uppercase tracking-[0.12em] text-gray-500 mb-0.5">Liq. Price</p>
-              <p className={`text-sm font-semibold ${estimatedLiqPrice ? (direction === "long" ? "text-accent-red" : "text-accent-green") : "text-gray-500"}`}>
-                {estimatedLiqPrice ? formatPrice(estimatedLiqPrice) : "--"}
-              </p>
-            </div>
-          </div>
 
           <button
             onClick={handleSubmit}
@@ -1020,72 +1011,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setCollateralModalOpen(true)}
-              className="w-full rounded-lg bg-accent-green/30 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-green/40"
-            >
-              Deposit
-            </button>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                className="rounded-lg border border-shadow-500 py-2 text-sm font-medium text-gray-300/80"
-                title="Perps and spot balances are separated in this build."
-              >
-                Perps {"<->"} Spot
-              </button>
-              <button
-                type="button"
-                onClick={() => setCollateralModalOpen(true)}
-                className="rounded-lg border border-shadow-500 py-2 text-sm font-medium text-gray-200 transition-colors hover:border-accent-purple"
-              >
-                Withdraw
-              </button>
-            </div>
-
-            <div className="border-t border-shadow-600 pt-2">
-              <h4 className="mb-1 text-sm font-semibold text-white">Account Equity</h4>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Spot</span>
-                  <span className="font-semibold text-white">$0.00</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Perps</span>
-                  <span className="font-semibold text-white">${activeMarginBalance.toFixed(2)}</span>
-                </div>
-              </div>
-
-              <h5 className="mt-2 mb-1 text-sm font-semibold text-white">Perps Overview</h5>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Balance</span>
-                  <span className="font-semibold text-white">${activeMarginBalance.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Unrealized PNL</span>
-                  <span className="font-semibold text-white">${unrealizedPnl.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">
-                    {marginMode === "cross" ? "Cross Margin Ratio" : "Isolated Margin Ratio"}
-                  </span>
-                  <span className="font-semibold text-teal-300">{marginRatio.toFixed(2)}%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Maintenance Margin</span>
-                  <span className="font-semibold text-white">${maintenanceMargin.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">
-                    {marginMode === "cross" ? "Cross Account Leverage" : "Isolated Leverage"}
-                  </span>
-                  <span className="font-semibold text-white">{accountLeverage.toFixed(2)}x</span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

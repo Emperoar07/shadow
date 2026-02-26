@@ -1,5 +1,7 @@
 import { PositionDirection } from "../types";
 
+export type MarginMode = "cross" | "isolated";
+
 export type PendingOrderStatus =
   | "pending"
   | "triggered"
@@ -11,6 +13,7 @@ export interface PendingLimitOrder {
   id: string;
   pairLabel: string;
   side: PositionDirection;
+  marginMode: MarginMode;
   sizeBase: number;
   leverage: number;
   limitPrice: number;
@@ -37,6 +40,7 @@ export interface OwnerPositionView {
   positionAddress: string;
   pairLabel: string;
   side: PositionDirection;
+  marginMode: MarginMode;
   sizeBase: number;
   entryPrice: number;
   leverage: number;
@@ -130,6 +134,11 @@ function parseDirection(value: unknown): PositionDirection | null {
   return null;
 }
 
+function parseMarginMode(value: unknown): MarginMode | null {
+  if (value === "cross" || value === "isolated") return value;
+  return null;
+}
+
 function parseStatus(value: unknown): PendingOrderStatus | null {
   if (
     value === "pending" ||
@@ -154,6 +163,7 @@ function sanitizeLimitOrder(value: unknown): PendingLimitOrder | null {
   const id = parseOptionalString(value.id);
   const pairLabel = parseOptionalString(value.pairLabel);
   const side = parseDirection(value.side);
+  const marginMode = parseMarginMode(value.marginMode) ?? "cross";
   const sizeBase = parsePositiveNumber(value.sizeBase);
   const leverageRaw = parseFiniteNumber(value.leverage);
   const limitPrice = parsePositiveNumber(value.limitPrice);
@@ -182,6 +192,7 @@ function sanitizeLimitOrder(value: unknown): PendingLimitOrder | null {
     id,
     pairLabel,
     side,
+    marginMode,
     sizeBase,
     leverage: leverageRaw,
     limitPrice,
@@ -218,6 +229,7 @@ function sanitizeOwnerPositionView(value: unknown): OwnerPositionView | null {
   const positionAddress = parseOptionalString(value.positionAddress);
   const pairLabel = parseOptionalString(value.pairLabel);
   const side = parseDirection(value.side);
+  const marginMode = parseMarginMode(value.marginMode) ?? "cross";
   const sizeBase = parsePositiveNumber(value.sizeBase);
   const entryPrice = parsePositiveNumber(value.entryPrice);
   const leverageRaw = parseFiniteNumber(value.leverage);
@@ -244,6 +256,7 @@ function sanitizeOwnerPositionView(value: unknown): OwnerPositionView | null {
     positionAddress,
     pairLabel,
     side,
+    marginMode,
     sizeBase,
     entryPrice,
     leverage: leverageRaw,

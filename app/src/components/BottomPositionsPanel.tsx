@@ -321,6 +321,7 @@ export default function BottomPositionsPanel() {
     (position: UiPosition) => {
       const view = ownerPositionViews[position.address] ?? null;
       const side = view?.side ?? null;
+      const marginMode = view?.marginMode ?? "cross";
       const leverage = view?.leverage ?? null;
       const entryPrice = view?.entryPrice ?? null;
       const pairLabel = view?.pairLabel ?? "SHADOW-PERP";
@@ -381,6 +382,7 @@ export default function BottomPositionsPanel() {
       return {
         pairLabel,
         side,
+        marginMode,
         leverage,
         localMargin,
         entryPrice,
@@ -490,7 +492,7 @@ export default function BottomPositionsPanel() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="text-xs">
                       <p className="font-medium text-gray-100">
-                        {order.pairLabel} | {order.side.toUpperCase()} | {order.leverage}x
+                        {order.pairLabel} | {order.side.toUpperCase()} | {order.marginMode.toUpperCase()} | {order.leverage}x
                       </p>
                       <p className="mt-1 text-gray-400">
                         Limit {formatPrice(order.limitPrice)} | TP {formatPrice(order.takeProfit)} | SL{" "}
@@ -614,6 +616,9 @@ export default function BottomPositionsPanel() {
                           Encrypted
                         </span>
                       )}
+                      <span className="rounded-full bg-shadow-600 px-2.5 py-0.5 text-[11px] font-semibold uppercase text-gray-300">
+                        {card.marginMode}
+                      </span>
                       <StatusBadge status={pos.status} isClosing={isClosing} />
                     </div>
 

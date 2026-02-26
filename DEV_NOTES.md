@@ -101,6 +101,32 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `pnpm --dir app exec tsc --noEmit` -> PASS
   - `GET /app` -> 200
 
+## UI Safety Batch: Layout Bounds + Persistent Margin Mode + Position Labels (2026-02-26 UTC)
+- Scope implemented:
+  - `app/src/pages/app.tsx`
+  - `app/src/components/TradingPanel.tsx`
+  - `app/src/lib/trade-automation.ts`
+  - `app/src/components/BottomPositionsPanel.tsx`
+- Changes:
+  1. Terminal row bounds hardened:
+     - set `h-[80vh]` with `min-h-[560px] max-h-[900px]` to avoid extreme shrink/overgrow across screens.
+  2. Margin mode persistence:
+     - added wallet-scoped local persistence for margin mode selection (`cross` / `isolated`) in trading panel.
+     - mode now survives refresh and wallet reconnect.
+  3. Margin mode propagation:
+     - added `marginMode` to local automation models (`PendingLimitOrder`, `OwnerPositionView`) with backward-compatible `cross` fallback for legacy snapshots.
+     - trading submissions and queued limit execution now carry margin mode into local owner views.
+  4. Position/order labels:
+     - open orders now display margin mode in summary row.
+     - open position cards now show a mode badge (`CROSS` / `ISOLATED`) next to side/leverage badges.
+- Safety:
+  - no on-chain instruction changes.
+  - no IDL changes.
+  - devnet runtime path unchanged.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `GET /app` -> 200
+
 ## Security Hardening Batch Applied (2026-02-25 UTC)
 - Scope implemented:
   1. on-chain close path oracle safety guard
