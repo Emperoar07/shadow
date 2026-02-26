@@ -82,6 +82,16 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `pnpm --dir app exec tsc --noEmit` -> PASS
   - `GET /app` -> 200
 
+## Layout Tuning: Terminal Row Height 20% (2026-02-26 UTC)
+- Scope implemented:
+  - `app/src/pages/app.tsx`
+- Change:
+  - terminal row height set to `h-[20vh]` per UI request.
+  - removed previous `min-h-[480px]` floor to allow true 20% behavior.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `GET /app` -> 200
+
 ## Security Hardening Batch Applied (2026-02-25 UTC)
 - Scope implemented:
   1. on-chain close path oracle safety guard
@@ -2627,4 +2637,41 @@ Full multi-dimensional audit run across all TypeScript, Rust, scripts, and confi
 
 ### Next safe step
 1. Quick visual pass in app to confirm the 50/50 chart-side panel proportions still look correct after content reduction.
+
+---
+
+## UI Cleanup Session (2026-02-26 UTC)
+
+### Files changed
+- `app/src/components/PrivateOrderbook.tsx`
+- `app/src/components/PortfolioSummary.tsx`
+- `app/src/components/TradingPanel.tsx`
+
+### Changes made
+
+#### PrivateOrderbook.tsx
+- Removed the Trades side-panel (was 45% width column with Price/Size/Time headers and "No trades" placeholder).
+- Added Order Book / Trades tab switcher in the header with cyan underline indicator — clicking Trades shows the trades column, clicking Order Book shows the book.
+- Fixed column header: `Total` was showing `(SOL)` (base symbol) — corrected to `(USDC)` (quote symbol) since Total represents cumulative notional value.
+
+#### PortfolioSummary.tsx
+- Removed Account Equity card from the portfolio strip (the clickable button that opened a dropdown with Spot/Perps breakdown + Perps Overview panel).
+- Cleaned up associated state: `equityCardRef`, `equityCardOpen`, and the click-outside `useEffect`.
+
+#### TradingPanel.tsx
+- Replaced the two stacked checkbox-style margin mode cards (Cross / Isolated) with a compact segmented pill toggle. Active half fills solid purple.
+- Replaced pill toggle + standalone leverage box with two compact chips: `[Cross ↕]` and `[20x ↓]`.
+  - Clicking the Cross chip cycles margin mode (Cross ↔ Isolated) directly.
+  - Clicking the 20x chip expands/collapses the leverage slider inline below the chips.
+- Removed the Margin / Notional / Liq. Price summary strip (the 3-column card shown above the submit button).
+- Removed the Account Equity section from the account info panel (Spot/Perps rows + Perps Overview breakdown with margin ratio, maintenance margin, leverage).
+- Removed the "Perps <-> Spot" transfer button; Withdraw button now spans full width.
+- Removed both Deposit and Withdraw buttons entirely.
+
+### Safety
+- No on-chain instruction changes, no IDL changes, no relay route changes.
+- All removals were UI-only — underlying state/calculations (`accountEquity`, `marginRatio`, etc.) retained where still used by other logic.
+
+### Rule going forward
+- DEV_NOTES.md should be updated after every ~5 UI/code changes in a session.
 2. Keep price-source sync behavior unchanged (chart/pair/panel canonical feed alignment work remains intact).
