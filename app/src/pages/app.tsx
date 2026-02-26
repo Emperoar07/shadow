@@ -129,8 +129,8 @@ export default function TradingAppPage() {
             />
 
             {/* Terminal body: separated chart/orderbook and trading panel */}
-            <div className="basis-[60%] shrink-0 min-h-0 border-b border-shadow-600 p-2">
-              <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-row">
+            <div className="h-[60vh] min-h-[480px] shrink-0 border-b border-shadow-600 p-2">
+              <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-row lg:items-stretch">
                 {/* Chart + Orderbook block */}
                 <div className="flex h-full flex-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-shadow-600">
                   <div className="trade-terminal-grid h-full min-w-0 min-h-0 flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -155,7 +155,7 @@ export default function TradingAppPage() {
                 </div>
 
                 {/* Standalone TradingPanel outside chart/orderbook block */}
-                <div className="w-full shrink-0 min-h-0 overflow-y-auto rounded-xl border border-shadow-600 bg-shadow-900 lg:w-[360px]">
+                <div className="h-full w-full shrink-0 min-h-0 overflow-y-auto rounded-xl border border-shadow-600 bg-shadow-900 lg:w-[360px]">
                   <TradingPanel pair={selectedPair} layout="vertical" />
                 </div>
               </div>

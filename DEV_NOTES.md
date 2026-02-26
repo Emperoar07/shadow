@@ -69,6 +69,19 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `pnpm --dir app exec tsc --noEmit` -> PASS
   - `GET /app` -> 200
 
+## Layout Hardening: Non-Collapsing Terminal Height (2026-02-26 UTC)
+- Scope implemented:
+  - `app/src/pages/app.tsx`
+- Root cause:
+  - flex-basis percentage height (`basis-[60%]`) could still render as collapsed in some runtime/layout states.
+- Change:
+  - replaced basis-based row height with explicit viewport-based height:
+    - `h-[60vh] min-h-[480px]`
+  - enforced stretch semantics on row and explicit full-height on trading-panel column.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `GET /app` -> 200
+
 ## Security Hardening Batch Applied (2026-02-25 UTC)
 - Scope implemented:
   1. on-chain close path oracle safety guard
