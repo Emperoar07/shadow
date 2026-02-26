@@ -3,8 +3,36 @@
 Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
-- Date: 2026-02-25 (UTC)
+- Date: 2026-02-26 (UTC)
 - Author: Codex
+
+## Devnet Rollout Attempt + ABI Sync (2026-02-26 UTC)
+- Scope:
+  - `programs/shadowperp/src/state/position.rs`
+  - `app/src/idl/shadowperp.json`
+- Changes:
+  1. Fixed Anchor/IDL build blocker by deriving `Debug` for:
+     - `PositionStatus`
+     - `MarginMode`
+  2. Rebuilt program artifacts with:
+     - `npm run build:anchor:safe`
+  3. Deployed updated program binary + IDL to devnet:
+     - program: `2Gz35PAHBkggSfV77mCENobt5YEURuYMAjgpvKXoL61d`
+     - deploy signature: `2VttJqetQ4rW5SbcdyzbHofZocKRJpVZBYcQGw2LF8en6UepPDw6f3VoCY7t9pEYs4mo9LMoYTV2nCSGbuGN1jin`
+  4. Synced frontend IDL:
+     - `npm run app:sync-idl`
+     - includes `deposit_collateral_with_session` instruction and latest `margin_mode` args in open/session-open paths.
+- Verification:
+  - `npm run check:preflight` -> PASS (after oracle refresh)
+  - `npm run canary:devnet` -> FAIL only at queue simulation:
+    - `Queue call health (open_position simulate) - AccountDidNotSerialize (queue computation account serialization)`
+- Current blocker:
+  - Arcium devnet queue path still fails with `AccountDidNotSerialize`.
+  - ABI mismatch issue is cleared (no longer "too many arguments").
+- Next safe step:
+  1. Keep oracle live (`npm run oracle:daemon`) and keep preflight/canary as gates.
+  2. Share latest canary + tx logs with Arcium support as the active blocker.
+  3. Do not mark fully live until open+close callback flow passes canary/smoke without queue serialization failure.
 
 ## Protocol Margin Buckets: Isolated vs Cross On-Chain (2026-02-26 UTC)
 - Scope implemented:

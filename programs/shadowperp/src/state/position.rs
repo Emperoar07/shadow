@@ -204,7 +204,7 @@ impl Position {
 }
 
 /// Position status enum
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum PositionStatus {
     #[default]
     Pending, // Position opening in progress (MPC running)
@@ -214,7 +214,7 @@ pub enum PositionStatus {
     Liquidated, // Position was liquidated
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum MarginMode {
     #[default]
     Cross,

@@ -1444,6 +1444,171 @@
       ]
     },
     {
+      "name": "deposit_collateral_with_session",
+      "docs": [
+        "Relayer deposits collateral for owner under an active delegated session.",
+        "Requires prior SPL token delegate approval from owner to relayer."
+      ],
+      "discriminator": [
+        91,
+        139,
+        18,
+        121,
+        192,
+        199,
+        27,
+        97
+      ],
+      "accounts": [
+        {
+          "name": "relayer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "Session owner whose margin account is affected."
+          ],
+          "relations": [
+            "session"
+          ]
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "session"
+          ]
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "session.session_id",
+                "account": "TradeSession"
+              }
+            ]
+          }
+        },
+        {
+          "name": "margin_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_token_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "init_arcium_signer",
       "docs": [
         "Initialize computation definitions for MPC operations"
@@ -2175,6 +2340,10 @@
           }
         },
         {
+          "name": "margin_mode",
+          "type": "u8"
+        },
+        {
           "name": "margin",
           "type": "u64"
         },
@@ -2618,6 +2787,10 @@
               32
             ]
           }
+        },
+        {
+          "name": "margin_mode",
+          "type": "u8"
         },
         {
           "name": "margin",
