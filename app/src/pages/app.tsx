@@ -128,38 +128,39 @@ export default function TradingAppPage() {
               onMarginReady={handleMarginReady}
             />
 
-            {/* Terminal body: chart+orderbook grid | standalone trading panel */}
-            <div className="basis-[60%] shrink-0 min-h-0 overflow-hidden flex border-b border-shadow-600">
+            {/* Terminal body: separated chart/orderbook and trading panel */}
+            <div className="basis-[60%] shrink-0 min-h-0 border-b border-shadow-600 p-2">
+              <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-row">
+                {/* Chart + Orderbook block */}
+                <div className="flex-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-shadow-600">
+                  <div className="trade-terminal-grid flex-1 min-w-0 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+                    {/* Chart */}
+                    <div className="min-w-0 min-h-0 lg:border-r lg:border-shadow-600">
+                      <PriceChart
+                        selectedPair={selectedPair}
+                        onPairChange={handlePairChange}
+                        displayPrice={displayPrice}
+                        displayChange24h={displayChange24h}
+                      />
+                    </div>
 
-              {/* Chart + Orderbook grid */}
-              <div className="trade-terminal-grid flex-1 min-w-0 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
-
-                {/* Chart */}
-                <div className="min-w-0 min-h-0 lg:border-r lg:border-shadow-600">
-                  <PriceChart
-                    selectedPair={selectedPair}
-                    onPairChange={handlePairChange}
-                    displayPrice={displayPrice}
-                    displayChange24h={displayChange24h}
-                  />
+                    {/* Orderbook */}
+                    <div className="min-h-0">
+                      <PrivateOrderbook
+                        pair={selectedPair}
+                        referencePrice={displayPrice}
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Orderbook */}
-                <div className="min-h-0 lg:border-r lg:border-shadow-600">
-                  <PrivateOrderbook
-                    pair={selectedPair}
-                    referencePrice={displayPrice}
-                  />
+                {/* Standalone TradingPanel outside chart/orderbook block */}
+                <div className="w-full shrink-0 min-h-0 overflow-y-auto rounded-xl border border-shadow-600 bg-shadow-900 lg:w-[360px]">
+                  <TradingPanel pair={selectedPair} layout="vertical" />
                 </div>
-
               </div>
-
-              {/* Standalone TradingPanel — outside the grid */}
-              <div className="w-[360px] shrink-0 min-h-0 overflow-y-auto">
-                <TradingPanel pair={selectedPair} layout="vertical" />
-              </div>
-
             </div>
+
 
             {/* Positions panel */}
             <div className="flex-1 min-h-0">

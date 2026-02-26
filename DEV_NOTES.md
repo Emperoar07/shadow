@@ -44,6 +44,19 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Follow-up (if true isolated accounting is required):
   - add protocol-level margin mode field + liquidation/accounting branch in program and relay payloads.
 
+## Layout Update: Detached Trading Panel (2026-02-26 UTC)
+- Scope implemented:
+  - `app/src/pages/app.tsx`
+- Change:
+  - separated trading panel container from chart+orderbook container.
+  - preserved current right-side position on desktop (`lg:w-[360px]`), stacked on mobile.
+  - added independent rounded border wrappers so panel is visually detached, not part of the chart/orderbook block.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `GET /app` -> 200
+- Next safe step:
+  - if you want stronger separation, we can add independent height constraints or drag-resizable widths without touching trade logic.
+
 ## Security Hardening Batch Applied (2026-02-25 UTC)
 - Scope implemented:
   1. on-chain close path oracle safety guard
