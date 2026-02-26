@@ -6,6 +6,44 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-25 (UTC)
 - Author: Codex
 
+## Runtime Incident: "missing required error components" (2026-02-26 UTC)
+- Symptom:
+  - Browser showed: `missing required error components, refreshing...`
+  - App log showed missing vendor chunk under old Next path:
+    - `Cannot find module './chunks/vendor-chunks/next@14.1.0...js'`
+- Root cause:
+  - stale dev build output (`app/.next`) still referenced older Next runtime chunks after dependency upgrades.
+- Recovery performed:
+  1. stopped hosting stack
+  2. removed stale `app/.next`
+  3. reinstalled app deps with lockfile (`pnpm --dir app install --frozen-lockfile`)
+  4. restarted hosting stack (`npm run hosting:start`)
+  5. verified `/` and `/app` return `200`
+- Verification:
+  - `npm run check:preflight` still passes
+  - app dev server compiles `/` and `/app` successfully after restart
+- Next safe step:
+  - if this recurs after dependency changes, repeat the same cache reset flow before deeper debugging.
+
+## Trading UX: Margin Mode Selector (2026-02-26 UTC)
+- Scope implemented:
+  - `app/src/components/TradingPanel.tsx`
+- Change:
+  - added `MarginMode` selector (`Cross` / `Isolated`) in trading panel.
+  - added mode-aware risk display metrics in the "Perps Overview" card:
+    - margin ratio label/value
+    - account leverage label/value
+  - added explicit `Margin Mode` row in order summary.
+- Safety:
+  - no on-chain instruction/layout changes.
+  - no IDL changes.
+  - order execution path remains protocol-compatible on current devnet namespace.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `/app` returns 200 with updated panel rendering.
+- Follow-up (if true isolated accounting is required):
+  - add protocol-level margin mode field + liquidation/accounting branch in program and relay payloads.
+
 ## Security Hardening Batch Applied (2026-02-25 UTC)
 - Scope implemented:
   1. on-chain close path oracle safety guard

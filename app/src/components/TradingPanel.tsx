@@ -12,7 +12,6 @@ import {
   useArciumPrivacy,
 } from "../hooks/useArcium";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
-import { getExplorerTxUrl } from "../lib/explorer";
 import {
   disableEncryptedAutomationPersistence,
   enableEncryptedAutomationPersistence,
@@ -27,6 +26,7 @@ import {
 type Direction = "long" | "short";
 type SizeUnit = "base" | "usd";
 type OrderType = "market" | "limit";
+type MarginMode = "cross" | "isolated";
 
 const LEVERAGE_MARKERS = [1, 5, 10, 25, 50] as const;
 const MIN_LEVERAGE = LEVERAGE_MARKERS[0];
@@ -111,6 +111,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   const { connection } = useConnection();
   const [direction, setDirection] = useState<Direction>("long");
   const [orderType, setOrderType] = useState<OrderType>("market");
+  const [marginMode, setMarginMode] = useState<MarginMode>("cross");
   const [size, setSize] = useState("");
   const [sizeUnit, setSizeUnit] = useState<SizeUnit>("base");
   const [limitPrice, setLimitPrice] = useState("");
@@ -120,8 +121,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
-  const [depositAmount, setDepositAmount] = useState("");
-  const [isDepositing, setIsDepositing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
   const [liqThreshold, setLiqThreshold] = useState(80);
@@ -141,6 +140,8 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     relayAvailable,
     relaySession,
     refreshRelaySession,
+    ensureRelaySession,
+    invalidateRelaySession,
   } = useArciumPrivacy();
 
   const isRelaySessionActive =
@@ -162,6 +163,18 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
 
   const positionValue = sizeInBase && entryPrice ? sizeInBase * entryPrice : 0;
   const margin = positionValue > 0 ? positionValue / leverage : 0;
+  const activeMarginBalance = marginBalance ?? 0;
+  const unrealizedPnl = 0;
+  const accountEquity = Math.max(0, activeMarginBalance + unrealizedPnl);
+  const maintenanceMargin = positionValue * 0.05;
+  const riskEquity =
+    marginMode === "cross"
+      ? accountEquity
+      : margin > 0
+      ? margin
+      : 0;
+  const marginRatio = maintenanceMargin > 0 ? (riskEquity / maintenanceMargin) * 100 : 0;
+  const accountLeverage = riskEquity > 0 ? positionValue / riskEquity : 0;
 
   const estimatedLiqPrice =
     entryPrice && sizeInBase > 0
@@ -316,53 +329,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     const interval = setInterval(() => void refreshRelaySession(), 30_000);
     return () => clearInterval(interval);
   }, [publicKey, refreshRelaySession]);
-
-  const handleDeposit = useCallback(async () => {
-    const amt = parseFloat(depositAmount);
-    if (!amt || amt <= 0) { toast.error("Enter a valid deposit amount"); return; }
-    if (!anchorWallet || !publicKey) { toast.error("Please connect your wallet"); return; }
-    setIsDepositing(true);
-    try {
-      const ctx = getClient();
-      if (!ctx) {
-        toast.error(clientInitError || "Deposits unavailable. Check runtime configuration.", { id: "deposit" });
-        return;
-      }
-      const { client, runtime } = ctx;
-      const amountBN = new BN(Math.round(amt * 1_000_000));
-      toast.loading("Depositing collateral...", { id: "deposit" });
-      const tx = await client.depositCollateral(runtime.marketAddress, amountBN);
-      toast.success(
-        <div>
-          <p className="font-medium">Deposited ${amt.toFixed(2)} USDC</p>
-          <a
-            href={getExplorerTxUrl(tx)}
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-accent-purple underline"
-          >
-            View transaction
-          </a>
-        </div>,
-        { id: "deposit", duration: 8000 }
-      );
-      setDepositAmount("");
-      void refreshMarketData();
-    } catch (error: any) {
-      const msg = error?.message || "Deposit failed";
-      if (msg.includes("env var")) {
-        const matched = msg.match(/env var:\s*([A-Z0-9_]+)/i);
-        const detail = matched?.[1]
-          ? `Deposits unavailable: missing ${matched[1]}. Set it in app/.env.local and restart Next.js.`
-          : "Deposits unavailable. Check app/.env.local and restart Next.js.";
-        toast.error(detail, { id: "deposit" });
-      } else {
-        toast.error(msg, { id: "deposit" });
-      }
-    } finally {
-      setIsDepositing(false);
-    }
-  }, [depositAmount, anchorWallet, publicKey, getClient, refreshMarketData, clientInitError]);
 
   const submitEncryptedOrder = useCallback(
     async (input: {
@@ -730,6 +696,60 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </span>
           </div>
 
+          <div className="grid grid-cols-1 gap-1.5">
+            <button
+              type="button"
+              onClick={() => setMarginMode("cross")}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                marginMode === "cross"
+                  ? "border-accent-purple/50 bg-accent-purple/10"
+                  : "border-shadow-500 bg-shadow-700/50 hover:border-accent-purple/35"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-flex h-4 w-4 items-center justify-center rounded-sm border ${
+                    marginMode === "cross"
+                      ? "border-accent-purple bg-accent-purple/20 text-accent-purple"
+                      : "border-shadow-500 text-transparent"
+                  }`}
+                >
+                  ✓
+                </span>
+                <span className="text-sm font-semibold text-white">Cross</span>
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                All positions share account collateral.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMarginMode("isolated")}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                marginMode === "isolated"
+                  ? "border-accent-purple/50 bg-accent-purple/10"
+                  : "border-shadow-500 bg-shadow-700/50 hover:border-accent-purple/35"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-flex h-4 w-4 items-center justify-center rounded-sm border ${
+                    marginMode === "isolated"
+                      ? "border-accent-purple bg-accent-purple/20 text-accent-purple"
+                      : "border-shadow-500 text-transparent"
+                  }`}
+                >
+                  ✓
+                </span>
+                <span className="text-sm font-semibold text-white">Isolated</span>
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                Margin is scoped to this position sizing flow.
+              </p>
+            </button>
+          </div>
+
           <div>
             <div className="mb-1 flex items-center justify-between">
               <label className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Size</label>
@@ -965,6 +985,108 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
               `Open ${direction.charAt(0).toUpperCase() + direction.slice(1)} Position`
             )}
           </button>
+
+          <div className="rounded-xl border border-shadow-500 bg-shadow-700/35 p-2.5 space-y-2">
+            <div className="space-y-1.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Liquidation Price</span>
+                <span className="font-semibold text-white">
+                  {estimatedLiqPrice ? formatPrice(estimatedLiqPrice) : "N/A"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Order Value</span>
+                <span className="font-semibold text-white">
+                  {positionValue > 0 ? `$${positionValue.toFixed(2)}` : "N/A"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Margin Required</span>
+                <span className="font-semibold text-white">
+                  {margin > 0 ? `$${margin.toFixed(2)}` : "N/A"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Margin Mode</span>
+                <span className="font-semibold text-white capitalize">{marginMode}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Slippage</span>
+                <span className="font-semibold text-teal-300">Est: 0% / Max: 8.00%</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Fees</span>
+                <span className="font-semibold text-white">0.0450% / 0.0150%</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCollateralModalOpen(true)}
+              className="w-full rounded-lg bg-accent-green/30 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-green/40"
+            >
+              Deposit
+            </button>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-shadow-500 py-2 text-sm font-medium text-gray-300/80"
+                title="Perps and spot balances are separated in this build."
+              >
+                Perps {"<->"} Spot
+              </button>
+              <button
+                type="button"
+                onClick={() => setCollateralModalOpen(true)}
+                className="rounded-lg border border-shadow-500 py-2 text-sm font-medium text-gray-200 transition-colors hover:border-accent-purple"
+              >
+                Withdraw
+              </button>
+            </div>
+
+            <div className="border-t border-shadow-600 pt-2">
+              <h4 className="mb-1 text-sm font-semibold text-white">Account Equity</h4>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Spot</span>
+                  <span className="font-semibold text-white">$0.00</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Perps</span>
+                  <span className="font-semibold text-white">${activeMarginBalance.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <h5 className="mt-2 mb-1 text-sm font-semibold text-white">Perps Overview</h5>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Balance</span>
+                  <span className="font-semibold text-white">${activeMarginBalance.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Unrealized PNL</span>
+                  <span className="font-semibold text-white">${unrealizedPnl.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">
+                    {marginMode === "cross" ? "Cross Margin Ratio" : "Isolated Margin Ratio"}
+                  </span>
+                  <span className="font-semibold text-teal-300">{marginRatio.toFixed(2)}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Maintenance Margin</span>
+                  <span className="font-semibold text-white">${maintenanceMargin.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">
+                    {marginMode === "cross" ? "Cross Account Leverage" : "Isolated Leverage"}
+                  </span>
+                  <span className="font-semibold text-white">{accountLeverage.toFixed(2)}x</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -978,6 +1100,19 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         errorMessage={tradeError}
         txSignature={tradeTxSig}
         onClose={() => setModalOpen(false)}
+      />
+
+      <CollateralModal
+        isOpen={collateralModalOpen}
+        marginBalance={marginBalance}
+        onClose={() => setCollateralModalOpen(false)}
+        onSuccess={() => void refreshMarketData()}
+        relayAvailable={relayAvailable}
+        relaySession={relaySession}
+        isRelaySessionActive={isRelaySessionActive}
+        ensureRelaySession={ensureRelaySession}
+        invalidateRelaySession={invalidateRelaySession}
+        refreshRelaySession={refreshRelaySession}
       />
 
     </div>
