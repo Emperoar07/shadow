@@ -6,6 +6,34 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-25 (UTC)
 - Author: Codex
 
+## Trading UX: Isolated Mode Enabled for Execution (2026-02-26 UTC)
+- Scope implemented:
+  - `app/src/components/TradingPanel.tsx`
+- Changes:
+  1. removed isolated-mode submit block:
+     - deleted guard that forced:
+       - `"Isolated mode is not live on-chain yet. Switch to Cross mode."`
+  2. removed isolated `Preview only` badge from mode selector.
+  3. hardened pre-submit collateral checks to use free collateral:
+     - computes spendable margin as `balance - locked_balance` from margin account.
+     - rejects orders that exceed spendable collateral, not just total balance.
+  4. updated sizing slider max notional to use spendable collateral for safer isolated/cross UX when some margin is already locked.
+- Safety:
+  - no on-chain instruction/account layout changes.
+  - no IDL changes.
+  - no relay/session signing flow changes.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run check:preflight` -> PASS (oracle age 124s)
+- Current blocker:
+  - unchanged protocol blocker on Arcium queue path can still surface in current namespace (`AccountDidNotSerialize`) during open-position queue.
+- Next safe step:
+  1. run manual smoke on `/app`:
+     - cross submit
+     - isolated submit
+     - ensure both enforce spendable collateral correctly while positions are already open.
+  2. if queue-path fails, continue using canary/preflight guardrails and keep isolated UI enabled as requested.
+
 ## Runtime Incident: "missing required error components" (2026-02-26 UTC)
 - Symptom:
   - Browser showed: `missing required error components, refreshing...`

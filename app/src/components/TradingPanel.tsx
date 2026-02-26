@@ -134,6 +134,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
+  const [availableMarginBalance, setAvailableMarginBalance] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
   const [liqThreshold, setLiqThreshold] = useState(80);
@@ -289,6 +290,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       if (requestSeq !== refreshSeqRef.current) return;
       setMarketPrice(fallbackPrice);
       setMarginBalance(null);
+      setAvailableMarginBalance(null);
       setWarning(hasLivePrice ? null : fallbackWarning);
       return;
     }
@@ -298,6 +300,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       if (requestSeq !== refreshSeqRef.current) return;
       setMarketPrice(fallbackPrice);
       setMarginBalance(null);
+      setAvailableMarginBalance(null);
       setWarning(hasLivePrice ? null : fallbackWarning);
       return;
     }
@@ -336,15 +339,20 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       if (marginResult.status === "fulfilled") {
         const bal =
           new BN(marginResult.value.balance.toString()).toNumber() / 1_000_000;
+        const locked =
+          new BN(marginResult.value.lockedBalance.toString()).toNumber() / 1_000_000;
         setMarginBalance(bal);
+        setAvailableMarginBalance(Math.max(0, bal - locked));
       } else {
         setMarginBalance(0);
+        setAvailableMarginBalance(0);
       }
 
       setWarning(usedFallbackPrice && !hasLivePrice ? fallbackWarning : null);
     } catch {
       if (requestSeq !== refreshSeqRef.current) return;
       setMarketPrice(fallbackPrice);
+      setAvailableMarginBalance(null);
       setWarning(hasLivePrice ? null : fallbackWarning);
     }
   }, [anchorWallet, publicKey, getClient, activePair]);
@@ -445,12 +453,13 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     }
     if (!publicKey) { toast.error("Please connect your wallet"); return; }
     if (!anchorWallet) { toast.error("Wallet does not support signing transactions"); return; }
-    if (marginBalance !== null) {
-      if (marginBalance <= 0) {
+    const spendableMarginBalance = availableMarginBalance ?? marginBalance;
+    if (spendableMarginBalance !== null) {
+      if (spendableMarginBalance <= 0) {
         toast.error("Deposit collateral first before opening a position");
         return;
       }
-      if (!Number.isFinite(margin) || margin <= 0 || margin > marginBalance) {
+      if (!Number.isFinite(margin) || margin <= 0 || margin > spendableMarginBalance) {
         toast.error("Insufficient margin balance for this order size");
         return;
       }
@@ -466,11 +475,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     const validationError = validateTpSl(direction, entryPrice, tp, sl);
     if (validationError) {
       toast.error(validationError);
-      return;
-    }
-
-    if (marginMode === "isolated") {
-      toast.error("Isolated mode is not live on-chain yet. Switch to Cross mode.");
       return;
     }
 
@@ -570,6 +574,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     activePair.base.symbol,
     activePair.quote.decimals,
     marginBalance,
+    availableMarginBalance,
     margin,
     isRelaySessionActive,
     positionValue,
@@ -752,11 +757,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
                 </svg>
               </button>
-              {marginMode === "isolated" && (
-                <span className="inline-flex items-center rounded-lg border border-yellow-500/35 bg-yellow-500/10 px-2 py-1 text-[10px] font-semibold text-yellow-300">
-                  Preview only
-                </span>
-              )}
               {/* Leverage chip — click to expand slider */}
               <button
                 type="button"
@@ -837,7 +837,11 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </div>
             <div className="mt-1.5">
               {(() => {
-                const maxNotional = marginBalance && marginBalance > 0 ? marginBalance * leverage : null;
+                const effectiveMarginBalance = availableMarginBalance ?? marginBalance;
+                const maxNotional =
+                  effectiveMarginBalance && effectiveMarginBalance > 0
+                    ? effectiveMarginBalance * leverage
+                    : null;
                 const currentNotional = sizeUnit === "usd"
                   ? parseFloat(size) || 0
                   : ((parseFloat(size) || 0) * (marketPrice ?? 0));
