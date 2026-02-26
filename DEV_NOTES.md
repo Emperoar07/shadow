@@ -92,6 +92,15 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `pnpm --dir app exec tsc --noEmit` -> PASS
   - `GET /app` -> 200
 
+## Layout Tuning: Terminal Row Height 70% (2026-02-26 UTC)
+- Scope implemented:
+  - `app/src/pages/app.tsx`
+- Change:
+  - terminal row height updated from `h-[20vh]` to `h-[70vh]`.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `GET /app` -> 200
+
 ## Security Hardening Batch Applied (2026-02-25 UTC)
 - Scope implemented:
   1. on-chain close path oracle safety guard
