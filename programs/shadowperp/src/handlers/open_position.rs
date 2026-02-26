@@ -19,6 +19,7 @@ use crate::handlers::callbacks::open_position_callback::OpenPositionV2Callback;
     encrypted_leverage: [u8; 32],
     encrypted_is_long: [u8; 32],
     encrypted_margin: [u8; 32],
+    margin_mode: u8,
     margin: u64,
     client_pubkey: [u8; 32],
     nonce: u128,
@@ -105,6 +106,7 @@ pub fn handler(
     encrypted_leverage: [u8; 32],
     encrypted_is_long: [u8; 32],
     encrypted_margin: [u8; 32],
+    margin_mode: u8,
     margin: u64,
     client_pubkey: [u8; 32],
     nonce: u128,
@@ -164,6 +166,7 @@ pub fn handler(
     position.client_pubkey = client_pubkey;
     position.index = next_position_index;
     position.bump = ctx.bumps.position;
+    position.set_margin_mode_from_u8(margin_mode)?;
     // Bind this position to the specific computation account that will execute it.
     // The callback will verify this key before accepting any MPC output.
     // This helper also enforces one in-flight computation at a time.

@@ -12,6 +12,7 @@ export enum PositionStatus {
 
 // Position direction
 export type PositionDirection = "long" | "short";
+export type MarginMode = "cross" | "isolated";
 
 // Position input for opening a new position
 export interface OpenPositionInput {
@@ -20,6 +21,7 @@ export interface OpenPositionInput {
   leverage: number; // 1-100
   direction: PositionDirection;
   margin: BN; // Collateral amount
+  marginMode?: MarginMode;
 }
 
 // Encrypted position data (as stored on-chain)

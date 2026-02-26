@@ -90,6 +90,7 @@ impl Position {
     const PENDING_CALLBACK_SEQ_OFFSET: usize = 8;
     const PENDING_CALLBACK_KIND_OFFSET: usize = 16;
     const PENDING_COMP_OFFSET_OFFSET: usize = 17;
+    const MARGIN_MODE_OFFSET: usize = 25;
 
     pub const CALLBACK_KIND_NONE: u8 = 0;
     pub const CALLBACK_KIND_OPEN: u8 = 1;
@@ -170,6 +171,20 @@ impl Position {
         Ok(())
     }
 
+    pub fn margin_mode(&self) -> MarginMode {
+        MarginMode::from_stored(self._reserved[Self::MARGIN_MODE_OFFSET])
+    }
+
+    pub fn set_margin_mode(&mut self, mode: MarginMode) {
+        self._reserved[Self::MARGIN_MODE_OFFSET] = mode.as_u8();
+    }
+
+    pub fn set_margin_mode_from_u8(&mut self, value: u8) -> Result<()> {
+        let mode = MarginMode::from_u8(value)?;
+        self.set_margin_mode(mode);
+        Ok(())
+    }
+
     pub const LEN: usize = 8 +   // discriminator
         32 +  // owner
         32 +  // market
@@ -197,6 +212,37 @@ pub enum PositionStatus {
     Closing,    // Position close in progress (MPC running)
     Closed,     // Position settled, PnL revealed
     Liquidated, // Position was liquidated
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MarginMode {
+    #[default]
+    Cross,
+    Isolated,
+}
+
+impl MarginMode {
+    pub fn from_u8(value: u8) -> Result<Self> {
+        match value {
+            0 => Ok(Self::Cross),
+            1 => Ok(Self::Isolated),
+            _ => Err(ShadowPerpError::InvalidAccountData.into()),
+        }
+    }
+
+    pub fn from_stored(value: u8) -> Self {
+        match value {
+            1 => Self::Isolated,
+            _ => Self::Cross,
+        }
+    }
+
+    pub fn as_u8(self) -> u8 {
+        match self {
+            Self::Cross => 0,
+            Self::Isolated => 1,
+        }
+    }
 }
 
 /// Event emitted when a position is opened
@@ -318,5 +364,21 @@ mod tests {
 
         let consumed_again = position.consume_pending_computation(computation);
         assert!(consumed_again.is_err());
+    }
+
+    #[test]
+    fn margin_mode_roundtrip() {
+        let mut position = Position::default();
+        assert_eq!(position.margin_mode(), MarginMode::Cross);
+
+        position
+            .set_margin_mode_from_u8(1)
+            .expect("set isolated mode");
+        assert_eq!(position.margin_mode(), MarginMode::Isolated);
+
+        position
+            .set_margin_mode_from_u8(0)
+            .expect("set cross mode");
+        assert_eq!(position.margin_mode(), MarginMode::Cross);
     }
 }

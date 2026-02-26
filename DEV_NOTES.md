@@ -6,6 +6,57 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-25 (UTC)
 - Author: Codex
 
+## Protocol Margin Buckets: Isolated vs Cross On-Chain (2026-02-26 UTC)
+- Scope implemented:
+  - `programs/shadowperp/src/state/position.rs`
+  - `programs/shadowperp/src/state/margin_account.rs`
+  - `programs/shadowperp/src/handlers/open_position.rs`
+  - `programs/shadowperp/src/handlers/session_trading.rs`
+  - `programs/shadowperp/src/handlers/callbacks/open_position_callback.rs`
+  - `programs/shadowperp/src/handlers/callbacks/close_position_callback.rs`
+  - `programs/shadowperp/src/handlers/callbacks/liquidation_callback.rs`
+  - `programs/shadowperp/src/lib.rs`
+  - `app/src/lib/client.ts`
+  - `app/src/hooks/useArcium.ts`
+  - `app/src/pages/api/relay/open.ts`
+  - `app/src/components/TradingPanel.tsx`
+  - `app/src/types/index.ts`
+  - `scripts/devnet-canary.ts`
+  - `scripts/session-relayer.ts`
+- Changes:
+  1. Added protocol margin mode metadata on `Position` using reserved bytes (no account size change):
+     - `MarginMode` enum (`cross` / `isolated`)
+     - `position.set_margin_mode_from_u8(...)` on open paths.
+  2. Added explicit lock buckets on `MarginAccount` using reserved bytes (no migration realloc):
+     - `cross_locked_balance`
+     - `isolated_locked_balance`
+     - helpers: `lock_margin(...)`, `unlock_margin(...)`, legacy fallback handling.
+  3. Updated open callback accounting:
+     - lock collateral into margin-mode bucket + aggregate `locked_balance`.
+  4. Updated close/liquidation callback accounting:
+     - unlock from margin-mode bucket with legacy-locked compatibility fallback.
+  5. Updated instruction interfaces:
+     - `open_position(...)` now includes `margin_mode: u8`.
+     - `open_position_with_session(...)` now includes `margin_mode: u8`.
+  6. Updated relay/client/UI plumbing to pass margin mode end-to-end.
+  7. Updated canary/session scripts to the new open-position arg shape.
+- Safety:
+  - no account-size expansion and no forced account migrations.
+  - legacy positions/margin state remain closeable due fallback unlock logic.
+- Verification:
+  - `cargo check -p shadowperp` -> PASS
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run oracle:once` -> PASS
+  - `npm run check:preflight` -> PASS
+- Current blocker:
+  - rollout requires program rebuild/deploy + IDL sync before frontend runtime can call new arg shapes against devnet.
+  - `anchor build` from current PowerShell environment needs env/toolchain stabilization (initial `HOME` error; timed run exceeded default timeout).
+- Next safe step:
+  1. run `anchor build` in stable shell env (set `HOME`, allow longer timeout).
+  2. deploy updated program to devnet namespace.
+  3. sync `target/idl/shadowperp.json` into `app/src/idl/shadowperp.json`.
+  4. rerun delegated open/close smoke for both `cross` and `isolated`.
+
 ## Pending Local Mods Reviewed + Shipped (2026-02-26 UTC)
 - Scope reviewed:
   - `app/next-env.d.ts`

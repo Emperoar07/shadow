@@ -135,6 +135,15 @@ function parsePositiveNumber(
   return parsed;
 }
 
+function parseMarginMode(value: string | undefined): "cross" | "isolated" {
+  if (!value) return "cross";
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "cross" || normalized === "isolated") {
+    return normalized;
+  }
+  throw new Error(`Invalid margin-mode: ${value}`);
+}
+
 function resolveWalletPath(value?: string): string {
   const normalized = normalizeValue(value);
   if (normalized && fs.existsSync(normalized)) return normalized;
@@ -414,6 +423,7 @@ async function main(): Promise<void> {
       const direction =
         (flags.direction || "long").toLowerCase() === "short" ? "short" : "long";
       const leverage = parsePositiveInt("leverage", flags.leverage, 2);
+      const marginMode = parseMarginMode(flags["margin-mode"]);
       const marginUsdc = parsePositiveNumber("margin-usdc", flags["margin-usdc"], 1);
       const sizeUsdc = parsePositiveNumber("size-usdc", flags["size-usdc"], marginUsdc * leverage);
       const entryPrice = new BN(market.oraclePrice.toString());
@@ -423,6 +433,7 @@ async function main(): Promise<void> {
         leverage,
         direction,
         margin: toUsdcRaw(marginUsdc),
+        marginMode,
       };
 
       const result = await relayerClient.openPositionWithSession(
@@ -497,6 +508,7 @@ async function main(): Promise<void> {
           leverage: 2,
           direction: "long",
           margin: toUsdcRaw(1),
+          marginMode: "cross",
         };
 
         const opened = await relayerClient.openPositionWithSession(

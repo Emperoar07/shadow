@@ -26,6 +26,7 @@ export interface PrivateOrderInput {
   sizeUi: number;
   leverage: number;
   entryPriceUi?: number;
+  marginMode?: "cross" | "isolated";
 }
 
 export interface SessionRelayInfo {
@@ -964,6 +965,7 @@ export const useArciumPrivacy = () => {
           owner: activeRelaySession.owner,
           sessionId: activeRelaySession.sessionId,
           side: order.side,
+          marginMode: order.marginMode ?? "cross",
           leverage: order.leverage,
           sizeRaw: sizeBase.toString(),
           entryPriceRaw: entryPrice.toString(),

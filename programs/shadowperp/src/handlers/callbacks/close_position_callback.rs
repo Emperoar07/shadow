@@ -161,11 +161,8 @@ pub fn close_position_callback_handler(
     market.encrypted_total_long_oi = oi_ciphertexts[0];
     market.encrypted_total_short_oi = oi_ciphertexts[1];
 
-    // Unlock margin
-    margin_account.locked_balance = margin_account
-        .locked_balance
-        .checked_sub(locked_margin)
-        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+    // Unlock margin in the position's margin bucket (cross/isolated).
+    margin_account.unlock_margin(position.margin_mode(), locked_margin)?;
 
     // Privacy hardening: avoid exposing cumulative realised PnL as public account state.
     margin_account.total_realized_pnl = 0;

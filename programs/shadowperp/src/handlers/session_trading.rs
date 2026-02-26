@@ -120,6 +120,7 @@ pub fn revoke_trade_session_handler(ctx: Context<RevokeTradeSession>) -> Result<
     encrypted_leverage: [u8; 32],
     encrypted_is_long: [u8; 32],
     encrypted_margin: [u8; 32],
+    margin_mode: u8,
     margin: u64,
     client_pubkey: [u8; 32],
     nonce: u128,
@@ -215,6 +216,7 @@ pub fn open_position_with_session_handler(
     encrypted_leverage: [u8; 32],
     encrypted_is_long: [u8; 32],
     encrypted_margin: [u8; 32],
+    margin_mode: u8,
     margin: u64,
     client_pubkey: [u8; 32],
     nonce: u128,
@@ -261,6 +263,7 @@ pub fn open_position_with_session_handler(
     position.client_pubkey = client_pubkey;
     position.index = next_position_index;
     position.bump = ctx.bumps.position;
+    position.set_margin_mode_from_u8(margin_mode)?;
     position.begin_pending_computation(
         ctx.accounts.computation_account.key(),
         Position::CALLBACK_KIND_OPEN,

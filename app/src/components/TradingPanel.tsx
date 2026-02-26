@@ -387,6 +387,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           sizeUi: input.sizeBase,
           leverage: input.leverage,
           entryPriceUi: input.entryPrice,
+          marginMode: input.marginMode,
         },
         true
       );

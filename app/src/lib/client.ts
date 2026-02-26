@@ -502,6 +502,8 @@ export class ShadowPerpClient {
       computationOffset
     );
 
+    const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
+
     const tx = await this.program.methods
       .openPosition(
         Array.from(encryptedSize),
@@ -509,6 +511,7 @@ export class ShadowPerpClient {
         Array.from(encryptedLeverage),
         Array.from(encryptedIsLong),
         Array.from(encryptedMargin),
+        marginModeFlag,
         input.margin,
         Array.from(this.clientPublicKey!),
         nonceBN,
@@ -575,6 +578,8 @@ export class ShadowPerpClient {
       computationOffset
     );
 
+    const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
+
     const tx = await this.program.methods
       .openPositionWithSession(
         Array.from(encryptedSize),
@@ -582,6 +587,7 @@ export class ShadowPerpClient {
         Array.from(encryptedLeverage),
         Array.from(encryptedIsLong),
         Array.from(encryptedMargin),
+        marginModeFlag,
         input.margin,
         Array.from(this.clientPublicKey!),
         nonceBN,

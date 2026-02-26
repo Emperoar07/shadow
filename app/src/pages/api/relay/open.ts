@@ -16,6 +16,7 @@ type OpenRequestBody = {
   owner?: string;
   sessionId?: string;
   side?: "long" | "short";
+  marginMode?: "cross" | "isolated";
   leverage?: number;
   sizeRaw?: string;
   entryPriceRaw?: string;
@@ -79,6 +80,9 @@ export default async function handler(
       return;
     }
     if (body.side !== "long" && body.side !== "short") throw new Error("Invalid side");
+    if (body.marginMode && body.marginMode !== "cross" && body.marginMode !== "isolated") {
+      throw new Error("Invalid marginMode");
+    }
     if (!Number.isInteger(body.leverage) || (body.leverage as number) < 1) {
       throw new Error("Invalid leverage");
     }
@@ -157,6 +161,7 @@ export default async function handler(
         leverage: body.leverage as number,
         direction: body.side,
         margin,
+        marginMode: body.marginMode ?? "cross",
       }
     );
 

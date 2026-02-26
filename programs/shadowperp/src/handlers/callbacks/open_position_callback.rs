@@ -131,10 +131,7 @@ pub fn open_position_callback_handler(
         ShadowPerpError::InsufficientMargin
     );
 
-    margin_account.locked_balance = margin_account
-        .locked_balance
-        .checked_add(required_margin)
-        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+    margin_account.lock_margin(position.margin_mode(), required_margin)?;
 
     // Privacy hardening:
     // do not persist active locked collateral in plaintext position state.

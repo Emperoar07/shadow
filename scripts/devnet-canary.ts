@@ -414,6 +414,7 @@ async function main(): Promise<void> {
         encLeverage,
         encIsLong,
         encMargin,
+        0,
         marginAmount,
         Array.from(clientPubKey),
         new BN(nonceBytes, "le"),

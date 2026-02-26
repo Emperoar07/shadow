@@ -157,10 +157,7 @@ pub fn check_liquidation_callback_handler(
         position.margin
     };
     require!(margin > 0, ShadowPerpError::InvalidComputationResult);
-    margin_account.locked_balance = margin_account
-        .locked_balance
-        .checked_sub(margin)
-        .ok_or(ShadowPerpError::ArithmeticOverflow)?;
+    margin_account.unlock_margin(position.margin_mode(), margin)?;
 
     // Calculate liquidation penalty (5% to liquidator, rest returned).
     // Use multiply-then-divide to avoid integer-division precision loss.
