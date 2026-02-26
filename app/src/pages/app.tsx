@@ -129,7 +129,7 @@ export default function TradingAppPage() {
             />
 
             {/* Terminal body: separated chart/orderbook and trading panel */}
-            <div className="h-[70vh] shrink-0 border-b border-shadow-600 p-2">
+            <div className="h-[80vh] shrink-0 border-b border-shadow-600 p-2">
               <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-row lg:items-stretch">
                 {/* Chart + Orderbook block */}
                 <div className="flex h-full flex-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-shadow-600">
