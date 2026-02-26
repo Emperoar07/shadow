@@ -6,6 +6,26 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-02-25 (UTC)
 - Author: Codex
 
+## Pending Local Mods Reviewed + Shipped (2026-02-26 UTC)
+- Scope reviewed:
+  - `app/next-env.d.ts`
+  - `app/pnpm-lock.yaml`
+  - `app/src/components/PortfolioSummary.tsx`
+  - `app/src/components/PrivateOrderbook.tsx`
+- Review outcome:
+  1. `next-env.d.ts` route-types reference update is valid for current Next setup.
+  2. lockfile updates align with current `app/package.json` (`next@15.5.10`) and dependency overrides.
+  3. `PortfolioSummary.tsx` removes interactive equity popover block; summary stats remain functional.
+  4. `PrivateOrderbook.tsx` updates tabs/grouping UI structure without changing trading execution paths.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit` -> PASS
+  - `npm run check:preflight` -> PASS
+- Current blocker:
+  - unchanged Arcium queue-path risk (`AccountDidNotSerialize`) in current namespace.
+- Next safe step:
+  1. run `/app` UI smoke for portfolio summary + orderbook interactions after restart.
+  2. if visual regressions appear, revert only UI component changes (`PortfolioSummary.tsx`, `PrivateOrderbook.tsx`) without touching lock/runtime files.
+
 ## Workspace Hygiene: Preview Artifact Cleanup (2026-02-26 UTC)
 - Scope:
   - repo root local preview files

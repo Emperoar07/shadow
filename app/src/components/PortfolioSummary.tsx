@@ -32,9 +32,7 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
   const { connection } = useConnection();
   const [data, setData] = useState<PortfolioData | null>(null);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
-  const equityCardRef = useRef<HTMLDivElement | null>(null);
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
-  const [equityCardOpen, setEquityCardOpen] = useState(false);
   const {
     relayAvailable,
     relaySession,
@@ -164,17 +162,6 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
     onMarginReady?.(data?.marginBalance ?? null, () => setCollateralModalOpen(true));
   }, [data, onMarginReady]);
 
-  useEffect(() => {
-    if (!equityCardOpen) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (!equityCardRef.current) return;
-      if (!equityCardRef.current.contains(event.target as Node)) {
-        setEquityCardOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [equityCardOpen]);
 
   if (!publicKey) return null;
 
@@ -201,82 +188,6 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
         value={data ? `${data.openPositions}` : "--"}
       />
 
-      <div className="w-px h-5 bg-shadow-600 shrink-0" />
-
-      {/* Account Equity */}
-      <div className="relative" ref={equityCardRef}>
-        <button
-          type="button"
-          onClick={() => setEquityCardOpen((open) => !open)}
-          className="rounded-md px-1 py-0.5 text-left transition-colors hover:bg-shadow-700/40"
-        >
-          <SummaryStat
-            label="Account Equity"
-            value={
-              (() => {
-                const equity = data?.accountEquity;
-                if (equity === null || equity === undefined) {
-                  return <span className="text-gray-400 text-xs">--</span>;
-                }
-                return (
-                  <span className="text-gray-200 text-xs font-semibold">
-                    {formatUsd(equity)}
-                  </span>
-                );
-              })()
-            }
-          />
-        </button>
-        {equityCardOpen && (
-          <div className="absolute left-0 top-full z-[170] mt-2 w-[290px] rounded-xl border border-shadow-500 bg-shadow-800 p-3 shadow-[0_18px_45px_rgba(0,0,0,0.5)]">
-            <h3 className="text-sm font-semibold text-gray-100">Account Equity</h3>
-            <div className="mt-3 space-y-2">
-              <EquityRow label="Spot" value={formatUsd(0)} />
-              <EquityRow label="Perps" value={formatUsd(data?.accountEquity)} />
-            </div>
-            <div className="mt-3 border-t border-shadow-600 pt-2">
-              <h4 className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
-                Perps Overview
-              </h4>
-              <div className="mt-2 space-y-1.5">
-                <EquityRow label="Balance" value={formatUsd(data?.marginBalance)} />
-                <EquityRow
-                  label="Unrealized PNL"
-                  value={formatSignedUsd(data?.unrealizedPnl)}
-                  valueClass={
-                    typeof data?.unrealizedPnl === "number"
-                      ? data.unrealizedPnl >= 0
-                        ? "text-accent-green"
-                        : "text-accent-red"
-                      : "text-gray-200"
-                  }
-                />
-                <EquityRow
-                  label="Cross Margin Ratio"
-                  value={formatPercent(data?.accountHealth)}
-                  valueClass={
-                    (data?.accountHealth ?? 0) > 70
-                      ? "text-accent-green"
-                      : (data?.accountHealth ?? 0) > 30
-                      ? "text-yellow-400"
-                      : "text-accent-red"
-                  }
-                />
-                <EquityRow
-                  label="Maintenance Margin"
-                  value={formatUsd(data?.maintenanceMargin)}
-                />
-                <EquityRow
-                  label="Cross Account Leverage"
-                  value={formatLeverage(data?.crossAccountLeverage)}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="w-px h-5 bg-shadow-600 shrink-0" />
 
       {/* Unrealized PnL */}
       <SummaryStat
