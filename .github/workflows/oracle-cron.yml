@@ -6,6 +6,10 @@ on:
     - cron: "*/4 * * * *"
   workflow_dispatch: {}
 
+concurrency:
+  group: oracle-price-feed
+  cancel-in-progress: true
+
 jobs:
   update-price:
     runs-on: ubuntu-latest
@@ -37,6 +41,7 @@ jobs:
 
       - name: Update oracle price
         env:
+          SOLANA_RPC_URL: ${{ vars.SOLANA_RPC_URL }}
           NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID }}
           NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT: ${{ vars.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT }}
           NEXT_PUBLIC_SOLANA_RPC_URL: ${{ vars.NEXT_PUBLIC_SOLANA_RPC_URL }}
@@ -44,5 +49,9 @@ jobs:
           # Fall back to .env.local values if repo vars not set
           if [ -z "${NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID}" ] && [ -f app/.env.local ]; then
             export $(grep -v '^#' app/.env.local | xargs)
+          fi
+          # Prefer server RPC if provided, otherwise fall back to public RPC.
+          if [ -z "${SOLANA_RPC_URL}" ]; then
+            export SOLANA_RPC_URL="${NEXT_PUBLIC_SOLANA_RPC_URL}"
           fi
           npx ts-node scripts/price-oracle.ts --once

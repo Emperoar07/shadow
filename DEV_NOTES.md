@@ -3,7 +3,7 @@
 Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
-- Date: 2026-02-26 (UTC)
+- Date: 2026-02-27 (UTC)
 - Author: Codex
 
 ## Devnet Rollout Attempt + ABI Sync (2026-02-26 UTC)
@@ -33,6 +33,15 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   1. Keep oracle live (`npm run oracle:daemon`) and keep preflight/canary as gates.
   2. Share latest canary + tx logs with Arcium support as the active blocker.
   3. Do not mark fully live until open+close callback flow passes canary/smoke without queue serialization failure.
+
+## Oracle Cron Hardening (2026-02-27 UTC)
+- Scope:
+  - `.github/workflows/oracle-cron.yml`
+- Changes:
+  1. Added workflow concurrency guard to prevent overlapping runs.
+  2. Added `SOLANA_RPC_URL` support (server RPC preferred; falls back to `NEXT_PUBLIC_SOLANA_RPC_URL`).
+- Notes:
+  - GitHub Actions schedules are best-effort; keep `oracle:daemon` on a stable host if strict freshness is required.
 
 ## Protocol Margin Buckets: Isolated vs Cross On-Chain (2026-02-26 UTC)
 - Scope implemented:
