@@ -172,6 +172,18 @@ function shortError(error: any): string {
   return msg.split("\n")[0].slice(0, 220);
 }
 
+function extractLogs(error: any): string[] {
+  const logs: string[] =
+    error?.logs ||
+    error?.error?.logs ||
+    error?.error?.errorLogs ||
+    error?.transactionLogs ||
+    error?.simulationResponse?.logs ||
+    error?.error?.simulationResponse?.logs ||
+    [];
+  return Array.isArray(logs) ? logs : [];
+}
+
 function generateClientPrivateKey(): Uint8Array {
   const utils = x25519.utils as {
     randomSecretKey?: () => Uint8Array;
@@ -183,6 +195,7 @@ function generateClientPrivateKey(): Uint8Array {
 }
 
 async function main(): Promise<void> {
+  const verbose = process.argv.includes("--verbose");
   loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"));
 
   const maxOracleAgeSeconds = Number.parseInt(
@@ -283,7 +296,11 @@ async function main(): Promise<void> {
 
   const oraclePriceRaw = toNumber(pickField<any>(market, "oraclePrice", "oracle_price"));
   const lastPriceUpdate = toNumber(pickField<any>(market, "lastPriceUpdate", "last_price_update"));
-  const nowSeconds = Math.floor(Date.now() / 1000);
+  const chainSlot = await connection.getSlot("confirmed");
+  const chainTime = await connection.getBlockTime(chainSlot);
+  const nowSeconds = Number.isFinite(chainTime)
+    ? (chainTime as number)
+    : Math.floor(Date.now() / 1000);
   const ageSeconds = nowSeconds - lastPriceUpdate;
   const oracleFresh =
     Number.isFinite(ageSeconds) && ageSeconds >= 0 && ageSeconds <= maxOracleAgeSeconds;
@@ -450,6 +467,15 @@ async function main(): Promise<void> {
       // Keep canary output focused on the primary actionable failure.
       // eslint-disable-next-line no-empty
     } else {
+    if (verbose) {
+      const logs = extractLogs(error);
+      if (logs.length > 0) {
+        console.log("\nQueue simulation logs:");
+        console.log(logs.join("\n"));
+      } else {
+        console.log("\nQueue simulation logs: <none>");
+      }
+    }
     checks.push({
       name: "Queue call health (open_position simulate)",
       ok: false,
