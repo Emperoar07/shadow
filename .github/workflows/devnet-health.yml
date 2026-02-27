@@ -25,6 +25,8 @@ jobs:
 
       - name: Configure env
         env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+          SOLANA_RPC_URL_FALLBACK: ${{ vars.SOLANA_RPC_URL }}
           NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID }}
           NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT: ${{ vars.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT }}
           NEXT_PUBLIC_ARCIUM_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_ARCIUM_PROGRAM_ID }}
@@ -34,11 +36,20 @@ jobs:
             echo "Missing required repo variables: NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID and/or NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT"
             exit 1
           fi
+          if [ -z "${SOLANA_RPC_URL}" ]; then
+            export SOLANA_RPC_URL="${SOLANA_RPC_URL_FALLBACK:-${NEXT_PUBLIC_SOLANA_RPC_URL}}"
+          fi
 
       - name: Run stable preflight
         env:
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+          SOLANA_RPC_URL_FALLBACK: ${{ vars.SOLANA_RPC_URL }}
           NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID }}
           NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT: ${{ vars.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT }}
           NEXT_PUBLIC_ARCIUM_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_ARCIUM_PROGRAM_ID }}
           NEXT_PUBLIC_SOLANA_RPC_URL: ${{ vars.NEXT_PUBLIC_SOLANA_RPC_URL }}
-        run: npm run check:preflight
+        run: |
+          if [ -z "${SOLANA_RPC_URL}" ]; then
+            export SOLANA_RPC_URL="${SOLANA_RPC_URL_FALLBACK:-${NEXT_PUBLIC_SOLANA_RPC_URL}}"
+          fi
+          npm run check:preflight

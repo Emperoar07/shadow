@@ -41,7 +41,8 @@ jobs:
 
       - name: Update oracle price
         env:
-          SOLANA_RPC_URL: ${{ vars.SOLANA_RPC_URL }}
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+          SOLANA_RPC_URL_FALLBACK: ${{ vars.SOLANA_RPC_URL }}
           NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID }}
           NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT: ${{ vars.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT }}
           NEXT_PUBLIC_SOLANA_RPC_URL: ${{ vars.NEXT_PUBLIC_SOLANA_RPC_URL }}
@@ -52,6 +53,6 @@ jobs:
           fi
           # Prefer server RPC if provided, otherwise fall back to public RPC.
           if [ -z "${SOLANA_RPC_URL}" ]; then
-            export SOLANA_RPC_URL="${NEXT_PUBLIC_SOLANA_RPC_URL}"
+            export SOLANA_RPC_URL="${SOLANA_RPC_URL_FALLBACK:-${NEXT_PUBLIC_SOLANA_RPC_URL}}"
           fi
           npx ts-node scripts/price-oracle.ts --once

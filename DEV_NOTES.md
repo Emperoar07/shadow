@@ -37,9 +37,13 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 ## Oracle Cron Hardening (2026-02-27 UTC)
 - Scope:
   - `.github/workflows/oracle-cron.yml`
+  - `.github/workflows/devnet-health.yml`
+  - `app/.env.example`
 - Changes:
   1. Added workflow concurrency guard to prevent overlapping runs.
   2. Added `SOLANA_RPC_URL` support (server RPC preferred; falls back to `NEXT_PUBLIC_SOLANA_RPC_URL`).
+  3. Wired GitHub Actions to use `SOLANA_RPC_URL` from **Secrets** (fallback to vars).
+  4. Documented server-only `SOLANA_RPC_URL` in `.env.example` without exposing keys.
 - Notes:
   - GitHub Actions schedules are best-effort; keep `oracle:daemon` on a stable host if strict freshness is required.
 
