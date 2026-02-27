@@ -56,10 +56,12 @@ function parseRpcEndpoints(raw?: string): string[] {
 function resolveRpcUrl(): string {
   const candidates = [
     ...parseRpcEndpoints(process.env.SOLANA_RPC_URL),
+    ...parseRpcEndpoints(process.env.SOLANA_RPC_URLS),
     ...parseRpcEndpoints(process.env.NEXT_PUBLIC_SOLANA_RPC_URLS),
     ...parseRpcEndpoints(process.env.NEXT_PUBLIC_SOLANA_RPC_URL),
   ];
-  return candidates[0] || DEFAULT_RPC_ENDPOINT;
+  const deduped = Array.from(new Set(candidates));
+  return deduped[0] || DEFAULT_RPC_ENDPOINT;
 }
 
 function parseKeypairFromJson(name: string, value?: string): Keypair | null {
