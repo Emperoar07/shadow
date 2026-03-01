@@ -3,8 +3,30 @@
 Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
-- Date: 2026-02-27 (UTC)
+- Date: 2026-03-01 (UTC)
 - Author: Codex
+
+## Partial Live Mode (Trading Disabled UI Guardrails) (2026-03-01 UTC)
+- Scope:
+  - `app/src/lib/feature-flags.ts`
+  - `app/.env.example`
+  - `app/src/components/TradingPanel.tsx`
+  - `app/src/components/BottomPositionsPanel.tsx`
+  - `app/src/components/PositionsList.tsx`
+- Changes:
+  1. Added feature flag `NEXT_PUBLIC_TRADING_DISABLED` (default 0) to support partial-live deploys.
+  2. Trading panel now blocks all order submissions when disabled:
+     - shows "Trading temporarily disabled"
+     - limit executor no-ops
+  3. Close-position actions and TP/SL auto-close are disabled when trading is disabled.
+- Why:
+  - Arcium devnet queue path is still failing with `AccountDidNotSerialize`, so trade actions must be blocked while read-only UI remains live.
+- Verification:
+  - `npm run check:preflight` -> PASS (oracle fresh)
+  - `npm run canary:devnet -- --verbose` -> FAIL at `QueueComputation` with `AccountDidNotSerialize` (expected blocker)
+- Next safe step:
+  1. Deploy to Vercel with `NEXT_PUBLIC_TRADING_DISABLED=1`.
+  2. Re-enable only after Arcium patches the devnet queue serialization issue and canary passes.
 
 ## Devnet Rollout Attempt + ABI Sync (2026-02-26 UTC)
 - Scope:

@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
+import { TRADING_DISABLED } from "../lib/feature-flags";
 import {
   PendingLimitOrder,
   OwnerPositionView,
@@ -229,6 +230,10 @@ export default function BottomPositionsPanel() {
 
   const handleClose = useCallback(
     async (pos: UiPosition) => {
+      if (TRADING_DISABLED) {
+        toast.error("Trading is temporarily disabled while Arcium devnet is being patched.");
+        return;
+      }
       if (!publicKey || !anchorWallet) return;
       setClosingAddress(pos.address);
       try {
@@ -396,6 +401,7 @@ export default function BottomPositionsPanel() {
   );
 
   useEffect(() => {
+    if (TRADING_DISABLED) return;
     if (!oraclePrice || activeTab !== "position") return;
     for (const pos of openPositions) {
       if (pos.status !== "open") continue;
@@ -631,10 +637,16 @@ export default function BottomPositionsPanel() {
                       </button>
                       <button
                         onClick={() => void handleClose(pos)}
-                        disabled={isClosing || isPending}
+                        disabled={TRADING_DISABLED || isClosing || isPending}
                         className="rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-1 text-[12px] font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        {isPending ? "MPC..." : isClosing ? "Closing..." : "Close"}
+                        {TRADING_DISABLED
+                          ? "Disabled"
+                          : isPending
+                          ? "MPC..."
+                          : isClosing
+                          ? "Closing..."
+                          : "Close"}
                       </button>
                     </div>
                   </div>

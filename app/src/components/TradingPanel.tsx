@@ -12,6 +12,7 @@ import {
   useArciumPrivacy,
 } from "../hooks/useArcium";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { TRADING_DISABLED } from "../lib/feature-flags";
 import {
   disableEncryptedAutomationPersistence,
   enableEncryptedAutomationPersistence,
@@ -419,6 +420,10 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   );
 
   const handleSubmit = useCallback(async () => {
+    if (TRADING_DISABLED) {
+      toast.error("Trading is temporarily disabled while Arcium devnet is being patched.");
+      return;
+    }
     const trimmedSize = size.trim();
     const parsedSize = parseFloat(trimmedSize);
     if (
@@ -615,6 +620,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   }, [modalOpen, isSubmitting, size, sizeInBase]);
 
   const runLimitExecutor = useCallback(async () => {
+    if (TRADING_DISABLED) return;
     if (!publicKey || !anchorWallet) return;
     if (!isRelaySessionActive) return;
     if (limitExecutorRunningRef.current) return;
@@ -950,6 +956,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           <button
             onClick={handleSubmit}
             disabled={
+              TRADING_DISABLED ||
               isSubmitting ||
               !size ||
               sizeInBase <= 0 ||
@@ -961,7 +968,9 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 : "bg-gradient-to-r from-accent-red to-rose-600 hover:from-rose-600 hover:to-accent-red"
             } disabled:cursor-not-allowed disabled:opacity-50`}
           >
-            {isSubmitting ? (
+            {TRADING_DISABLED ? (
+              "Trading temporarily disabled"
+            ) : isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
                 <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24">
                   <circle

@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
+import { TRADING_DISABLED } from "../lib/feature-flags";
 
 type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated";
 
@@ -91,6 +92,10 @@ export default function PositionsList() {
 
   const handleClose = useCallback(
     async (position: UiPosition) => {
+      if (TRADING_DISABLED) {
+        toast.error("Trading is temporarily disabled while Arcium devnet is being patched.");
+        return;
+      }
       if (!publicKey || !anchorWallet) return;
       setClosingAddress(position.address);
       try {
@@ -273,10 +278,16 @@ function PositionCard({
           </span>
           <button
             onClick={onClose}
-            disabled={isClosing || isPending}
+            disabled={TRADING_DISABLED || isClosing || isPending}
             className="px-4 py-2 bg-accent-red/20 text-accent-red rounded-lg text-sm font-medium hover:bg-accent-red/30 transition-colors disabled:opacity-50"
           >
-            {isPending ? "MPC Processing..." : isClosing ? "Computing PnL..." : "Close Position"}
+            {TRADING_DISABLED
+              ? "Disabled"
+              : isPending
+              ? "MPC Processing..."
+              : isClosing
+              ? "Computing PnL..."
+              : "Close Position"}
           </button>
         </div>
       )}
