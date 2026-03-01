@@ -28,6 +28,21 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   1. Re-run `vercel --prod --yes` from repo root.
   2. Confirm production URL and smoke `/` + `/app` (partial-live: trading disabled).
 
+## Vercel Deploy Fixes: App-Root Config (2026-03-01 UTC)
+- Scope:
+  - `app/.vercelignore`
+  - `app/vercel.json`
+  - `.gitignore`
+- Changes:
+  1. Added `app/.vercelignore` to exclude `node_modules` and `.next` during app-root deployments.
+  2. Added `app/vercel.json` with `framework: nextjs` to force Next detection when deploying from `/app`.
+  3. Added `app/.vercel/` to root `.gitignore` to avoid tracking Vercel metadata.
+- Notes:
+  - `vercel link --cwd app` re-wrote `app/.env.local`; local env values were restored manually.
+- Next safe step:
+  1. Run `vercel --prod --cwd app --yes`.
+  2. If build still shows `0ms`/Error, set Vercel project Root Directory to `app` in UI and re-deploy.
+
 ## Partial Live Mode (Trading Disabled UI Guardrails) (2026-03-01 UTC)
 - Scope:
   - `app/src/lib/feature-flags.ts`
