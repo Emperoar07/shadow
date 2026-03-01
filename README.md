@@ -90,3 +90,27 @@ npm run hosting:stop
 - Arcium: https://www.arcium.com/
 - Solana docs: https://docs.solana.com/
 - Anchor docs: https://www.anchor-lang.com/
+
+## Arcium Integration (How Privacy Works)
+
+ShadowPerp uses Arcium MPC to keep **position details private** while still settling on-chain:
+
+1. **Client-side encryption**  
+   The trader encrypts order parameters (size, price, leverage, direction, margin) using the MXE public key. Raw values never hit the chain.
+
+2. **Queue computation on-chain**  
+   The program calls Arcium `queue_computation`, passing encrypted inputs and a callback reference. This records the computation request on-chain without revealing plaintext.
+
+3. **Off-chain MPC execution**  
+   Arcium’s MPC cluster executes the circuit off-chain on encrypted inputs and produces encrypted outputs + a proof.
+
+4. **On-chain callback settlement**  
+   The callback verifies the MPC output and updates on-chain state. Only allowed public fields (e.g. final realized PnL at close) are revealed.
+
+**Privacy benefits**
+- Position size, leverage, entry price, and direction are **not** exposed on-chain.
+- Liquidation checks and settlement are computed privately via MPC.
+- Reduces copy-trading, liquidation targeting, and adversarial MEV behavior.
+
+**Current devnet note:**  
+`queue_computation` is currently failing on devnet with `AccountDidNotSerialize`. Trading is therefore disabled in partial-live deployments while awaiting a patched Arcium devnet binary.
