@@ -1,0 +1,3 @@
+# Local backups and bulky dirs
+app/node_modules_bak_*/
+app/node_modules/
