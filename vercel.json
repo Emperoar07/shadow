@@ -1,7 +1,9 @@
 {
   "version": 2,
-  "framework": "nextjs",
-  "installCommand": "cd app && pnpm install",
-  "buildCommand": "cd app && pnpm build",
-  "outputDirectory": "app/.next"
+  "builds": [
+    {
+      "src": "app/next.config.js",
+      "use": "@vercel/next"
+    }
+  ]
 }
