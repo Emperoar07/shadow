@@ -6,6 +6,28 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-03-01 (UTC)
 - Author: Codex
 
+## Vercel Deploy Prep (Partial Live) (2026-03-01 UTC)
+- Scope:
+  - `.gitignore`
+  - `.vercelignore`
+  - `vercel.json`
+- Changes:
+  1. Linked Vercel project `shadowperp` and connected GitHub repo.
+  2. Added `.vercelignore` to exclude local backup folders (`app/node_modules_bak_*`, `app/node_modules`).
+  3. Added `vercel.json` to build/deploy the Next app from `/app`:
+     - install: `cd app && pnpm install`
+     - build: `cd app && pnpm build`
+     - output: `app/.next`
+  4. Removed local backup directories blocking Vercel scan:
+     - `app/node_modules_bak_20260222141608`
+     - `C﹕Usersbolaj` temp dir
+- Deployment status:
+  - CLI deploy still timed out on first production attempt.
+  - Retry needed after Vercel build settings take effect.
+- Next safe step:
+  1. Re-run `vercel --prod --yes` from repo root.
+  2. Confirm production URL and smoke `/` + `/app` (partial-live: trading disabled).
+
 ## Partial Live Mode (Trading Disabled UI Guardrails) (2026-03-01 UTC)
 - Scope:
   - `app/src/lib/feature-flags.ts`
