@@ -6,6 +6,21 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-03-02 (UTC)
 - Author: Codex
 
+## Public README Cleanup (2026-03-02 UTC)
+- Scope:
+  - `README.md`
+- Changes:
+  1. Rewrote the README into a public-facing project overview.
+  2. Removed internal-only maintainer guidance, agent onboarding references, and detailed deployment notes that were not appropriate for a public landing document.
+  3. Kept the privacy model, Arcium integration summary, current devnet limitation, and contributor-safe setup instructions.
+  4. Shifted tone toward a more professional and human product description instead of an internal runbook.
+- Verification:
+  - Documentation-only change; no code or runtime checks were required.
+- Current blocker:
+  - Arcium devnet queue path can still fail at `QueueComputation` with `AccountDidNotSerialize (3004)` in open-position flows.
+- Next safe step:
+  1. Do a quick public-facing review of the README after push to confirm the wording matches how you want to present the project externally.
+
 ## Agent Session Stall Guardrails (2026-03-02 UTC)
 - Scope:
   - `AGENTS.md`

@@ -1,116 +1,111 @@
-﻿# ShadowPerp
+# ShadowPerp
 
-Privacy-first perpetual DEX on Solana, powered by Arcium confidential computation.
+ShadowPerp is a privacy-first perpetuals trading prototype on Solana devnet, built with Arcium for confidential computation.
+
+The project is designed to reduce trader intent leakage. Position inputs are encrypted before they are submitted, sensitive trade logic is evaluated privately, and only the minimum required public state is exposed on-chain.
+
+## What ShadowPerp Does
+
+ShadowPerp applies private computation to core perpetuals flows:
+
+- Position opening checks
+- Position close and settlement logic
+- Liquidation checks
+- Session-based delegated trading for smoother UX
+
+The goal is straightforward: make it harder for other market participants to infer live trader intent, copy positions, or target liquidations based on public state.
+
+## How Arcium Is Used
+
+Arcium is the confidential compute layer behind ShadowPerp.
+
+The flow is:
+
+1. The client encrypts sensitive trade inputs such as size, entry price, leverage, direction, and margin.
+2. The Solana program queues a computation request to Arcium using those encrypted inputs.
+3. Arcium processes the encrypted data off-chain using confidential computation.
+4. The result is verified on-chain before ShadowPerp updates trade state.
+
+### Privacy Benefits
+
+- Live position details are not exposed in plaintext on-chain.
+- Sensitive risk logic can be evaluated without publishing trader intent.
+- Final realized PnL is revealed only when settlement requires it.
+- The design reduces copy-trading and liquidation targeting based on visible positions.
 
 ## Current Status
 
-- Network target: `Solana devnet`
-- UI/runtime: active
-- Oracle automation: implemented (`once`, `daemon`, canary/preflight)
-- Session model: delegated session required for trading (no direct wallet-trade fallback)
-- Known protocol blocker: Arcium queue path for `open_position` may fail on devnet with `AccountDidNotSerialize` (`comp` serialization path)
+ShadowPerp is an active devnet prototype with a real Solana + Arcium integration.
 
-Do not claim fully live until end-to-end `deposit -> open -> close` passes on-chain under current deployment.
+Current limitation:
 
-## Repository Layout
+- The callback-backed `open_position` queue path is currently blocked on Arcium devnet by `AccountDidNotSerialize (3004)` on the Arcium `comp` account.
 
-- `programs/shadowperp/` - Anchor on-chain program
-- `encrypted-ixs/` - Arcium/Arcis MPC circuits
-- `app/` - Next.js trading app
-- `scripts/` - deploy/oracle/preflight/canary/ops scripts
-- `DEV_NOTES.md` - live operational log (source of truth)
-- `ARCHITECTURE.md` / `DATA_FLOW.md` / `PERP_UI_SYSTEM.md` / `DESIGN_RULES.md` - system docs
+This means the architecture, privacy model, frontend, and integration are in place, but the main open-position path should still be treated as a devnet prototype until the upstream callback serialization issue is resolved or a validated workaround is adopted.
 
-## Quick Start (Devnet)
+## Project Structure
 
-1. Install deps
+- `programs/shadowperp/` - Anchor program for the on-chain protocol
+- `encrypted-ixs/` - Arcium/Arcis confidential circuits
+- `app/` - Next.js frontend
+- `scripts/` - deployment, oracle, health-check, and devnet utility scripts
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20+
+- Rust
+- Solana CLI
+- Anchor
+- pnpm
+
+### Install
 
 ```bash
 npm install
-cd app && pnpm install && cd ..
+cd app
+pnpm install
+cd ..
 ```
 
-2. Configure env
+### Configure
 
 ```bash
 cp app/.env.example app/.env.local
-# fill required NEXT_PUBLIC_* values
 ```
 
-3. Run readiness checks
+Set the required environment values for your devnet setup before running the app.
+
+### Run Checks
 
 ```bash
 npm run check:preflight
-npm run canary:devnet
+npm run check:oracle
 ```
 
-4. Start local hosting stack
+If the oracle is stale:
 
 ```bash
-npm run hosting:start
-npm run hosting:status
-# when done
-npm run hosting:stop
+npm run oracle:once
 ```
 
-## Core Ops Commands
+### Run the App
 
-- `npm run check:preflight` - full runtime/account/oracle checks
-- `npm run check:oracle` - oracle freshness check
-- `npm run oracle:once` - one-shot oracle publish
-- `npm run oracle:daemon` - continuous oracle feed
-- `npm run canary:devnet` - pre-trade health check
-- `npm run hosting:start|status|stop|restart` - unified local runtime control
+```bash
+cd app
+pnpm dev
+```
 
-## Security and Repo Rules
+## Open Source
 
-- Never commit secrets (`.env.local`, keypairs, tokens)
-- Keep privacy claims aligned with verified behavior
-- If live chain state differs from docs, update docs after verification
+This repository is intended to be open and readable. Please do not commit secrets, private keys, or local environment files.
 
-## Developer Onboarding Order
-
-1. `AGENTS.md`
-2. `DEV_NOTES.md`
-3. `ARCHITECTURE.md`
-4. `DATA_FLOW.md`
-5. `PERP_UI_SYSTEM.md`
-6. `DESIGN_RULES.md`
-7. `NO_TOUCH_LIST.md`
-
-## Deployment Notes
-
-- Deploy + comp-def init are script-driven (`scripts/deploy-devnet.ts`, `scripts/init-comp-defs.ts`)
-- Prefer explicit RPC URL during deploy/ops
-- If comp-def signatures change, use fresh reset/re-init flow from `DEV_NOTES.md`
+If you use this project publicly, keep claims aligned with verified behavior on the current deployment.
 
 ## References
 
-- Arcium docs: https://docs.arcium.com/
 - Arcium: https://www.arcium.com/
-- Solana docs: https://docs.solana.com/
-- Anchor docs: https://www.anchor-lang.com/
-
-## Arcium Integration (How Privacy Works)
-
-ShadowPerp uses Arcium MPC to keep **position details private** while still settling on-chain:
-
-1. **Client-side encryption**  
-   The trader encrypts order parameters (size, price, leverage, direction, margin) using the MXE public key. Raw values never hit the chain.
-
-2. **Queue computation on-chain**  
-   The program calls Arcium `queue_computation`, passing encrypted inputs and a callback reference. This records the computation request on-chain without revealing plaintext.
-
-3. **Off-chain MPC execution**  
-   Arcium’s MPC cluster executes the circuit off-chain on encrypted inputs and produces encrypted outputs + a proof.
-
-4. **On-chain callback settlement**  
-   The callback verifies the MPC output and updates on-chain state. Only allowed public fields (e.g. final realized PnL at close) are revealed.
-
-**Privacy benefits**
-- Position size, leverage, entry price, and direction are **not** exposed on-chain.
-- Liquidation checks and settlement are computed privately via MPC.
-- Reduces copy-trading, liquidation targeting, and adversarial MEV behavior.
-
-**Current devnet note:**  
-`queue_computation` is currently failing on devnet with `AccountDidNotSerialize`. Trading is therefore disabled in partial-live deployments while awaiting a patched Arcium devnet binary.
+- Arcium Docs: https://docs.arcium.com/
+- Solana: https://solana.com/docs
+- Anchor: https://www.anchor-lang.com/
