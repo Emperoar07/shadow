@@ -1001,41 +1001,37 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             )}
           </button>
 
-          <div className="rounded-xl border border-shadow-500 bg-shadow-700/35 p-2.5 space-y-2">
-            <div className="space-y-1.5 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Liquidation Price</span>
-                <span className="font-semibold text-white">
-                  {estimatedLiqPrice ? formatPrice(estimatedLiqPrice) : "N/A"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Order Value</span>
-                <span className="font-semibold text-white">
-                  {positionValue > 0 ? `$${positionValue.toFixed(2)}` : "N/A"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Margin Required</span>
-                <span className="font-semibold text-white">
-                  {margin > 0 ? `$${margin.toFixed(2)}` : "N/A"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Margin Mode</span>
-                <span className="font-semibold text-white capitalize">{marginMode}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Slippage</span>
-                <span className="font-semibold text-teal-300">Est: 0% / Max: 8.00%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Fees</span>
-                <span className="font-semibold text-white">0.0450% / 0.0150%</span>
-              </div>
+          <div className="border-t border-shadow-600 pt-2.5 mt-1 space-y-1.5 text-[12px]">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Liquidation Price</span>
+              <span className="font-medium text-gray-300">
+                {estimatedLiqPrice ? formatPrice(estimatedLiqPrice) : "N/A"}
+              </span>
             </div>
-
-
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Order Value</span>
+              <span className="font-medium text-gray-300">
+                {positionValue > 0 ? `$${positionValue.toFixed(2)}` : "N/A"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Margin Required</span>
+              <span className="font-medium text-gray-300">
+                {margin > 0 ? `$${margin.toFixed(2)}` : "N/A"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Margin Mode</span>
+              <span className="font-medium text-gray-300 capitalize">{marginMode}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Slippage</span>
+              <span className="font-medium text-cyan-400">Est: 0% / Max: 8.00%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Fees</span>
+              <span className="font-medium text-gray-300">0.0450% / 0.0150%</span>
+            </div>
           </div>
         </div>
       </div>
