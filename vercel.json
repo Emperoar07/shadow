@@ -1,7 +1,0 @@
-{
-  "version": 2,
-  "framework": "nextjs",
-  "installCommand": "cd app && pnpm install --no-frozen-lockfile",
-  "buildCommand": "cd app && pnpm build",
-  "outputDirectory": "app/.next"
-}
