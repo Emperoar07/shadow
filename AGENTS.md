@@ -22,6 +22,14 @@ Ship a privacy-first perpetual DEX on Solana devnet with Arcium-powered confiden
 - Prefer idempotent scripts and explicit checks.
 - Never assume chain state from old logs; verify live each session.
 
+## Session Stall Policy
+
+- Keep working context lean after the required doc pass; summarize prior findings and avoid repeatedly re-reading stale history unless something changed.
+- Surface blocked states explicitly instead of silently looping. Use concrete labels such as `waiting on tool`, `need user input`, `permission denied`, `stale oracle`, or `missing env`.
+- Use bounded timeouts for long-running commands. If a command stalls, stop waiting, report the stall, and retry only the smallest safe step.
+- After inactivity or a hung step, prefer a targeted restart (`oracle:once`, `check:preflight`, `hosting:restart`, or a single command retry) over unbounded replanning.
+- Treat these rules as mandatory for every new repo-scoped chat session. If host tooling supports stronger inactivity cancellation, use it; if not, emulate it operationally with explicit timeout and restart behavior.
+
 ## Mandatory Session Checklist
 
 At the start of every session:

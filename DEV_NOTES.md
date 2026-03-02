@@ -3,8 +3,38 @@
 Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
-- Date: 2026-03-01 (UTC)
+- Date: 2026-03-02 (UTC)
 - Author: Codex
+
+## Agent Session Stall Guardrails (2026-03-02 UTC)
+- Scope:
+  - `AGENTS.md`
+- Changes:
+  1. Added a repo-wide session stall policy for future agent sessions.
+  2. New rule requires lean context handling after the initial doc pass, explicit blocked-state reporting, bounded command timeouts, and targeted restarts instead of silent loops.
+  3. Documented that repo instructions can enforce operator behavior, but true inactivity auto-cancel still depends on the host runner.
+- Verification:
+  - `git status --short`
+  - `npm run oracle:once` -> PASS
+  - `npm run check:preflight` -> PASS
+- Current blocker:
+  - Arcium devnet queue path can still fail at `QueueComputation` with `AccountDidNotSerialize (3004)` in open-position flows.
+- Next safe step:
+  1. If hard auto-cancel/restart is required, add inactivity timers in the chat runner/orchestration layer outside this repo.
+
+## Landing Copy: Session Messaging (2026-03-02 UTC)
+- Scope:
+  - `app/src/pages/index.tsx`
+- Changes:
+  1. Removed fixed `5h` session marketing from the landing page.
+  2. Replaced the session stat card from `5h / Session window` to `Scoped / Session rules`.
+  3. Updated supporting copy to describe delegated sessions without implying a hardcoded duration.
+- Verification:
+  - `rg -n '5h|5-hour' app/src/pages/index.tsx` -> no matches
+- Current blocker:
+  - Arcium devnet queue path can still fail at `QueueComputation` with `AccountDidNotSerialize (3004)` in open-position flows.
+- Next safe step:
+  1. Smoke the landing page on desktop and mobile after deploy to confirm the stat card still fits the layout cleanly.
 
 ## Vercel Deploy Prep (Partial Live) (2026-03-01 UTC)
 - Scope:

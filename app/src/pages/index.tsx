@@ -541,7 +541,7 @@ export default function LandingPage() {
             <div className="lp-step lp-reveal lp-delay-1 lp-tilt">
               <div className="lp-step-num">01</div>
               <div className="lp-step-title">Encrypt &amp; Delegate</div>
-              <p className="lp-step-desc">Your position inputs (size, leverage, direction) are encrypted in your browser. Approve a 5-hour trading session once with no wallet popup for every trade.</p>
+              <p className="lp-step-desc">Your position inputs (size, leverage, direction) are encrypted in your browser. Approve a delegated trading session once with no wallet popup for every trade.</p>
             </div>
             <div className="lp-step lp-reveal lp-delay-2 lp-tilt">
               <div className="lp-step-num">02</div>
@@ -597,8 +597,8 @@ export default function LandingPage() {
             </div>
             <div className="lp-session-stats">
               <div className="lp-session-stat">
-                <div className="lp-session-stat-val">5h</div>
-                <div className="lp-session-stat-lbl">Session window</div>
+                <div className="lp-session-stat-val">Scoped</div>
+                <div className="lp-session-stat-lbl">Session rules</div>
               </div>
               <div className="lp-session-stat">
                 <div className="lp-session-stat-val">1×</div>
@@ -619,7 +619,7 @@ export default function LandingPage() {
           <div className="lp-features-grid">
             <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Dark Limit Orders</div><p className="lp-feat-desc">Place large orders without telegraphing your intent. No MEV bot can front run an order it can&apos;t see.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Confidential Liquidations</div><p className="lp-feat-desc">Your liquidation price is known only to the protocol. No hunter can target it, because it&apos;s encrypted.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Session Trading</div><p className="lp-feat-desc">Approve once, trade freely. A 5-hour delegated session lets a relayer execute on your behalf with zero wallet popups between trades. Set caps per trade and revoke anytime.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Session Trading</div><p className="lp-feat-desc">Approve once, trade freely. A delegated session lets a relayer execute on your behalf with zero wallet popups between trades. Set caps per trade and revoke anytime.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">MEV Resistant</div><p className="lp-feat-desc">Encrypted order flow eliminates exploitable signal. No sandwich attacks. No front running.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">MPC Powered</div><p className="lp-feat-desc">Arcium&apos;s multi-party computation validates every trade with replay-hardened callbacks. Every computation consumed exactly once. Zero knowledge of your inputs. Just the outcome.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Verified Oracle Feeds</div><p className="lp-feat-desc">Prices sourced from CoinGecko, Binance and Coinbase. Median aggregation and circuit breakers prevent manipulation from reaching your trades.</p></div>
