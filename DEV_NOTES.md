@@ -43,6 +43,19 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   1. Run `vercel --prod --cwd app --yes`.
   2. If build still shows `0ms`/Error, set Vercel project Root Directory to `app` in UI and re-deploy.
 
+## Vercel Deploy: Root Config Cleanup (2026-03-01 UTC)
+- Scope:
+  - `vercel.json` (root)
+  - `README.md`
+- Changes:
+  1. Removed root `vercel.json` to avoid Vercel trying to build from repo root (non-Next).
+  2. Documented Vercel Root Directory = `app` and Node 20 requirement in README.
+- Current status:
+  - Deploys still failing with `0ms` build time when root dir not set.
+- Next safe step:
+  1. In Vercel UI, set **Root Directory** to `app` and **Node.js Version** to `20.x`.
+  2. Re-deploy production.
+
 ## Partial Live Mode (Trading Disabled UI Guardrails) (2026-03-01 UTC)
 - Scope:
   - `app/src/lib/feature-flags.ts`
@@ -2954,3 +2967,25 @@ Full multi-dimensional audit run across all TypeScript, Rust, scripts, and confi
 ### Rule going forward
 - DEV_NOTES.md should be updated after every ~5 UI/code changes in a session.
 2. Keep price-source sync behavior unchanged (chart/pair/panel canonical feed alignment work remains intact).
+
+## Session Duration Selector + Relay Diagnosis (2026-03-02 UTC)
+
+### Files changed
+- `app/src/hooks/useArcium.ts`
+- `app/src/pages/app.tsx`
+
+### Changes made
+
+#### useArcium.ts
+- Added `durationSeconds` option to `EnsureRelaySessionOptions` interface.
+- `createRelaySession` now uses `options.durationSeconds` instead of the hardcoded `DEFAULT_TRADE_SESSION_DURATION_SECONDS` (5h) when provided.
+
+#### app.tsx (SessionTimerChip)
+- Added session duration selector: clicking "Start session" now opens a dropdown with 12h / 24h / 48h options.
+- User selects duration before session creation begins.
+- Added click-outside handler to dismiss the dropdown.
+
+### "Relay unavailable" diagnosis
+- Root cause: `createRelayRuntimeContext()` in `relay-client.ts` throws when no relayer keypair is configured.
+- On Vercel, `SHADOWPERP_RELAYER_KEYPAIR_JSON` must be set as a server-side env var (JSON array of the keypair bytes).
+- This is a deployment config issue, not a code bug.

@@ -51,6 +51,7 @@ export interface EnsureRelaySessionOptions {
   maxMarginPerActionUsdc?: number;
   reason?: "trade" | "deposit" | "withdraw";
   userInitiated?: boolean;
+  durationSeconds?: number;
 }
 
 export const RELAY_SESSION_STORAGE_KEY = "shadowperp.relay.session.v1";
@@ -611,7 +612,8 @@ export const useArciumPrivacy = () => {
       }
 
       const sessionId = new BN(Math.floor(Date.now() / 1000));
-      const expiresAt = Math.floor(Date.now() / 1000) + DEFAULT_TRADE_SESSION_DURATION_SECONDS;
+      const duration = options?.durationSeconds ?? DEFAULT_TRADE_SESSION_DURATION_SECONDS;
+      const expiresAt = Math.floor(Date.now() / 1000) + duration;
       const maxActions = options?.maxActions ?? DEFAULT_SESSION_MAX_ACTIONS;
       const maxMarginPerActionUsdc =
         options?.maxMarginPerActionUsdc ?? DEFAULT_SESSION_MAX_MARGIN_USDC;

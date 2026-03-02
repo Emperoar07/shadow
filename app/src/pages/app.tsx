@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
@@ -201,23 +201,42 @@ function ConnectWalletButton() {
     : <WalletMultiButton>Connect Wallet</WalletMultiButton>;
 }
 
+const SESSION_DURATION_OPTIONS = [
+  { label: "12h", seconds: 12 * 60 * 60 },
+  { label: "24h", seconds: 24 * 60 * 60 },
+  { label: "48h", seconds: 48 * 60 * 60 },
+] as const;
+
 function SessionTimerChip() {
   const { publicKey } = useWallet();
   const { relaySession, relayAvailable, ensureRelaySession, refreshRelaySession } = useArciumPrivacy();
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const [isTimerHovered, setIsTimerHovered] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [durationMenuOpen, setDurationMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const id = setInterval(() => setNowTs(Math.floor(Date.now() / 1000)), 1_000);
     return () => clearInterval(id);
   }, []);
 
-  const handleStartSession = useCallback(async () => {
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setDurationMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleStartSession = useCallback(async (durationSeconds: number) => {
     if (isCreatingSession) return;
     setIsCreatingSession(true);
+    setDurationMenuOpen(false);
     try {
-      const session = await ensureRelaySession({ reason: "trade", userInitiated: true });
+      const session = await ensureRelaySession({ reason: "trade", userInitiated: true, durationSeconds });
       if (!session) throw new Error("Session creation failed.");
       await refreshRelaySession();
       toast.success("Delegated session active.");
@@ -286,33 +305,52 @@ function SessionTimerChip() {
   }
 
   return (
-    <div
-      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs ${
-        relayAvailable
-          ? "border-cyan-400/35 bg-cyan-500/10 text-cyan-200"
-          : "border-yellow-500/35 bg-yellow-500/10 text-yellow-300"
-      }`}
-    >
-      <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />
-        <circle
-          cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-          strokeDasharray="37.7" strokeDashoffset="37.7" transform="rotate(-90 8 8)"
-        >
-          <animate attributeName="stroke-dashoffset" from="37.7" to="0" dur="3s" repeatCount="indefinite" />
-        </circle>
-      </svg>
-      {relayAvailable ? (
-        <button
-          type="button"
-          onClick={handleStartSession}
-          disabled={isCreatingSession}
-          className="underline-offset-2 hover:underline disabled:opacity-60"
-        >
-          {isCreatingSession ? "Starting session..." : "Start session"}
-        </button>
-      ) : (
-        <span>Relay unavailable</span>
+    <div className="relative" ref={menuRef}>
+      <div
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs ${
+          relayAvailable
+            ? "border-cyan-400/35 bg-cyan-500/10 text-cyan-200"
+            : "border-yellow-500/35 bg-yellow-500/10 text-yellow-300"
+        }`}
+      >
+        <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />
+          <circle
+            cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+            strokeDasharray="37.7" strokeDashoffset="37.7" transform="rotate(-90 8 8)"
+          >
+            <animate attributeName="stroke-dashoffset" from="37.7" to="0" dur="3s" repeatCount="indefinite" />
+          </circle>
+        </svg>
+        {relayAvailable ? (
+          <button
+            type="button"
+            onClick={() => setDurationMenuOpen((o) => !o)}
+            disabled={isCreatingSession}
+            className="underline-offset-2 hover:underline disabled:opacity-60"
+          >
+            {isCreatingSession ? "Starting session..." : "Start session"}
+          </button>
+        ) : (
+          <span>Relay unavailable</span>
+        )}
+      </div>
+
+      {durationMenuOpen && relayAvailable && (
+        <div className="absolute right-0 top-full mt-1.5 w-36 rounded-lg border border-shadow-600 bg-shadow-800 shadow-xl z-[300] py-1.5">
+          <p className="px-3 pb-1 text-[9px] uppercase tracking-widest text-gray-500">Session Duration</p>
+          {SESSION_DURATION_OPTIONS.map((opt) => (
+            <button
+              key={opt.label}
+              type="button"
+              onClick={() => handleStartSession(opt.seconds)}
+              disabled={isCreatingSession}
+              className="w-full text-left px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:text-white hover:bg-shadow-700/60 transition-colors disabled:opacity-40"
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
