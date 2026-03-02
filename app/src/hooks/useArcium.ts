@@ -12,6 +12,7 @@ import {
   RELAY_SESSION_AUTH_SCOPE,
   uint8ToBase64,
 } from "../lib/relay-session-auth";
+import { PositionStatus } from "../types";
 
 type PrivacyStatus =
   | "idle"
@@ -86,6 +87,18 @@ const SCALE_PRICE = 1_000_000;
 const SCALE_BASE_SIZE = 1_000_000_000;
 const SCALE_MARGIN = 1_000_000;
 const U64_MAX_BN = new BN("18446744073709551615");
+const OPEN_POSITION_CALLBACK_TIMEOUT_MS = 45_000;
+const OPEN_POSITION_CALLBACK_POLL_MS = 2_000;
+
+type PrivateOrderProgress = {
+  stage: "queued";
+  txSignature: string;
+  positionAddress: string;
+};
+
+type PrivateOrderSubmitOptions = {
+  onProgress?: (update: PrivateOrderProgress) => void;
+};
 
 function storageKey(owner: string, market: string): string {
   return `${RELAY_SESSION_STORAGE_KEY}:${owner}:${market}`;
@@ -258,6 +271,68 @@ function hasUsableRelayAuth(
   if (session.authExpiresAt - nowSeconds <= RELAY_SESSION_RENEW_BEFORE_SECONDS) return false;
   if (session.authExpiresAt > session.expiresAt) return false;
   return true;
+}
+
+async function waitForOpenPositionCallback(
+  client: ReturnType<typeof createShadowPerpClient>["client"],
+  positionAddress: PublicKey,
+  clusterOffset: number
+): Promise<void> {
+  const deadline = Date.now() + OPEN_POSITION_CALLBACK_TIMEOUT_MS;
+  let lastStatus: PositionStatus | null = null;
+
+  while (Date.now() < deadline) {
+    try {
+      const position = await client.getPosition(positionAddress);
+      lastStatus = position.status;
+
+      if (position.status === PositionStatus.Open) {
+        return;
+      }
+
+      if (position.status === PositionStatus.Pending) {
+        // Callback has not landed yet.
+      } else {
+        throw new Error(
+          `Queued on Arcium cluster ${clusterOffset}, but the position entered unexpected status ${PositionStatus[position.status]}.`
+        );
+      }
+    } catch (error: any) {
+      const message =
+        typeof error?.message === "string" ? error.message : "";
+      const isMissingAccount =
+        message.includes("Account does not exist") ||
+        message.includes("Account does not exist or has no data") ||
+        message.includes("could not find account");
+      if (!isMissingAccount) {
+        throw error;
+      }
+    }
+
+    const remainingMs = deadline - Date.now();
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(OPEN_POSITION_CALLBACK_POLL_MS, Math.max(remainingMs, 0)))
+    );
+  }
+
+  const statusLabel =
+    lastStatus === null ? "no position state observed yet" : PositionStatus[lastStatus];
+  throw new Error(
+    `Queued on Arcium cluster ${clusterOffset}, but no MPC callback finalized the position within ${OPEN_POSITION_CALLBACK_TIMEOUT_MS / 1000}s (${statusLabel}).`
+  );
+}
+
+function attachTxContext(error: Error, txSignature: string, positionAddress: string): Error & {
+  txSignature: string;
+  positionAddress: string;
+} {
+  const withContext = error as Error & {
+    txSignature: string;
+    positionAddress: string;
+  };
+  withContext.txSignature = txSignature;
+  withContext.positionAddress = positionAddress;
+  return withContext;
 }
 
 export const useArciumPrivacy = () => {
@@ -878,7 +953,8 @@ export const useArciumPrivacy = () => {
   const submitPrivateOrder = useCallback(
     async (
       order: PrivateOrderInput,
-      isPrivate: boolean
+      isPrivate: boolean,
+      options?: PrivateOrderSubmitOptions
     ): Promise<{ txSignature: string; positionAddress: string; usedPrivatePath: boolean }> => {
       const ctx = getClient();
       if (!ctx) {
@@ -1011,11 +1087,33 @@ export const useArciumPrivacy = () => {
       setLastSignature(txSignature);
       setStatus("queued");
       setStatusMessage("Queued on Arcium cluster");
+      options?.onProgress?.({
+        stage: "queued",
+        txSignature,
+        positionAddress,
+      });
 
       setStatus("verifying");
-      setStatusMessage("Verifying computation callback...");
+      setStatusMessage("Awaiting MPC callback finalization...");
+      try {
+        await waitForOpenPositionCallback(
+          client,
+          new PublicKey(positionAddress),
+          runtime.clusterOffset
+        );
+      } catch (error: any) {
+        const message =
+          error instanceof Error
+            ? error
+            : new Error(
+                typeof error?.message === "string"
+                  ? error.message
+                  : "Queued transaction did not finalize."
+              );
+        throw attachTxContext(message, txSignature, positionAddress);
+      }
       setStatus("verified");
-      setStatusMessage("Verified computation complete");
+      setStatusMessage("MPC callback finalized. Position opened.");
 
       return {
         txSignature,

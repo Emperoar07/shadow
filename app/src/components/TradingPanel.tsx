@@ -381,6 +381,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       pairLabel: string;
       takeProfit: number | null;
       stopLoss: number | null;
+      onQueued?: (update: { txSignature: string; positionAddress: string }) => void;
     }) => {
       const { txSignature, positionAddress } = await submitPrivateOrder(
         {
@@ -390,7 +391,16 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           entryPriceUi: input.entryPrice,
           marginMode: input.marginMode,
         },
-        true
+        true,
+        {
+          onProgress: (update) => {
+            if (update.stage !== "queued") return;
+            input.onQueued?.({
+              txSignature: update.txSignature,
+              positionAddress: update.positionAddress,
+            });
+          },
+        }
       );
 
       if (input.takeProfit !== null || input.stopLoss !== null) {
@@ -542,6 +552,10 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         pairLabel: activePair.label,
         takeProfit: tp,
         stopLoss: sl,
+        onQueued: (update) => {
+          setTradeTxSig(update.txSignature);
+          setTradeStep("verifying");
+        },
       });
 
       setTradeTxSig(txSignature);
@@ -552,6 +566,9 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       void refreshMarketData();
     } catch (error: any) {
       const msg = error?.message || "Failed to open position";
+      if (typeof error?.txSignature === "string" && error.txSignature.length > 0) {
+        setTradeTxSig(error.txSignature);
+      }
       setPrivacyError(msg);
       if (msg.includes("env var")) {
         setModalOpen(false);

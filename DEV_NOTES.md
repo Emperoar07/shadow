@@ -49,6 +49,44 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Next safe step:
   1. Quick visual smoke after deploy to confirm the two remaining stat cards still align cleanly in the session callout.
 
+## Trade Submit: Callback Timeout + Clear Queued Error (2026-03-02 UTC)
+- Scope:
+  - `app/src/hooks/useArcium.ts`
+  - `app/src/components/TradingPanel.tsx`
+  - `app/src/components/TradeConfirmationModal.tsx`
+- Changes:
+  1. Added open-position callback polling after the relayed queue tx succeeds.
+  2. The client now waits for the position account to leave `Pending` and become `Open` instead of treating queue success as a completed trade.
+  3. Added a 45-second callback timeout with an explicit error when Arcium never sends the callback on the current cluster.
+  4. Trade modal now shows a dedicated `Finalize / MPC callback` step.
+  5. If the queue tx lands but finalization times out, the modal now shows `Queued but not finalized` and keeps the queued tx explorer link visible.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit`
+- Current blocker:
+  - Arcium devnet can still stall after `QueueComputation`, leaving callbacks missing even though the queue tx confirms.
+- Next safe step:
+  1. Smoke one open-position attempt on devnet and confirm the new timeout path surfaces clearly when callbacks stall.
+
+## Trade Submit Smoke Attempt (2026-03-02 UTC)
+- Scope:
+  - devnet session relayer smoke
+- What was verified:
+  1. Refreshed stale oracle with `npm run oracle:once`.
+  2. Created a fresh delegated session successfully:
+     - session id: `1772465767`
+     - session tx: `5D9Xda7iBhFNAqBvc6s11WCmYekrR2Datg3BYzwG13vZK2vQNasqnj1U2c3u38Gd5Aqk2GJEz7iPyR5tZBHkkXTC`
+  3. Attempted delegated open with:
+     - `npx ts-node scripts/session-relayer.ts open --session-id 1772465767`
+- Result:
+  - The open failed before queue finalization polling could begin:
+    - `AnchorError caused by account: comp. Error Code: AccountDidNotSerialize (3004).`
+- Impact:
+  - The new client-side callback-timeout path is implemented and typechecked, but this live repo namespace could not exercise it because the existing queue serialization blocker still fails before the queue tx completes.
+- Current blocker:
+  - `QueueComputation` path remains unstable on current devnet namespace with `AccountDidNotSerialize (3004)`.
+- Next safe step:
+  1. Re-test the timeout UX immediately after the queue serialization blocker is cleared or on a namespace where queue txs succeed but callbacks stall.
+
 ## Vercel Deploy Prep (Partial Live) (2026-03-01 UTC)
 - Scope:
   - `.gitignore`

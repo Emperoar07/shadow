@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { getExplorerTxUrl } from "../lib/explorer";
 
-export type TradeStep = "signing" | "encrypting" | "submitting" | "confirmed" | "error";
+export type TradeStep =
+  | "signing"
+  | "encrypting"
+  | "submitting"
+  | "verifying"
+  | "confirmed"
+  | "error";
 
 interface TradeConfirmationModalProps {
   isOpen: boolean;
@@ -19,6 +25,7 @@ const STEPS: { key: TradeStep; label: string; sub: string }[] = [
   { key: "signing",    label: "Sign",     sub: "Wallet approval" },
   { key: "encrypting", label: "Encrypt",  sub: "Arcium MPC" },
   { key: "submitting", label: "Submit",   sub: "Solana network" },
+  { key: "verifying",  label: "Finalize", sub: "MPC callback" },
   { key: "confirmed",  label: "Confirmed", sub: "Position opened" },
 ];
 
@@ -50,6 +57,7 @@ export default function TradeConfirmationModal({
   const currentIdx = stepIndex(step);
   const isError = step === "error";
   const isComplete = step === "confirmed";
+  const hasQueuedTx = Boolean(txSignature);
   const isLong = direction === "long";
   const priceStr = entryPrice < 0.01 ? entryPrice.toFixed(8) : entryPrice.toFixed(2);
 
@@ -154,7 +162,9 @@ export default function TradeConfirmationModal({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </div>
-                <span className="text-sm font-semibold text-accent-red">Transaction failed</span>
+                <span className="text-sm font-semibold text-accent-red">
+                  {hasQueuedTx ? "Queued but not finalized" : "Transaction failed"}
+                </span>
               </div>
               <p className="text-[11px] text-gray-500 leading-relaxed">
                 {errorMessage || "An error occurred. Please try again."}
@@ -180,14 +190,14 @@ export default function TradeConfirmationModal({
 
         {/* Footer */}
         <div className="px-5 pb-5 space-y-2">
-          {isComplete && txSignature && (
+          {(isComplete || isError) && txSignature && (
             <a
               href={getExplorerTxUrl(txSignature)}
               target="_blank"
               rel="noreferrer"
               className="flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-accent-purple/15 text-accent-purple text-sm font-medium hover:bg-accent-purple/25 transition-colors"
             >
-              View on Explorer
+              {isComplete ? "View on Explorer" : "View queued tx on Explorer"}
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
