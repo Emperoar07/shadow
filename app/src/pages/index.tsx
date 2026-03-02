@@ -592,7 +592,7 @@ export default function LandingPage() {
               <p className="lp-session-label">Session Trading</p>
               <h3 className="lp-session-title">One approval. Unlimited trades.</h3>
               <p className="lp-session-desc">
-                Create a delegated trading session and sign once. For the next 5 hours a relayer executes your encrypted orders on-chain with no wallet popup interrupting every position. Set a per-trade margin cap and revoke the session at any time.
+                Create a delegated trading session and sign once. A relayer executes your encrypted orders on-chain with no wallet popup interrupting every position. Set a per-trade margin cap and revoke the session at any time.
               </p>
             </div>
             <div className="lp-session-stats">
@@ -631,7 +631,7 @@ export default function LandingPage() {
           <div className="lp-cta-glow" />
           <p className="lp-section-tag" style={{ textAlign: "center" }}>Ready?</p>
           <h2 className="lp-cta-title">Trade like no one<br />is watching.</h2>
-          <p className="lp-cta-sub">Connect your wallet. Approve one session. Stay encrypted for 5 hours.</p>
+          <p className="lp-cta-sub">Connect your wallet. Approve one session. Stay encrypted.</p>
           <Link href="/app" className="lp-btn-primary" style={{ display: "inline-flex", fontSize: "16px", padding: "16px 40px" }}>
             Launch App
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
