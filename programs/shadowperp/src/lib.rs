@@ -39,7 +39,7 @@ pub use handlers::callbacks::close_position_callback::ClosePositionOutput;
 use handlers::callbacks::liquidation_callback::CheckLiquidationCallback;
 pub use handlers::callbacks::liquidation_callback::CheckLiquidationOutput;
 use handlers::callbacks::open_position_callback::OpenPositionV2Callback;
-pub use handlers::callbacks::open_position_callback::OpenPositionOutput;
+pub use handlers::callbacks::open_position_callback::OpenPositionV2Output;
 use handlers::check_liquidation::CheckLiquidation;
 use handlers::close_position::ClosePosition;
 use handlers::deposit_collateral::DepositCollateral;
@@ -208,10 +208,10 @@ pub mod shadowperp {
     }
 
     /// Callback after position opening MPC completes
-    #[arcium_callback(encrypted_ix = "open_position_v2", auto_serialize = false)]
+    #[arcium_callback(encrypted_ix = "open_position_v2")]
     pub fn open_position_v2_callback(
         ctx: Context<OpenPositionV2Callback>,
-        output: SignedComputationOutputs<OpenPositionOutput>,
+        output: SignedComputationOutputs<OpenPositionV2Output>,
     ) -> Result<()> {
         handlers::callbacks::open_position_callback::open_position_callback_handler(ctx, output)
     }

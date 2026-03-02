@@ -42,10 +42,12 @@ pub struct OpenPositionV2Callback<'info> {
     pub margin_account: Box<Account<'info, MarginAccount>>,
 }
 
+pub type OpenPositionV2Output = OpenPositionOutput;
+
 /// Handler logic for the open_position callback (called from lib.rs via #[arcium_callback])
 pub fn open_position_callback_handler(
     ctx: Context<OpenPositionV2Callback>,
-    output: SignedComputationOutputs<OpenPositionOutput>,
+    output: SignedComputationOutputs<OpenPositionV2Output>,
 ) -> Result<()> {
     // Verify the computation output from the MPC cluster
     let verified_output = match output.verify_output(

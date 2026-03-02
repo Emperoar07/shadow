@@ -87,6 +87,44 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Next safe step:
   1. Re-test the timeout UX immediately after the queue serialization blocker is cleared or on a namespace where queue txs succeed but callbacks stall.
 
+## Open Queue Investigation: Callback Serialization Alignment (2026-03-02 UTC)
+- Scope:
+  - `programs/shadowperp/src/lib.rs`
+  - `programs/shadowperp/src/handlers/callbacks/open_position_callback.rs`
+- Findings:
+  1. Live devnet retry still reproduces the queue failure inside Arcium:
+     - `AnchorError caused by account: comp. Error Code: AccountDidNotSerialize (3004)`
+  2. The current `open_position_v2_callback` path was the only primary callback using `#[arcium_callback(..., auto_serialize = false)]`.
+  3. `close_position_callback` and `check_liquidation_callback` already use the default callback serialization path.
+- Changes:
+  1. Removed `auto_serialize = false` from `open_position_v2_callback`.
+  2. Added a local alias `OpenPositionV2Output = OpenPositionOutput` so the callback stays compatible with the macro's default expected output type.
+- Verification:
+  - `cargo check -p shadowperp` -> PASS
+- Deployment + live retry:
+  1. Rebuilt the SBF artifact with the repo-bundled Solana toolchain:
+     - `.\.tools\solana-v2.3.13-extracted\solana-release\bin\cargo-build-sbf.exe --skip-tools-install --manifest-path programs\shadowperp\Cargo.toml --sbf-out-dir target\deploy`
+  2. First deploy attempt over RPC failed with `Max retries exceeded`; closed the temporary buffer account and reclaimed `7.84317528 SOL`.
+  3. Retried deploy over QUIC with a small priority fee; upgrade succeeded:
+     - Program: `2Gz35PAHBkggSfV77mCENobt5YEURuYMAjgpvKXoL61d`
+     - Upgrade tx: `cQJkUmU9HWoEYGGvkgtjJ62mB4GCQhSHJnGH9yj7DGZ79GF43hgfdJTCx2RuHaxZUS8s5AcB46qvWYPunkaktcD`
+  4. Refreshed stale oracle:
+     - Oracle tx: `5mLGvcvp1Li6LXUwS4JSPS9CQcLhULSiCp58UMxfHDDW1XG66qjc3U5vgR4RVGf879BRo1yUaDoLjTytqCaxiZhz`
+  5. Created a fresh delegated session and re-ran open smoke:
+     - Session create tx: `52e3E7peggU7xHcfkR7VzHSmC1zkNVioYt8EukbK3dUN8GLvgeiw4CjmLoQXTaBi8fWX3jZ156T2j4dtJ1JHCtP4`
+     - Open still fails immediately in simulation with the same Arcium queue error:
+       - `AnchorError caused by account: comp. Error Code: AccountDidNotSerialize (3004).`
+- Current blocker:
+  - This callback macro alignment change is deployed, but it does not remove the queue-path failure.
+  - The deterministic blocker remains the previously documented Arcium `QueueComputation` space-formula bug on `comp`.
+- Package status:
+  - `cargo search arcium-anchor --limit 5` -> latest published crate is still `0.8.5`
+  - `cargo search arcium-client --limit 5` -> latest published crate is still `0.8.5`
+- Next safe step:
+  1. Stop treating the callback macro shape as the primary suspect; the deployed retry disproved that path.
+  2. Escalate the existing `AccountDidNotSerialize (3004)` bug report to Arcium with the devnet upgrade tx + fresh smoke evidence above.
+  3. Do not claim open-position trading is fixed until Arcium ships a protocol-side patch or a documented workaround.
+
 ## Vercel Deploy Prep (Partial Live) (2026-03-01 UTC)
 - Scope:
   - `.gitignore`
