@@ -36,6 +36,19 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Next safe step:
   1. Smoke the landing page on desktop and mobile after deploy to confirm the stat card still fits the layout cleanly.
 
+## Landing Copy: Remove Session Rules Stat Card (2026-03-02 UTC)
+- Scope:
+  - `app/src/pages/index.tsx`
+- Changes:
+  1. Removed the `Scoped / Session rules` stat card from the session callout on the landing page.
+  2. Kept the remaining `1x / Wallet sign` and `infinity / Trades within cap` cards unchanged.
+- Verification:
+  - `pnpm --dir app exec tsc --noEmit`
+- Current blocker:
+  - Arcium devnet queue path can still fail at `QueueComputation` with `AccountDidNotSerialize (3004)` in open-position flows.
+- Next safe step:
+  1. Quick visual smoke after deploy to confirm the two remaining stat cards still align cleanly in the session callout.
+
 ## Vercel Deploy Prep (Partial Live) (2026-03-01 UTC)
 - Scope:
   - `.gitignore`

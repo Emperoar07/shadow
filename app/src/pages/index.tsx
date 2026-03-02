@@ -597,10 +597,6 @@ export default function LandingPage() {
             </div>
             <div className="lp-session-stats">
               <div className="lp-session-stat">
-                <div className="lp-session-stat-val">Scoped</div>
-                <div className="lp-session-stat-lbl">Session rules</div>
-              </div>
-              <div className="lp-session-stat">
                 <div className="lp-session-stat-val">1×</div>
                 <div className="lp-session-stat-lbl">Wallet sign</div>
               </div>
