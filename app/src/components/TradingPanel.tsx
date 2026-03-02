@@ -1001,7 +1001,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             )}
           </button>
 
-          <div className="border-t border-shadow-600 pt-2.5 mt-1 space-y-1.5 text-[12px]">
+          <div className="rounded-lg bg-shadow-900 border border-shadow-600 p-2.5 mt-1 space-y-1.5 text-[12px]">
             <div className="flex items-center justify-between">
               <span className="text-gray-500">Liquidation Price</span>
               <span className="font-medium text-gray-300">
