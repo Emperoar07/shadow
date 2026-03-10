@@ -42,8 +42,6 @@ interface TradingPanelProps {
   layout?: "vertical" | "horizontal";
 }
 
-export default memo(TradingPanel);
-
 function parseOptionalPositive(value: string): number | null {
   const parsed = parseFloat(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -118,7 +116,7 @@ function validateTpSl(
   return null;
 }
 
-function TradingPanel({ pair, layout = "vertical" }: TradingPanelProps) {
+export default function TradingPanel({ pair, layout = "vertical" }: TradingPanelProps) {
   const activePair = pair ?? TRADING_PAIRS[0];
   const isHorizontal = layout === "horizontal";
   const { publicKey, signMessage } = useWallet();
@@ -1083,4 +1081,3 @@ function TradingPanel({ pair, layout = "vertical" }: TradingPanelProps) {
     </div>
   );
 }
-import { memo } from "react";

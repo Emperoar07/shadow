@@ -946,13 +946,11 @@ export const useArciumPrivacy = () => {
     const stored = readStoredSession(owner, market);
     if (!stored) {
       setRelaySession(null);
+      setRelaySessionHydrated(true);
       void (async () => {
         const recovered = await recoverLatestRelaySession(false);
-        if (cancelled) return;
-        if (recovered) {
-          setRelaySession(recovered);
-        }
-        setRelaySessionHydrated(true);
+        if (cancelled || !recovered) return;
+        setRelaySession(recovered);
       })();
       return;
     }
@@ -966,15 +964,15 @@ export const useArciumPrivacy = () => {
     }
 
     setRelaySession(null);
+    setRelaySessionHydrated(true);
     void (async () => {
       const recovered = await recoverLatestRelaySession(false);
       if (cancelled) return;
       if (recovered) {
         setRelaySession(recovered);
-      } else {
-        clearStoredSession(owner, market);
+        return;
       }
-      setRelaySessionHydrated(true);
+      clearStoredSession(owner, market);
     })();
 
     return () => {
@@ -989,19 +987,9 @@ export const useArciumPrivacy = () => {
   }, [relaySession]);
 
   useEffect(() => {
-    const owner = publicKey?.toBase58();
-    if (!owner) {
-      setRelaySessionSeen(false);
-      setRelaySessionOptimisticUntil(0);
-      return;
-    }
-
+    if (publicKey) return;
     setRelaySessionSeen(false);
     setRelaySessionOptimisticUntil(0);
-    setRelaySession((current) => {
-      if (!current) return null;
-      return current.owner === owner ? current : null;
-    });
   }, [publicKey]);
 
   useEffect(() => {
@@ -1023,12 +1011,6 @@ export const useArciumPrivacy = () => {
     if (!publicKey) {
       setRelaySessionState("idle");
       setRelaySessionMessage("Connect wallet to start delegated session");
-      return;
-    }
-
-    if (!relaySessionHydrated) {
-      setRelaySessionState("reconnecting");
-      setRelaySessionMessage("Checking delegated session...");
       return;
     }
 

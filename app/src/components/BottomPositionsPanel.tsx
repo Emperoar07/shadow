@@ -33,8 +33,6 @@ interface UiPosition {
   hasEncryptedData: boolean;
 }
 
-export default memo(BottomPositionsPanel);
-
 type Direction = "long" | "short";
 
 function parseStatus(status: unknown): UiStatus {
@@ -149,7 +147,7 @@ function MetricBlock({
   );
 }
 
-function BottomPositionsPanel() {
+export default function BottomPositionsPanel() {
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
@@ -891,4 +889,3 @@ function BottomPositionsPanel() {
     </div>
   );
 }
-import { memo } from "react";

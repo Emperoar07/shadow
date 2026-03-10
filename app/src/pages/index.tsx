@@ -44,23 +44,10 @@ export default function LandingPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const isTouchDevice =
-      typeof window !== "undefined" &&
-      window.matchMedia("(pointer: coarse)").matches;
-    if (prefersReducedMotion) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      return;
-    }
-
     let W = 0, H = 0, rafId = 0, lastFrame = 0;
     type P = { x: number; y: number; vx: number; vy: number; r: number; alpha: number; color: string };
     const COLORS = ["139,92,246", "59,130,246", "16,185,129"];
     let particles: P[] = [];
-    const particleCount = isTouchDevice ? 36 : 100;
-    const lineDistance = isTouchDevice ? 110 : 160;
 
     function resize() {
       W = canvas!.width = window.innerWidth;
@@ -69,7 +56,7 @@ export default function LandingPage() {
     resize();
     window.addEventListener("resize", resize);
 
-    for (let i = 0; i < particleCount; i++) {
+    for (let i = 0; i < 100; i++) {
       particles.push({
         x: Math.random() * W,
         y: Math.random() * H,
@@ -99,11 +86,11 @@ export default function LandingPage() {
           const dx = particles[i].x - particles[j].x;
           const dy = particles[i].y - particles[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < lineDistance) {
+          if (dist < 160) {
             ctx!.beginPath();
             ctx!.moveTo(particles[i].x, particles[i].y);
             ctx!.lineTo(particles[j].x, particles[j].y);
-            ctx!.strokeStyle = `rgba(99,92,246,${0.15 * (1 - dist / lineDistance)})`;
+            ctx!.strokeStyle = `rgba(99,92,246,${0.15 * (1 - dist / 160)})`;
             ctx!.lineWidth = 0.8;
             ctx!.stroke();
           }
@@ -119,17 +106,9 @@ export default function LandingPage() {
   useEffect(() => {
     const target = decryptRef.current;
     if (!target) return;
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const chars = "¦¦¦¦++++¦¦--+¦-+ABCDEFGHabcdefgh0123456789$#@!&";
     const finalText = "the Dark.";
     let frame = 0, rafId = 0;
-
-    if (prefersReducedMotion) {
-      target.textContent = finalText;
-      return;
-    }
 
     function scramble() {
       frame++;
@@ -174,16 +153,6 @@ export default function LandingPage() {
 
   // -- Mouse motion effects -------------------------------------
   useEffect(() => {
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const isTouchDevice =
-      typeof window !== "undefined" &&
-      window.matchMedia("(pointer: coarse)").matches;
-    if (prefersReducedMotion || isTouchDevice) {
-      return;
-    }
-
     const glow = cursorGlowRef.current;
     const o1 = orb1Ref.current;
     const o2 = orb2Ref.current;
@@ -539,21 +508,6 @@ export default function LandingPage() {
             <a href="#session" className="lp-nav-link">Session Trading</a>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <button
-              className="lp-theme-toggle-btn"
-              onClick={toggleTheme}
-              data-light={isLight ? "true" : "false"}
-              title={isLight ? "Switch to dark mode" : "Switch to light mode"}
-              aria-label="Toggle theme"
-            >
-              <span className="lp-toggle-sun" aria-hidden="true">
-                <svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="10" r="4" /><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.6 3.6l1.4 1.4M15 15l1.4 1.4M3.6 16.4 5 15M15 5l1.4-1.4" /></svg>
-              </span>
-              <span className="lp-toggle-moon" aria-hidden="true">
-                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 2.1a7.2 7.2 0 1 0 4.1 11.7 8 8 0 1 1-4.1-11.7Z" /></svg>
-              </span>
-              <span className="lp-toggle-knob" />
-            </button>
             <Link href="/app" className="lp-nav-cta">Launch App &rarr;</Link>
           </div>
         </nav>
@@ -703,6 +657,24 @@ export default function LandingPage() {
             <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer">built by 0xb</a>
           </span>
         </footer>
+
+        {/* Theme toggle — fixed bottom-right */}
+        <button
+          className="lp-theme-toggle-btn"
+          onClick={toggleTheme}
+          data-light={isLight ? "true" : "false"}
+          title={isLight ? "Switch to dark mode" : "Switch to light mode"}
+          aria-label="Toggle theme"
+          style={{ position: "fixed", right: "1.25rem", bottom: "1.25rem", zIndex: 9999 }}
+        >
+          <span className="lp-toggle-sun" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="10" r="4" /><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.6 3.6l1.4 1.4M15 15l1.4 1.4M3.6 16.4 5 15M15 5l1.4-1.4" /></svg>
+          </span>
+          <span className="lp-toggle-moon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 2.1a7.2 7.2 0 1 0 4.1 11.7 8 8 0 1 1-4.1-11.7Z" /></svg>
+          </span>
+          <span className="lp-toggle-knob" />
+        </button>
 
       </div>
     </>
