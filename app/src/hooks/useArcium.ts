@@ -22,13 +22,6 @@ type PrivacyStatus =
   | "verified"
   | "error";
 
-export type RelaySessionUiState =
-  | "idle"
-  | "creating"
-  | "active"
-  | "expired"
-  | "reconnecting";
-
 export interface PrivateOrderInput {
   side: PositionDirection;
   sizeUi: number;
@@ -67,7 +60,6 @@ export const RELAY_SESSION_UPDATED_EVENT = "shadowperp:relay-session-updated";
 export const RELAY_SESSION_RENEW_BEFORE_SECONDS = 15;
 const DEFAULT_SESSION_MAX_ACTIONS = 200;
 const DEFAULT_SESSION_MAX_MARGIN_USDC = 1_000;
-const RELAY_SESSION_OPTIMISTIC_HOLD_MS = 15_000;
 
 function actionFromReason(reason?: EnsureRelaySessionOptions["reason"]): RelaySessionAction {
   if (reason === "deposit") return "deposit";
@@ -362,13 +354,6 @@ export const useArciumPrivacy = () => {
   const [relayAvailable, setRelayAvailable] = useState<boolean>(false);
   const [relayError, setRelayError] = useState<string | null>(null);
   const [relaySessionHydrated, setRelaySessionHydrated] = useState<boolean>(false);
-  const [relaySessionState, setRelaySessionState] = useState<RelaySessionUiState>("idle");
-  const [relaySessionMessage, setRelaySessionMessage] = useState<string>("Start delegated session");
-  const [relaySessionCreating, setRelaySessionCreating] = useState<boolean>(false);
-  const [relaySessionRecovering, setRelaySessionRecovering] = useState<boolean>(false);
-  const [relaySessionOptimisticUntil, setRelaySessionOptimisticUntil] = useState<number>(0);
-  const [relaySessionSeen, setRelaySessionSeen] = useState<boolean>(false);
-  const [relaySessionClockMs, setRelaySessionClockMs] = useState<number>(() => Date.now());
 
   const getClient = useCallback(() => {
     if (!anchorWallet) return null;
@@ -420,7 +405,6 @@ export const useArciumPrivacy = () => {
       return null;
     }
 
-    setRelaySessionRecovering(true);
     try {
       const query = new URLSearchParams({
         owner: current.owner,
@@ -479,8 +463,6 @@ export const useArciumPrivacy = () => {
       return next;
     } catch {
       return current;
-    } finally {
-      setRelaySessionRecovering(false);
     }
   }, [publicKey, relaySession]);
 
@@ -491,7 +473,6 @@ export const useArciumPrivacy = () => {
       if (resolvedOwner && resolvedMarket) {
         clearStoredSession(resolvedOwner, resolvedMarket);
       }
-      setRelaySessionOptimisticUntil(0);
       setRelaySession((current) => {
         if (!current) return null;
         if (resolvedOwner && current.owner !== resolvedOwner) return current;
@@ -602,7 +583,6 @@ export const useArciumPrivacy = () => {
       const owner = publicKey.toBase58();
       const market = ctx.runtime.marketAddress.toBase58();
       const nowSeconds = Math.floor(Date.now() / 1000);
-      setRelaySessionRecovering(true);
       try {
         const query = new URLSearchParams({ owner });
         const response = await fetch(`/api/relay/session?${query.toString()}`);
@@ -678,8 +658,6 @@ export const useArciumPrivacy = () => {
         return authed;
       } catch {
         return null;
-      } finally {
-        setRelaySessionRecovering(false);
       }
     },
     [publicKey, getClient, ensureRelaySessionAuth]
@@ -687,116 +665,110 @@ export const useArciumPrivacy = () => {
 
   const createRelaySession = useCallback(
     async (options?: EnsureRelaySessionOptions) => {
-      setRelaySessionCreating(true);
-      try {
-        if (!publicKey) {
-          throw new Error("Connect wallet first.");
-        }
-        if (!signMessage) {
-          throw new Error("Wallet does not support message signing.");
-        }
-        const ctx = getClient();
-        if (!ctx) {
-          throw new Error("Trading client unavailable. Check wallet + env.");
-        }
+      if (!publicKey) {
+        throw new Error("Connect wallet first.");
+      }
+      if (!signMessage) {
+        throw new Error("Wallet does not support message signing.");
+      }
+      const ctx = getClient();
+      if (!ctx) {
+        throw new Error("Trading client unavailable. Check wallet + env.");
+      }
 
-        const relayInfo = await refreshRelayAvailability();
-        if (!relayInfo) {
-          throw new Error(relayError || "Relay unavailable.");
-        }
+      const relayInfo = await refreshRelayAvailability();
+      if (!relayInfo) {
+        throw new Error(relayError || "Relay unavailable.");
+      }
 
-        const { client, runtime } = ctx;
-        const owner = publicKey.toBase58();
-        const marketAddress = runtime.marketAddress.toBase58();
-        const nowSeconds = Math.floor(Date.now() / 1000);
-        const existing =
-          relaySession ??
-          readStoredSession(owner, marketAddress);
-        const reason = options?.reason ?? "trade";
-        if (isUsableRelaySession(existing, owner, marketAddress, nowSeconds)) {
-          const authed = await ensureRelaySessionAuth(
-            existing,
-            actionFromReason(reason),
-            Boolean(options?.userInitiated)
-          );
-          const prepared = await maybeEnsureCollateralForReason(
-            authed,
-            reason,
-            runtime.marketAddress
-          );
-          setRelaySession(prepared);
-          return prepared;
-        }
-
-        const sessionId = new BN(Math.floor(Date.now() / 1000));
-        const duration = options?.durationSeconds ?? DEFAULT_TRADE_SESSION_DURATION_SECONDS;
-        const expiresAt = Math.floor(Date.now() / 1000) + duration;
-        const maxActions = options?.maxActions ?? DEFAULT_SESSION_MAX_ACTIONS;
-        const maxMarginPerActionUsdc =
-          options?.maxMarginPerActionUsdc ?? DEFAULT_SESSION_MAX_MARGIN_USDC;
-        const maxMarginPerAction = toScaledPositiveBn(
-          maxMarginPerActionUsdc,
-          SCALE_MARGIN,
-          "delegated session max margin"
+      const { client, runtime } = ctx;
+      const owner = publicKey.toBase58();
+      const marketAddress = runtime.marketAddress.toBase58();
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const existing =
+        relaySession ??
+        readStoredSession(owner, marketAddress);
+      const reason = options?.reason ?? "trade";
+      if (isUsableRelaySession(existing, owner, marketAddress, nowSeconds)) {
+        const authed = await ensureRelaySessionAuth(
+          existing,
+          actionFromReason(reason),
+          Boolean(options?.userInitiated)
         );
-
-        setStatus("preparing");
-        setStatusMessage("Authorizing delegated trading session...");
-
-        const authMessage = buildRelaySessionAuthMessage({
-          owner,
-          market: marketAddress,
-          sessionId: sessionId.toString(),
-          action: actionFromReason(reason),
-          sessionExpiresAt: expiresAt,
-          authExpiresAt: expiresAt,
-        });
-        const signature = await signMessage(new TextEncoder().encode(authMessage));
-
-        setStatus("queued");
-        setStatusMessage("Creating delegated session on-chain...");
-
-        const { txSignature, sessionAddress } = await client.createTradeSession(
-          runtime.marketAddress,
-          sessionId,
-          new PublicKey(relayInfo.relayer),
-          maxActions,
-          maxMarginPerAction,
-          new BN(expiresAt)
-        );
-        setLastSignature(txSignature);
-
-        const nextSession: SessionRelayInfo = {
-          owner,
-          market: marketAddress,
-          relayer: relayInfo.relayer,
-          sessionId: sessionId.toString(),
-          sessionAddress: sessionAddress.toBase58(),
-          authScope: RELAY_SESSION_AUTH_SCOPE,
-          authAction: actionFromReason(reason),
-          expiresAt,
-          authExpiresAt: expiresAt,
-          maxActions,
-          usedActions: 0,
-          maxMarginPerActionRaw: maxMarginPerAction.toString(),
-          authSignature: uint8ToBase64(signature),
-          collateralDelegateApproved: false,
-        };
-        const preparedSession = await maybeEnsureCollateralForReason(
-          nextSession,
+        const prepared = await maybeEnsureCollateralForReason(
+          authed,
           reason,
           runtime.marketAddress
         );
-        setRelaySession(preparedSession);
-        persistSession(preparedSession);
-        setRelaySessionOptimisticUntil(Date.now() + RELAY_SESSION_OPTIMISTIC_HOLD_MS);
-        setStatus("verified");
-        setStatusMessage("Delegated session active. New trades can run without wallet popups.");
-
-        return preparedSession;
-      } finally {
-        setRelaySessionCreating(false);
+        setRelaySession(prepared);
+        return prepared;
       }
+
+      const sessionId = new BN(Math.floor(Date.now() / 1000));
+      const duration = options?.durationSeconds ?? DEFAULT_TRADE_SESSION_DURATION_SECONDS;
+      const expiresAt = Math.floor(Date.now() / 1000) + duration;
+      const maxActions = options?.maxActions ?? DEFAULT_SESSION_MAX_ACTIONS;
+      const maxMarginPerActionUsdc =
+        options?.maxMarginPerActionUsdc ?? DEFAULT_SESSION_MAX_MARGIN_USDC;
+      const maxMarginPerAction = toScaledPositiveBn(
+        maxMarginPerActionUsdc,
+        SCALE_MARGIN,
+        "delegated session max margin"
+      );
+
+      setStatus("preparing");
+      setStatusMessage("Authorizing delegated trading session...");
+
+      const authMessage = buildRelaySessionAuthMessage({
+        owner,
+        market: marketAddress,
+        sessionId: sessionId.toString(),
+        action: actionFromReason(reason),
+        sessionExpiresAt: expiresAt,
+        authExpiresAt: expiresAt,
+      });
+      const signature = await signMessage(new TextEncoder().encode(authMessage));
+
+      setStatus("queued");
+      setStatusMessage("Creating delegated session on-chain...");
+
+      const { txSignature, sessionAddress } = await client.createTradeSession(
+        runtime.marketAddress,
+        sessionId,
+        new PublicKey(relayInfo.relayer),
+        maxActions,
+        maxMarginPerAction,
+        new BN(expiresAt)
+      );
+      setLastSignature(txSignature);
+
+      const nextSession: SessionRelayInfo = {
+        owner,
+        market: marketAddress,
+        relayer: relayInfo.relayer,
+        sessionId: sessionId.toString(),
+        sessionAddress: sessionAddress.toBase58(),
+        authScope: RELAY_SESSION_AUTH_SCOPE,
+        authAction: actionFromReason(reason),
+        expiresAt,
+        authExpiresAt: expiresAt,
+        maxActions,
+        usedActions: 0,
+        maxMarginPerActionRaw: maxMarginPerAction.toString(),
+        authSignature: uint8ToBase64(signature),
+        collateralDelegateApproved: false,
+      };
+      const preparedSession = await maybeEnsureCollateralForReason(
+        nextSession,
+        reason,
+        runtime.marketAddress
+      );
+      setRelaySession(preparedSession);
+      persistSession(preparedSession);
+      setStatus("verified");
+      setStatusMessage("Delegated session active. New trades can run without wallet popups.");
+
+      return preparedSession;
     },
     [
       publicKey,
@@ -948,82 +920,6 @@ export const useArciumPrivacy = () => {
       cancelled = true;
     };
   }, [getClient, publicKey, recoverLatestRelaySession]);
-
-  useEffect(() => {
-    if (relaySession) {
-      setRelaySessionSeen(true);
-    }
-  }, [relaySession]);
-
-  useEffect(() => {
-    if (publicKey) return;
-    setRelaySessionSeen(false);
-    setRelaySessionOptimisticUntil(0);
-  }, [publicKey]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => setRelaySessionClockMs(Date.now()), 5_000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const owner = publicKey?.toBase58();
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const optimisticActive = relaySessionClockMs < relaySessionOptimisticUntil;
-    const isActive =
-      !!relaySession &&
-      relaySession.owner === owner &&
-      relaySession.usedActions < relaySession.maxActions &&
-      (relaySession.expiresAt - nowSeconds > RELAY_SESSION_RENEW_BEFORE_SECONDS ||
-        optimisticActive);
-
-    if (!publicKey) {
-      setRelaySessionState("idle");
-      setRelaySessionMessage("Connect wallet to start delegated session");
-      return;
-    }
-
-    if (relaySessionCreating) {
-      setRelaySessionState("creating");
-      setRelaySessionMessage("Creating delegated session...");
-      return;
-    }
-
-    if (isActive) {
-      setRelaySessionState("active");
-      setRelaySessionMessage("Delegated session active");
-      return;
-    }
-
-    if (relaySessionRecovering) {
-      setRelaySessionState("reconnecting");
-      setRelaySessionMessage("Reconnecting delegated session...");
-      return;
-    }
-
-    if (relaySessionHydrated && relaySessionSeen) {
-      setRelaySessionState("expired");
-      setRelaySessionMessage(
-        relayAvailable ? "Delegated session expired" : "Relay unavailable"
-      );
-      return;
-    }
-
-    setRelaySessionState("idle");
-    setRelaySessionMessage(
-      relayAvailable ? "Start delegated session" : "Relay unavailable"
-    );
-  }, [
-    publicKey,
-    relaySession,
-    relaySessionCreating,
-    relaySessionRecovering,
-    relaySessionHydrated,
-    relaySessionClockMs,
-    relaySessionOptimisticUntil,
-    relaySessionSeen,
-    relayAvailable,
-  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1263,8 +1159,6 @@ export const useArciumPrivacy = () => {
     relayError,
     relaySession,
     relaySessionHydrated,
-    relaySessionState,
-    relaySessionMessage,
     createRelaySession,
     ensureRelaySession,
     invalidateRelaySession,

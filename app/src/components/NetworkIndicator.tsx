@@ -113,6 +113,11 @@ export default function NetworkIndicator({ mode = "all" }: { mode?: "all" | "net
   }, [connection]);
 
   function formatBalance(bal: number, symbol: string): string {
+    if (symbol === "BONK") {
+      if (bal >= 1_000_000) return `${(bal / 1_000_000).toFixed(1)}M`;
+      if (bal >= 1_000) return `${(bal / 1_000).toFixed(1)}K`;
+      return bal.toFixed(0);
+    }
     if (bal < 0.001) return "<0.001";
     if (bal >= 1_000_000) return `${(bal / 1_000_000).toFixed(1)}M`;
     if (bal >= 1_000) return `${(bal / 1_000).toFixed(1)}K`;
