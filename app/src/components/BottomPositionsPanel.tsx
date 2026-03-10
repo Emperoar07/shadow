@@ -312,6 +312,10 @@ export default function BottomPositionsPanel() {
     if (!editAddress) return;
     const tp = parseOptionalPositive(editTakeProfit);
     const sl = parseOptionalPositive(editStopLoss);
+    const existingView = ownerPositionViews[editAddress];
+    const existingRule = getPositionRule(editAddress);
+    const pairLabel =
+      existingView?.pairLabel ?? existingRule?.pairLabel ?? "PERP";
     if (tp === null && sl === null) {
       removePositionRule(editAddress);
       toast.success("TP/SL rule removed");
@@ -320,7 +324,7 @@ export default function BottomPositionsPanel() {
     }
     setPositionRule({
       positionAddress: editAddress,
-      pairLabel: "SHADOW-PERP",
+      pairLabel,
       side: editSide,
       takeProfit: tp,
       stopLoss: sl,
@@ -328,7 +332,7 @@ export default function BottomPositionsPanel() {
     });
     toast.success("TP/SL rule saved");
     setEditAddress(null);
-  }, [editAddress, editSide, editStopLoss, editTakeProfit]);
+  }, [editAddress, editSide, editStopLoss, editTakeProfit, ownerPositionViews]);
 
   const openPositions = useMemo(
     () => positions.filter((p) => ["open", "pending", "closing", "settling"].includes(p.status)),
@@ -349,11 +353,12 @@ export default function BottomPositionsPanel() {
   const derivePositionCard = useCallback(
     (position: UiPosition) => {
       const view = ownerPositionViews[position.address] ?? null;
+      const rule = positionRules[position.address] ?? null;
       const side = view?.side ?? null;
       const marginMode = view?.marginMode ?? "cross";
       const leverage = view?.leverage ?? null;
       const entryPrice = view?.entryPrice ?? null;
-      const pairLabel = view?.pairLabel ?? "SHADOW-PERP";
+      const pairLabel = view?.pairLabel ?? rule?.pairLabel ?? "PERP";
       const sizeBase = view?.sizeBase ?? null;
 
       let liqPrice: number | null = null;
@@ -421,7 +426,7 @@ export default function BottomPositionsPanel() {
         healthPercent,
       };
     },
-    [liqThreshold, oraclePrice, ownerPositionViews]
+    [liqThreshold, oraclePrice, ownerPositionViews, positionRules]
   );
 
   useEffect(() => {
@@ -816,53 +821,69 @@ export default function BottomPositionsPanel() {
       </div>
 
       {editAddress && (
-        <div className="tpsl-editor-panel border-t border-shadow-600 p-3 bg-shadow-800/50">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-cyan-300">Edit TP/SL Automation</p>
+        <div className="tpsl-editor-panel border-t border-shadow-600 bg-shadow-900/70 p-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-cyan-300">Edit TP/SL Automation</p>
+              <p className="mt-1 text-[11px] uppercase tracking-[0.1em] text-gray-500">
+                Protection rule for active position
+              </p>
+            </div>
             <button
               onClick={() => setEditAddress(null)}
-              className="text-[11px] text-gray-400 hover:text-gray-200"
+              className="rounded-md px-2 py-1 text-[11px] text-gray-400 transition-colors hover:bg-shadow-700 hover:text-gray-200"
             >
               Close
             </button>
           </div>
-          <div className="mb-2 flex items-center gap-2 text-[11px] text-gray-400">
-            <span className="uppercase tracking-[0.08em] text-gray-500">Position side</span>
-            <span
-              className={`rounded-full px-2.5 py-0.5 font-semibold uppercase ${
-                editSide === "long"
-                  ? "bg-accent-green/20 text-accent-green"
-                  : "bg-accent-red/20 text-accent-red"
-              }`}
-            >
-              {editSide}
-            </span>
+          <div className="mb-4 rounded-xl border border-shadow-600 bg-shadow-800/70 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[11px] uppercase tracking-[0.1em] text-gray-500">
+                Position side
+              </span>
+              <span
+                className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase ${
+                  editSide === "long"
+                    ? "bg-accent-green/20 text-accent-green"
+                    : "bg-accent-red/20 text-accent-red"
+                }`}
+              >
+                {editSide}
+              </span>
+            </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-            <input
-              type="number"
-              value={editTakeProfit}
-              onChange={(e) => setEditTakeProfit(e.target.value)}
-              placeholder="Take Profit"
-              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50 sm:col-span-1"
-            />
-            <input
-              type="number"
-              value={editStopLoss}
-              onChange={(e) => setEditStopLoss(e.target.value)}
-              placeholder="Stop Loss"
-              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50 sm:col-span-1"
-            />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px]">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-500">
+                Take Profit
+              </span>
+              <input
+                type="number"
+                value={editTakeProfit}
+                onChange={(e) => setEditTakeProfit(e.target.value)}
+                placeholder="Optional target price"
+                className="rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-500">
+                Stop Loss
+              </span>
+              <input
+                type="number"
+                value={editStopLoss}
+                onChange={(e) => setEditStopLoss(e.target.value)}
+                placeholder="Optional protection price"
+                className="rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
+              />
+            </label>
             <button
               onClick={saveRule}
-              className="px-3 py-1.5 rounded text-xs font-medium bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25 transition-colors sm:col-span-2"
+              className="mt-auto rounded-lg px-4 py-2 text-sm font-semibold bg-cyan-500/15 text-cyan-300 transition-colors hover:bg-cyan-500/25"
             >
               Save Rule
             </button>
           </div>
-          <p className="text-[10px] text-gray-500 mt-2">
-            Client automation: position closes automatically when oracle hits TP/SL while this app is running.
-          </p>
         </div>
       )}
     </div>

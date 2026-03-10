@@ -22,6 +22,14 @@ export interface ReferenceTrade {
   timestamp: number;
 }
 
+export interface ReferenceStats24h {
+  last: number | null;
+  change24h: number | null;
+  volume24h: number | null;
+  high24h: number | null;
+  low24h: number | null;
+}
+
 export interface ReferenceDepthSnapshot {
   pairLabel: string;
   provider: ReferenceDepthProvider;
@@ -33,6 +41,7 @@ export interface ReferenceDepthSnapshot {
   lastTrade: ReferenceTrade | null;
   spread: number | null;
   spreadBps: number | null;
+  stats24h: ReferenceStats24h | null;
   fetchedAt: number;
   external: true;
 }

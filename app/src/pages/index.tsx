@@ -461,6 +461,7 @@ export default function LandingPage() {
             padding:32px 40px;display:flex;align-items:center;justify-content:space-between;
             font-size:12px;color:${dark ? "#374151" : "#64748b"};
           }
+          .lp-footer-links { display:flex;gap:20px;align-items:center;flex-wrap:wrap;justify-content:flex-end }
           .lp-footer a { color:${dark ? "#6b7280" : "#94a3b8"};text-decoration:none;transition:color .15s }
           .lp-footer a:hover { color:#a78bfa }
           /* REVEAL */
@@ -474,7 +475,8 @@ export default function LandingPage() {
             .lp-features-grid{grid-template-columns:1fr}
             .lp-privacy-inner{grid-template-columns:1fr}
             .lp-nav-links{display:none}
-            .lp-footer{flex-direction:column;gap:16px;text-align:center}
+            .lp-footer{flex-direction:column;gap:16px;text-align:center;padding-bottom:84px}
+            .lp-footer-links{justify-content:center}
             .lp-session-card{grid-template-columns:1fr}
             .lp-session-stats{flex-wrap:wrap}
             .lp-theme-toggle-btn { width: 44px; height: 22px; right: 0.75rem; bottom: 0.75rem; }
@@ -650,9 +652,9 @@ export default function LandingPage() {
         {/* FOOTER */}
         <footer className="lp-footer">
           <span>&copy; 2026 Shadow. Built on Solana &amp; Arcium.</span>
-          <span style={{ display: "flex", gap: "20px" }}>
-            <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer">built by 0xb</a>
+          <span className="lp-footer-links">
             <a href="https://github.com/Emperoar07/shadow" target="_blank" rel="noopener noreferrer">Docs</a>
+            <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer">built by 0xb</a>
           </span>
         </footer>
 

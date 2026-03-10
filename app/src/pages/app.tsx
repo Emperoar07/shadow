@@ -257,6 +257,25 @@ function SessionTimerChip() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 639px)");
+    const syncCompactState = () => {
+      setIsTimerHovered(false);
+      if (!media.matches) return;
+      setDurationMenuOpen(false);
+    };
+
+    syncCompactState();
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", syncCompactState);
+      return () => media.removeEventListener("change", syncCompactState);
+    }
+
+    media.addListener(syncCompactState);
+    return () => media.removeListener(syncCompactState);
+  }, []);
+
   const handleStartSession = useCallback(async (durationSeconds: number) => {
     if (relaySessionState === "creating" || relaySessionState === "reconnecting") return;
     setDurationMenuOpen(false);

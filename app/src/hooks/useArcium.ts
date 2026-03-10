@@ -261,10 +261,36 @@ function isUsableRelaySession(
   if (!session || !owner || !market) return false;
   if (session.owner !== owner) return false;
   if (session.market !== market) return false;
-  if (session.authScope !== RELAY_SESSION_AUTH_SCOPE) return false;
   if (session.expiresAt - nowSeconds <= RELAY_SESSION_RENEW_BEFORE_SECONDS) return false;
   if (session.usedActions >= session.maxActions) return false;
   return true;
+}
+
+function normalizeRelaySessionAuth(
+  session: SessionRelayInfo,
+  fallbackAction: RelaySessionAction = "open"
+): SessionRelayInfo {
+  const action =
+    session.authAction === "open" ||
+    session.authAction === "deposit" ||
+    session.authAction === "withdraw"
+      ? session.authAction
+      : fallbackAction;
+
+  if (session.authScope === RELAY_SESSION_AUTH_SCOPE) {
+    return {
+      ...session,
+      authAction: action,
+    };
+  }
+
+  return {
+    ...session,
+    authScope: RELAY_SESSION_AUTH_SCOPE,
+    authAction: action,
+    authExpiresAt: 0,
+    authSignature: "",
+  };
 }
 
 function hasUsableRelayAuth(
@@ -474,9 +500,10 @@ export const useArciumPrivacy = () => {
         return null;
       }
 
-      setRelaySession(next);
-      persistSession(next);
-      return next;
+      const normalized = normalizeRelaySessionAuth(next, current.authAction);
+      setRelaySession(normalized);
+      persistSession(normalized);
+      return normalized;
     } catch {
       return current;
     } finally {
@@ -633,7 +660,7 @@ export const useArciumPrivacy = () => {
           .toBase58();
 
         const stored = readStoredSession(owner, market);
-        const candidate: SessionRelayInfo = {
+        const candidate = normalizeRelaySessionAuth({
           owner,
           market,
           relayer: payload.session.relayer,
@@ -662,7 +689,7 @@ export const useArciumPrivacy = () => {
             typeof stored?.collateralDelegateApproved === "boolean"
               ? stored.collateralDelegateApproved
               : false,
-        };
+        }, actionFromReason("trade"));
 
         if (!isUsableRelaySession(candidate, owner, market, nowSeconds)) {
           return null;
@@ -838,8 +865,10 @@ export const useArciumPrivacy = () => {
 
       const stored = owner && market ? readStoredSession(owner, market) : null;
       if (isUsableRelaySession(stored, owner, market, nowSeconds)) {
-        setRelaySession(stored);
-        return finalize(stored);
+        const normalized = normalizeRelaySessionAuth(stored, actionFromReason(reason));
+        setRelaySession(normalized);
+        persistSession(normalized);
+        return finalize(normalized);
       }
 
       const refreshed = await refreshRelaySession(stored ?? undefined);
@@ -927,7 +956,9 @@ export const useArciumPrivacy = () => {
     }
 
     if (isUsableRelaySession(stored, owner, market, Math.floor(Date.now() / 1000))) {
-      setRelaySession(stored);
+      const normalized = normalizeRelaySessionAuth(stored, actionFromReason("trade"));
+      setRelaySession(normalized);
+      persistSession(normalized);
       setRelaySessionHydrated(true);
       return;
     }
@@ -1049,7 +1080,9 @@ export const useArciumPrivacy = () => {
         setRelaySession(null);
         return;
       }
-      setRelaySession(stored);
+      const normalized = normalizeRelaySessionAuth(stored, actionFromReason("trade"));
+      setRelaySession(normalized);
+      persistSession(normalized);
     };
 
     const onStorage = (event: StorageEvent) => {
