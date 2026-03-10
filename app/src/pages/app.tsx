@@ -38,7 +38,7 @@ export default function TradingAppPage() {
   const [selectedPair, setSelectedPair] = useState<TradingPair>(TRADING_PAIRS[0]);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [openCollateralModal, setOpenCollateralModal] = useState<(() => void) | null>(null);
-  const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book">("chart");
+  const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book" | "trades">("chart");
   const { snapshot: marketSnapshot } = useMarketSnapshot(selectedPair);
 
   const handleMarginReady = useCallback((balance: number | null, openModal: () => void) => {
@@ -127,6 +127,7 @@ export default function TradingAppPage() {
                 {([
                   ["chart", "Chart"],
                   ["book", "Order Book"],
+                  ["trades", "Trades"],
                 ] as const).map(([tab, label]) => (
                   <button
                     key={tab}
@@ -162,7 +163,7 @@ export default function TradingAppPage() {
                     {/* Orderbook */}
                     <div
                       className={`min-h-0 ${
-                      mobileMarketTab === "book"
+                      mobileMarketTab === "book" || mobileMarketTab === "trades"
                           ? "block"
                           : "hidden lg:block"
                       }`}
@@ -170,6 +171,8 @@ export default function TradingAppPage() {
                       <PrivateOrderbook
                         pair={selectedPair}
                         marketSnapshot={marketSnapshot}
+                        activeTab={mobileMarketTab === "trades" ? "trades" : "book"}
+                        onTabChange={(tab) => setMobileMarketTab(tab)}
                       />
                     </div>
                   </div>

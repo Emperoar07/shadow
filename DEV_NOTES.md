@@ -47,6 +47,43 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   2. Track upstream fixes for `bigint-buffer` in Solana token dependencies.
   3. Consider removing Torus-backed wallet packages entirely if wallet surface can be narrowed further without breaking intended UX.
 
+## Arcium Test Check (2026-03-10 UTC)
+- Scope:
+  - verify whether `arcium test` currently passes for the active devnet namespace
+- What was verified:
+  - `npm run oracle:once` -> PASS
+  - `npm run check:preflight` -> PASS after oracle refresh
+  - Windows shell does not have `arcium` on PATH
+  - WSL has `arcium-cli 0.8.5`
+  - `wsl bash -lc 'cd /mnt/c/Users/bolaj/projects/shadowperp && arcium test --cluster devnet --skip-build --offset 456'` -> FAIL
+- Actual failure:
+  - the Arcium test run does **not** currently reach protocol assertions for the `6000/6008` path
+  - it fails earlier when Anchor tries to run the repo test script in WSL:
+    - `/mnt/c/Users/bolaj/AppData/Roaming/npm/yarn: 15: exec: node: not found`
+- Current blocker:
+  - `waiting on tool`
+  - WSL test runner environment is missing `node` on PATH for the Anchor test script
+- Next safe step:
+  1. Fix WSL Node/Yarn availability if `arcium test` itself is needed as evidence.
+  2. Until then, use the live smoke tx + callback tx evidence for the `6000 -> 6008` failure chain.
+
+## Arcium Test Runner Fix (2026-03-10 UTC)
+- What changed:
+  1. Added `scripts/run-anchor-tests.js` so Anchor test scripts set sane defaults for:
+     - `ANCHOR_PROVIDER_URL`
+     - `ANCHOR_WALLET`
+  2. Updated `Anchor.toml` test script to invoke the wrapper instead of shelling directly to `yarn run ts-mocha`.
+  3. Added a WSL-side `node` wrapper next to the Windows Yarn shim so the mixed WSL/Windows path can execute the test script.
+- What was verified:
+  - `arcium test --cluster devnet --skip-build --offset 456` now starts and reaches the actual repo test suite.
+- Current blocker:
+  - `test bootstrap failure`
+  - Current failure is no longer Node/Yarn pathing. It now fails in `tests/shadowperp.ts` during the `"before all"` hook with:
+    - `Transaction simulation failed: Attempt to debit an account but found no record of a prior credit`
+- Next safe step:
+  1. Fix the devnet test bootstrap in `tests/shadowperp.ts` so the generated authority keypair is funded robustly before `createMint` / account creation.
+  2. Only after that, use `arcium test` as evidence for whether the `6000/6008` path is covered or still failing.
+
 ## Reapplied `0f2bf62` + `7b714de` Safely (2026-03-10 UTC)
 - Scope:
   - reintroduce:
@@ -5167,4 +5204,61 @@ npm run session:relayer:close -- --session-id <ID> --owner <OWNER> --position-in
 
 1. Do one final browser pass on `HNT-PERP`.
 2. If it looks correct, keep the current UI/runtime batch as the new baseline.
+
+## Landing + Mobile Nav Restoration (2026-03-10 UTC)
+
+### What changed
+
+- Restored the landing-page theme toggle into the top nav, directly before the `Launch App` button:
+  - `app/src/pages/index.tsx`
+- Removed the duplicate fixed bottom-right landing toggle so the landing page has a single theme control:
+  - `app/src/pages/index.tsx`
+- Restored the landing footer links to:
+  - `Docs` -> `https://github.com/Emperoar07/shadow`
+  - `built by 0xb` -> `https://x.com/emperoar007`
+- Reintroduced the missing mobile `Trades` tab in the app shell and wired it through the controlled orderbook tab state:
+  - `app/src/pages/app.tsx`
+
+### What was verified
+
+- TypeScript app compile passed:
+  - `pnpm --dir app exec tsc --noEmit --incremental false`
+
+### Current blocker
+
+- `needs browser check`
+- The restored landing-header toggle and mobile `Trades` tab are code-verified, not visually rechecked yet.
+
+### Next safe step
+
+1. Open `/` and confirm the theme toggle is in the top nav before `Launch App`.
+2. Open `/app` on a mobile viewport and confirm `Chart`, `Order Book`, and `Trades` all switch correctly.
+
+## Position Card Label + Badge Cleanup (2026-03-10 UTC)
+
+### What changed
+
+- Removed the hardcoded `SHADOW-PERP` fallback from the position card / TP-SL rule save path:
+  - `app/src/components/BottomPositionsPanel.tsx`
+- Position cards now prefer:
+  1. stored owner position view `pairLabel`
+  2. existing TP/SL rule `pairLabel`
+  3. final fallback `PERP`
+- Collapsed the duplicate private-state badges so positions no longer show two separate `Encrypted` pills when side and leverage are both unavailable.
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+- `npm run oracle:once` -> PASS
+- `npm run check:preflight` -> PASS
+
+### Current blocker
+
+- `needs browser check`
+- The card-title and badge cleanup are code-verified, not visually rechecked yet.
+
+### Next safe step
+
+1. Open the positions panel and confirm the card title uses the traded pair instead of `SHADOW-PERP`.
+2. Confirm only one private-state badge is shown when side/leverage are not yet revealed.
 

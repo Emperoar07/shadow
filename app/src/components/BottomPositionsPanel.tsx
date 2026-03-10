@@ -312,6 +312,9 @@ export default function BottomPositionsPanel() {
     if (!editAddress) return;
     const tp = parseOptionalPositive(editTakeProfit);
     const sl = parseOptionalPositive(editStopLoss);
+    const existingRule = positionRules[editAddress];
+    const view = ownerPositionViews[editAddress];
+    const pairLabel = view?.pairLabel ?? existingRule?.pairLabel ?? "PERP";
     if (tp === null && sl === null) {
       removePositionRule(editAddress);
       toast.success("TP/SL rule removed");
@@ -320,7 +323,7 @@ export default function BottomPositionsPanel() {
     }
     setPositionRule({
       positionAddress: editAddress,
-      pairLabel: "SHADOW-PERP",
+      pairLabel,
       side: editSide,
       takeProfit: tp,
       stopLoss: sl,
@@ -328,7 +331,7 @@ export default function BottomPositionsPanel() {
     });
     toast.success("TP/SL rule saved");
     setEditAddress(null);
-  }, [editAddress, editSide, editStopLoss, editTakeProfit]);
+  }, [editAddress, editSide, editStopLoss, editTakeProfit, ownerPositionViews, positionRules]);
 
   const openPositions = useMemo(
     () => positions.filter((p) => ["open", "pending", "closing", "settling"].includes(p.status)),
@@ -349,11 +352,12 @@ export default function BottomPositionsPanel() {
   const derivePositionCard = useCallback(
     (position: UiPosition) => {
       const view = ownerPositionViews[position.address] ?? null;
+      const rule = positionRules[position.address] ?? null;
       const side = view?.side ?? null;
       const marginMode = view?.marginMode ?? "cross";
       const leverage = view?.leverage ?? null;
       const entryPrice = view?.entryPrice ?? null;
-      const pairLabel = view?.pairLabel ?? "SHADOW-PERP";
+      const pairLabel = view?.pairLabel ?? rule?.pairLabel ?? "PERP";
       const sizeBase = view?.sizeBase ?? null;
 
       let liqPrice: number | null = null;
@@ -421,7 +425,7 @@ export default function BottomPositionsPanel() {
         healthPercent,
       };
     },
-    [liqThreshold, oraclePrice, ownerPositionViews]
+    [liqThreshold, oraclePrice, ownerPositionViews, positionRules]
   );
 
   useEffect(() => {
@@ -655,11 +659,7 @@ export default function BottomPositionsPanel() {
                         <span className="rounded-full bg-accent-purple/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent-purple">
                           {card.leverage}x
                         </span>
-                      ) : (
-                        <span className="rounded-full bg-shadow-600 px-2.5 py-0.5 text-[11px] font-semibold text-gray-400">
-                          Encrypted
-                        </span>
-                      )}
+                      ) : null}
                       <span className="rounded-full bg-shadow-600 px-2.5 py-0.5 text-[11px] font-semibold uppercase text-gray-300">
                         {card.marginMode}
                       </span>

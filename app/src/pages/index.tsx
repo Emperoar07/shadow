@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 
+function detectLightTheme(): boolean {
+  if (typeof window === "undefined") return false;
+  const saved = window.localStorage.getItem("shadow-theme");
+  if (saved === "light") return true;
+  if (saved === "dark") return false;
+  return document.documentElement.classList.contains("light");
+}
+
 export default function LandingPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cursorGlowRef = useRef<HTMLDivElement>(null);
@@ -10,22 +18,20 @@ export default function LandingPage() {
   const orb3Ref = useRef<HTMLDivElement>(null);
   const orb4Ref = useRef<HTMLDivElement>(null);
   const decryptRef = useRef<HTMLSpanElement>(null);
-  const [isLight, setIsLight] = useState<boolean | null>(null);
+  const [isLight, setIsLight] = useState(false);
 
   // ── Theme init ────────────────────────────────────────────────
   useEffect(() => {
-    const saved = localStorage.getItem("shadow-theme");
-    setIsLight(saved === "light");
+    setIsLight(detectLightTheme());
   }, []);
 
   useEffect(() => {
-    if (isLight === null) return;
     localStorage.setItem("shadow-theme", isLight ? "light" : "dark");
     document.documentElement.classList.toggle("light", isLight);
   }, [isLight]);
 
   const toggleTheme = () => {
-    setIsLight((current) => !(current ?? false));
+    setIsLight((current) => !current);
   };
 
   // ── Particle canvas ──────────────────────────────────────────
@@ -121,12 +127,10 @@ export default function LandingPage() {
     return () => { clearTimeout(t); clearInterval(iv); cancelAnimationFrame(rafId); };
   }, []);
 
-  const dark = isLight === false;
-  const themeReady = isLight !== null;
+  const dark = !isLight;
 
   // ── Scroll reveal ────────────────────────────────────────────
   useEffect(() => {
-    if (isLight === null) return;
     const obs = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
@@ -210,7 +214,6 @@ export default function LandingPage() {
         style={{
           background: dark ? "#05081a" : "#f8f9fc",
           color: dark ? "#e2e8f0" : "#0f172a",
-          visibility: themeReady ? "visible" : "hidden",
         }}
       >
         <style jsx global>{`
@@ -500,6 +503,26 @@ export default function LandingPage() {
             <a href="#session" className="lp-nav-link">Session Trading</a>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button
+              type="button"
+              className="lp-theme-toggle-btn"
+              onClick={toggleTheme}
+              data-light={isLight ? "true" : "false"}
+              title={isLight ? "Switch to dark mode" : "Switch to light mode"}
+              aria-label="Toggle theme"
+              style={{ position: "relative", right: "auto", bottom: "auto", zIndex: "auto" }}
+            >
+              <span className="lp-toggle-sun" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="10" r="4" /><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.6 3.6l1.4 1.4M15 15l1.4 1.4M3.6 16.4 5 15M15 5l1.4-1.4" /></svg>
+              </span>
+              <span className="lp-toggle-moon" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 2.1a7.2 7.2 0 1 0 4.1 11.7 8 8 0 1 1-4.1-11.7Z" /></svg>
+              </span>
+              <span className="lp-toggle-knob" />
+            </button>
+            <Link href="/app" className="lp-nav-cta">Launch App &rarr;</Link>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <Link href="/app" className="lp-nav-cta">Launch App →</Link>
           </div>
         </nav>
@@ -528,7 +551,7 @@ export default function LandingPage() {
           </div>
           <div className="lp-powered">
             <span className="lp-powered-badge">Built on <span className="lp-sol">Solana</span></span>
-            <span style={{ color: dark ? "#1e293b" : "#c8d0e0" }}>·</span>
+            <span style={{ color: dark ? "#1e293b" : "#c8d0e0" }}>&middot;</span>
             <span className="lp-powered-badge">Powered by <span className="lp-arc">Arcium</span></span>
           </div>
           <div className="lp-scroll-hint">
@@ -579,14 +602,14 @@ export default function LandingPage() {
               <div className="lp-privacy-visual">
                 <div className="lp-pv-header">On-chain position data</div>
                 <div className="lp-pv-row"><span className="lp-pv-label">Owner</span><span className="lp-pv-plain">7xKm...3fPq</span><span className="lp-pv-lock">public</span></div>
-                <div className="lp-pv-row"><span className="lp-pv-label">Direction</span><span className="lp-pv-enc">0x8f3a...c92b</span><span className="lp-pv-lock">☂️ encrypted</span></div>
-                <div className="lp-pv-row"><span className="lp-pv-label">Size</span><span className="lp-pv-enc">0x4d1c...8e47</span><span className="lp-pv-lock">☂️ encrypted</span></div>
-                <div className="lp-pv-row"><span className="lp-pv-label">Entry Price</span><span className="lp-pv-enc">0xb29f...11da</span><span className="lp-pv-lock">☂️ encrypted</span></div>
-                <div className="lp-pv-row"><span className="lp-pv-label">Leverage</span><span className="lp-pv-enc">0x7a5e...0c83</span><span className="lp-pv-lock">☂️ encrypted</span></div>
-                <div className="lp-pv-row"><span className="lp-pv-label">Liq. Price</span><span className="lp-pv-enc">0xe3c1...9f62</span><span className="lp-pv-lock">☂️ encrypted</span></div>
+                <div className="lp-pv-row"><span className="lp-pv-label">Direction</span><span className="lp-pv-enc">0x8f3a...c92b</span><span className="lp-pv-lock">encrypted</span></div>
+                <div className="lp-pv-row"><span className="lp-pv-label">Size</span><span className="lp-pv-enc">0x4d1c...8e47</span><span className="lp-pv-lock">encrypted</span></div>
+                <div className="lp-pv-row"><span className="lp-pv-label">Entry Price</span><span className="lp-pv-enc">0xb29f...11da</span><span className="lp-pv-lock">encrypted</span></div>
+                <div className="lp-pv-row"><span className="lp-pv-label">Leverage</span><span className="lp-pv-enc">0x7a5e...0c83</span><span className="lp-pv-lock">encrypted</span></div>
+                <div className="lp-pv-row"><span className="lp-pv-label">Liq. Price</span><span className="lp-pv-enc">0xe3c1...9f62</span><span className="lp-pv-lock">encrypted</span></div>
                 <div className="lp-pv-row"><span className="lp-pv-label">Session Key</span><span className="lp-pv-enc">0xa12f...d44e</span><span className="lp-pv-lock-blue">delegated</span></div>
                 <div className="lp-pv-row"><span className="lp-pv-label">PnL</span><span className="lp-pv-plain">+$142.30</span><span className="lp-pv-lock-green">revealed on close</span></div>
-                <div className="lp-pv-hint">hover blur to reveal ↑</div>
+                <div className="lp-pv-hint">hover blur to reveal &uarr;</div>
               </div>
             </div>
           </div>
@@ -604,7 +627,7 @@ export default function LandingPage() {
             </div>
             <div className="lp-session-stats">
               <div className="lp-session-stat">
-                <div className="lp-session-stat-val">1×</div>
+                <div className="lp-session-stat-val">1x</div>
                 <div className="lp-session-stat-lbl">Wallet sign</div>
               </div>
               <div className="lp-session-stat">
@@ -643,31 +666,13 @@ export default function LandingPage() {
 
         {/* FOOTER */}
         <footer className="lp-footer">
-          <span>© 2026 Shadow. Built on Solana &amp; Arcium.</span>
+          <span>&copy; 2026 Shadow. Built on Solana &amp; Arcium.</span>
           <span style={{ display: "flex", gap: "20px" }}>
+            <a href="https://github.com/Emperoar07/shadow" target="_blank" rel="noopener noreferrer">Docs</a>
             <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer">built by 0xb</a>
-            <a href="#">Discord</a>
-            <a href="#">Docs</a>
           </span>
         </footer>
 
-        {/* Theme toggle — fixed bottom-right */}
-        <button
-          className="lp-theme-toggle-btn"
-          onClick={toggleTheme}
-          data-light={isLight ? "true" : "false"}
-          title={isLight ? "Switch to dark mode" : "Switch to light mode"}
-          aria-label="Toggle theme"
-          style={{ position: "fixed", right: "1.25rem", bottom: "1.25rem", zIndex: 9999 }}
-        >
-          <span className="lp-toggle-sun" aria-hidden="true">
-            <svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="10" r="4" /><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.6 3.6l1.4 1.4M15 15l1.4 1.4M3.6 16.4 5 15M15 5l1.4-1.4" /></svg>
-          </span>
-          <span className="lp-toggle-moon" aria-hidden="true">
-            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 2.1a7.2 7.2 0 1 0 4.1 11.7 8 8 0 1 1-4.1-11.7Z" /></svg>
-          </span>
-          <span className="lp-toggle-knob" />
-        </button>
 
       </div>
     </>
@@ -688,3 +693,8 @@ function ShadowLogo({ className, dark }: { className?: string; dark?: boolean })
     </svg>
   );
 }
+
+
+
+
+
