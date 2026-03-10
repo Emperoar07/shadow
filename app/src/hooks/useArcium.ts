@@ -186,21 +186,45 @@ function readStoredSession(owner?: string, market?: string): SessionRelayInfo | 
   if (typeof window === "undefined") return null;
   if (owner && market) {
     const keyed = parseSession(window.localStorage.getItem(storageKey(owner, market)));
-    if (keyed) return keyed;
+    if (keyed) {
+      if (keyed.authSignature.length > 0) {
+        try {
+          writeStoredSession(keyed);
+        } catch {
+          // no-op
+        }
+        return {
+          ...keyed,
+          authSignature: "",
+          authExpiresAt: keyed.expiresAt,
+        };
+      }
+      return keyed;
+    }
 
     // Legacy migration: single-session storage key.
     const legacy = parseSession(window.localStorage.getItem(RELAY_SESSION_STORAGE_KEY));
     if (legacy && legacy.owner === owner && legacy.market === market) {
-      window.localStorage.setItem(storageKey(owner, market), JSON.stringify(legacy));
+      writeStoredSession(legacy);
       window.localStorage.removeItem(RELAY_SESSION_STORAGE_KEY);
-      return legacy;
+      return {
+        ...legacy,
+        authSignature: "",
+        authExpiresAt: legacy.expiresAt,
+      };
     }
     return null;
   }
 
   // Fallback for callers without owner/market.
   const legacy = parseSession(window.localStorage.getItem(RELAY_SESSION_STORAGE_KEY));
-  if (legacy) return legacy;
+  if (legacy) {
+    return {
+      ...legacy,
+      authSignature: "",
+      authExpiresAt: legacy.expiresAt,
+    };
+  }
   return null;
 }
 
@@ -208,13 +232,27 @@ export function getStoredRelaySession(owner?: string, market?: string): SessionR
   return readStoredSession(owner, market);
 }
 
+function sanitizeSessionForStorage(session: SessionRelayInfo): SessionRelayInfo {
+  return {
+    ...session,
+    // Never persist delegated auth material in plaintext browser storage.
+    authSignature: "",
+    authExpiresAt: session.expiresAt,
+  };
+}
+
+function writeStoredSession(session: SessionRelayInfo): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    storageKey(session.owner, session.market),
+    JSON.stringify(sanitizeSessionForStorage(session))
+  );
+}
+
 function persistSession(session: SessionRelayInfo): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(
-      storageKey(session.owner, session.market),
-      JSON.stringify(session)
-    );
+    writeStoredSession(session);
   } catch {
     // Storage failures should not block in-memory session activation.
   }

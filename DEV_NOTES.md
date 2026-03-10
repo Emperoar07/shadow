@@ -6,6 +6,47 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-03-07 (UTC)
 - Author: Codex
 
+## Security Audit Snapshot (2026-03-10 UTC)
+- Scope:
+  - dependency audit
+  - delegated session storage / relay auth review
+  - relay API route review
+- What was verified:
+  - `git status --short` -> clean
+  - `npm run check:preflight` -> PASS
+  - `pnpm --dir app audit --prod --json` -> completed with app dependency findings
+  - `cargo audit` -> completed with one high Rust vulnerability and three warnings
+- Primary findings:
+  1. `app/package.json` pins `minimatch` to `3.1.3` via `pnpm.overrides`, which is currently vulnerable to ReDoS (`CVE-2026-27904` / `GHSA-23c5-xmqv-rm74`). This is a self-inflicted override, not just a transitive surprise.
+  2. `app/src/hooks/useArcium.ts` persists delegated session auth material, including `authSignature`, in plaintext `localStorage`. That turns the session authorization into a browser-side bearer credential for the life of the session and conflicts with the repo rule against plaintext persistent storage for sensitive automation data.
+  3. `cargo audit` reports `quinn-proto 0.11.13` (`RUSTSEC-2026-0037`, DoS) in the Arcium / arcis compiler dependency tree. This appears to be upstream of local app logic but is still part of the current toolchain.
+- Current blocker:
+  - `needs remediation plan`
+  - no code changes were made in this audit pass; findings need triage before patching
+- Next safe step:
+  1. Remove or update the vulnerable `minimatch` override in `app/package.json`.
+  2. Redesign delegated session persistence so reusable session state survives refresh without storing raw `authSignature` in plaintext `localStorage`.
+  3. Check whether Arcium / arcis has a patched release for the `quinn-proto` advisory before changing Rust deps locally.
+
+## Security Remediation Pass (2026-03-10 UTC)
+- What changed:
+  1. Updated the app override from `minimatch 3.1.3` to `3.1.4`.
+  2. Updated Rust lockfile from `quinn-proto 0.11.13` to `0.11.14`.
+  3. Stopped persisting delegated `authSignature` in plaintext browser storage. Session metadata is still stored for reuse, but auth material is stripped before writing to `localStorage`.
+- What was verified:
+  - `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+  - `pnpm --dir app audit --prod --json` -> remaining advisories are now:
+    - high: `bigint-buffer` via `@solana/spl-token` / `@solana/buffer-layout-utils`
+    - low: `elliptic` via `@solana/wallet-adapter-wallets` -> Torus chain
+  - `cargo audit` -> high `quinn-proto` advisory removed; only unmaintained warnings remain
+- Current blocker:
+  - no local code blocker
+  - remaining app advisories are transitive and do not currently have a safe direct repo-side patch in this dependency set
+- Next safe step:
+  1. Keep the delegated auth persistence change.
+  2. Track upstream fixes for `bigint-buffer` in Solana token dependencies.
+  3. Consider removing Torus-backed wallet packages entirely if wallet surface can be narrowed further without breaking intended UX.
+
 ## Reapplied `0f2bf62` + `7b714de` Safely (2026-03-10 UTC)
 - Scope:
   - reintroduce:
