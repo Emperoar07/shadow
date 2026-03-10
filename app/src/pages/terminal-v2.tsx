@@ -21,7 +21,6 @@ const MARKETS: Market[] = [
   { symbol: "SOL-PERP", price: 142.85, change24h: 5.23 },
   { symbol: "BTC-PERP", price: 67150, change24h: -1.45 },
   { symbol: "ETH-PERP", price: 3524.67, change24h: 2.18 },
-  { symbol: "BONK-PERP", price: 0.000028, change24h: -8.32 },
   { symbol: "RAY-PERP", price: 3.41, change24h: 1.12 },
 ];
 

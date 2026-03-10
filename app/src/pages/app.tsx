@@ -39,7 +39,7 @@ export default function TradingAppPage() {
   const [displayChange24h, setDisplayChange24h] = useState<number | null>(null);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [openCollateralModal, setOpenCollateralModal] = useState<(() => void) | null>(null);
-  const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book" | "trades">("chart");
+  const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book">("chart");
 
   const handleMarginReady = useCallback((balance: number | null, openModal: () => void) => {
     setMarginBalance(balance);
@@ -138,7 +138,6 @@ export default function TradingAppPage() {
                 {([
                   ["chart", "Chart"],
                   ["book", "Order Book"],
-                  ["trades", "Trades"],
                 ] as const).map(([tab, label]) => (
                   <button
                     key={tab}
@@ -176,7 +175,7 @@ export default function TradingAppPage() {
                     {/* Orderbook */}
                     <div
                       className={`min-h-0 ${
-                        mobileMarketTab === "book" || mobileMarketTab === "trades"
+                      mobileMarketTab === "book"
                           ? "block"
                           : "hidden lg:block"
                       }`}
@@ -184,10 +183,6 @@ export default function TradingAppPage() {
                       <PrivateOrderbook
                         pair={selectedPair}
                         referencePrice={displayPrice}
-                        activeTab={mobileMarketTab === "trades" ? "trades" : "book"}
-                        onTabChange={(nextTab) =>
-                          setMobileMarketTab(nextTab === "trades" ? "trades" : "book")
-                        }
                       />
                     </div>
                   </div>

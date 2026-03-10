@@ -287,17 +287,18 @@ export default function LandingPage() {
           .lp-theme-toggle-btn[data-light="true"] { background: #e2e8f0; border-color: #c8d0e0; }
           .lp-theme-toggle-btn:active { transform: scale(.94); }
           .lp-toggle-sun, .lp-toggle-moon { width: 11px; height: 11px; line-height: 1; z-index: 1; transition: opacity .2s; }
-          .lp-toggle-sun { color: #f59e0b; opacity: .3; }
-          .lp-toggle-moon { color: #8b5cf6; }
+          .lp-toggle-sun { color: #f59e0b; opacity: .35; }
+          .lp-toggle-moon { color: #8b5cf6; opacity: 1; }
           .lp-theme-toggle-btn[data-light="true"] .lp-toggle-sun { opacity: 1; }
           .lp-theme-toggle-btn[data-light="true"] .lp-toggle-moon { opacity: .3; }
           .lp-toggle-knob {
             position: absolute; top: 3px; left: 3px;
             width: 18px; height: 18px; border-radius: 50%;
-            background: #35354a; box-shadow: 0 1px 4px rgba(0,0,0,.4);
+            background: #8b5cf6; box-shadow: 0 1px 4px rgba(0,0,0,.4);
+            transform: translateX(26px);
             transition: transform .22s cubic-bezier(.4,0,.2,1), background .22s;
           }
-          .lp-theme-toggle-btn[data-light="true"] .lp-toggle-knob { transform: translateX(26px); background: #fff; }
+          .lp-theme-toggle-btn[data-light="true"] .lp-toggle-knob { transform: translateX(0); background: #fff; }
           /* HERO */
           .lp-hero {
             position:relative;min-height:100vh;z-index:1;
