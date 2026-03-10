@@ -1,13 +1,6 @@
 import { TRADING_PAIRS, type TradingPair } from "./tokens";
-import {
-  getMarketFeed,
-  type ReferenceProviderConfig,
-  type MarketFeedProvider,
-} from "./market-feeds";
 
-export type { ReferenceProviderConfig } from "./market-feeds";
-
-export type ReferenceDepthProvider = MarketFeedProvider;
+export type ReferenceDepthProvider = "coinbase" | "binance";
 
 export interface ReferenceLevel {
   price: number;
@@ -40,8 +33,41 @@ export interface GroupedReferenceLevel extends ReferenceLevel {
   total: number;
 }
 
+export interface ReferenceProviderConfig {
+  provider: ReferenceDepthProvider;
+  symbol: string;
+  quoteSymbol: string;
+}
+
+const BINANCE_SYMBOL_BY_PAIR: Record<string, string> = {
+  "SOL-PERP": "SOLUSDT",
+  "BONK-PERP": "BONKUSDT",
+  "WIF-PERP": "WIFUSDT",
+  "JUP-PERP": "JUPUSDT",
+  "BTC-PERP": "BTCUSDT",
+  "ETH-PERP": "ETHUSDT",
+  "PYTH-PERP": "PYTHUSDT",
+  "RAY-PERP": "RAYUSDT",
+  "ORCA-PERP": "ORCAUSDT",
+  "W-PERP": "WUSDT",
+  "JTO-PERP": "JTOUSDT",
+  "RENDER-PERP": "RENDERUSDT",
+  "HNT-PERP": "HNTUSDT",
+};
+
 export function getReferenceProviders(pair: TradingPair): ReferenceProviderConfig[] {
-  return getMarketFeed(pair).referenceProviders;
+  const coinbaseSymbol = `${pair.base.symbol}-USD`;
+  const binanceSymbol = BINANCE_SYMBOL_BY_PAIR[pair.label];
+
+  const providers: ReferenceProviderConfig[] = [
+    { provider: "coinbase", symbol: coinbaseSymbol, quoteSymbol: "USD" },
+  ];
+
+  if (binanceSymbol) {
+    providers.push({ provider: "binance", symbol: binanceSymbol, quoteSymbol: "USDT" });
+  }
+
+  return providers;
 }
 
 export function findTradingPair(label: string): TradingPair | null {
@@ -125,56 +151,6 @@ export function groupLevels(
       total: runningTotal,
     };
   });
-}
-
-export function groupLevelsAdaptive(
-  levels: ReferenceLevel[],
-  groupingOptions: number[],
-  preferredGrouping: number,
-  side: "bids" | "asks",
-  limit = 24,
-  minRows = 12
-): GroupedReferenceLevel[] {
-  const uniqueOptions = Array.from(
-    new Set(
-      [...groupingOptions, preferredGrouping]
-        .filter((value) => Number.isFinite(value) && value > 0)
-        .sort((a, b) => a - b)
-    )
-  );
-
-  let best = groupLevels(levels, preferredGrouping, side, limit);
-  if (best.length >= minRows || uniqueOptions.length === 0) {
-    return best;
-  }
-
-  for (const option of uniqueOptions) {
-    const candidate = groupLevels(levels, option, side, limit);
-    if (candidate.length > best.length) {
-      best = candidate;
-    }
-    if (candidate.length >= minRows) {
-      return candidate;
-    }
-  }
-
-  const rawLevels = levels
-    .filter((level) => Number.isFinite(level.price) && Number.isFinite(level.size))
-    .sort((a, b) => (side === "bids" ? b.price - a.price : a.price - b.price))
-    .slice(0, limit);
-
-  if (rawLevels.length > best.length) {
-    let runningTotal = 0;
-    return rawLevels.map((level) => {
-      runningTotal += level.size;
-      return {
-        ...level,
-        total: runningTotal,
-      };
-    });
-  }
-
-  return best;
 }
 
 export function formatTime(timestamp: number): string {

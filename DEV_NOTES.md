@@ -6,43 +6,6 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-03-07 (UTC)
 - Author: Codex
 
-## Mobile Trading Tabs + Reference Depth Coverage + Landing Theme Toggle Fixes (2026-03-10 UTC)
-- Scope:
-  - `app/src/pages/app.tsx`
-  - `app/src/pages/index.tsx`
-  - `app/src/lib/market-feeds.ts`
-  - `app/src/lib/reference-depth.ts`
-  - `app/src/pages/api/reference-depth.ts`
-  - `programs/shadowperp/src/lib.rs`
-  - `programs/shadowperp/src/handlers/mod.rs`
-- What changed:
-  1. Removed the extra mobile `Trades` market tab at the app-shell level. Mobile now switches between `Chart` and `Order Book`, and the trades view remains inside the orderbook component itself.
-  2. Fixed the landing-page theme toggle so dark mode reads visually as the selected state by default.
-  3. Expanded reference-depth provider coverage to follow the chart venue family more closely:
-     - Binance
-     - Coinbase
-     - Bybit
-     - MEXC
-     - Gate.io
-     - Kraken
-  4. Added per-pair reference provider mappings in `market-feeds.ts` so SPL pairs with weaker Coinbase/Binance coverage can still show deeper live books.
-  5. Tightened the Rust crate hygiene pass:
-     - removed the unused `ErrorCode` import in `programs/shadowperp/src/lib.rs`
-     - removed broad handler glob re-export reliance in `programs/shadowperp/src/handlers/mod.rs` without breaking `lib.rs`
-  6. Fixed stale mojibake in this notes file.
-- What was verified:
-  - `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
-  - `cargo check -p shadowperp` -> PASS
-  - `npm run oracle:once` -> PASS
-  - `npm run check:preflight` -> PASS
-- Current blocker:
-  - `needs browser verification`
-  - The new reference-depth coverage and landing toggle semantics are code-verified, but not visually rechecked in-browser during this pass.
-- Next safe step:
-  1. Open the landing page and confirm the bottom-right toggle visually indicates dark mode when no light preference is saved.
-  2. Open `/app` on a mobile viewport and confirm the market tab row shows only `Chart` and `Order Book`.
-  3. Spot-check SPL pairs like `ORCA-PERP`, `JUP-PERP`, `PYTH-PERP`, and `HNT-PERP` for deeper orderbooks and sane chart fallbacks.
-
 ## Market Bar / Orderbook Alignment Fixes (2026-03-10 UTC)
 - Scope:
   - `app/src/components/MarketInfo.tsx`
@@ -2808,7 +2771,7 @@ SLOT_OFFSET=100 and SLOT_COUNTER_OFFSET=108 in arcium-anchor source confirm the 
   - Refined control hierarchy: direction/order toggles, size input, TP/SL row, compact summary strip, CTA.
   - Kept collateral modal wiring, limit order flow, and submit behavior unchanged.
 - Restyled `app/src/components/MarketInfo.tsx` into a compact tile-card layout.
-  - Headline now shows `PAIR · ORACLE`, larger price readout, and change badge.
+  - Headline now shows `PAIR � ORACLE`, larger price readout, and change badge.
   - Replaced row list with 2-column metric tiles using existing on-chain/live-backed values.
 
 ### What was verified
@@ -5046,9 +5009,7 @@ npm run session:relayer:close -- --session-id <ID> --owner <OWNER> --position-in
 - Mobile header/session controls, market bar, orderbook mobile tabs, and landing-page text cleanup remain in the current frontend batch.
 
 ### What was verified
-- TypeScript compile passed:
-  - `pnpm --dir app exec tsc --noEmit --incremental false`
-- Mobile browser pass verified `/app` chart/orderbook/trades tabs and market price alignment.
+- TypeScript compile passed: pnpm --dir app exec tsc --noEmit --incremental false`n- Mobile browser pass verified /app chart/orderbook/trades tabs and market price alignment.
 
 ### Current blocker
 - No code blocker for this batch.
@@ -5057,49 +5018,4 @@ npm run session:relayer:close -- --session-id <ID> --owner <OWNER> --position-in
 ### Next safe step
 1. Commit and push the current frontend/docs batch.
 2. Later, verify the connected-wallet mobile session action in a live wallet state.
-
-## 2026-03-10 14:42 WAT - Pair-list cleanup and orderbook/runtime audit batch
-
-### What changed
-
-- Removed `BONK-PERP` from the active app pair surface:
-  - `app/src/lib/tokens.ts`
-  - `app/src/lib/market-feeds.ts`
-  - `app/src/pages/terminal-v2.tsx`
-- Kept the TP/SL editor side locked to the actual open position instead of showing an editable side selector:
-  - `app/src/components/BottomPositionsPanel.tsx`
-- Kept the adaptive live-depth path in place for fuller books:
-  - `app/src/components/PrivateOrderbook.tsx`
-  - `app/src/lib/reference-depth.ts`
-  - `app/src/pages/api/reference-depth.ts`
-- Retained the mobile app-shell tab simplification and landing/theme cleanup:
-  - `app/src/pages/app.tsx`
-  - `app/src/pages/index.tsx`
-- Kept the on-chain audit cleanup in place:
-  - `programs/shadowperp/src/lib.rs`
-  - `programs/shadowperp/src/handlers/mod.rs`
-
-### What was verified
-
-- TypeScript app compile passed:
-  - `pnpm --dir app exec tsc --noEmit --incremental false`
-- Browser check completed for:
-  - `SOL-PERP`
-  - `JUP-PERP`
-  - `ORCA-PERP`
-- Verified in browser:
-  - `SOL-PERP` top price and chart were aligned closely
-  - `JUP-PERP` chart loaded on `MEXC:JUPUSDT`
-  - `ORCA-PERP` chart loaded on `GATEIO:ORCA_USDT`
-  - orderbook remained live and materially fuller than the earlier sparse state
-
-### Current blocker
-
-- `needs browser check`
-- `HNT-PERP` browser verification was not completed because the Playwright session reset during the last switch.
-
-### Next safe step
-
-1. Do one final browser pass on `HNT-PERP`.
-2. If it looks correct, keep the current UI/runtime batch as the new baseline.
 

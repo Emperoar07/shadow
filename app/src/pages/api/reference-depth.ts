@@ -14,8 +14,8 @@ type ErrorResponse = {
 };
 
 const CACHE_TTL_MS = 3_000;
-const DEPTH_LIMIT = 120;
-const TRADE_LIMIT = 60;
+const DEPTH_LIMIT = 60;
+const TRADE_LIMIT = 40;
 
 let cache = new Map<string, { expiresAt: number; payload: ReferenceDepthSnapshot }>();
 
@@ -143,143 +143,16 @@ async function fetchBinance(pairLabel: string, provider: ReferenceProviderConfig
   return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
 }
 
-async function fetchBybit(pairLabel: string, provider: ReferenceProviderConfig): Promise<ReferenceDepthSnapshot | null> {
-  const symbol = encodeURIComponent(provider.symbol);
-  const [book, trades] = await Promise.all([
-    fetchJson(`https://api.bybit.com/v5/market/orderbook?category=spot&symbol=${symbol}&limit=${DEPTH_LIMIT}`),
-    fetchJson(`https://api.bybit.com/v5/market/recent-trade?category=spot&symbol=${symbol}&limit=${TRADE_LIMIT}`),
-  ]);
-
-  const bookResult = book?.result;
-  const tradeResult = trades?.result;
-  if (!bookResult || !Array.isArray(bookResult.b) || !Array.isArray(bookResult.a)) return null;
-
-  const bids = parseLevels(bookResult.b, DEPTH_LIMIT);
-  const asks = parseLevels(bookResult.a, DEPTH_LIMIT);
-  const normalizedTrades: ReferenceTrade[] = Array.isArray(tradeResult?.list)
-    ? tradeResult.list
-        .map((trade: any) => {
-          const price = Number.parseFloat(String(trade?.price ?? ""));
-          const size = Number.parseFloat(String(trade?.size ?? ""));
-          const side: ReferenceTrade["side"] = trade?.side === "Sell" ? "sell" : "buy";
-          const timestamp = Number(trade?.time);
-          if (!Number.isFinite(price) || !Number.isFinite(size) || !Number.isFinite(timestamp)) {
-            return null;
-          }
-          return { price, size, side, timestamp };
-        })
-        .filter((trade: ReferenceTrade | null): trade is ReferenceTrade => trade !== null)
-        .slice(0, TRADE_LIMIT)
-    : [];
-
-  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
-}
-
-async function fetchMexc(pairLabel: string, provider: ReferenceProviderConfig): Promise<ReferenceDepthSnapshot | null> {
-  const symbol = encodeURIComponent(provider.symbol);
-  const [book, trades] = await Promise.all([
-    fetchJson(`https://api.mexc.com/api/v3/depth?symbol=${symbol}&limit=${DEPTH_LIMIT}`),
-    fetchJson(`https://api.mexc.com/api/v3/trades?symbol=${symbol}&limit=${TRADE_LIMIT}`),
-  ]);
-
-  if (!book || !Array.isArray(book.bids) || !Array.isArray(book.asks)) return null;
-
-  const bids = parseLevels(book.bids, DEPTH_LIMIT);
-  const asks = parseLevels(book.asks, DEPTH_LIMIT);
-  const normalizedTrades: ReferenceTrade[] = Array.isArray(trades)
-    ? trades
-        .map((trade: any) => {
-          const price = Number.parseFloat(String(trade?.price ?? ""));
-          const size = Number.parseFloat(String(trade?.qty ?? ""));
-          const side: ReferenceTrade["side"] = trade?.isBuyerMaker ? "sell" : "buy";
-          const timestamp = Number(trade?.time);
-          if (!Number.isFinite(price) || !Number.isFinite(size) || !Number.isFinite(timestamp)) {
-            return null;
-          }
-          return { price, size, side, timestamp };
-        })
-        .filter((trade: ReferenceTrade | null): trade is ReferenceTrade => trade !== null)
-        .slice(0, TRADE_LIMIT)
-    : [];
-
-  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
-}
-
-async function fetchGateIo(pairLabel: string, provider: ReferenceProviderConfig): Promise<ReferenceDepthSnapshot | null> {
-  const symbol = encodeURIComponent(provider.symbol);
-  const [book, trades] = await Promise.all([
-    fetchJson(`https://api.gateio.ws/api/v4/spot/order_book?currency_pair=${symbol}&limit=${DEPTH_LIMIT}&with_id=false`),
-    fetchJson(`https://api.gateio.ws/api/v4/spot/trades?currency_pair=${symbol}&limit=${TRADE_LIMIT}`),
-  ]);
-
-  if (!book || !Array.isArray(book.bids) || !Array.isArray(book.asks)) return null;
-
-  const bids = parseLevels(book.bids, DEPTH_LIMIT);
-  const asks = parseLevels(book.asks, DEPTH_LIMIT);
-  const normalizedTrades: ReferenceTrade[] = Array.isArray(trades)
-    ? trades
-        .map((trade: any) => {
-          const price = Number.parseFloat(String(trade?.price ?? ""));
-          const size = Number.parseFloat(String(trade?.amount ?? ""));
-          const side: ReferenceTrade["side"] = trade?.side === "sell" ? "sell" : "buy";
-          const timestamp = Number(trade?.create_time_ms ?? trade?.create_time) * (String(trade?.create_time_ms ?? "").length > 10 ? 1 : 1000);
-          if (!Number.isFinite(price) || !Number.isFinite(size) || !Number.isFinite(timestamp)) {
-            return null;
-          }
-          return { price, size, side, timestamp };
-        })
-        .filter((trade: ReferenceTrade | null): trade is ReferenceTrade => trade !== null)
-        .slice(0, TRADE_LIMIT)
-    : [];
-
-  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
-}
-
-async function fetchKraken(pairLabel: string, provider: ReferenceProviderConfig): Promise<ReferenceDepthSnapshot | null> {
-  const symbol = encodeURIComponent(provider.symbol);
-  const [book, trades] = await Promise.all([
-    fetchJson(`https://api.kraken.com/0/public/Depth?pair=${symbol}&count=${DEPTH_LIMIT}`),
-    fetchJson(`https://api.kraken.com/0/public/Trades?pair=${symbol}`),
-  ]);
-
-  const depthResult = book?.result && typeof book.result === "object" ? Object.values(book.result)[0] as any : null;
-  const tradeResult = trades?.result && typeof trades.result === "object" ? Object.values(trades.result)[0] as any : null;
-  if (!depthResult || !Array.isArray(depthResult.bids) || !Array.isArray(depthResult.asks)) return null;
-
-  const bids = parseLevels(depthResult.bids, DEPTH_LIMIT);
-  const asks = parseLevels(depthResult.asks, DEPTH_LIMIT);
-  const normalizedTrades: ReferenceTrade[] = Array.isArray(tradeResult)
-    ? tradeResult
-        .map((trade: any[]) => {
-          const price = Number.parseFloat(String(trade?.[0] ?? ""));
-          const size = Number.parseFloat(String(trade?.[1] ?? ""));
-          const timestamp = Number(trade?.[2]) * 1000;
-          const side: ReferenceTrade["side"] = trade?.[3] === "s" ? "sell" : "buy";
-          if (!Number.isFinite(price) || !Number.isFinite(size) || !Number.isFinite(timestamp)) {
-            return null;
-          }
-          return { price, size, side, timestamp };
-        })
-        .filter((trade: ReferenceTrade | null): trade is ReferenceTrade => trade !== null)
-        .slice(0, TRADE_LIMIT)
-    : [];
-
-  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
-}
-
 async function fetchReferenceDepth(pairLabel: string): Promise<ReferenceDepthSnapshot | null> {
   const pair = findTradingPair(pairLabel);
   if (!pair) return null;
 
   const providers = getReferenceProviders(pair);
   for (const provider of providers) {
-    let snapshot: ReferenceDepthSnapshot | null = null;
-    if (provider.provider === "coinbase") snapshot = await fetchCoinbase(pairLabel, provider);
-    if (provider.provider === "binance") snapshot = await fetchBinance(pairLabel, provider);
-    if (provider.provider === "bybit") snapshot = await fetchBybit(pairLabel, provider);
-    if (provider.provider === "mexc") snapshot = await fetchMexc(pairLabel, provider);
-    if (provider.provider === "gateio") snapshot = await fetchGateIo(pairLabel, provider);
-    if (provider.provider === "kraken") snapshot = await fetchKraken(pairLabel, provider);
+    const snapshot =
+      provider.provider === "coinbase"
+        ? await fetchCoinbase(pairLabel, provider)
+        : await fetchBinance(pairLabel, provider);
     if (snapshot) return snapshot;
   }
 

@@ -6,7 +6,7 @@ import {
   formatSize,
   formatTime,
   getGroupingOptions,
-  groupLevelsAdaptive,
+  groupLevels,
   type ReferenceDepthSnapshot,
   type GroupedReferenceLevel,
   type ReferenceTrade,
@@ -106,22 +106,8 @@ export default function PrivateOrderbook({
 
   const quoteSymbol = snapshot?.quoteSymbol ?? activePair.quote.symbol;
   const baseSymbol = activePair.base.symbol;
-  const groupedAsks = groupLevelsAdaptive(
-    snapshot?.asks ?? [],
-    groupingOptions,
-    grouping,
-    "asks",
-    24,
-    12
-  );
-  const groupedBids = groupLevelsAdaptive(
-    snapshot?.bids ?? [],
-    groupingOptions,
-    grouping,
-    "bids",
-    24,
-    12
-  );
+  const groupedAsks = groupLevels(snapshot?.asks ?? [], grouping, "asks");
+  const groupedBids = groupLevels(snapshot?.bids ?? [], grouping, "bids");
   const trades = snapshot?.trades ?? [];
 
   return (

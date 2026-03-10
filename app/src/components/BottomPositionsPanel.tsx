@@ -300,13 +300,11 @@ export default function BottomPositionsPanel() {
 
   const beginEditRule = useCallback((position: UiPosition) => {
     const rule = getPositionRule(position.address);
-    const view = ownerPositionViews[position.address];
-    const resolvedSide = view?.side ?? rule?.side ?? "long";
     setEditAddress(position.address);
-    setEditSide(resolvedSide);
+    setEditSide(rule?.side ?? "long");
     setEditTakeProfit(rule?.takeProfit?.toString() ?? "");
     setEditStopLoss(rule?.stopLoss?.toString() ?? "");
-  }, [ownerPositionViews]);
+  }, []);
 
   const saveRule = useCallback(() => {
     if (!editAddress) return;
@@ -826,36 +824,32 @@ export default function BottomPositionsPanel() {
               Close
             </button>
           </div>
-          <div className="mb-2 flex items-center gap-2 text-[11px] text-gray-400">
-            <span className="uppercase tracking-[0.08em] text-gray-500">Position side</span>
-            <span
-              className={`rounded-full px-2.5 py-0.5 font-semibold uppercase ${
-                editSide === "long"
-                  ? "bg-accent-green/20 text-accent-green"
-                  : "bg-accent-red/20 text-accent-red"
-              }`}
-            >
-              {editSide}
-            </span>
-          </div>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <select
+              value={editSide}
+              onChange={(e) => setEditSide(e.target.value as Direction)}
+              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50"
+            >
+              <option value="long">Long</option>
+              <option value="short">Short</option>
+            </select>
             <input
               type="number"
               value={editTakeProfit}
               onChange={(e) => setEditTakeProfit(e.target.value)}
               placeholder="Take Profit"
-              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50 sm:col-span-1"
+              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50"
             />
             <input
               type="number"
               value={editStopLoss}
               onChange={(e) => setEditStopLoss(e.target.value)}
               placeholder="Stop Loss"
-              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50 sm:col-span-1"
+              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50"
             />
             <button
               onClick={saveRule}
-              className="px-3 py-1.5 rounded text-xs font-medium bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25 transition-colors sm:col-span-2"
+              className="px-3 py-1.5 rounded text-xs font-medium bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25 transition-colors"
             >
               Save Rule
             </button>
