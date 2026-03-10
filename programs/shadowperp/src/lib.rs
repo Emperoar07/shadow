@@ -9,7 +9,7 @@ use handlers::__client_accounts_add_private_order;
 use handlers::__client_accounts_check_liquidation;
 use handlers::__client_accounts_check_liquidation_callback;
 use handlers::__client_accounts_close_position;
-use handlers::__client_accounts_close_position_callback;
+use handlers::__client_accounts_close_position_v2_callback;
 use handlers::__client_accounts_close_position_with_session;
 use handlers::__client_accounts_create_trade_session;
 use handlers::__client_accounts_deposit_collateral;
@@ -18,38 +18,48 @@ use handlers::__client_accounts_init_arcium_signer;
 use handlers::__client_accounts_init_close_position_comp_def;
 use handlers::__client_accounts_init_liquidation_comp_def;
 use handlers::__client_accounts_init_open_position_comp_def;
+use handlers::__client_accounts_init_seed_open_interest_comp_def;
 use handlers::__client_accounts_init_private_order_book;
 use handlers::__client_accounts_initialize;
 use handlers::__client_accounts_open_position;
 use handlers::__client_accounts_open_position_with_session;
-use handlers::__client_accounts_open_position_v2_callback;
+use handlers::__client_accounts_open_position_probe_b_callback;
 #[cfg(feature = "shielded-collateral")]
 use handlers::__client_accounts_set_shielded_collateral_feature;
 #[cfg(feature = "shielded-collateral")]
 use handlers::__client_accounts_init_shielded_pool;
+use handlers::__client_accounts_seed_open_interest_state;
+use handlers::__client_accounts_seed_open_interest_state_v3_callback;
 use handlers::__client_accounts_sync_comp_defs;
+use handlers::__client_accounts_update_mxe_cluster;
 use handlers::__client_accounts_update_price;
 use handlers::__client_accounts_withdraw_collateral;
 use handlers::__client_accounts_withdraw_collateral_with_session;
 use handlers::__client_accounts_revoke_trade_session;
+use handlers::__client_accounts_settle_close_position;
+use handlers::__client_accounts_settle_liquidation;
 
 use errors::ErrorCode;
-use handlers::callbacks::close_position_callback::ClosePositionCallback;
-pub use handlers::callbacks::close_position_callback::ClosePositionOutput;
+use handlers::callbacks::close_position_callback::ClosePositionV2Callback;
+pub use handlers::callbacks::close_position_callback::ClosePositionV2Output;
 use handlers::callbacks::liquidation_callback::CheckLiquidationCallback;
 pub use handlers::callbacks::liquidation_callback::CheckLiquidationOutput;
-use handlers::callbacks::open_position_callback::OpenPositionV2Callback;
-pub use handlers::callbacks::open_position_callback::OpenPositionV2Output;
+use handlers::callbacks::open_position_callback::OpenPositionProbeBCallback;
+pub use handlers::callbacks::open_position_callback::OpenPositionProbeBOutput;
+use handlers::callbacks::seed_open_interest_state_callback::SeedOpenInterestStateV3Callback;
+pub use handlers::callbacks::seed_open_interest_state_callback::SeedOpenInterestStateV3Output;
 use handlers::check_liquidation::CheckLiquidation;
 use handlers::close_position::ClosePosition;
 use handlers::deposit_collateral::DepositCollateral;
 use handlers::init_arcium_signer::InitArciumSigner;
 use handlers::init_comp_defs::{
     InitClosePositionCompDef, InitLiquidationCompDef, InitOpenPositionCompDef,
+    InitSeedOpenInterestCompDef,
 };
 use handlers::initialize::Initialize;
 use handlers::open_position::OpenPosition;
 use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
+use handlers::seed_open_interest_state::SeedOpenInterestState;
 use handlers::session_trading::{
     ClosePositionWithSession,
     CreateTradeSession,
@@ -60,11 +70,14 @@ use handlers::session_trading::{
 };
 #[cfg(feature = "shielded-collateral")]
 use handlers::shielded_collateral::{InitShieldedPool, SetShieldedCollateralFeature};
+use handlers::settle_close_position::SettleClosePosition;
+use handlers::settle_liquidation::SettleLiquidation;
 use handlers::sync_comp_defs::SyncCompDefs;
+use handlers::update_mxe_cluster::UpdateMxeCluster;
 use handlers::update_price::UpdatePrice;
 use handlers::withdraw_collateral::WithdrawCollateral;
 
-declare_id!("2Gz35PAHBkggSfV77mCENobt5YEURuYMAjgpvKXoL61d");
+declare_id!("2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az");
 
 #[arcium_program]
 pub mod shadowperp {
@@ -98,6 +111,12 @@ pub mod shadowperp {
         handlers::init_comp_defs::init_liquidation_handler(ctx)
     }
 
+    pub fn init_seed_open_interest_comp_def(
+        ctx: Context<InitSeedOpenInterestCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_seed_open_interest_handler(ctx)
+    }
+
     /// Initialize shielded collateral scaffolding accounts (feature-gated).
     /// This does not alter current public deposit/withdraw flow.
     #[cfg(feature = "shielded-collateral")]
@@ -123,6 +142,11 @@ pub mod shadowperp {
     /// Sync market comp-def pointers to already-initialized Arcium accounts.
     pub fn sync_comp_defs(ctx: Context<SyncCompDefs>) -> Result<()> {
         handlers::sync_comp_defs::handler(ctx)
+    }
+
+    /// Update the MXE cluster address stored in the market (admin only).
+    pub fn update_mxe_cluster(ctx: Context<UpdateMxeCluster>) -> Result<()> {
+        handlers::update_mxe_cluster::handler(ctx)
     }
 
     /// Open a new encrypted position
@@ -152,6 +176,14 @@ pub mod shadowperp {
             nonce,
             computation_offset,
         )
+    }
+
+    /// Bootstrap the market with a valid MXE-owned encrypted zero OI state.
+    pub fn seed_open_interest_state(
+        ctx: Context<SeedOpenInterestState>,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::seed_open_interest_state::handler(ctx, computation_offset)
     }
 
     /// Create an owner-approved delegated trading session for a relayer.
@@ -208,12 +240,20 @@ pub mod shadowperp {
     }
 
     /// Callback after position opening MPC completes
-    #[arcium_callback(encrypted_ix = "open_position_v2")]
-    pub fn open_position_v2_callback(
-        ctx: Context<OpenPositionV2Callback>,
-        output: SignedComputationOutputs<OpenPositionV2Output>,
+    #[arcium_callback(encrypted_ix = "open_position_probe_b")]
+    pub fn open_position_probe_b_callback(
+        ctx: Context<OpenPositionProbeBCallback>,
+        output: SignedComputationOutputs<OpenPositionProbeBOutput>,
     ) -> Result<()> {
         handlers::callbacks::open_position_callback::open_position_callback_handler(ctx, output)
+    }
+
+    #[arcium_callback(encrypted_ix = "seed_open_interest_state_v3")]
+    pub fn seed_open_interest_state_v3_callback(
+        ctx: Context<SeedOpenInterestStateV3Callback>,
+        output: SignedComputationOutputs<SeedOpenInterestStateV3Output>,
+    ) -> Result<()> {
+        handlers::callbacks::seed_open_interest_state_callback::seed_open_interest_state_v3_callback_handler(ctx, output)
     }
 
     /// Close an existing position - triggers PnL reveal
@@ -230,10 +270,10 @@ pub mod shadowperp {
     }
 
     /// Callback after position closing - reveals final PnL
-    #[arcium_callback(encrypted_ix = "close_position")]
-    pub fn close_position_callback(
-        ctx: Context<ClosePositionCallback>,
-        output: SignedComputationOutputs<ClosePositionOutput>,
+    #[arcium_callback(encrypted_ix = "close_position_v2")]
+    pub fn close_position_v2_callback(
+        ctx: Context<ClosePositionV2Callback>,
+        output: SignedComputationOutputs<ClosePositionV2Output>,
     ) -> Result<()> {
         handlers::callbacks::close_position_callback::close_position_callback_handler(ctx, output)
     }
@@ -253,6 +293,18 @@ pub mod shadowperp {
         output: SignedComputationOutputs<CheckLiquidationOutput>,
     ) -> Result<()> {
         handlers::callbacks::liquidation_callback::check_liquidation_callback_handler(ctx, output)
+    }
+
+    /// Settle a closed position — transfers tokens from vault to owner.
+    /// Called after the close_position callback sets status to ClosedPendingSettlement.
+    pub fn settle_close_position(ctx: Context<SettleClosePosition>) -> Result<()> {
+        handlers::settle_close_position::handler(ctx)
+    }
+
+    /// Settle a liquidated position — transfers penalty from vault to liquidator.
+    /// Called after the check_liquidation callback sets status to LiquidatedPendingSettlement.
+    pub fn settle_liquidation(ctx: Context<SettleLiquidation>) -> Result<()> {
+        handlers::settle_liquidation::handler(ctx)
     }
 
     /// Deposit collateral to margin account

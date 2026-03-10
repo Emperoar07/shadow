@@ -2,13 +2,14 @@ use crate::ArciumSignerAccount;
 use crate::ID;
 use crate::ID_CONST;
 use anchor_lang::prelude::*;
-use anchor_spl::token::TokenAccount;
 use arcium_anchor::prelude::*;
 use arcium_anchor::traits::CallbackCompAccs;
 use arcium_client::idl::arcium::types::CallbackAccount;
 
 use crate::errors::{ErrorCode, ShadowPerpError};
-use crate::state::{MarginAccount, Market, Position, PositionStatus};
+use crate::state::{
+    LiquidationSettlement, MarginAccount, Market, Position, PositionStatus,
+};
 
 use crate::handlers::callbacks::liquidation_callback::CheckLiquidationCallback;
 
@@ -35,25 +36,19 @@ pub struct CheckLiquidation<'info> {
 
     #[account(
         mut,
-        constraint = liquidator_token_account.owner == liquidator.key(),
-        constraint = liquidator_token_account.mint == market.collateral_mint
-    )]
-    pub liquidator_token_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(
-        mut,
-        seeds = [b"vault", market.key().as_ref()],
-        bump,
-        constraint = vault.key() == market.vault
-    )]
-    pub vault: Box<Account<'info, TokenAccount>>,
-
-    #[account(
-        mut,
         seeds = [b"margin", market.key().as_ref(), position.owner.as_ref()],
         bump = margin_account.bump,
     )]
     pub margin_account: Box<Account<'info, MarginAccount>>,
+
+    #[account(
+        init_if_needed,
+        payer = liquidator,
+        space = LiquidationSettlement::LEN,
+        seeds = [b"liquidation_settlement", position.key().as_ref()],
+        bump
+    )]
+    pub liquidation_settlement: Box<Account<'info, LiquidationSettlement>>,
 
     // --- Arcium accounts ---
     #[account(address = derive_mxe_pda!())]
@@ -104,6 +99,7 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
 
     let market = &ctx.accounts.market;
     let position = &mut ctx.accounts.position;
+    let liquidation_settlement = &mut ctx.accounts.liquidation_settlement;
     let clock = Clock::get()?;
 
     // Validate position is open
@@ -136,7 +132,7 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
     // Build arguments for liquidation check MPC circuit
     // position: Enc<Mxe, Position> - encrypted position data
     // mark_price: u64 - plaintext current price
-    // market_params: MarketParams - plaintext
+    // liquidation_threshold_bps: only market field used by the liquidation circuit
     let args = ArgBuilder::new()
         // position: Enc<Mxe, Position>
         .plaintext_u128(nonce)
@@ -147,14 +143,11 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
         .encrypted_u64(encrypted_margin) // margin
         // mark_price: u64 (plaintext)
         .plaintext_u64(mark_price)
-        // market_params: MarketParams (plaintext)
-        .plaintext_u8(market.max_leverage)
+        // liquidation_threshold_bps: only market field needed by the liquidation circuit
         .plaintext_u16(market.liquidation_threshold)
-        .plaintext_u16(market.trading_fee)
-        .plaintext_u64(mark_price)
         .build();
 
-    // Build callback - receives liquidation decision + revealed margin (if liquidated)
+    // Build callback accounts (3 only — token settlement deferred to settle_liquidation)
     let callback_accounts = vec![
         CallbackAccount {
             pubkey: position.key(),
@@ -165,22 +158,14 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
             is_writable: true,
         },
         CallbackAccount {
-            pubkey: ctx.accounts.liquidator.key(),
-            is_writable: true,
-        },
-        CallbackAccount {
-            pubkey: ctx.accounts.liquidator_token_account.key(),
-            is_writable: true,
-        },
-        CallbackAccount {
             pubkey: ctx.accounts.margin_account.key(),
             is_writable: true,
         },
-        CallbackAccount {
-            pubkey: ctx.accounts.vault.key(),
-            is_writable: true,
-        },
     ];
+
+    liquidation_settlement.position = position.key();
+    liquidation_settlement.liquidator = ctx.accounts.liquidator.key();
+    liquidation_settlement.bump = ctx.bumps.liquidation_settlement;
 
     // Bind to the specific computation account so the callback can verify it is consuming
     // output from the exact liquidation computation that was authorised for this position.
@@ -209,4 +194,3 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
 
     Ok(())
 }
-

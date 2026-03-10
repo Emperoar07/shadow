@@ -9,9 +9,9 @@ use arcium_client::idl::arcium::types::CallbackAccount;
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
-use crate::handlers::callbacks::open_position_callback::OpenPositionV2Callback;
+use crate::handlers::callbacks::open_position_callback::OpenPositionProbeBCallback;
 
-#[queue_computation_accounts("open_position_v2", owner)]
+#[queue_computation_accounts("open_position_probe_b", owner)]
 #[derive(Accounts)]
 #[instruction(
     encrypted_size: [u8; 32],
@@ -191,7 +191,7 @@ pub fn handler(
     // This reduces the argument count from 23 → 15, keeping within Arcium's
     // computation account space budget.
     //
-    // Param layout (15 total):
+    // Param layout (9 total):
     //   inputs: Enc<Shared, (u64,u64,u8,bool,u64)>
     //     1. x25519_pubkey (shared for all 5 values)
     //     2. plaintext_u128 (shared nonce)
@@ -201,8 +201,7 @@ pub fn handler(
     //     6. encrypted_bool (is_long ciphertext)
     //     7. encrypted_u64  (margin ciphertext)
     //   requested_margin: u64     8.
-    //   market_params: (u8,u16,u16,u64)  9-12.
-    //   oi_state: Enc<Mxe,(u64,u64)>  13-15.
+    //   max_leverage: u8          9.
     let args = ArgBuilder::new()
         // inputs: Enc<Shared, (u64, u64, u8, bool, u64)>
         .x25519_pubkey(client_pubkey)
@@ -214,15 +213,8 @@ pub fn handler(
         .encrypted_u64(encrypted_margin)
         // requested_margin: plaintext mirror for MPC consistency check
         .plaintext_u64(margin)
-        // market_params: (max_leverage, liquidation_threshold, trading_fee, oracle_price)
+        // max_leverage: only market field needed by the open-position circuit
         .plaintext_u8(market.max_leverage)
-        .plaintext_u16(market.liquidation_threshold)
-        .plaintext_u16(market.trading_fee)
-        .plaintext_u64(market.oracle_price)
-        // oi_state: Enc<Mxe, (long_oi, short_oi)>
-        .plaintext_u128(market.oi_nonce)
-        .encrypted_u64(market.encrypted_total_long_oi)
-        .encrypted_u64(market.encrypted_total_short_oi)
         .build();
 
     // Build callback instruction for when MPC completes
@@ -241,7 +233,7 @@ pub fn handler(
         },
     ];
 
-    let callback_ix = OpenPositionV2Callback::callback_ix(
+    let callback_ix = OpenPositionProbeBCallback::callback_ix(
         computation_offset,
         &ctx.accounts.mxe_account,
         &callback_accounts,

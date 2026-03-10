@@ -6,7 +6,7 @@ use crate::state::Market;
 
 // ============ OPEN POSITION COMP DEF ============
 
-#[init_computation_definition_accounts("open_position_v2", payer)]
+#[init_computation_definition_accounts("open_position_probe_b", payer)]
 #[derive(Accounts)]
 pub struct InitOpenPositionCompDef<'info> {
     #[account(mut)]
@@ -52,7 +52,7 @@ pub fn init_open_position_handler(ctx: Context<InitOpenPositionCompDef>) -> Resu
 
 // ============ CLOSE POSITION COMP DEF ============
 
-#[init_computation_definition_accounts("close_position", payer)]
+#[init_computation_definition_accounts("close_position_v2", payer)]
 #[derive(Accounts)]
 pub struct InitClosePositionCompDef<'info> {
     #[account(mut)]
@@ -138,6 +138,52 @@ pub fn init_liquidation_handler(ctx: Context<InitLiquidationCompDef>) -> Result<
 
     let market = &mut ctx.accounts.market;
     market.liquidation_comp_def = ctx.accounts.comp_def_account.key();
+
+    Ok(())
+}
+
+// ============ SEED OPEN INTEREST STATE COMP DEF ============
+
+#[init_computation_definition_accounts("seed_open_interest_state_v3", payer)]
+#[derive(Accounts)]
+pub struct InitSeedOpenInterestCompDef<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = authority @ crate::errors::ShadowPerpError::Unauthorized,
+        seeds = [b"market", market.collateral_mint.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Account<'info, Market>,
+
+    pub authority: Signer<'info>,
+
+    #[account(mut, address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
+
+    /// CHECK: Created and validated by the Arcium program during init_comp_def CPI.
+    #[account(mut)]
+    pub comp_def_account: UncheckedAccount<'info>,
+
+    /// CHECK: Derived LUT PDA checked by address constraint above.
+    #[account(mut, address = derive_mxe_lut_pda!(mxe_account.lut_offset_slot))]
+    pub address_lookup_table: UncheckedAccount<'info>,
+
+    /// CHECK: Must match LUT program id via address constraint above.
+    #[account(address = LUT_PROGRAM_ID)]
+    pub lut_program: UncheckedAccount<'info>,
+
+    pub arcium_program: Program<'info, Arcium>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn init_seed_open_interest_handler(ctx: Context<InitSeedOpenInterestCompDef>) -> Result<()> {
+    init_comp_def(ctx.accounts, None, None)?;
+
+    let market = &mut ctx.accounts.market;
+    market.seed_open_interest_comp_def = ctx.accounts.comp_def_account.key();
 
     Ok(())
 }

@@ -9,8 +9,8 @@ use arcium_anchor::traits::CallbackCompAccs;
 use arcium_client::idl::arcium::types::CallbackAccount;
 
 use crate::errors::{ErrorCode, ShadowPerpError};
-use crate::handlers::callbacks::close_position_callback::ClosePositionCallback;
-use crate::handlers::callbacks::open_position_callback::OpenPositionV2Callback;
+use crate::handlers::callbacks::close_position_callback::ClosePositionV2Callback;
+use crate::handlers::callbacks::open_position_callback::OpenPositionProbeBCallback;
 use crate::state::{
     CollateralDeposited, MarginAccount, Market, Position, PositionStatus, TradeSession,
     TradeSessionCreated, TradeSessionRevoked,
@@ -112,7 +112,7 @@ pub fn revoke_trade_session_handler(ctx: Context<RevokeTradeSession>) -> Result<
     Ok(())
 }
 
-#[queue_computation_accounts("open_position_v2", relayer)]
+#[queue_computation_accounts("open_position_probe_b", relayer)]
 #[derive(Accounts)]
 #[instruction(
     encrypted_size: [u8; 32],
@@ -288,12 +288,6 @@ pub fn open_position_with_session_handler(
         .encrypted_u64(encrypted_margin)
         .plaintext_u64(margin)
         .plaintext_u8(market.max_leverage)
-        .plaintext_u16(market.liquidation_threshold)
-        .plaintext_u16(market.trading_fee)
-        .plaintext_u64(market.oracle_price)
-        .plaintext_u128(market.oi_nonce)
-        .encrypted_u64(market.encrypted_total_long_oi)
-        .encrypted_u64(market.encrypted_total_short_oi)
         .build();
 
     let callback_accounts = vec![
@@ -311,7 +305,7 @@ pub fn open_position_with_session_handler(
         },
     ];
 
-    let callback_ix = OpenPositionV2Callback::callback_ix(
+    let callback_ix = OpenPositionProbeBCallback::callback_ix(
         computation_offset,
         &ctx.accounts.mxe_account,
         &callback_accounts,
@@ -329,7 +323,7 @@ pub fn open_position_with_session_handler(
     Ok(())
 }
 
-#[queue_computation_accounts("close_position", relayer)]
+#[queue_computation_accounts("close_position_v2", relayer)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct ClosePositionWithSession<'info> {
@@ -372,21 +366,6 @@ pub struct ClosePositionWithSession<'info> {
         has_one = market,
     )]
     pub margin_account: Box<Account<'info, MarginAccount>>,
-
-    #[account(
-        mut,
-        constraint = owner_token_account.owner == owner.key(),
-        constraint = owner_token_account.mint == market.collateral_mint
-    )]
-    pub owner_token_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(
-        mut,
-        seeds = [b"vault", market.key().as_ref()],
-        bump,
-        constraint = vault.key() == market.vault
-    )]
-    pub vault: Box<Account<'info, TokenAccount>>,
 
     // --- Arcium accounts ---
     #[account(address = derive_mxe_pda!())]
@@ -480,15 +459,10 @@ pub fn close_position_with_session_handler(
         .encrypted_bool(encrypted_is_long)
         .encrypted_u64(encrypted_margin)
         .plaintext_u64(market.oracle_price)
-        .plaintext_u8(market.max_leverage)
-        .plaintext_u16(market.liquidation_threshold)
         .plaintext_u16(market.trading_fee)
-        .plaintext_u64(market.oracle_price)
-        .plaintext_u128(nonce)
-        .encrypted_u64(market.encrypted_total_long_oi)
-        .encrypted_u64(market.encrypted_total_short_oi)
         .build();
 
+    // Build callback accounts (3 only — token settlement deferred to settle_close_position)
     let callback_accounts = vec![
         CallbackAccount {
             pubkey: position.key(),
@@ -502,17 +476,9 @@ pub fn close_position_with_session_handler(
             pubkey: ctx.accounts.margin_account.key(),
             is_writable: true,
         },
-        CallbackAccount {
-            pubkey: ctx.accounts.owner_token_account.key(),
-            is_writable: true,
-        },
-        CallbackAccount {
-            pubkey: ctx.accounts.vault.key(),
-            is_writable: true,
-        },
     ];
 
-    let callback_ix = ClosePositionCallback::callback_ix(
+    let callback_ix = ClosePositionV2Callback::callback_ix(
         computation_offset,
         &ctx.accounts.mxe_account,
         &callback_accounts,

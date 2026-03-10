@@ -207,11 +207,13 @@ impl Position {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum PositionStatus {
     #[default]
-    Pending, // Position opening in progress (MPC running)
-    Open,       // Position is active
-    Closing,    // Position close in progress (MPC running)
-    Closed,     // Position settled, PnL revealed
-    Liquidated, // Position was liquidated
+    Pending,    // 0 — Position opening in progress (MPC running)
+    Open,       // 1 — Position is active
+    Closing,    // 2 — Position close in progress (MPC running)
+    Closed,     // 3 — Position settled and tokens transferred
+    Liquidated, // 4 — Position was liquidated and tokens transferred
+    ClosedPendingSettlement,      // 5 — MPC done, awaiting settle_close_position
+    LiquidatedPendingSettlement,  // 6 — MPC done, awaiting settle_liquidation
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]

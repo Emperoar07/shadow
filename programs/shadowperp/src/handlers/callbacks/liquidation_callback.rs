@@ -1,12 +1,13 @@
 use crate::{ID, ID_CONST};
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use arcium_anchor::prelude::*;
 
 use crate::errors::{ErrorCode, ShadowPerpError};
-use crate::state::{MarginAccount, Market, Position, PositionLiquidated, PositionStatus};
+use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
-/// Callback account for receiving liquidation decision from MPC
+/// Callback account for receiving liquidation decision from MPC.
+/// Token transfer is deferred to a separate `settle_liquidation` instruction
+/// so that this callback only needs 3 custom accounts (within Arcium's comp-account budget).
 #[callback_accounts("check_liquidation")]
 #[derive(Accounts)]
 pub struct CheckLiquidationCallback<'info> {
@@ -20,7 +21,7 @@ pub struct CheckLiquidationCallback<'info> {
     /// CHECK: Instructions sysvar
     pub instructions_sysvar: AccountInfo<'info>,
 
-    // Custom callback accounts
+    // Custom callback accounts (3 only — reduced from 6)
     #[account(
         mut,
         seeds = [b"position", market.key().as_ref(), position.owner.as_ref(), &position.index.to_le_bytes()],
@@ -36,36 +37,16 @@ pub struct CheckLiquidationCallback<'info> {
     )]
     pub market: Box<Account<'info, Market>>,
 
-    /// Liquidator who initiated the check
-    /// CHECK: Receives liquidation reward
-    pub liquidator: UncheckedAccount<'info>,
-
-    #[account(
-        mut,
-        constraint = liquidator_token_account.owner == liquidator.key(),
-        constraint = liquidator_token_account.mint == market.collateral_mint
-    )]
-    pub liquidator_token_account: Box<Account<'info, TokenAccount>>,
-
     #[account(
         mut,
         seeds = [b"margin", market.key().as_ref(), position.owner.as_ref()],
         bump = margin_account.bump,
     )]
     pub margin_account: Box<Account<'info, MarginAccount>>,
-
-    #[account(
-        mut,
-        seeds = [b"vault", market.key().as_ref()],
-        bump,
-        constraint = vault.key() == market.vault
-    )]
-    pub vault: Box<Account<'info, TokenAccount>>,
-
-    pub token_program: Program<'info, Token>,
 }
 
-/// Handler logic for the check_liquidation callback (called from lib.rs via #[arcium_callback])
+/// Handler logic for the check_liquidation callback (called from lib.rs via #[arcium_callback]).
+/// Updates state only — token settlement is handled by `settle_liquidation`.
 pub fn check_liquidation_callback_handler(
     ctx: Context<CheckLiquidationCallback>,
     output: SignedComputationOutputs<CheckLiquidationOutput>,
@@ -97,8 +78,7 @@ pub fn check_liquidation_callback_handler(
     let position = &mut ctx.accounts.position;
     let clock = Clock::get()?;
 
-    // Verify the callback is consuming the exact computation that was authorised
-    // for this liquidation check.
+    // Verify the callback is consuming the exact computation that was authorised.
     require!(
         position.pending_computation_account != Pubkey::default(),
         ShadowPerpError::InvalidAccountData
@@ -121,16 +101,11 @@ pub fn check_liquidation_callback_handler(
         ShadowPerpError::InvalidAccountData
     );
     // Clear the binding immediately even if liquidation does not occur.
-    // The computation is consumed and must not be reusable.
     position.consume_pending_computation(ctx.accounts.computation_account.key())?;
 
     // Extract revealed liquidation decision.
-    // Health factor remains private in MPC output.
     let should_liquidate = verified_output.field_0.field_0;
     let revealed_margin = verified_output.field_0.field_1;
-    // Migration compatibility:
-    // use revealed margin when present; fall back to legacy persisted value.
-    // liquidation_price is deliberately not stored or emitted.
     let _liquidation_price = verified_output.field_0.field_2;
 
     // If position should not be liquidated, just return
@@ -145,12 +120,6 @@ pub fn check_liquidation_callback_handler(
     );
 
     // LIQUIDATION OCCURS
-    // Note: The health factor that triggered this is NEVER revealed
-    // Only the fact that liquidation occurred is public
-    position.status = PositionStatus::Liquidated;
-    position.closed_at = clock.unix_timestamp;
-
-    // Unlock margin (will be distributed to liquidator and protocol)
     let margin = if revealed_margin > 0 {
         revealed_margin
     } else {
@@ -160,7 +129,6 @@ pub fn check_liquidation_callback_handler(
     margin_account.unlock_margin(position.margin_mode(), margin)?;
 
     // Calculate liquidation penalty (5% to liquidator, rest returned).
-    // Use multiply-then-divide to avoid integer-division precision loss.
     let liquidation_penalty = margin
         .checked_mul(5)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?
@@ -169,7 +137,6 @@ pub fn check_liquidation_callback_handler(
     let remaining = margin
         .checked_sub(liquidation_penalty)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
-    // Invariant: the two halves must reconstitute the original margin exactly.
     require!(
         liquidation_penalty
             .checked_add(remaining)
@@ -186,9 +153,14 @@ pub fn check_liquidation_callback_handler(
         .checked_add(remaining)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
-    // Record as loss for the user
+    // Store liquidation penalty for settle instruction to transfer.
+    // margin = amount to transfer to liquidator, requested_margin = original locked margin.
+    position.margin = liquidation_penalty;
+    position.requested_margin = margin;
     position.realized_pnl = -(liquidation_penalty as i64);
-    // Privacy hardening: avoid exposing cumulative realised PnL as public account state.
+    position.status = PositionStatus::LiquidatedPendingSettlement;
+    position.closed_at = clock.unix_timestamp;
+
     margin_account.total_realized_pnl = 0;
 
     margin_account.positions_closed = margin_account
@@ -202,32 +174,5 @@ pub fn check_liquidation_callback_handler(
         .checked_sub(1)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
-    // Pay liquidation reward from the market vault to the liquidator.
-    if liquidation_penalty > 0 {
-        let seeds = &[b"market", market.collateral_mint.as_ref(), &[market.bump]];
-        let signer_seeds = &[&seeds[..]];
-
-        let transfer_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.vault.to_account_info(),
-                to: ctx.accounts.liquidator_token_account.to_account_info(),
-                authority: market.to_account_info(),
-            },
-            signer_seeds,
-        );
-        token::transfer(transfer_ctx, liquidation_penalty)?;
-    }
-
-    position.margin = 0;
-    position.requested_margin = 0;
-
-    emit!(PositionLiquidated {
-        owner: position.owner,
-        position: position.key(),
-        timestamp: clock.unix_timestamp,
-    });
-
     Ok(())
 }
-

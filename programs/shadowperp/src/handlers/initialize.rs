@@ -67,6 +67,7 @@ pub fn handler(
     market.total_fees_collected = 0;
     market.price_feeder = ctx.accounts.price_feeder.key();
     market.mxe_cluster = ctx.accounts.mxe_cluster.key();
+    market.seed_open_interest_comp_def = Pubkey::default();
     market.bump = bump;
 
     emit!(MarketInitialized {

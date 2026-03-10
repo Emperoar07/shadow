@@ -6,9 +6,9 @@ use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionOpened, PositionStatus};
 
 /// Callback account for storing validated position data from MPC
-#[callback_accounts("open_position_v2")]
+#[callback_accounts("open_position_probe_b")]
 #[derive(Accounts)]
-pub struct OpenPositionV2Callback<'info> {
+pub struct OpenPositionProbeBCallback<'info> {
     // Standard Arcium callback accounts
     pub arcium_program: Program<'info, Arcium>,
     pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
@@ -42,21 +42,39 @@ pub struct OpenPositionV2Callback<'info> {
     pub margin_account: Box<Account<'info, MarginAccount>>,
 }
 
-pub type OpenPositionV2Output = OpenPositionOutput;
-
 /// Handler logic for the open_position callback (called from lib.rs via #[arcium_callback])
 pub fn open_position_callback_handler(
-    ctx: Context<OpenPositionV2Callback>,
-    output: SignedComputationOutputs<OpenPositionV2Output>,
+    ctx: Context<OpenPositionProbeBCallback>,
+    output: SignedComputationOutputs<OpenPositionProbeBOutput>,
 ) -> Result<()> {
-    // Verify the computation output from the MPC cluster
-    let verified_output = match output.verify_output(
+    // Split verification into raw-signature verification and typed deserialization
+    // so we can tell whether failures are caused by BLS/signature checks or by
+    // output-shape drift between the finalized comp-def and the Rust output type.
+    let raw_output = match output.verify_output_raw(
         &ctx.accounts.cluster_account,
         &ctx.accounts.computation_account,
     ) {
-        Ok(o) => o,
-        Err(_) => {
-            msg!("MPC verify failed for position {}", ctx.accounts.position.key());
+        Ok(bytes) => bytes,
+        Err(error) => {
+            msg!(
+                "MPC raw verify failed for position {}: {}",
+                ctx.accounts.position.key(),
+                error
+            );
+            return Err(ShadowPerpError::InvalidComputationResult.into());
+        }
+    };
+
+    let verified_output = match OpenPositionProbeBOutput::try_from_slice(&raw_output) {
+        Ok(output) => output,
+        Err(error) => {
+            msg!(
+                "MPC output deserialize failed for position {}: raw_len={}, expected_size={}, error={}",
+                ctx.accounts.position.key(),
+                raw_output.len(),
+                <OpenPositionProbeBOutput as HasSize>::SIZE,
+                error
+            );
             return Err(ShadowPerpError::InvalidComputationResult.into());
         }
     };
@@ -109,13 +127,7 @@ pub fn open_position_callback_handler(
     position.consume_pending_computation(ctx.accounts.computation_account.key())?;
 
     // Enforce MPC validation outcome.
-    // Circuit returns tuple -> wrapped in OutputStruct0:
-    // field_0=bool, field_1=encrypted OI.
-    let result = &verified_output.field_0;
-    require!(result.field_0, ShadowPerpError::InvalidComputationResult);
-
-    // field_1: encrypted open_interest payload
-    let oi_ciphertexts = &result.field_1.ciphertexts;
+    require!(verified_output.field_0, ShadowPerpError::InvalidComputationResult);
 
     // Update position with MPC-validated encrypted data
     // The MPC has verified margin sufficiency and parameter validity.
@@ -142,15 +154,8 @@ pub fn open_position_callback_handler(
     // The requested margin is only needed during pending->open transition.
     position.requested_margin = 0;
 
-    // Open-position inputs were already persisted on position creation.
-    // Here we only need OI updates produced by MPC.
-    require!(oi_ciphertexts.len() == 2, ShadowPerpError::InvalidComputationResult);
-    market.encrypted_total_long_oi = oi_ciphertexts[0];
-    market.encrypted_total_short_oi = oi_ciphertexts[1];
-    // Persist the MXE-assigned nonce so subsequent computations can pass it back.
-    market.oi_nonce = result.field_1.nonce;
-
-    // Increment active positions counter
+    // Aggregate OI is intentionally no longer maintained through Arcium because
+    // MXE-owned OI ciphertext creation is the observed abort source on devnet.
     market.active_positions = market
         .active_positions
         .checked_add(1)

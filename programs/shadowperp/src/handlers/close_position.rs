@@ -2,7 +2,6 @@ use crate::ArciumSignerAccount;
 use crate::ID;
 use crate::ID_CONST;
 use anchor_lang::prelude::*;
-use anchor_spl::token::TokenAccount;
 use arcium_anchor::prelude::*;
 use arcium_anchor::traits::CallbackCompAccs;
 use arcium_client::idl::arcium::types::CallbackAccount;
@@ -10,9 +9,9 @@ use arcium_client::idl::arcium::types::CallbackAccount;
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
-use crate::handlers::callbacks::close_position_callback::ClosePositionCallback;
+use crate::handlers::callbacks::close_position_callback::ClosePositionV2Callback;
 
-#[queue_computation_accounts("close_position", owner)]
+#[queue_computation_accounts("close_position_v2", owner)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct ClosePosition<'info> {
@@ -43,21 +42,6 @@ pub struct ClosePosition<'info> {
         has_one = market,
     )]
     pub margin_account: Box<Account<'info, MarginAccount>>,
-
-    #[account(
-        mut,
-        constraint = owner_token_account.owner == owner.key(),
-        constraint = owner_token_account.mint == market.collateral_mint
-    )]
-    pub owner_token_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(
-        mut,
-        seeds = [b"vault", market.key().as_ref()],
-        bump,
-        constraint = vault.key() == market.vault
-    )]
-    pub vault: Box<Account<'info, TokenAccount>>,
 
     // --- Arcium accounts ---
     #[account(address = derive_mxe_pda!())]
@@ -131,11 +115,10 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         computation_offset,
     )?;
 
-    // Build arguments for close_position MPC circuit
+    // Build arguments for close_position_v2 MPC circuit
     // position: Enc<Mxe, Position> - pass the encrypted position data stored on-chain
     // exit_price: u64 - plaintext oracle price
-    // market_params: MarketParams - plaintext
-    // oi_state: Enc<Mxe, OpenInterest> - MXE-encrypted state
+    // trading_fee_bps: u16 - only market field used by the close circuit
     let nonce = u128::from_le_bytes(position.nonce);
     let encrypted_size: [u8; 32] = position.encrypted_data[0..32]
         .try_into()
@@ -163,18 +146,11 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         .encrypted_u64(encrypted_margin) // margin
         // exit_price: u64 (plaintext - current oracle price)
         .plaintext_u64(market.oracle_price)
-        // market_params: MarketParams (plaintext)
-        .plaintext_u8(market.max_leverage)
-        .plaintext_u16(market.liquidation_threshold)
+        // trading_fee_bps: only market field needed by the close circuit
         .plaintext_u16(market.trading_fee)
-        .plaintext_u64(market.oracle_price)
-        // oi_state: Enc<Mxe, OpenInterest>
-        .plaintext_u128(nonce)
-        .encrypted_u64(market.encrypted_total_long_oi)
-        .encrypted_u64(market.encrypted_total_short_oi)
         .build();
 
-    // Build callback for when PnL is computed and revealed
+    // Build callback accounts (3 only — token settlement deferred to settle_close_position)
     let callback_accounts = vec![
         CallbackAccount {
             pubkey: position.key(),
@@ -188,17 +164,9 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
             pubkey: ctx.accounts.margin_account.key(),
             is_writable: true,
         },
-        CallbackAccount {
-            pubkey: ctx.accounts.owner_token_account.key(),
-            is_writable: true,
-        },
-        CallbackAccount {
-            pubkey: ctx.accounts.vault.key(),
-            is_writable: true,
-        },
     ];
 
-    let callback_ix = ClosePositionCallback::callback_ix(
+    let callback_ix = ClosePositionV2Callback::callback_ix(
         computation_offset,
         &ctx.accounts.mxe_account,
         &callback_accounts,
