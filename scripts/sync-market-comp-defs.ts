@@ -100,8 +100,8 @@ async function main(): Promise<void> {
   idl.address = args.programId.toBase58();
   const program = new anchor.Program(idl as anchor.Idl, provider);
 
-  const openCompDef = args.openCompDef ?? deriveCompDef(args.mxeProgramId, "open_position");
-  const closeCompDef = args.closeCompDef ?? deriveCompDef(args.mxeProgramId, "close_position");
+  const openCompDef = args.openCompDef ?? deriveCompDef(args.mxeProgramId, "open_position_probe_b");
+  const closeCompDef = args.closeCompDef ?? deriveCompDef(args.mxeProgramId, "close_position_v2");
   const liqCompDef = args.liquidationCompDef ?? deriveCompDef(args.mxeProgramId, "check_liquidation");
 
   const signature = await (program.methods as any)
@@ -117,8 +117,8 @@ async function main(): Promise<void> {
 
   console.log("sync_comp_defs signature:", signature);
   console.log("rpc:", rpcSelection.rpcUrl);
-  console.log("open_position:", openCompDef.toBase58());
-  console.log("close_position:", closeCompDef.toBase58());
+  console.log("open_position_probe_b:", openCompDef.toBase58());
+  console.log("close_position_v2:", closeCompDef.toBase58());
   console.log("check_liquidation:", liqCompDef.toBase58());
 }
 

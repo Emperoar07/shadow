@@ -474,6 +474,13 @@ export default function BottomPositionsPanel() {
     []
   );
 
+  const removeFailedLimitOrder = useCallback((order: PendingLimitOrder) => {
+    if (order.status === "failed") {
+      removeLimitOrder(order.id);
+      toast.success("Removed failed order");
+    }
+  }, []);
+
   return (
     <div className="trade-bottom-panel position-card rounded-xl overflow-hidden h-full">
       {/* Tab bar */}
@@ -543,12 +550,18 @@ export default function BottomPositionsPanel() {
                             Edit
                           </button>
                         )}
-                        <button
-                          onClick={() => removeLimitOrder(order.id)}
-                          className="rounded bg-red-500/15 px-2 py-1 text-[10px] text-red-300"
-                        >
-                          Cancel
-                        </button>
+                        {order.status === "failed" ? (
+                          <button
+                            onClick={() => removeFailedLimitOrder(order)}
+                            className="rounded bg-red-500/15 px-2 py-1 text-[10px] text-red-300"
+                          >
+                            Remove
+                          </button>
+                        ) : (
+                          <span className="rounded bg-shadow-600 px-2 py-1 text-[10px] text-gray-400">
+                            {order.status === "triggered" ? "In Flight" : "Queued"}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -801,7 +814,7 @@ export default function BottomPositionsPanel() {
       </div>
 
       {editAddress && (
-        <div className="border-t border-shadow-600 p-3 bg-shadow-800/50">
+        <div className="tpsl-editor-panel border-t border-shadow-600 p-3 bg-shadow-800/50">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-medium text-cyan-300">Edit TP/SL Automation</p>
             <button
@@ -815,7 +828,7 @@ export default function BottomPositionsPanel() {
             <select
               value={editSide}
               onChange={(e) => setEditSide(e.target.value as Direction)}
-              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-400/50"
+              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50"
             >
               <option value="long">Long</option>
               <option value="short">Short</option>
@@ -825,14 +838,14 @@ export default function BottomPositionsPanel() {
               value={editTakeProfit}
               onChange={(e) => setEditTakeProfit(e.target.value)}
               placeholder="Take Profit"
-              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-400/50"
+              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50"
             />
             <input
               type="number"
               value={editStopLoss}
               onChange={(e) => setEditStopLoss(e.target.value)}
               placeholder="Stop Loss"
-              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-400/50"
+              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50"
             />
             <button
               onClick={saveRule}

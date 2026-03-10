@@ -8,6 +8,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $anchorExe = Join-Path $repoRoot ".tools\anchor-0.32.1.exe"
 $solanaBin = Join-Path $repoRoot ".tools\solana-v2.3.13-extracted\solana-release\bin"
 $sbfSdk = Join-Path $solanaBin "platform-tools-sdk\sbf"
+$wrapperDir = $PSScriptRoot
 
 if (-not (Test-Path $anchorExe)) {
   throw "Anchor binary not found: $anchorExe"
@@ -20,12 +21,12 @@ if (-not (Test-Path $sbfSdk)) {
 }
 
 $env:HOME = $env:USERPROFILE
-$env:PATH = "$solanaBin;$env:PATH"
+$env:PATH = "$wrapperDir;$solanaBin;$env:PATH"
 $env:SBF_SDK_PATH = $sbfSdk
 
 Push-Location $repoRoot
 try {
-  & $anchorExe build
+  & $anchorExe build -- --skip-tools-install
   if ($DeployDevnet) {
     & $anchorExe deploy --provider.cluster devnet
   }

@@ -353,6 +353,24 @@ html.light .trade-orderbook .bg-shadow-800 {
   background-color: #f8f9fc !important;
 }
 
+html.light .trade-orderbook-spread-row {
+  background: #eef2f8 !important;
+  border-color: #d8dce8 !important;
+}
+
+html.light .trade-orderbook-spread-row .text-white {
+  color: #0f172a !important;
+}
+
+html.light .trade-orderbook-spread-row .text-gray-300 {
+  color: #334155 !important;
+}
+
+html.light .trade-orderbook-spread-row .text-gray-400,
+html.light .trade-orderbook-spread-row .text-gray-500 {
+  color: #64748b !important;
+}
+
 html.light .trade-orderbook .text-accent-red {
   color: #ef4444 !important;
 }
@@ -571,6 +589,33 @@ html.light .trade-bottom-panel .hover\:bg-cyan-500\/25:hover {
 }
 html.light .trade-bottom-panel .hover\:bg-red-500\/20:hover {
   background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+html.light .tpsl-editor-panel {
+  background-color: #f8fafc !important;
+  border-top-color: #d8dce8 !important;
+}
+
+html.light .tpsl-editor-panel .text-cyan-300 {
+  color: #0891b2 !important;
+}
+
+html.light .tpsl-editor-panel .text-gray-400,
+html.light .tpsl-editor-panel .text-gray-500 {
+  color: #64748b !important;
+}
+
+html.light .tpsl-editor-panel .text-gray-200,
+html.light .tpsl-editor-panel .hover\:text-gray-200:hover {
+  color: #0f172a !important;
+}
+
+html.light .tpsl-editor-panel .bg-shadow-700 {
+  background-color: #ffffff !important;
+}
+
+html.light .tpsl-editor-panel .border-shadow-500 {
+  border-color: #cfd7e6 !important;
 }
 
 /* ── Status badge colours (yellow, green, red, gray) ── */

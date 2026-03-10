@@ -18,7 +18,16 @@ interface PriceMeta {
 
 interface ApiPriceResponse {
   prices: Record<string, PriceData>;
-  provider: "binance" | "mixed" | "coingecko" | "coinmarketcap" | "cache" | "mock";
+  provider:
+    | "binance"
+    | "bybit"
+    | "mexc"
+    | "coinbase"
+    | "kraken"
+    | "gateio"
+    | "mixed"
+    | "cache"
+    | "mock";
   fetchedAt: number;
 }
 

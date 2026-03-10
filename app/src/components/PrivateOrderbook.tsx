@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import {
+  getDefaultGrouping,
   formatPrice,
   formatSize,
   formatTime,
@@ -39,16 +40,16 @@ export default function PrivateOrderbook({
   const activePair = pair ?? TRADING_PAIRS[0];
   const currentReferencePrice = priceForGrouping(snapshot, referencePrice);
   const groupingOptions = getGroupingOptions(currentReferencePrice);
-  const [grouping, setGrouping] = useState(groupingOptions[2] ?? groupingOptions[0] ?? 1);
+  const [grouping, setGrouping] = useState(getDefaultGrouping(currentReferencePrice));
 
   useEffect(() => {
-    setGrouping(getGroupingOptions(priceForGrouping(snapshot, referencePrice))[2] ?? getGroupingOptions(priceForGrouping(snapshot, referencePrice))[0] ?? 1);
+    setGrouping(getDefaultGrouping(priceForGrouping(snapshot, referencePrice)));
   }, [activePair.label]);
 
   useEffect(() => {
     const nextOptions = getGroupingOptions(currentReferencePrice);
     if (!nextOptions.includes(grouping)) {
-      setGrouping(nextOptions[2] ?? nextOptions[0] ?? grouping);
+      setGrouping(getDefaultGrouping(currentReferencePrice));
     }
   }, [currentReferencePrice, grouping]);
 
@@ -118,10 +119,7 @@ export default function PrivateOrderbook({
           ))}
         </div>
         <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.08em] text-gray-500">
-          <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-[2px] text-cyan-300">
-            External
-          </span>
-          {snapshot ? <span>{snapshot.provider} {snapshot.symbol}</span> : <span>Loading</span>}
+          {snapshot ? <span className="text-gray-500">Live</span> : <span>Loading</span>}
         </div>
       </div>
 
@@ -260,7 +258,7 @@ function SpreadRow({
       : referencePrice ?? null);
 
   return (
-    <div className="grid grid-cols-3 items-center px-2 py-[5px] border-y border-shadow-600 shrink-0 bg-shadow-800/60">
+    <div className="trade-orderbook-spread-row grid grid-cols-3 items-center px-2 py-[5px] border-y border-shadow-600 shrink-0 bg-shadow-800/60">
       <span className="text-center text-[10px] font-medium text-gray-300">Spread</span>
       <span className="text-center text-[11px] font-semibold text-white tabular-nums">
         {spreadLabel}

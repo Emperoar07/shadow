@@ -14,8 +14,10 @@
 pub mod close_position;
 pub mod liquidation_check;
 pub mod open_position;
+pub mod seed_open_interest_state;
 pub mod types;
 
 pub use close_position::*;
 pub use liquidation_check::*;
 pub use open_position::*;
+pub use seed_open_interest_state::*;

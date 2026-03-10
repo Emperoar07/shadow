@@ -2,8 +2,8 @@
 set -euo pipefail
 
 REPO="/mnt/c/Users/bolaj/projects/shadowperp"
-WIN_AVM_BIN="/mnt/c/Users/bolaj/.avm/bin"
 LINUX_CARGO_BIN="$HOME/.cargo/bin"
+LINUX_SOLANA_BIN="$HOME/.local/share/solana-2.3.13/active_release/bin"
 # Native Linux Rust toolchain installed offline from Windows-downloaded archive.
 NATIVE_RUST_BIN="$HOME/.rust-native/install/bin"
 
@@ -29,29 +29,23 @@ if [ ! -x "$NATIVE_RUST_BIN/cargo" ]; then
   exit 1
 fi
 
-# Anchor binary: use Windows exe via bridge (only used for anchor build/deploy, not circuits)
-cat > "$LINUX_CARGO_BIN/anchor" <<'EOF'
-#!/usr/bin/env bash
-if [ -x /mnt/c/Users/bolaj/.avm/bin/anchor-0.32.1.exe ]; then
-  exec /mnt/c/Users/bolaj/.avm/bin/anchor-0.32.1.exe "$@"
+# Use native Linux Anchor + Solana build lane. Windows bridge remains too fragile.
+if [ ! -x "$LINUX_CARGO_BIN/anchor" ]; then
+  echo "ERROR: Native Linux anchor not found at $LINUX_CARGO_BIN/anchor"
+  exit 1
 fi
-if [ -x /mnt/c/Users/bolaj/.avm/bin/anchor-0.32.1 ]; then
-  exec /mnt/c/Users/bolaj/.avm/bin/anchor-0.32.1 "$@"
+if [ ! -x "$LINUX_SOLANA_BIN/cargo-build-sbf" ]; then
+  echo "ERROR: Solana 2.3.13 lane not found at $LINUX_SOLANA_BIN"
+  exit 1
 fi
-exec /mnt/c/Users/bolaj/.cargo/bin/anchor.exe "$@"
-EOF
-chmod +x "$LINUX_CARGO_BIN/anchor"
 
-# Reuse the Windows cargo registry (all crates already cached there).
-# Keep a SEPARATE target dir so Linux and Windows build artifacts don't mix.
-# The proc-macro2 GitHub URL is redirected to the local Windows git cache via
-# git url.insteadOf (set up once by _setup_git_rewrite.sh).
-WIN_CARGO_HOME="/mnt/c/Users/bolaj/.cargo"
-export CARGO_HOME="$WIN_CARGO_HOME"
+# Keep a separate target dir so Linux and Windows build artifacts don't mix.
+export CARGO_HOME="$HOME/.cargo"
 export CARGO_TARGET_DIR="$HOME/.cargo-native/target"
 mkdir -p "$CARGO_TARGET_DIR"
 
-export PATH="$NATIVE_RUST_BIN:$LINUX_CARGO_BIN:$WIN_AVM_BIN:$PATH"
+export HOME="$HOME"
+export PATH="$LINUX_SOLANA_BIN:$NATIVE_RUST_BIN:$LINUX_CARGO_BIN:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 cd "$REPO"
 
@@ -64,7 +58,19 @@ cargo --version
 rustc --version
 anchor --version
 
-arcium build --skip-keys-sync
+arcium build --skip-keys-sync --skip-program
+
+# The repo consumes the batched open-position circuit as "open_position_v4",
+# but Arcium may still emit the confidential artifact as "open_position".
+# Publish versioned aliases so Anchor macros and comp-def init resolve the same build output.
+for ext in arcis arcis.ir hash idarc profile.json ts weight; do
+  if [ -f "build/open_position.$ext" ]; then
+    cp -f "build/open_position.$ext" "build/open_position_v4.$ext"
+  fi
+  if [ -f "build/close_position.$ext" ]; then
+    cp -f "build/close_position.$ext" "build/close_position_v2.$ext"
+  fi
+done
 
 echo "Build artifacts:"
 ls -la build

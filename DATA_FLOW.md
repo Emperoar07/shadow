@@ -44,21 +44,25 @@ This document describes the live request/response flow across UI, Solana, and Ar
 1. UI requests close for open position
 2. Program queues `close_position` computation
 3. Arcium computes settlement outputs
-4. Callback verifies output and settles balances
-5. position transitions to closed/liquidated terminal state
+4. Callback verifies output, updates balances, and moves the position to `ClosedPendingSettlement`
+5. Client/relayer submits `settle_close_position`
+6. Program transfers settlement from vault to owner and marks the position `Closed`
 
 ### Delegated Close (Session Path)
 
 1. Relayer submits `close_position_with_session` under active session
 2. Program validates session and consumes one action
 3. Program queues Arcium close computation
-4. Callback verifies and settles as normal close flow
+4. Callback verifies output, then relayer submits `settle_close_position`
 
 ## 3. Liquidation Check Flow
 
 1. Keeper/user triggers liquidation check
 2. Program queues `check_liquidation` computation
-3. Callback applies liquidation action only when condition is true
+3. Program records the authorized liquidator in a `LiquidationSettlement` PDA keyed by position
+4. Callback applies liquidation state only when condition is true and moves the position to `LiquidatedPendingSettlement`
+5. Liquidator submits `settle_liquidation`
+6. Program verifies the recorded liquidator, transfers the liquidation reward, and marks the position `Liquidated`
 
 ## 4. Collateral Flow
 

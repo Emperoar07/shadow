@@ -3,8 +3,798 @@
 Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
-- Date: 2026-03-02 (UTC)
+- Date: 2026-03-07 (UTC)
 - Author: Codex
+
+## Market Feed + Theme Default + TP/SL Light-Mode Fixes (2026-03-10 UTC)
+- Scope:
+  - `app/src/lib/market-feeds.ts`
+  - `app/src/components/PriceChart.tsx`
+  - `app/src/pages/api/prices.ts`
+  - `app/src/lib/prices.ts`
+  - `app/src/components/ThemeToggle.tsx`
+  - `app/public/theme-init.js`
+  - `app/src/pages/index.tsx`
+  - `app/src/components/BottomPositionsPanel.tsx`
+  - `app/src/styles/globals.css`
+- What changed:
+  1. Added a shared market-feed mapping so the top market stats and the TradingView chart use the same primary venue/symbol family instead of the old mixed price aggregation.
+  2. Replaced the `/api/prices` source logic with chart-aligned provider fetches:
+     - Binance
+     - Bybit
+     - MEXC
+     - Coinbase
+     - Kraken
+     - Gate.io
+  3. Switched the default theme to dark mode:
+     - no saved theme now defaults to dark
+     - landing page and main app both read the same default
+     - `theme-init.js` only applies `light` when explicitly saved
+  4. Added explicit light-mode styling for the TP/SL automation editor panel instead of relying on inherited trade-panel colors.
+  5. Removed the misleading pending-order cancel action from the orders panel:
+     - pending orders now show `Queued`
+     - triggered orders show `In Flight`
+     - only failed local orders can be removed
+- What was verified:
+  - `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+  - `npm run check:oracle` -> PASS
+    - price `$87.2350`
+    - age `59s`
+- Current blocker:
+  - `needs browser verification`
+  - The feed alignment, dark-default theme path, and TP/SL light-mode fixes are code-verified, but not visually rechecked in a running browser during this pass.
+- Next safe step:
+  1. Open the app and confirm the market bar price tracks the chart venue more closely for `SOL-PERP`.
+  2. Confirm no-saved-theme opens in dark mode on both landing page and app.
+  3. Toggle to light mode and verify the TP/SL editor, spread row, and top market bar remain readable.
+
+## Landing Reveal + Session Persistence Fixes (2026-03-10 UTC)
+- Scope:
+  - `app/src/pages/index.tsx`
+  - `app/src/hooks/useArcium.ts`
+  - `app/src/pages/app.tsx`
+- What changed:
+  1. Fixed the landing-page reveal lifecycle so `.lp-reveal` elements are re-observed after theme initialization and theme changes.
+  2. Removed the keyed root remount from the landing page, which was causing reveal targets to be replaced after theme init and left hidden.
+  3. Hardened delegated session refresh logic so a just-created session is not immediately cleared when the relay RPC/API briefly reports `exists === false`.
+  4. Removed the immediate post-create `refreshRelaySession()` call from the session chip, which was forcing that race right after successful creation.
+- What was verified:
+  - `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+  - `npm run check:oracle` -> PASS
+    - price `$87.0900`
+    - age `299s`
+- Current blocker:
+  - `needs browser verification`
+  - The code path is fixed and typechecked, but the landing-page reveal and session-chip behavior were not visually reverified in a running browser during this pass.
+- Next safe step:
+  1. Start the app locally.
+  2. Verify landing-page copy appears on first load and after theme toggle.
+  3. Verify starting a delegated session no longer immediately clears the active chip/state.
+
+## `open_position_probe_a` Live Rollout Succeeded, Arithmetic Path Is the Remaining Bug (2026-03-10 UTC)
+- Scope:
+  - `scripts/js-deploy.ts`
+  - `scripts/init-comp-defs.ts`
+  - `encrypted-ixs/src/open_position.rs`
+  - `programs/shadowperp/src/handlers/open_position.rs`
+  - `programs/shadowperp/src/handlers/session_trading.rs`
+  - `programs/shadowperp/src/handlers/callbacks/open_position_callback.rs`
+- What changed/live rollout:
+  1. Upgraded the existing program in place on QuickNode:
+     - program `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  2. Synced the frontend IDL:
+     - `npx ts-node scripts/run-frontend.ts --sync-only`
+  3. Finalized the new open comp-def for the minimal probe circuit:
+     - `open_position_probe_a`: `C8pC4NT5mse346T37D7zZEzkmvcC3rzYeD7BQDGvN9Xk`
+  4. Market open pointer now references:
+     - `C8pC4NT5mse346T37D7zZEzkmvcC3rzYeD7BQDGvN9Xk`
+- What was verified on QuickNode:
+  - Oracle refresh succeeded:
+    - tx `5Wk9xCKC4FC7PxLKgTcexCKkx1Zs7dtK32685N3Y8FH4cx8rfR4QHmhgcwmFFvj2uXTTHQut3nZXxK2MWNXuGmfh`
+  - `npm run check:preflight` passed on QuickNode once RPC state caught up.
+  - Fresh smoke:
+    - session `1773127382`
+    - session address `9oWSUmRvPtV38Mnetjz8hmSBN78cqZLSnWWVDMgWQsbR`
+    - position `ByttC6czEm4YyaMSXDtWnnXzxTZyT3juy1w8q2YBGkYv`
+    - open tx `3eNqK41YX7bxQA3MLxanpwwQKgcnejzpXNbzZuHX6SCiEFcTZs2hEVsU6Q1hUkwSqqyWaqTGRXF4Rd9fbcEeAiWX`
+  - Callback result:
+    - successful callback tx:
+      - `UNrNbJjxpTpzTSf1pCjfeQfEvqAcdc42ZSwoNi5kxbPKW2NkwoTJDhF4nmMUDTu5MRYmPcpQsaMQGRytVDs24rw`
+    - duplicate callback rejected by Arcium as expected:
+      - `5kEmy7hZ7BLmoKvCjRBfD4kw6XVw7hJxnQTtCZEDMNpzFh8sxTwnEnszVVhbbHVroBgPtdsJtLmvASLT3MSUwPPo`
+      - `AlreadyCallbackedComputation (6204)`
+  - Position account decode confirms:
+    - `status = Open`
+    - `pending_computation_account = 11111111111111111111111111111111`
+- Important conclusion:
+  - The minimal probe proves that:
+    - callback account sizing is not the blocker
+    - callback plumbing is not the blocker
+    - encrypted tuple input shape is not the blocker
+    - Arcium can execute and callback this open path successfully
+  - Therefore the remaining bug is in the original open arithmetic / business logic path (`open_position_v5`), not in the general callback/runtime pipeline.
+- Current blocker:
+  - `waiting on narrowed arithmetic isolation`
+  - Next work should be probe-style binary search on the open circuit math:
+    1. `probe_b` with only basic comparisons and no multiplication/division
+    2. if that passes, `probe_c` adding arithmetic incrementally
+- Next safe step:
+  1. Replace `open_position_probe_a` with `open_position_probe_b`:
+     - keep same input shape
+     - add only leverage / margin / positivity comparisons
+     - no multiplication or division
+  2. Rebuild + in-place upgrade.
+  3. Finalize the new open comp-def and rerun one delegated open smoke on QuickNode.
+
+## `open_position_probe_a` Prepared, Upgrade Blocked on Buffer Rent (2026-03-10 UTC)
+- Scope:
+  - `encrypted-ixs/src/open_position.rs`
+  - `programs/shadowperp/src/handlers/open_position.rs`
+  - `programs/shadowperp/src/handlers/session_trading.rs`
+  - `programs/shadowperp/src/handlers/callbacks/open_position_callback.rs`
+  - `programs/shadowperp/src/lib.rs`
+  - `scripts/init-comp-defs.ts`
+  - `scripts/sync-market-comp-defs.ts`
+  - `scripts/force-upload-circuit.ts`
+- What changed locally:
+  1. Replaced the live open circuit path with `open_position_probe_a`.
+  2. `open_position_probe_a` now ignores the encrypted tuple and returns only `true.reveal()`.
+  3. On-chain queue/callback wiring and helper scripts were updated to target `open_position_probe_a`.
+- What was verified:
+  - `cargo check -p shadowperp` -> PASS
+  - `wsl bash scripts/wsl-arcium-build.sh` -> PASS
+  - `wsl bash scripts/wsl-anchor-build.sh` -> PASS
+  - `build/open_position_probe_a.arcis` exists
+  - `target/deploy/shadowperp.so` updated
+  - `npm run check:preflight` on public devnet -> PASS after `npm run oracle:once`
+  - Session creation still works on-chain:
+    - session `1773106025`
+    - tx `49dPsmrcMR5BCt3vhCbNKaoTg9VaRorSjmbNGPgob9rZoGNbGPFJjYKQcCTXXL1A3sdNoV3EVpB2iZ4UqTghghTF`
+- Current blocker:
+  - `waiting on funds`
+  - In-place upgrade attempt on public devnet did not start because the wallet cannot fund the upgrade buffer for the current binary.
+  - Live numbers from the failed attempt:
+    - wallet balance: `8.20474808 SOL`
+    - required buffer rent: `8.50476504 SOL`
+    - shortfall: about `0.30001696 SOL` before fees
+  - No stray buffer was left behind:
+    - attempted buffer `BXcXr3hwox1mCpm71b9CxrLhz6wL76vAQHpubC2nPcrA` does not exist
+    - `solana program show --buffers --url https://api.devnet.solana.com` shows none
+- Important conclusion:
+  - The next state change is not a code change. It is funding the deploy wallet enough to cover the upgrade buffer for the probe binary.
+  - Once funded, the next step is to upgrade the current namespace in place, then finalize the new open comp-def and rerun one delegated open smoke.
+- Next safe step:
+  1. Fund deploy wallet `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt` with at least `0.5 SOL`.
+  2. Retry:
+     - `npx ts-node scripts/js-deploy.ts --rpc https://api.devnet.solana.com`
+  3. Then run:
+     - `npx ts-node scripts/run-frontend.ts --sync-only`
+     - `npx ts-node scripts/init-comp-defs.ts --rpc https://api.devnet.solana.com --program 2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az --market Hx4cXyuoJWqsFh1CKmrPYsvYFpGYFMw9Ntst2bgXvKVC`
+     - `npm run oracle:once`
+     - `npm run check:preflight`
+     - one delegated open smoke on public devnet
+
+## `open_position_v4` / `close_position_v2` Rollout Complete, Live Open Still Aborts (2026-03-10 UTC)
+- Scope:
+  - `scripts/js-deploy.ts`
+  - `scripts/init-comp-defs.ts`
+  - live program / market / callback logs
+- What changed:
+  1. Landed the upgraded program in place on the existing namespace:
+     - program `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  2. Finished comp-def rollout on public devnet:
+     - `open_position_v4`: `3FHGEdZ5qRxgCqmuFN3cxb4yYkynVTBUFUA7saQuoCmn`
+     - `close_position_v2`: `54gwPKpVrigmnnRtuhmAZ28u3u6Z8QQRXQxRGJNzVuZi`
+     - market now points to those new finalized comp-defs
+  3. Oracle publish succeeded on public devnet:
+     - tx `3ZrbxyBaWm26BdvuxtTxrR88z3eDe9sBV7zU4aifYyXh9bNkC9BumVtg2WNEfpLuxsEmgZYxw9GQ5XJ76WxY9dav`
+     - note: immediate `check:oracle` / `check:preflight` still read stale age due to RPC lag, even though the tx confirmed
+- What was verified live:
+  - Delegated open smoke on public devnet:
+    - session `1773101604`
+    - session address `VfvbqfpcLLfFBV16XiH7PxSA2R3BMuzCEKXqoz5g5aG`
+    - position `141s6C9rWyTRSbsBkaxPSLn7ua4iDMqXrW9eEZfaBduX`
+    - open tx `9BxNisj189cToXuzpyPaJg6YyaKazdRhBGno6bHWZ1nqwYrSkWaJrMXX37NjhiiWmnzWHM9LdrJfCKcNeZNya84`
+  - The position account stayed:
+    - `status = Pending`
+  - Callback txs both failed:
+    - `39mBwppPGah57uCDVhodyp8ABTkYocUuNjKqR2rqSLfgXCYBWM48eQUDXcfNZDxFxMv9FAV9BqjYVBwrhfJDtDCA`
+    - `41Qma7spEyhs8cZYGf158dvagUi3UwLwk6Ezt1ZAEyPNenzDshRVUxq8xE9R2um72gGiC6vck2iHxPZgszR7tfzp`
+  - Exact callback log remains:
+    - `Instruction: OpenPositionV4Callback`
+    - `MPC raw verify failed ... AbortedComputation (6000)`
+    - `InvalidComputationResult (6008)`
+- Current blocker:
+  - `waiting on Arcium/circuit-runtime diagnosis`
+  - The program upgrade and comp-def rollout are no longer the blocker.
+  - Removing encrypted OI from open/close did **not** eliminate the Arcium abort on open.
+- Important conclusion:
+  - The strongest remaining blocker is inside the Arcium computation/runtime path for `open_position_v4`, not:
+    - deploy transport
+    - comp-def initialization
+    - callback output deserialization
+    - MXE-owned OI state
+- Next safe step:
+  1. Inspect the exact `open_position_v4` circuit logic and runtime inputs again.
+  2. Compare a live open request against the circuit’s arithmetic / branch conditions for any abort source.
+  3. Prepare a minimal repro package for Arcium team if local circuit logic still looks coherent.
+
+## Program Upgrade + Partial `v4/v2` Comp-Def Rollout (2026-03-10 UTC)
+- Scope:
+  - `scripts/js-deploy.ts`
+  - `scripts/init-comp-defs.ts`
+- What changed:
+  1. Patched `scripts/js-deploy.ts` to stop using websocket-backed `sendAndConfirmTransaction`.
+  2. The deployer now:
+     - fetches a fresh blockhash per retry,
+     - sends raw transactions directly,
+     - confirms by HTTP polling via `getSignatureStatuses`,
+     - tracks chunk progress in `target/deploy/shadowperp-buffer-progress.json`.
+  3. This makes interrupted program upgrades resumable without restarting chunk uploads from `1/1222`.
+- What was verified live:
+  - In-place program upgrade succeeded on:
+    - program `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+    - program data `Ee4sj7BuuoDnnvezicJNyEAFCnMH7tu8AShh6hrF8xG8`
+  - Existing upgrade buffer `FtthWSaWdxSski7kPQnNgL4PFwW94upCR3F89VTsLrDY` was reused successfully; no new deploy buffer was created.
+  - `init-comp-defs.ts` on public devnet resumed safely:
+    - `open_position_v4` comp-def already initialized and then successfully uploaded/finalized from `build/open_position_v4.arcis`
+    - new open comp-def:
+      - `3FHGEdZ5qRxgCqmuFN3cxb4yYkynVTBUFUA7saQuoCmn`
+    - `close_position_v2` comp-def initialized:
+      - `54gwPKpVrigmnnRtuhmAZ28u3u6Z8QQRXQxRGJNzVuZi`
+    - raw circuit resize progressed through `32/33` resize txs before stopping on low SOL
+- Current blocker:
+  - `need user input`
+  - deploy wallet `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt` is now only about `0.191961929 SOL`
+  - close upload failed with:
+    - `Insufficient SOL while uploading close_position_v2: short by 0.021854 SOL`
+  - practical recommendation is to fund at least `1 SOL` before retrying, not just the exact shortfall
+- Important state now:
+  - old live market pointer is still on open `6t1JWBP4...` and close `4JYtM2Xd...` until the rollout script completes and syncs the market
+  - `open_position_v4` is finalized on-chain, but not yet switched into the market pointer
+  - `close_position_v2` is partially prepared and should be resumed, not recreated
+- Next safe step:
+  1. Fund `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt` with at least `1 SOL`.
+  2. Rerun:
+     - `npx ts-node scripts/init-comp-defs.ts --rpc https://api.devnet.solana.com --program 2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az --market Hx4cXyuoJWqsFh1CKmrPYsvYFpGYFMw9Ntst2bgXvKVC`
+  3. Then refresh oracle and rerun:
+     - `npm run check:oracle`
+     - `npm run check:preflight`
+     - one delegated open smoke on a single pinned RPC
+
+## Remove Encrypted OI From Open/Close Path (2026-03-08 UTC)
+- Scope:
+  - `encrypted-ixs/src/open_position.rs`
+  - `encrypted-ixs/src/close_position.rs`
+  - `programs/shadowperp/src/handlers/open_position.rs`
+  - `programs/shadowperp/src/handlers/close_position.rs`
+  - `programs/shadowperp/src/handlers/session_trading.rs`
+  - `programs/shadowperp/src/handlers/callbacks/open_position_callback.rs`
+  - `programs/shadowperp/src/handlers/callbacks/close_position_callback.rs`
+  - `programs/shadowperp/src/handlers/init_comp_defs.rs`
+  - `programs/shadowperp/src/lib.rs`
+  - `scripts/init-comp-defs.ts`
+  - `scripts/deploy-devnet.ts`
+  - `scripts/sync-market-comp-defs.ts`
+  - `scripts/force-upload-circuit.ts`
+  - `scripts/wsl-arcium-build.sh`
+- What changed:
+  1. Stopped threading aggregate OI through Arcium open/close computations.
+  2. Added new confidential instruction versions:
+     - `open_position_v4`
+     - `close_position_v2`
+  3. `open_position_v4` now validates the private open request and returns only a revealed `bool`.
+  4. `close_position_v2` now returns only revealed settlement outputs `(pnl, settlement, fee, locked_margin)`.
+  5. Open/close callbacks no longer read or write MXE-owned OI ciphertexts.
+  6. `deploy-devnet.ts` no longer auto-runs the encrypted OI seed path.
+  7. Helper scripts now derive the new comp-def names:
+     - `open_position_v4`
+     - `close_position_v2`
+- What was verified locally:
+  - `wsl bash scripts/wsl-arcium-build.sh` -> PASS
+    - generated `build/open_position_v4.arcis`
+    - generated `build/close_position_v2.arcis`
+  - `cargo check -p shadowperp` -> PASS
+  - `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+  - `wsl bash scripts/wsl-anchor-build.sh` -> PASS
+    - updated `target/deploy/shadowperp.so`
+    - updated `target/idl/shadowperp.json`
+- Current blocker:
+  - `waiting on funds`
+  - Current deploy wallet balance is only about `5.59 SOL`
+  - No reclaimable deploy buffers remain
+  - This is not enough for:
+    1. the next program upgrade buffer, and
+    2. a fresh `close_position_v2` comp-def upload/finalization on devnet
+- Important conclusion:
+  - The local code path is ready for rollout, but no devnet rollout was attempted in this batch because wallet balance is below the safe minimum.
+  - The next live step should not begin until the deploy wallet is topped up again.
+- Next safe step:
+  1. Fund the deploy wallet `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt`.
+  2. Upgrade the current program on QuickNode with the rebuilt binary.
+  3. Run `scripts/init-comp-defs.ts` on the current market to finalize:
+     - `open_position_v4`
+     - `close_position_v2`
+  4. Refresh oracle on pinned QuickNode.
+  5. Rerun `check:oracle`, `check:preflight`, then one delegated open smoke.
+
+## Seed OI Bootstrap v3 Rollout (2026-03-07 UTC)
+- Scope:
+  - `encrypted-ixs/src/seed_open_interest_state.rs`
+  - `programs/shadowperp/src/handlers/seed_open_interest_state.rs`
+  - `programs/shadowperp/src/handlers/callbacks/seed_open_interest_state_callback.rs`
+  - `programs/shadowperp/src/handlers/init_comp_defs.rs`
+  - `programs/shadowperp/src/lib.rs`
+  - `scripts/init-comp-defs.ts`
+- What changed:
+  1. Added `seed_open_interest_state_v3` to replace the failed `v2` bootstrap path.
+  2. `v3` tries to derive a secret-shared zero from MPC randomness before converting it to `Enc<Mxe, (u64, u64)>`.
+  3. Updated all on-chain callback/init wiring and comp-def init script references from `v2` to `v3`.
+- What was verified:
+  - `wsl bash scripts/wsl-arcium-build.sh` -> PASS
+  - `cargo check -p shadowperp` -> PASS
+  - `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+  - `wsl bash scripts/wsl-anchor-build.sh` -> PASS
+  - `npx ts-node scripts/js-deploy.ts --rpc <QuickNode>` -> PASS (program upgraded in place)
+  - `npx ts-node scripts/init-comp-defs.ts --rpc https://api.devnet.solana.com ...` -> PASS for `seed_open_interest_state_v3`
+    - new finalized seed comp-def: `8bdfGvYHVhQ7y8d5CHe34hBrDkqJHCMZUhT4m4d68w8N`
+  - `npx ts-node scripts/deploy-devnet.ts --skip-deploy` -> PASS through `SeedOpenInterestState`
+  - Direct market decode after the run still shows:
+    - `oi_nonce = 0`
+    - `encrypted_total_long_oi = [0; 32]`
+    - `encrypted_total_short_oi = [0; 32]`
+  - Recent market tx logs confirm the callback still aborts:
+    - queue tx: `5CpmYy6qvtzN5CZDLq3JGdtDrRwLRwJiozSTDKfqtTtcMfdKSPxFcusPDcioqQajcu87CxxiJLYJXBkSNBjGzuWC`
+    - callback txs:
+      - `py45ED6nRY4XAsg4npozcqMHXgbN7hY3kbNuNoFAk9ioDLaL6EgLTKUGNpCxLHZMSXdqCSc7zP5KKirHBQtXZSe`
+      - `UNuo76aPVAKiFVbuL6RgK8GSXfnYs32fEjy1naZo8qqVQiZDiw21UaV2J9MbFpF2ethqDSjtD5AF51uQg1G83se`
+    - log line:
+      - `SeedOpenInterestStateV3Callback`
+      - `MPC verify failed while seeding OI state ... AbortedComputation (6000)`
+      - `InvalidComputationResult (6008)`
+- Current blocker:
+  - `waiting on first-open architecture change`
+  - Three standalone seed variants (`v1`, `v2`, `v3`) all abort before callback verification succeeds.
+  - The evidence now points away from "seed circuit shape bug" and toward "standalone OI bootstrap path is not viable on current Arcium devnet/runtime".
+- New conclusion:
+  - Do not spend more cycles on another standalone `seed_open_interest_state_vN` variant.
+  - The safer next design is to special-case the first open so `open_position` can initialize OI without decrypting placeholder state.
+  - That likely means a new `open_position_v3` circuit / comp-def path, not another seed-only circuit.
+- Next safe step:
+  1. Design `open_position_v3` so the first open does not require a valid preexisting `Enc<Mxe, (u64, u64)>`.
+  2. Keep close/liquidation unchanged if possible.
+  3. Rebuild, in-place upgrade, init only the new open comp-def path, then rerun one delegated open smoke.
+
+## Open Computation Abort Diagnosis (2026-03-07 UTC)
+- Scope:
+  - `encrypted-ixs/src/open_position.rs`
+  - `programs/shadowperp/src/handlers/open_position.rs`
+  - `programs/shadowperp/src/handlers/session_trading.rs`
+  - `programs/shadowperp/src/handlers/callbacks/open_position_callback.rs`
+  - live market account `Hx4cXyuoJWqsFh1CKmrPYsvYFpGYFMw9Ntst2bgXvKVC`
+- What was verified:
+  1. Input packing is aligned across the circuit and both queue handlers.
+  2. Callback plumbing is aligned; the upgraded callback logs now distinguish raw verification failure from output deserialization failure.
+  3. Live callback failure is `AbortedComputation (6000)` from `verify_output_raw`, not output deserialization.
+  4. The open circuit immediately executes `let mut oi = oi_state.to_arcis();` before any success/failure checks.
+  5. The market is still initialized with an all-zero OI state:
+     - `oi_nonce = 0`
+     - `encrypted_total_long_oi = [0; 32]`
+     - `encrypted_total_short_oi = [0; 32]`
+     - `active_positions = 0`
+  6. No script or on-chain initialization step currently seeds a valid encrypted zero OI state before the first open.
+- Current blocker:
+  - `waiting on first-open OI state fix`
+  - Most likely root cause is that Arcium aborts when `open_position_v2` attempts to decrypt `oi_state` from the market's zero-filled placeholder ciphertexts.
+- Why this is the strongest theory:
+  - The computation abort happens before output deserialization.
+  - The first use of `oi_state` in the circuit is a decrypt/convert operation, and the live market still contains placeholder zero bytes rather than a valid encrypted zero tuple.
+  - This explains why the first open never reaches `success=false`; it aborts before validation logic can run.
+- Next safe step:
+  1. Decide the first-open strategy:
+     - seed the market with a valid encrypted zero OI state during init/deploy, or
+     - special-case the first open so the circuit does not decrypt placeholder OI state.
+  2. Apply the smallest code change that preserves the existing comp-def assumptions if possible.
+  3. Rebuild Rust only if the fix is callback/handler-side; rebuild circuits + comp-defs if the circuit itself must change.
+
+## Full Smoke Test + App UI Verification (2026-03-07 ~16:12 UTC)
+- All smoke tests passed clean:
+  - `npm run check:preflight` → **22/22 PASS**
+  - `npm run canary:devnet --verbose` → **12/12 PASS** (queue simulation passed)
+  - `npm run session:relayer:smoke` → **PASS** (session `1772900108` created + delegated open queued)
+- Oracle refreshed to $83.75 (within circuit breaker, normal 500 bps limit)
+- App UI (`cd app && pnpm dev`):
+  - Next.js 15.5.10, compiled in 196.1s (3669 modules), no errors
+  - Landing page (`/`) and trading app (`/app`) both serve on localhost:3000
+  - Light mode fully implemented: theme toggle, CSS variable overrides, landing page dual-mode
+- `.env.local` verified: program ID `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`, all Arcium accounts correct
+- Wallet balance: ~5.10 SOL, 38 USDC in operator ATA, 5 USDC in margin account
+- Fix applied: `scripts/session-relayer.ts:474` — removed stale 5th arg from `closePositionWithSession` (signature changed in settlement split)
+
+## Fresh Namespace Deploy via JS Deployer (2026-03-07 UTC)
+- Scope:
+  - `scripts/js-deploy.ts` — pure JS deployer bypassing Solana CLI
+  - `programs/shadowperp/src/lib.rs` — declare_id sync
+  - `Anchor.toml`, `Arcium.toml` — program ID sync
+- What happened:
+  1. Previous program `4qTkcW4AaDAUPtm3m1qRCca9piNrNmZhjSt5PaWe6MsN` was successfully upgraded via JS deployer (buffer write + BPF Upgrade instruction).
+  2. Post-deploy init (market, arcium signer, MXE) all succeeded.
+  3. Comp-def init hit `FRESH_NAMESPACE_REQUIRED`: the `open_position_v2` comp-def was finalized with 12 params but new code expects 15 params. Comp-defs are immutable once finalized.
+  4. Rotated to fresh namespace: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  5. Rebuilt binary in WSL with new `declare_id!()`, IDL regenerated.
+  6. Fresh deploy in progress via `js-deploy.ts` (1150 chunks to write).
+- JS Deployer fixes applied:
+  - Fixed Write instruction: bincode `Vec<u8>` uses `u64` length prefix, not `u32`.
+  - Added upgrade support (`Upgrade` instruction discriminant 3).
+  - Added blockhash fetch retry (5 attempts with backoff) for SSL flakiness.
+- Key addresses:
+  - New program ID: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  - Deploy wallet: `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt`
+  - Buffer: `He5o1aamk3KPZrZr9Rq8Y7KX8hvaZELoZMiFDGz59766`
+- Network issues:
+  - WSL has no outbound internet (HTTP 000 timeout).
+  - Windows `solana.exe` CLI fails with "error sending request".
+  - Node.js HTTP works fine — JS deployer is the only working deploy path.
+  - Helius RPC has intermittent SSL errors (EPROTO, ECONNRESET) — retry logic handles them.
+- Deploy progress:
+  1. Buffer fully written (1150/1150 chunks), program account created, deploy finalized. **Program live on devnet.**
+  2. Post-deploy init completed: market, arcium signer PDA, MXE account all initialized.
+  3. Fixed `EXPECTED_SIGNATURES` mismatch: arcis circuit produces 12 params (not 15). Updated `init-comp-defs.ts`.
+  4. Switched from Helius to QuickNode RPC due to persistent SSL errors (EPROTO/ECONNRESET) — affects all providers intermittently but QuickNode is more stable.
+- Comp-def init progress: **ALL 3 FINALIZED**
+  - `open_position_v2`: `CAPvXjpRGqgMMU5ejVVRA3i9kZj5ytoffiFBZQ3bjzcX` (params=12, outputs=4)
+  - `close_position`: `4JYtM2XdNZ5fZmH436RDKa2iAFCS49c5afUjqHfe1k3w` (params=11, outputs=7)
+  - `check_liquidation`: `7KNuD6Z2ZjRKrg3zoqz2GAhdwnn4CKffxXsD7c2gdmSf`
+- Post-deploy init: **COMPLETE**
+  - Market: `Hx4cXyuoJWqsFh1CKmrPYsvYFpGYFMw9Ntst2bgXvKVC`
+  - Collateral (USDC): `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
+  - MXE Account: `9NiWgGU1SZfCvkt6ji2WiFrRE7Pc1wUDdgaytwQwAiNB`
+  - Arcium Signer PDA: `6Rk2FXTgohP3GDwDpj5mNDiHxDWdCmyruvaRhcEqXSGx`
+  - Oracle price: $83.71 (live-synced, circuit breaker required one-time 2000 bps override from stale $103)
+  - `.env.local` regenerated, IDL synced to `app/src/idl/`
+  - 5 USDC deposited into operator margin account for canary simulation
+- SOL consumption total: ~120 SOL across multiple funding rounds
+  - Program deploy: ~24 SOL, open_position_v2 circuit: ~2 SOL, close_position circuit: ~43 SOL, check_liquidation circuit: ~43 SOL, tx fees: ~8 SOL
+- Current status: **DEPLOYMENT COMPLETE — ALL SMOKE TESTS PASS**
+  - Wallet balance: ~5.12 SOL remaining at `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt`
+  - USDC balance: 38 USDC in operator ATA, 5 USDC in margin account
+- Smoke test results (2026-03-07 ~15:53 UTC):
+  - `npm run check:preflight` → **22/22 PASS** (trading stack in stable-ready state)
+  - `npm run canary:devnet --verbose` → **12/12 PASS** (queue simulation passed)
+  - `npm run session:relayer:smoke` → **PASS** (session created + delegated open queued)
+- Fixes applied during smoke:
+  - Oracle circuit breaker: initial price $103 vs live ~$84 (1838 bps). One-time `ORACLE_MAX_DEVIATION_BPS=2000` to resync.
+  - `scripts/session-relayer.ts:474` — removed stale 5th arg from `closePositionWithSession` call (method signature changed in settlement split).
+- Next steps:
+  1. App UI test: `cd app && pnpm dev`
+  2. Open/close position end-to-end via the UI
+  3. Keep oracle fed: `npm run oracle:once` before each test session (or run in loop mode)
+
+## WSL Build Lane + Fresh Deploy Attempt (2026-03-07 UTC)
+- Scope:
+  - `scripts/wsl-anchor-build.sh`
+  - `scripts/wsl-arcium-build.sh`
+  - `scripts/build-idl.js`
+  - `scripts/deploy-devnet.ts`
+  - `encrypted-ixs/src/open_position.rs`
+- What changed:
+  1. Fixed the encrypted instruction name mismatch by renaming the circuit entrypoint from `open_position` to `open_position_v2` so build artifacts now match the on-chain callback/types.
+  2. Added a repo-local IDL fallback builder in `scripts/build-idl.js` that runs the Anchor `__anchor_private_print_idl` cargo test directly and reconstructs `target/idl/shadowperp.json` from the printed marker blocks.
+  3. Updated `scripts/wsl-anchor-build.sh` to use the working WSL Solana `2.3.13` lane, keep Node on `PATH`, and call the new IDL builder instead of the broken `anchor idl build` path.
+  4. Updated `scripts/deploy-devnet.ts` to call the WSL build wrapper from Windows without broken shell quoting.
+- What was verified:
+  - `wsl bash scripts/wsl-arcium-build.sh` -> PASS
+  - `wsl bash scripts/wsl-anchor-build.sh` -> PASS
+  - `target/idl/shadowperp.json` regenerated successfully (`~127 KB`) and includes new instructions such as:
+    - `settle_close_position`
+    - `settle_liquidation`
+    - `update_mxe_cluster`
+    - `PositionStatus` pending-settlement variants
+  - Fresh deploy wrapper reached the real devnet deploy step after rotating namespace and rebuilding artifacts.
+- Current blocker:
+  - `waiting on funds`
+  - Deploy wallet `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt` has about `4.997 SOL`, but the fresh deploy path needs about `8.006 SOL` for the program write + fees.
+  - `solana program show --buffers` returned no reclaimable upgrade buffers for the current authority.
+  - The specific ephemeral buffer address shown during the failed deploy was already absent by the time we tried to close it.
+- Important current state:
+  - The failed fresh deploy already rotated the local program namespace again.
+  - Current local program keypair / `declare_id!` / `Anchor.toml` now point at:
+    - `ir15eQX9cuVm2HdGsxihLSU5HkanrKwaCaVsoeVk6m4`
+  - This namespace is built locally but not yet deployed.
+- Next safe step:
+  1. Fund the deploy wallet with at least `4 SOL` more on devnet (more is safer).
+  2. Retry deploy without rotating again:
+     - `npx ts-node scripts/deploy-devnet.ts`
+  3. If deploy succeeds, continue with:
+     - `npm run oracle:once`
+     - `npm run check:preflight`
+     - `npm run canary:devnet -- --verbose`
+  4. Then run open/close smoke and pending-settlement UI checks on the new namespace.
+
+## Liquidation Settlement Authorization + Client Wiring (2026-03-06 UTC)
+- Scope:
+  - `programs/shadowperp/src/state/liquidation_settlement.rs`
+  - `programs/shadowperp/src/state/mod.rs`
+  - `programs/shadowperp/src/handlers/check_liquidation.rs`
+  - `programs/shadowperp/src/handlers/settle_liquidation.rs`
+  - `app/src/lib/client.ts`
+  - `app/src/types/index.ts`
+  - `app/src/components/PositionsList.tsx`
+  - `app/src/components/BottomPositionsPanel.tsx`
+  - `scripts/session-relayer.ts`
+- What changed:
+  1. Added a `LiquidationSettlement` PDA keyed by position so deferred liquidation rewards stay bound to the liquidator that queued the computation.
+  2. `check_liquidation` now initializes/updates that PDA before queueing Arcium work.
+  3. `settle_liquidation` now requires the recorded liquidator signer and a token account owned by that liquidator.
+  4. Added client SDK helpers for pending-settlement flows:
+     - `settleClosePosition`
+     - `settleLiquidation`
+     - `waitForPositionStatus`
+     - `finalizeClosePosition`
+     - `finalizeLiquidation`
+  5. Frontend close flows now wait for callback completion and then submit `settle_close_position` when the position enters `ClosedPendingSettlement`.
+  6. Added relayer CLI callers for deferred settlement:
+     - `close` now auto-finalizes with `finalizeClosePosition`
+     - new commands: `settle-close`, `settle-liquidation`
+  7. UI status parsing now recognizes pending-settlement states and shows them as `Settling`.
+- What was verified:
+  - mandatory session checklist completed:
+    - `git status --short`
+    - env values verified from `app/.env.local`
+    - `npm run check:preflight` -> stale oracle once, then PASS after `npm run oracle:once`
+  - `cargo check -p shadowperp` -> PASS
+  - `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+- Current blocker:
+  - local code is ready, but live validation still depends on:
+    1. `arcis build`
+    2. Anchor build/deploy
+    3. IDL sync
+    4. comp-def re-init
+    5. devnet canary / close smoke on the updated namespace
+- Next safe step:
+  1. Run `arcis build`.
+  2. Run the safe Anchor build/deploy wrappers from a normal terminal.
+  3. Sync the updated IDL into `app/src/idl/shadowperp.json`.
+  4. Re-init comp-defs for the updated signatures.
+  5. Smoke:
+     - close -> callback -> settle_close_position
+     - liquidation callback -> settle_liquidation
+
+## Callback Account Reduction + Deferred Settlement (2026-03-06 UTC)
+- Scope:
+  - `programs/shadowperp/src/handlers/callbacks/close_position_callback.rs`
+  - `programs/shadowperp/src/handlers/callbacks/liquidation_callback.rs`
+  - `programs/shadowperp/src/handlers/settle_close_position.rs`
+  - `programs/shadowperp/src/handlers/settle_liquidation.rs`
+  - `programs/shadowperp/src/state/position.rs`
+  - `programs/shadowperp/src/lib.rs`
+  - `programs/shadowperp/src/handlers/mod.rs`
+- What changed:
+  1. Reduced callback custom-account counts by moving token transfers out of Arcium callbacks.
+  2. `close_position_callback` now updates state only and no longer requires token transfer accounts.
+  3. `check_liquidation_callback` now updates state only and no longer requires liquidator/vault transfer accounts.
+  4. Added `settle_close_position` to transfer settlement from vault to owner after callback state transition.
+  5. Added `settle_liquidation` to transfer liquidation reward from vault to liquidator after callback state transition.
+  6. Added intermediate `PositionStatus` values:
+     - `ClosedPendingSettlement`
+     - `LiquidatedPendingSettlement`
+  7. Callback handlers now store pending transfer amounts in `position.margin` for the settle instruction to consume.
+- Why:
+  - Arcium team feedback pointed to `comp` account budget pressure.
+  - Close/liquidation callback account vectors were materially larger than open-position.
+  - This keeps MPC verification in callback while moving token transfers to plain program instructions.
+- Verification:
+  - `cargo check -p shadowperp` -> PASS
+- Current blocker:
+  - The settlement split is code-only until updated program/circuits are built, deployed, and exercised on devnet.
+  - Frontend/relayer integration for the new settle instructions is not yet verified in a live flow.
+- Review findings:
+  1. Critical: `settle_liquidation` does not bind payout to the original liquidator.
+     - Current `SettleLiquidation` only checks token mint, so any caller can provide any token account and receive the liquidation reward once status is `LiquidatedPendingSettlement`.
+     - The deferred flow needs to persist the authorized liquidator identity on-chain and enforce it during settlement.
+  2. Medium: deferred settlement is not wired in client/relayer code yet.
+     - `settle_close_position` / `settle_liquidation` exist in the program and IDL surface, but there are no app/scripts callers yet.
+     - Without that integration, positions will remain in `ClosedPendingSettlement` / `LiquidatedPendingSettlement` after callback even if the on-chain program is deployed successfully.
+- Next safe step:
+  1. Add liquidator binding for deferred liquidation settlement.
+  2. Add client/relayer support for `settle_close_position` and `settle_liquidation`.
+  3. Rebuild Arcium circuits (`arcis build`) so reduced signatures match generated artifacts.
+  4. Rebuild and deploy the updated program.
+  5. Re-init comp-defs for the new circuit signatures.
+  6. Run devnet smoke for:
+     - open -> callback
+     - close -> callback -> `settle_close_position`
+     - liquidation check -> callback -> `settle_liquidation`
+
+## Admin Cluster Pointer Update Instruction (2026-03-06 UTC)
+- Scope:
+  - `programs/shadowperp/src/handlers/update_mxe_cluster.rs`
+  - `programs/shadowperp/src/lib.rs`
+  - `programs/shadowperp/src/handlers/mod.rs`
+- What changed:
+  1. Added admin-only `update_mxe_cluster` instruction.
+  2. Instruction updates `market.mxe_cluster` in-place and logs old/new cluster pubkeys.
+- Why:
+  - Provides a supported path to correct stored cluster pointers if Arcium devnet rotates infrastructure again.
+- Verification:
+  - included in `cargo check -p shadowperp` -> PASS
+- Current blocker:
+  - not deployed, so live namespace still depends on the current stored market cluster.
+- Next safe step:
+  1. Deploy alongside the queue-payload reduction changes.
+  2. Use only if a future live cluster-pointer mismatch is actually verified.
+
+## Comp Account Space Budget (Arcium team feedback) (2026-03-06 UTC)
+- Source:
+  - Arcium team direct feedback: "the 483 byte comp account can't hold 15 params + callbacks"
+  - Recommended fix: "try packing/combining related params into fewer encrypted fields, then try reducing your callback accounts"
+- Current param + callback counts per circuit:
+  - open_position:      12 ArgBuilder params + 3 callback accounts = 15 items
+  - close_position:      9 ArgBuilder params + 3 callback accounts = 12 items
+  - check_liquidation:   8 ArgBuilder params + 3 callback accounts = 11 items
+- Reduction plan:
+  1. Circuit-level: circuits already simplified (market_params tuple → single field per circuit).
+     BUT the `.idarc` files still reflect the OLD tuple signatures.
+     Circuits MUST be recompiled with `arcis build` to produce matching `.idarc` files.
+  2. Callback accounts: token transfer is now moved out of close/liquidation callbacks
+     This drops close_position from 5 → 3 callbacks, check_liquidation from 6 → 3 callbacks.
+  3. After both reductions, target counts:
+     - open_position:      12 params + 3 callbacks (already borderline — may be OK)
+     - close_position:      9 params + 3 callbacks = 12 items
+     - check_liquidation:   8 params + 3 callbacks = 11 items
+- Status:
+  - ArgBuilder reductions: DONE (code-only, needs circuit recompile)
+  - Callback account reduction: NOT YET DONE
+  - Circuit recompile: BLOCKED (needs `arcis build` environment)
+  - update_mxe_cluster admin instruction: DONE (code, compiles, not deployed)
+
+## Queue Payload Reduction: Remove Unused Market Params (2026-03-06 UTC)
+- Scope:
+  - `encrypted-ixs/src/open_position.rs`
+  - `encrypted-ixs/src/close_position.rs`
+  - `encrypted-ixs/src/liquidation_check.rs`
+  - `programs/shadowperp/src/handlers/open_position.rs`
+  - `programs/shadowperp/src/handlers/close_position.rs`
+  - `programs/shadowperp/src/handlers/check_liquidation.rs`
+  - `programs/shadowperp/src/handlers/session_trading.rs`
+- What changed:
+  1. Reduced Arcium queue payload size by removing plaintext market fields that the circuits were not using.
+  2. `open_position` now sends only `max_leverage` instead of the full `(max_leverage, liquidation_threshold, trading_fee, oracle_price)` tuple.
+  3. `close_position` now sends only `trading_fee` instead of the full market tuple.
+  4. `check_liquidation` now sends only `liquidation_threshold` instead of the full market tuple.
+  5. Applied the same reductions to session-relayed open/close queue paths.
+- Why:
+  - Team feedback and local code audit both point to `comp` account pressure during `QueueComputation`.
+  - The previous handlers were still passing unused fields, inflating the computation-account payload without adding validation value.
+- Verification:
+  - `cargo check -p shadowperp` -> PASS
+  - Full workspace `cargo check --workspace` still does not verify `encrypted-ixs` via plain Cargo because `arcis` expects the Arcium build environment (`arcis manifest is not 'Cargo.toml'`); this is a tooling constraint, not a new program-side compile failure.
+- Current blocker:
+  - These payload reductions are code-only until the Arcium circuit/build/deploy/re-init path is run.
+  - Current live devnet namespace is still on the old circuit signatures.
+- Next safe step:
+  1. Rebuild the Arcium circuits with the updated signatures.
+  2. Re-deploy program/circuit artifacts.
+  3. Re-initialize comp-defs for the new circuit signatures.
+  4. Re-run `npm run oracle:once` then `npm run canary:devnet -- --verbose`.
+
+## Comp Account Space Budget Update (2026-03-06 UTC)
+- This note supersedes the earlier rough callback-budget section above.
+- Current effective counts after code changes:
+  - `open_position`: 12 ArgBuilder params + 3 callback accounts = 15 items
+  - `close_position`: 9 ArgBuilder params + 3 callback accounts = 12 items
+  - `check_liquidation`: 8 ArgBuilder params + 3 callback accounts = 11 items
+- Current status:
+  - ArgBuilder reductions: DONE
+  - Callback account reduction: DONE
+  - New settle instructions: ADDED
+  - Arcium circuit rebuild: NOT DONE
+  - Deploy + comp-def re-init: NOT DONE
+- Meaning:
+  - The close/liquidation callback-count concern has been addressed in code.
+  - The open-position path is still the tightest budget and remains the main live risk until Arcium rebuild/deploy validation is done.
+
+## Callback Account Space Audit (Arcium docs follow-up) (2026-03-05 UTC)
+- Scope:
+  - docs + runtime audit only (no source changes)
+- Prompt source:
+  - Arcium team suggestion to verify callback output target account space:
+    - `https://docs.arcium.com/developers/program/callback-accs`
+- Relevant doc constraints verified:
+  1. Callback accounts cannot be resized during callback.
+  2. Accounts must exist before callback.
+  3. Callback account order and writability must match callback instruction.
+  4. Output payloads should remain compact (Arcium limitations page notes ~1232-byte callback transaction output budget).
+- ShadowPerp verification:
+  1. Callback account ordering is correct in all queue handlers:
+     - open: position, market, margin
+     - close: position, market, margin, owner_token, vault
+     - liquidation: position, market, liquidator, liquidator_token, margin, vault
+  2. Callback writability flags (`is_writable: true`) align with `#[account(mut)]` callback structs.
+  3. Callback target accounts are fixed-size and initialized with explicit space constants:
+     - `Market::LEN = 494`
+     - `Position::LEN = 490`
+     - `MarginAccount::LEN = 193`
+  4. Circuit outputs are compact tuples (open/close/liquidation) and do not approach the documented output-size limit.
+- Runtime result:
+  - Despite valid callback account sizing/layout, queue simulation still fails in Arcium at queue stage:
+    - `QueueComputation` -> `comp` -> `AccountDidNotSerialize (3004)` (`0xbbc`)
+- Conclusion:
+  - Callback target account space is not the primary blocker for the current open-position queue failure.
+
+## Hypothesis Check: "stale market cluster / missing comp-def pointers" (2026-03-05 UTC)
+- Scope:
+  - runtime verification only (no source changes)
+- Claim tested:
+  1. Market points to stale/non-existent comp-def accounts.
+  2. Market stores stale `mxe_cluster` address that no longer exists.
+- What was run:
+  1. Anchor decode of live market account via IDL account fetch (`program.account.market.fetch(...)`) and direct account-existence checks.
+  2. `npm run canary:devnet -- --verbose --max-oracle-age-seconds 2000` to force queue simulation path.
+- Verified live values:
+  - `open_position_comp_def`: `8QvPiBX18gbcWpKLZiwiMDnCP9hcpqJBs4sCxo6hQX15` (exists, finalized)
+  - `close_position_comp_def`: `3JpwyAdVLrqEh8Auf97yVBgP6JDsojeqqoMAzujrzYgr` (exists, finalized)
+  - `liquidation_comp_def`: `FarLAbaeZUph6qoqoa3Qvu8XNqhYjYjuSoiF78Av5iCU` (exists, finalized)
+  - `market.mxe_cluster`: `DzaQCyfybroycrNqE5Gk7LhSbWD2qfCics6qptBFbr95` (exists)
+  - `derived cluster(offset=456)`: `DzaQCyfybroycrNqE5Gk7LhSbWD2qfCics6qptBFbr95` (matches market)
+- Result:
+  - Stale-pointer hypothesis is disproven for the current live market.
+  - Queue simulation still deterministically fails at Arcium queue serialization:
+    - `Instruction: QueueComputation`
+    - `AnchorError caused by account: comp`
+    - `AccountDidNotSerialize (3004)`
+    - Arcium custom error: `0xbbc`
+- Likely reason the stale-pointer diagnosis appeared:
+  - Manual byte-offset decoding used an outdated Market layout. Current struct order places `mxe_cluster` before comp-def fields; incorrect offsets can produce plausible but wrong pubkeys.
+- Current blocker:
+  - unchanged Arcium queue-path serialization failure on `comp` account.
+- Next safe step:
+  1. Escalate with this fresh canary log proving pointers/cluster are valid and issue persists in `QueueComputation`.
+  2. Keep production claims conservative (`partial live`, no fully-live claim) until queue path passes canary.
+
+## Devnet Queue Simulation Recheck (2026-03-05 UTC)
+- Scope:
+  - runtime verification only (no source changes)
+- What was run:
+  1. `npm run canary:devnet -- --verbose` (first attempt)
+  2. `npm run check:preflight` + `npm run check:oracle`
+  3. `npm run oracle:once`
+  4. `npm run canary:devnet -- --verbose` (post-refresh retry)
+- Results:
+  1. First canary attempt failed with transient `fetch failed` (network/tooling transient).
+  2. Preflight + oracle health showed `stale oracle` (age ~1200s), not queue-path success/fail.
+  3. Oracle refreshed successfully:
+     - tx: `4q1d1w5YAsbDs7ZuaxKHYcM6MBWETjGwYgxQTrwvnTfz1LxCPtPqFQzQtwY9BJTNBAQgTysVEaK57uUFstF6Mm9J`
+  4. Second canary reached queue simulation and reproduced blocker deterministically:
+     - `Instruction: QueueComputation`
+     - `AnchorError caused by account: comp. Error Code: AccountDidNotSerialize (3004)`
+     - Arcium program failed with custom error `0xbbc`
+- Current blocker:
+  - unchanged Arcium devnet queue-path serialization failure on `comp` account for open-position simulation.
+- Next safe step:
+  1. Share this exact canary log block with Arcium support as fresh reproducible evidence on current 0.8.5 stack.
+  2. Keep ShadowPerp pinned to Arcium 0.8.5; do not downgrade to 0.6.x as a hotfix.
+
+## External Reference Check: anon0mesh Arcium Integration (2026-03-05 UTC)
+- Scope:
+  - external reference repo review (no local code changes)
+- What changed:
+  1. Verified `anon0mesh/contract` uses real Arcium callback-based integration (`queue_computation`, `#[queue_computation_accounts]`, `#[arcium_callback]`, and comp-def init macros).
+  2. Confirmed it is not a perps implementation; it is a BLE revenue-sharing payment contract with Arcium-backed confidential computation.
+  3. Verified the reference repo is pinned to Arcium `0.6.x` (`arcium-anchor/client/macros = 0.6.3`, JS client `@arcium-hq/client ^0.6.4`), while ShadowPerp runs `0.8.5`.
+- What was verified:
+  - `git status --short`
+  - active env keys present in `app/.env.local` (program/market/arcium/rpc)
+  - `npm run check:preflight` -> initially FAIL (`Oracle freshness`)
+  - `npm run oracle:once` -> PASS (tx: `2dJCDiDfxQjsyZtxk2KujJrBx5SZ6qQ8gXq7CQftiNAn4nSnoG1bPUXgXaNTn1G7CoaY34WqFY5SB37iQP2WnEyF`)
+  - `npm run check:preflight` -> PASS
+- Current blocker:
+  - unchanged Arcium devnet queue-path failure on open-position flows:
+    - `QueueComputation` -> `AccountDidNotSerialize (3004)` on `comp`
+- Next safe step:
+  1. Do not port anon0mesh code directly; use it only as a macro/account-layout reference.
+  2. Keep ShadowPerp and Arcium dependency versions consistent (`0.8.5`) and avoid mixing `0.6.x` patterns.
+  3. If needed, create a minimal ShadowPerp-only queue repro on current `0.8.5` for Arcium support escalation.
 
 ## Public README Cleanup (2026-03-02 UTC)
 - Scope:
@@ -3123,3 +3913,1013 @@ Full multi-dimensional audit run across all TypeScript, Rust, scripts, and confi
 - Root cause: `createRelayRuntimeContext()` in `relay-client.ts` throws when no relayer keypair is configured.
 - On Vercel, `SHADOWPERP_RELAYER_KEYPAIR_JSON` must be set as a server-side env var (JSON array of the keypair bytes).
 - This is a deployment config issue, not a code bug.
+
+## Callback Account Reduction — Settlement Split (2026-03-06 UTC)
+
+### Problem
+Arcium's 483-byte computation account can't hold all params + callback accounts during `QueueComputation`. The `AccountDidNotSerialize` (3004) error was caused by exceeding this budget.
+
+### Solution: Two-Phase Settlement Split
+Callbacks now update on-chain state only (3 callback accounts each). Token transfers are deferred to new permissionless settlement instructions.
+
+### Callback account counts (before → after)
+| Handler              | Before | After |
+|----------------------|--------|-------|
+| close_position       | 5      | 3     |
+| check_liquidation    | 6      | 3     |
+
+### New PositionStatus variants
+- `ClosedPendingSettlement` (5) — close callback done, awaiting `settle_close_position`
+- `LiquidatedPendingSettlement` (6) — liquidation callback done, awaiting `settle_liquidation`
+
+### New instructions
+- **`settle_close_position`** — reads settlement amount from `position.margin`, transfers from vault → owner, sets status to `Closed`, emits `PositionClosed`.
+- **`settle_liquidation`** — reads penalty from `position.margin`, transfers from vault → liquidator, sets status to `Liquidated`, emits `PositionLiquidated`.
+
+### Files changed
+- `programs/shadowperp/src/state/position.rs` — added 2 enum variants
+- `programs/shadowperp/src/handlers/callbacks/close_position_callback.rs` — removed `owner_token_account`, `vault`, `token_program`; sets `ClosedPendingSettlement` instead of transferring
+- `programs/shadowperp/src/handlers/callbacks/liquidation_callback.rs` — removed `liquidator`, `liquidator_token_account`, `vault`, `token_program`; sets `LiquidatedPendingSettlement`
+- `programs/shadowperp/src/handlers/close_position.rs` — callback_accounts vec reduced (5→3), removed `owner_token_account` and `vault` from struct
+- `programs/shadowperp/src/handlers/check_liquidation.rs` — callback_accounts vec reduced (6→3), removed `liquidator_token_account` and `vault` from struct, added `LiquidationSettlement` PDA
+- `programs/shadowperp/src/handlers/session_trading.rs` — `ClosePositionWithSession` callback_accounts reduced (5→3), removed `owner_token_account` and `vault` from struct
+- `programs/shadowperp/src/handlers/settle_close_position.rs` — NEW
+- `programs/shadowperp/src/handlers/settle_liquidation.rs` — NEW
+- `programs/shadowperp/src/handlers/mod.rs` — registered new modules
+- `programs/shadowperp/src/lib.rs` — registered new instructions
+
+### Client SDK changes
+- `app/src/lib/client.ts`:
+  - `closePosition()` — removed `ownerTokenAccount` param; no longer passes `ownerTokenAccount`/`vault` to on-chain instruction
+  - `closePositionWithSession()` — removed `ownerTokenAccount` param; no longer passes `ownerTokenAccount`/`vault`
+  - `checkLiquidation()` — already correct (passes `liquidationSettlement`, no `liquidatorTokenAccount`/`vault`)
+  - `settleClosePosition()` — already implemented (handles token transfer after callback)
+  - `settleLiquidation()` — already implemented (handles penalty transfer after callback)
+  - `finalizeClosePosition()` / `finalizeLiquidation()` — already implemented (poll + settle orchestrators)
+  - `waitForPositionStatus()` — already implemented (generic polling helper)
+- `app/src/components/BottomPositionsPanel.tsx` — updated `closePosition()` call (removed `ownerTokenAccount` arg)
+- `app/src/components/PositionsList.tsx` — updated `closePosition()` call (removed `ownerTokenAccount` arg)
+- `app/src/types/index.ts` — `PositionStatus` enum already has variants 5 and 6
+
+### Verification
+- `cargo check -p shadowperp` passes (warnings only, zero errors)
+
+### Remaining — Deploy Runbook (verified 2026-03-06)
+
+All scripts verified present and compatible. Fresh namespace is required (new instructions change the IDL).
+
+**3-command deploy sequence (from non-sandboxed terminal):**
+```bash
+# 1. Build circuits in WSL (arcis artifacts needed for comp-def init)
+bash scripts/wsl-arcium-build.sh
+
+# 2. Fresh deploy: rotates keypair, anchor build, deploy, market init, comp-def init, IDL sync, .env.local
+npm run deploy:devnet:fresh
+
+# 3. Refresh oracle + health check
+npm run oracle:once && npm run check:preflight && npm run canary:devnet -- --verbose
+```
+
+**Post-deploy smoke (settlement flow):**
+```bash
+npm run session:relayer:create -- --max-actions 10 --max-margin-usdc 5
+npm run session:relayer:open -- --session-id <ID> --owner <OWNER>
+npm run session:relayer:close -- --session-id <ID> --owner <OWNER> --position-index <INDEX>
+```
+
+**What `deploy:devnet:fresh` does automatically:**
+- Generates fresh program keypair + `anchor keys sync`
+- `anchor build` + `anchor deploy`
+- Market initialize + Arcium signer PDA init
+- `init-comp-defs.ts` (MXE init, upload circuits, finalize comp-defs)
+- Writes `app/.env.local` with new program ID
+- Copies `target/idl/shadowperp.json` → `app/src/idl/shadowperp.json`
+
+**Known failure points:**
+1. WSL arcis toolchain not installed (`scripts/wsl-arcium-build.sh` checks and errors)
+2. Insufficient devnet SOL in deploy wallet
+3. RPC rate limiting during deploy/init
+
+**Note:** Circuits (`encrypted-ixs/src/*.rs`) were NOT changed in this round. `arcis build` produces identical artifacts. Fresh namespace is needed because the instruction set changed (new settle instructions), not because circuit bytecode changed.
+## 2026-03-06 21:06 WAT - Build Environment Probe / Toolchain Status
+
+- Checked required session basics again during environment work:
+  - active env still points to devnet program `2Gz35PAHBkggSfV77mCENobt5YEURuYMAjgpvKXoL61d`
+  - market `C3UcQ3FnjqUsFPWfDgKNoq4cGzpWw6tSEqM6bf1MoFv8`
+  - Arcium cluster offset `456`
+- Runtime side remains healthy:
+  - `npm run oracle:once` had already recovered stale oracle earlier in session
+  - `npm run check:preflight` passed
+  - deploy wallet still had enough SOL for normal devnet ops
+
+### What changed
+
+- Fixed WSL native-Rust path expected by `scripts/wsl-arcium-build.sh`:
+  - `~/.rust-native/install/bin/cargo`
+  - `~/.rust-native/install/bin/rustc`
+- Added repo wrapper:
+  - `scripts/cargo-build-sbf.cmd`
+- Updated build/deploy wrappers to pass cargo args through Anchor:
+  - `scripts/build-anchor.ps1`
+  - `scripts/deploy-devnet.ts`
+  - both now use `anchor build -- --skip-tools-install`
+
+### What was verified
+
+- WSL toolchain check:
+  - `arcium 0.8.5`
+  - `arcup 0.8.5`
+  - `anchor 0.32.1`
+  - native cargo/rust path now valid
+- Windows repo-local Solana bundle analysis:
+  - repo-local `cargo-build-sbf.exe` is `2.3.13`
+  - package metadata requires `tools-version = "v1.53"`
+  - `v1.48` Rust only exposes `sbf-*`
+  - `v1.53` Rust exposes required `sbpf-*` targets
+- Restored a sane cache-backed `v1.53` Rust toolchain and relinked rustup:
+  - `rustup run solana rustc --version` -> `rustc 1.89.0-dev`
+  - `rustup run solana rustc --print target-list` includes `sbpf-solana-solana`
+
+### Current blocker
+
+- Windows `cargo-build-sbf 2.3.13` still self-invalidates the `solana` rustup toolchain even in a clean `v1.53` cache-backed setup:
+  - direct repro:
+    - `cargo-build-sbf.exe --skip-tools-install --manifest-path programs/shadowperp/Cargo.toml`
+  - observed behavior:
+    - logs `info: uninstalling toolchain 'solana'`
+    - then fails with `The Solana toolchain is corrupted. Please, run cargo-build-sbf with the --force-tools-install argument to fix it.`
+- `--force-tools-install` is not a stable escape hatch on this machine:
+  - it hung >15 minutes
+  - it replaced the populated cache with a partial temp archive under `.cache/solana/v1.53/platform-tools/tmp-platform-tools-windows-x86_64.tar.bz2`
+- WSL is not ready as a substitute build lane yet:
+  - installed Solana/Cargo SBF there is `2.1.0`
+  - `anchor build -- --skip-tools-install` routes args incorrectly in that lane
+  - direct WSL `cargo-build-sbf` build hit missing target/toolchain behavior
+
+### Next safe step
+
+- Treat the current Windows Anchor/SBF lane as `waiting on tool` / toolchain-blocked.
+- Do not keep looping on `cargo-build-sbf` in this exact setup.
+- Safest next move is one of:
+  1. provision a clean Solana `2.3.13` build lane outside this current Windows install state (fresh shell VM, CI runner, or clean WSL/Linux install with matching Solana/Anchor)
+  2. or fully replace the local Solana SBF toolchain with a known-good `2.3.13` install instead of patching partial cache/install state
+- Once that lane is clean, resume:
+  1. `bash scripts/wsl-arcium-build.sh`
+  2. `npm run deploy:devnet:fresh`
+  3. `npm run oracle:once`
+  4. `npm run check:preflight`
+  5. `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 04:25 WAT - Clean WSL 2.3.13 lane established
+
+### What changed
+
+- Installed an isolated WSL Solana toolchain at:
+  - `~/.local/share/solana-2.3.13/active_release`
+- Seeded WSL cache for `platform-tools v1.53` from the already-downloaded Windows Linux archive:
+  - source archive:
+    - `C:\\Users\\bolaj\\projects\\shadowperp\\.tools\\platform-tools-v1.53-linux-x86_64.tar.bz2`
+  - target cache:
+    - `~/.cache/solana/v1.53/platform-tools`
+- Linked WSL rustup `solana` toolchain to:
+  - `~/.cache/solana/v1.53/platform-tools/rust`
+
+### What was verified
+
+- WSL `solana --version` from isolated lane:
+  - `solana-cli 2.3.13`
+- WSL `cargo-build-sbf --version` from isolated lane:
+  - `solana-cargo-build-sbf 2.3.13`
+- WSL `rustup run solana rustc --version`:
+  - `rustc 1.89.0-dev`
+- WSL `rustup run solana rustc --print target-list` includes:
+  - `sbpf-solana-solana`
+- Direct WSL build succeeded from repo root:
+  - `cargo-build-sbf --tools-version v1.53 --manifest-path programs/shadowperp/Cargo.toml`
+  - result: `Finished 'release' profile [optimized]`
+
+### Important note
+
+- This gives us a working **WSL SBF build lane**.
+- It does **not** mean Windows `cargo-build-sbf` is fixed. Windows lane is still toolchain-fragile and can be ignored now.
+
+### Current blocker
+
+- No longer blocked on obtaining a clean SBF build environment.
+- Remaining work is operational:
+  1. run Arcium circuit build on the WSL-capable path
+  2. run deploy flow using the clean lane / scripts
+  3. re-init comp-defs on fresh namespace
+  4. rerun preflight + canary
+
+### Next safe step
+
+1. run `bash scripts/wsl-arcium-build.sh`
+2. if that passes, run `npm run deploy:devnet:fresh`
+3. then `npm run oracle:once`
+4. then `npm run check:preflight`
+5. then `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 05:18 WAT - Multi-RPC failover normalized across app and relay
+
+### What changed
+
+- Updated local `app/.env.local` to use a 5-endpoint devnet HTTP RPC pool:
+  - Helius
+  - QuickNode
+  - Alchemy
+  - ZAN
+  - public devnet fallback
+- Kept the primary single-value RPC env on Helius and added the full pool to:
+  - `SOLANA_RPC_URLS`
+  - `NEXT_PUBLIC_SOLANA_RPC_URLS`
+- Switched local `NEXT_PUBLIC_ARCIUM_RPC_URL` from public devnet to Helius for this machine.
+- Finished the server relay async failover wiring:
+  - `app/src/lib/server/relay-client.ts` now probes candidate RPC URLs and uses the first healthy endpoint before building the Anchor provider
+  - `app/src/pages/api/relay/withdraw.ts` now awaits `createRelayRuntimeContext()`
+  - `app/src/pages/api/relay/session.ts` now awaits `createRelayRuntimeContext()`
+
+### What was verified
+
+- Frontend runtime already supported multi-endpoint auto-selection via:
+  - `app/src/lib/runtime.ts`
+  - `app/src/pages/_app.tsx`
+- Script/deploy/preflight/canary failover already existed via:
+  - `scripts/rpc.ts`
+- App TypeScript still passes after relay failover changes:
+  - `pnpm --dir app exec tsc --noEmit --incremental false`
+
+### Current blocker
+
+- Code-side RPC failover is now aligned across scripts, browser runtime, and relay API routes.
+- Deployment/runtime progress is still blocked on the main devnet rollout sequence not yet being rerun on the current local namespace.
+
+### Next safe step
+
+1. confirm deploy wallet funding is still present
+2. run `bash scripts/wsl-arcium-build.sh`
+3. run `npx ts-node scripts/deploy-devnet.ts`
+4. run `npm run oracle:once`
+5. run `npm run check:preflight`
+6. run `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 05:42 WAT - Websocket failover wiring added
+
+### What changed
+
+- Added browser-side RPC transport pairing in:
+  - `app/src/lib/runtime.ts`
+  - each active HTTP RPC endpoint now has a matching websocket endpoint
+  - websocket endpoint is taken from index-aligned env vars when present, otherwise derived from the HTTP URL by scheme swap (`https -> wss`, `http -> ws`)
+- Updated the Next app connection setup in:
+  - `app/src/pages/_app.tsx`
+  - `ConnectionProvider` now receives both:
+    - `endpoint` = active HTTP RPC
+    - `config.wsEndpoint` = matching websocket endpoint
+- Updated the relay runtime in:
+  - `app/src/lib/server/relay-client.ts`
+  - relay now resolves `{ rpcUrl, wsUrl }` together and builds `Connection` with `wsEndpoint`
+- Documented optional env vars for aligned websocket overrides in:
+  - `app/.env.example`
+
+### What was verified
+
+- App TypeScript passes after websocket failover wiring:
+  - `pnpm --dir app exec tsc --noEmit --incremental false`
+
+### Important note
+
+- No explicit tracked WSS secrets were added.
+- Current local env can rely on derivation for providers whose websocket URL is the same host/path with a different scheme.
+- If a provider needs a non-derived websocket endpoint in the future, set:
+  - `NEXT_PUBLIC_SOLANA_WSS_URLS`
+  - `SOLANA_WSS_URLS`
+  with the same ordering as the corresponding HTTP RPC lists.
+
+### Current blocker
+
+- No longer blocked on missing websocket failover wiring.
+- Remaining rollout blocker is still the real deploy + canary sequence on the current local namespace.
+
+### Next safe step
+
+1. run `bash scripts/wsl-arcium-build.sh`
+2. run `npx ts-node scripts/deploy-devnet.ts`
+3. run `npm run oracle:once`
+4. run `npm run check:preflight`
+5. run `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 05:55 WAT - First rollout attempt: build passed, deploy failed, funds recovered
+
+### What changed
+
+- Ran the first rollout steps in order:
+  1. `bash scripts/wsl-arcium-build.sh`
+  2. `npx ts-node scripts/deploy-devnet.ts`
+- Stopped the sequence after step 2 failed; did not run `oracle:once`.
+
+### What was verified
+
+- Step 1 passed:
+  - WSL Arcium build lane ran cleanly
+  - encrypted instruction artifacts were current
+- Step 2 failed during the deploy write phase:
+  - deploy script selected `https://api.devnet.solana.com`
+  - `anchor deploy` failed with repeated `AlreadyProcessed`
+  - fallback `solana program deploy` also failed
+  - failure ended with:
+    - `219 write transactions failed`
+    - temporary spend shortfall against the deploy wallet
+- Post-failure cleanup succeeded:
+  - reclaimable buffer discovered:
+    - `3A9n5VBMau9HFkjHKgRsY5js5hjvHDj4VdeFKkLYbNyk`
+  - closed successfully with `solana program close`
+  - deploy wallet balance restored to:
+    - `14.99028484 SOL`
+
+### Current blocker
+
+- The blocker is now `waiting on deploy retry`.
+- This was not an Arcium build failure and not a persistent wallet-funding problem after cleanup.
+- The failed attempt used public devnet RPC; the retry should force a stronger RPC instead of relying on the script default selection path.
+
+### Next safe step
+
+1. retry deploy with an explicit RPC override, for example:
+   - `set SOLANA_RPC_URL=https://devnet.helius-rpc.com/?api-key=...`
+   - then run `npx ts-node scripts/deploy-devnet.ts`
+2. only if deploy succeeds, continue with:
+   - `npm run oracle:once`
+   - `npm run check:preflight`
+   - `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 ~07:00 WAT - WSL deploy lane added to deploy-devnet.ts
+
+### What changed
+
+- `scripts/deploy-devnet.ts` Step 2 (deploy) now defaults to WSL on Windows:
+  - Uses the clean Solana 2.3.13 lane at `~/.local/share/solana-2.3.13/active_release/bin`
+  - Passes `--with-compute-unit-price 10000` and `--max-sign-attempts 100` for better tx landing
+  - Converts Windows paths to WSL `/mnt/` paths via existing `toWslPath()` helper
+  - Falls back to Windows anchor/solana deploy only if `USE_WSL_DEPLOY=0` is set
+- This addresses the repeated deploy write failures (AlreadyProcessed, connection resets) seen across public devnet, Helius, and Alchemy RPCs when deploying from Windows
+
+### Next safe step
+
+1. run `npx ts-node scripts/deploy-devnet.ts` with Helius RPC override
+2. do **not** rotate to another fresh namespace yet; the repo is already on the current undeployed rotated namespace
+3. if deploy succeeds, continue with oracle/preflight/canary
+
+## 2026-03-07 06:22 WAT - Explicit Helius and Alchemy deploy retries both failed
+
+### What changed
+
+- Retried deploy with explicit Helius RPC:
+  - `SOLANA_RPC_URL=https://devnet.helius-rpc.com/?api-key=...`
+  - `npx ts-node scripts/deploy-devnet.ts`
+- Retried deploy with explicit Alchemy RPC:
+  - `SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/...`
+  - `npx ts-node scripts/deploy-devnet.ts`
+
+### What was verified
+
+- Helius retry failed in the deploy write phase with:
+  - connection reset during `anchor deploy`
+  - fallback `solana program deploy` failed with:
+    - `Data writes to account failed: Custom error: Max retries exceeded`
+- Alchemy retry failed in the deploy write phase with:
+  - repeated `AlreadyProcessed`
+  - `504 write transactions failed`
+- Post-failure cleanup:
+  - closed deploy buffers as they appeared / were discoverable
+  - confirmed a reclaimable buffer remained at:
+    - `3A9n5VBMau9HFkjHKgRsY5js5hjvHDj4VdeFKkLYbNyk`
+  - closed it successfully
+  - deploy wallet balance restored again to:
+    - `14.98313984 SOL`
+
+### Current blocker
+
+- The blocker is no longer simple RPC endpoint preference.
+- Public devnet, Helius, and Alchemy all failed during the heavy program write phase.
+- Current state should be treated as:
+  - `waiting on deploy strategy`
+- Build lane is healthy, wallet funding is adequate, but devnet program deploy writes are not landing reliably through the current script/CLI path.
+
+### Next safe step
+
+- Do not keep blind-retrying full deploys across more RPCs.
+- Next move should be one of:
+  1. switch deploy method to a more controlled/resumable program write path
+  2. or run the deploy from a different environment/CLI lane if we suspect this Windows-side deploy path is contributing to write replay/reset behavior
+- Only after deploy succeeds should we continue with:
+  - `npm run oracle:once`
+  - `npm run check:preflight`
+  - `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 07:05 WAT - QuickNode and Helius deploy checks narrowed further
+
+### What changed
+
+- Continued on the post-ZAN fresh namespace:
+  - current local program id:
+    - `ALEuKu6asHB6QSpzScpPrechpHUDM9yPT2ai87DYQwLw`
+- Tried deploy on QuickNode:
+  - `SOLANA_RPC_URL=https://cool-boldest-yard.solana-devnet.quiknode.pro/...`
+  - `npx ts-node scripts/deploy-devnet.ts`
+- Tried deploy on Helius:
+  - `SOLANA_RPC_URL=https://devnet.helius-rpc.com/?api-key=...`
+  - `npx ts-node scripts/deploy-devnet.ts`
+
+### What was verified
+
+- QuickNode is not usable for this deploy payload:
+  - failed immediately with `413 Payload Too Large`
+- Helius is still not landing the WSL deploy request:
+  - failed immediately with `error sending request`
+- After both attempts, deploy wallet balance remained unchanged:
+  - `14.965233275 SOL`
+- That means these two retries did **not** strand additional buffers or lock more deploy rent.
+
+### Current blocker
+
+- Deploy remains blocked, but the viable RPC set is narrower now:
+  - QuickNode is unsuitable for the binary size/path
+  - Helius is still failing on request submission in this lane
+- Current state should be treated as:
+  - `waiting on deploy endpoint/strategy`
+
+### Next safe step
+
+1. do not retry QuickNode for deploy
+2. do not keep looping on Helius in the same state
+3. choose between:
+   - public devnet as a bounded retry in the WSL deploy lane
+   - or moving to a fully manual/resumable deploy flow
+4. only after a deploy succeeds:
+   - `npm run oracle:once`
+   - `npm run check:preflight`
+   - `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 07:14 WAT - Public devnet bounded retry also ruled out
+
+### What changed
+
+- Tried the current `ALEu...` namespace on public devnet in the WSL deploy lane:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com`
+  - `npx ts-node scripts/deploy-devnet.ts`
+
+### What was verified
+
+- The deploy script failed before the write phase:
+  - repeated `429 Too Many Requests`
+  - final error: `No healthy RPC endpoint found`
+- Because it failed at RPC selection / health probing, this attempt should not have created a deploy buffer or tied up additional rent.
+
+### Current blocker
+
+- QuickNode: ruled out for deploy (`413 Payload Too Large`)
+- Helius: ruled out in current state (`error sending request`)
+- Public devnet: ruled out in current state (`429 Too Many Requests`)
+- Current state should now be treated as:
+  - `waiting on deploy strategy`
+
+### Next safe step
+
+- Stop endpoint-hopping.
+- Move to a manual or resumable deploy strategy, or another environment that can land the deploy write path reliably.
+- Only after deploy succeeds:
+  - `npm run oracle:once`
+  - `npm run check:preflight`
+  - `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 07:34 WAT - Manual/resumable deploy helper added
+
+### What changed
+
+- Added a persistent-buffer deploy helper:
+  - `scripts/manual-deploy-devnet.ts`
+- Added package scripts:
+  - `npm run deploy:manual:status`
+  - `npm run deploy:manual`
+  - `npm run deploy:manual:finalize`
+  - `npm run deploy:manual:full`
+  - `npm run deploy:manual:close-buffer`
+- The helper uses:
+  - current local program keypair
+  - persistent buffer keypair at:
+    - `target/deploy/shadowperp-buffer-keypair.json`
+  - WSL Solana `2.3.13` deploy lane
+  - `solana program deploy --buffer ...` for resumable uploads
+  - `deploy-devnet.ts --skip-deploy` for post-upload market/init/env sync
+
+### What was verified
+
+- Manual status command runs cleanly:
+  - `npx ts-node scripts/manual-deploy-devnet.ts status --rpc https://devnet.helius-rpc.com/?api-key=...`
+- Current state from the helper:
+  - wallet: `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt`
+  - wallet SOL: `14.965228275`
+  - program id: `ALEuKu6asHB6QSpzScpPrechpHUDM9yPT2ai87DYQwLw`
+  - program visible: `false`
+  - persistent buffer pubkey: `CpWNXGR97wTrSqsAkJpCj5Cm9i9qpznkbMUGJjPUqiwg`
+  - persistent buffer exists on-chain: `false`
+
+### Current blocker
+
+- Still blocked on getting the actual program upload to land.
+- However, deploy attempts are no longer forced through a one-shot random-buffer path.
+- Current state should be treated as:
+  - `waiting on manual deploy attempt`
+
+### Next safe step
+
+1. choose one RPC for the resumable path (Helius is still the best read candidate)
+2. run:
+   - `npx ts-node scripts/manual-deploy-devnet.ts deploy --rpc <RPC>`
+3. if program upload succeeds, run:
+   - `npx ts-node scripts/manual-deploy-devnet.ts finalize --rpc <RPC>`
+4. only after that:
+   - `npm run oracle:once`
+   - `npm run check:preflight`
+   - `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 ~07:45 WAT - Auto buffer cleanup + balance check added to deploy-devnet.ts
+
+### What changed
+
+- `scripts/deploy-devnet.ts` now has Step 1b before deploy:
+  1. **Auto buffer reclaim** — queries `solana program show --buffers`, closes any stale buffers from previous failed deploys, SOL returns to wallet
+  2. **Balance check + auto airdrop** — if wallet is below 10 SOL, airdrops in 2-SOL batches until funded
+- This prevents the SOL drain from repeated deploy failures (was ~15 SOL → ~8 SOL after failed attempts)
+- Duplicate variable declarations (`walletPath`, `walletWsl`, `solanaBinWsl`) hoisted above Step 1b/Step 2 to avoid redeclaration
+
+### Current state
+
+- Deploy is still blocked on getting write transactions to land
+- All RPCs tried (public devnet, Helius, Alchemy, QuickNode) have failed at the write phase
+- Manual/resumable deploy helper exists at `scripts/manual-deploy-devnet.ts`
+- Wallet balance: ~14.96 SOL
+- Program ID: `ALEuKu6asHB6QSpzScpPrechpHUDM9yPT2ai87DYQwLw`
+
+### Next safe step
+
+1. Use the manual resumable deploy helper:
+   - `npx ts-node scripts/manual-deploy-devnet.ts deploy --rpc <RPC>`
+2. If upload lands, finalize:
+   - `npx ts-node scripts/manual-deploy-devnet.ts finalize --rpc <RPC>`
+3. Then run post-deploy:
+   - `SOLANA_RPC_URL=<RPC> npx ts-node scripts/deploy-devnet.ts --skip-deploy`
+   - `npm run oracle:once && npm run check:preflight && npm run canary:devnet -- --verbose`
+
+## 2026-03-07 12:35 WAT - Live state changed in another session; notes reconciled
+
+### What changed
+
+- A separate session rotated the local program namespace again.
+- Current local IDs are now aligned on:
+  - `programs/shadowperp/src/lib.rs`: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  - `Anchor.toml`: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  - `Arcium.toml`: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+
+### What was verified
+
+- Manual deploy status on public devnet now reports:
+  - wallet: `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt`
+  - spendable wallet SOL: `1.714321191`
+  - current local program id: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  - program visible: `false`
+  - buffer pubkey: `He5o1aamk3KPZrZr9Rq8Y7KX8hvaZELoZMiFDGz59766`
+  - buffer exists on-chain: `true`
+- `solana program show --buffers` confirms:
+  - `He5o1aamk3KPZrZr9Rq8Y7KX8hvaZELoZMiFDGz59766`
+  - balance: `8.00035992 SOL`
+- `app/.env.local` is still stale and points to the old deployed namespace:
+  - `NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID=2Gz35PAHBkggSfV77mCENobt5YEURuYMAjgpvKXoL61d`
+  - `NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT=C3UcQ3FnjqUsFPWfDgKNoq4cGzpWw6tSEqM6bf1MoFv8`
+
+### Current blocker
+
+- The live operational log had fallen behind the repo state.
+- Current state should be treated as:
+  - `waiting on deploy state cleanup / resume decision`
+- The immediate risk is acting on stale notes or stale app env while the local namespace has already moved.
+
+### Next safe step
+
+1. Decide whether to:
+   - close buffer `He5o1aamk3KPZrZr9Rq8Y7KX8hvaZELoZMiFDGz59766` and reclaim `8.00035992 SOL`, or
+   - resume deployment using that exact buffer for the current local program id `2M13...`
+2. Do not run app/preflight/canary against the old `2Gz35...` env if the intent is to continue the new namespace rollout.
+3. After deploy state is resolved, update `app/.env.local` and then run:
+   - `npm run oracle:once`
+   - `npm run check:preflight`
+   - `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 12:51 WAT - Buffer inventory rechecked; nothing left to reclaim
+
+### What was verified
+
+- `solana program show --buffers --keypair ~/.config/solana/id.json --url https://api.devnet.solana.com`
+  now returns no buffer rows for the deploy wallet.
+- Current wallet balance on public devnet is:
+  - `1.083049973 SOL`
+- This means the previously noted `He5o...` buffer is no longer reclaimable from the wallet context checked in this session.
+
+### Current blocker
+
+- Still blocked on deploy state, but not because of reclaimable buffers.
+- Current state should be treated as:
+  - `waiting on deploy/funding reconciliation`
+
+### Next safe step
+
+1. Reconcile what consumed the remaining deploy SOL in the parallel session(s).
+2. Do not assume buffer reclaim is still available; it is not visible now.
+3. Before any further deploy attempt, re-check:
+   - wallet balance
+   - `solana program show --buffers`
+   - active local program id (`lib.rs`, `Anchor.toml`, `Arcium.toml`)
+
+## 2026-03-07 16:37 WAT - Notes confirmed against current codebase and live namespace
+
+### What was verified
+
+- Current local source IDs are aligned on:
+  - `programs/shadowperp/src/lib.rs`: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  - `Anchor.toml`: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  - `Arcium.toml`: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+- `scripts/wsl-anchor-build.sh` now copies the fresh WSL-built `.so` back into `target/deploy/shadowperp.so`.
+- `scripts/deploy-devnet.ts` still includes the Arcium.toml sync fix during fresh namespace rotation.
+- `app/.env.local` is no longer stale; it now points to the current namespace:
+  - `NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID=2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  - `NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT=Hx4cXyuoJWqsFh1CKmrPYsvYFpGYFMw9Ntst2bgXvKVC`
+  - `NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET=456`
+- Manual status on public devnet now reports:
+  - wallet SOL: `5.139702457`
+  - program visible: `true`
+  - program executable: `true`
+  - buffer exists: `false`
+- `npm run check:preflight` on the current namespace shows:
+  - program/market wiring: pass
+  - comp-defs (open/close/check_liquidation): pass and finalized
+  - operator wallet and USDC balance: pass
+  - only failure: `Oracle freshness - age=1003s`
+- `npm run oracle:once` on the current namespace does not update because the oracle safety circuit breaker fires:
+  - on-chain price: `$103.0000`
+  - live median price: about `$84.065`
+  - move: `1838.35 bps`
+  - max deviation: `500 bps`
+
+### Current blocker
+
+- The codebase and env are now aligned on the new namespace.
+- The current blocker is no longer deploy drift or stale env.
+- Current state should be treated as:
+  - `stale oracle`
+  - `waiting on oracle reconciliation / safety decision`
+
+### Next safe step
+
+1. Decide how to reconcile the new market's on-chain oracle from `$103` to live price without violating the safety model.
+2. Do not treat preflight as green until oracle freshness passes on the `2M13...` namespace.
+3. After oracle is reconciled, rerun:
+   - `npm run check:preflight`
+   - `npm run canary:devnet -- --verbose`
+
+## 2026-03-07 17:24 WAT - Smoke advanced past canary; remaining issue is relayer/transport, not deploy
+
+### What was verified
+
+- `npm run oracle:once` succeeded on the current namespace and published a fresh oracle update:
+  - tx: `5aZzNeAyCxZ6wjBa7utuqkfyQ55qDtMswfFng7Lw42EXqJsFzYtZUrzZUbe5JiyaVGn743WADA4kySJrACZczV8i`
+- `npm run check:preflight` passed on:
+  - program: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  - market: `Hx4cXyuoJWqsFh1CKmrPYsvYFpGYFMw9Ntst2bgXvKVC`
+- `npm run canary:devnet -- --verbose` passed.
+- Real delegated session smoke moved beyond infrastructure:
+  - `npx ts-node scripts/session-relayer.ts smoke`
+    - step 1: session create succeeded
+    - step 2: initially failed with generic `fetch failed`
+- Direct delegated open retry then succeeded on the same live session:
+  - session id: `1772899586`
+  - position: `BqxHe2EbnapRmGK4C4FSSyKDUWeYMgqJw8jb5s2fvDKo`
+  - tx: `faTE1rvwLPg2WGNz42Gf2HfTu39EYoR4vPxeVpsXP1TAyQkbSd7FVrVPfawL89LV56PwLECAR5SAEgVD7Uovb4E`
+- Session status after the successful open:
+  - `usedActions: 1/50`
+  - session remains valid and not revoked
+
+### Current blocker
+
+- Infra/deploy/canary are green.
+- The remaining blocker is not on-chain queueing.
+- Current state should be treated as:
+  - `waiting on relayer/tooling fix`
+  - `transport instability during live smoke`
+- Two concrete issues were observed:
+  1. `scripts/session-relayer.ts close --position-index 0` rejects the valid first position because `parsePositiveInt` forbids `0`.
+  2. A direct read-only account inspection through the same Node/Anchor stack hit:
+     - `TypeError: fetch failed`
+     - cause: `ERR_SSL_DECRYPTION_FAILED_OR_BAD_RECORD_MAC`
+     - meaning the remaining instability is in RPC transport/client runtime, not the deployed program path.
+
+### Next safe step
+
+1. Fix the CLI helper so `position-index 0` is accepted for smoke on the first live position.
+2. Stabilize or pin the RPC used by the relayer/client smoke path before concluding the open/close flow is broken.
+3. After that, rerun:
+   - delegated close on the live position
+   - settlement verification (`ClosedPendingSettlement` if applicable -> `Closed`)
+
+## 2026-03-07 17:42 WAT - Smoke helper fixed; live blocker is open callback verification
+
+### What changed
+
+- `scripts/session-relayer.ts` now accepts `--position-index 0` for:
+  - `close`
+  - `settle-close`
+  - `settle-liquidation`
+- `scripts/session-relayer.ts` now also accepts `--rpc <url>` and uses it as the preferred endpoint for the entire command, which lets live smoke stay on one pinned RPC.
+
+### What was verified
+
+- TypeScript still compiles:
+  - `pnpm --dir app exec tsc --noEmit --incremental false`
+- Pinned-RPC delegated close now reaches on-chain logic instead of failing in local CLI parsing:
+  - command:
+    - `npx ts-node scripts/session-relayer.ts close --session-id 1772899586 --owner 5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt --position-index 0 --rpc <helius>`
+  - result:
+    - `PositionNotOpen (6003)`
+- RPC-level history for the live position `BqxHe2EbnapRmGK4C4FSSyKDUWeYMgqJw8jb5s2fvDKo` shows the real root cause:
+  - open tx:
+    - `faTE1rvwLPg2WGNz42Gf2HfTu39EYoR4vPxeVpsXP1TAyQkbSd7FVrVPfawL89LV56PwLECAR5SAEgVD7Uovb4E`
+    - queued successfully
+  - two callback transactions followed:
+    - `5HukvvM6n3tJYJZYJTDuhqUwDX21pUrME7zNYVazNA7vvMHSEkZtUrGpjPrP1oQK26FYmQPiuwPtVpXMBMQsZEy4`
+    - `4Pn2W7NzGBuUXw9ceTFzqHpr7guGWT215sAkbCvfamedF4CxABKUSoAoTNoTNmkZs6vnKFR6jjinZAw7JFtkS6bn`
+  - both failed in `OpenPositionV2Callback` with:
+    - `InvalidComputationResult (6008)`
+    - log: `MPC verify failed for position BqxHe2...`
+
+### Current blocker
+
+- Infra, deploy, oracle, preflight, and queue simulation are green.
+- The remaining blocker is now specifically:
+  - `open callback verification failure`
+  - `InvalidComputationResult (6008)` in `OpenPositionV2Callback`
+- Practical effect:
+  - the position never transitions from `Pending` to `Open`
+  - delegated close correctly fails with `PositionNotOpen`
+
+### Next safe step
+
+1. Inspect `programs/shadowperp/src/handlers/callbacks/open_position_callback.rs` against the current circuit/output shape used by:
+   - `encrypted-ixs/src/open_position.rs`
+   - queue args in `open_position.rs` / `session_trading.rs`
+2. Reconcile why MPC proof/result verification is failing after the callback now lands.
+3. Do not treat end-to-end open/close as working until `OpenPositionV2Callback` succeeds on a real position.
+
+## 2026-03-07 18:03 WAT - Batches 1-3 completed: diagnostic split added, program rebuilt
+
+### What was verified
+
+- Current live/preflight baseline was rechecked on pinned public devnet RPC.
+- `session_trading.rs` stale-price guard is unchanged and still requires:
+  - `price_age < 300`
+- `npm run check:preflight` briefly went stale again on public devnet, then:
+  - `npm run oracle:once`
+  - refreshed the market successfully on the same pinned RPC
+  - tx: `dVCiD5h6rCwwWZHs3ajCif51zmjznCPQhgxPbFDDYGobK9ywM5HB98ntbXtRTWUDRWDtG9enCZfHeQpjKzwy8uC`
+- Static callback diagnosis remains:
+  - input packing matches the circuit
+  - callback account plumbing matches the live callback tx
+  - live `open_position_v2` comp-def matches local artifact exactly:
+    - `params=12`
+    - `outputs=4`
+    - `circuitLen=1591747`
+    - local `build/open_position_v2.arcis` length `1591747`
+- The failure is still localized to `verify_output(...)` in `OpenPositionV2Callback`, with the remaining ambiguity being:
+  - raw/BLS verification failure vs
+  - typed deserialization failure
+
+### What changed
+
+- Added split diagnostics in:
+  - `programs/shadowperp/src/handlers/callbacks/open_position_callback.rs`
+- The callback now logs separately:
+  1. `MPC raw verify failed ...`
+  2. `MPC output deserialize failed ... raw_len=..., expected_size=..., error=...`
+- No protocol behavior was changed; this is observability only.
+
+### Build verification
+
+- `cargo check -p shadowperp` -> PASS
+- `wsl bash scripts/wsl-anchor-build.sh` rebuilt the Rust program binary successfully.
+- Important note from WSL build:
+  - the build output reported a large stack-frame warning/error message tied to an `arcium_client` account deserialization helper during the build process
+  - but the final release build still completed successfully and produced updated artifacts / IDL
+  - treat that as a warning to watch during upgrade/runtime validation, not as the current blocker
+
+### Current blocker
+
+- The current blocker is still:
+  - `open callback verification failure`
+  - `InvalidComputationResult (6008)` in `OpenPositionV2Callback`
+- We now have the observability needed to distinguish the exact sub-failure after upgrade.
+
+### Next safe step
+
+1. Upgrade the existing deployed program in place with the rebuilt binary.
+2. Rerun one delegated open on a single pinned RPC.
+3. Read the new callback logs to determine whether the failure is:
+   - raw verify/BLS, or
+   - output deserialization/type-size mismatch.
+
+## 2026-03-07 18:12 WAT - Upgrade path ready but blocked by deploy wallet shortfall
+
+### What was verified
+
+- Existing deployed program is still the current live target:
+  - program: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  - authority: `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt`
+  - program data address: `Ee4sj7BuuoDnnvezicJNyEAFCnMH7tu8AShh6hrF8xG8`
+- No reclaimable deploy buffers are currently visible for the wallet on public devnet.
+- Rebuilt binary size:
+  - `target/deploy/shadowperp.so` = `1,154,616` bytes
+- Estimated buffer size for in-place upgrade:
+  - `1,154,653` bytes
+- Rent needed for that temporary upgrade buffer on devnet:
+  - `8.03727576 SOL`
+- Current deploy wallet balance:
+  - `5.064302801 SOL`
+- Public devnet airdrop retry was attempted and failed due to rate limiting.
+
+### Current blocker
+
+- Current state should be treated as:
+  - `waiting on funds`
+- The in-place upgrade should not be attempted yet because the wallet is underfunded by roughly:
+  - `2.973 SOL` plus a small fee cushion
+
+### Next safe step
+
+1. Fund deploy wallet `5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt` with at least `3.2 SOL` more.
+2. Then run the in-place upgrade on a single pinned RPC.
+3. After upgrade, rerun one delegated open and inspect the new split callback logs.
+
+## 2026-03-07 18:33 WAT - Helius upgrade resume failed; buffer reclaimed cleanly
+
+### What was verified
+
+- Deploy wallet was funded successfully before the retry:
+  - balance before resume: `19.343997086 SOL`
+- Existing resumable upgrade buffer was reused:
+  - buffer: `8PEoU5UwtZKJ9bmLaACGpJ6aShxJpqUHWFHiGa9SEEzY`
+  - rent locked: `8.03727576 SOL`
+- Helius resume attempt progressed partway through chunk writes:
+  - reached roughly `350/1155` chunks
+- Helius then became unusable for this path:
+  - repeated `429 Too Many Requests`
+  - followed by `fetch failed`
+- After the failed attempt:
+  - the program was still unchanged
+  - `Last Deployed In Slot` remained `446839411`
+  - the buffer was still present and funded
+- The buffer was then closed and reclaimed successfully:
+  - `solana program show --buffers` now returns no buffer rows
+  - wallet balance after reclaim: `19.323380745 SOL`
+
+### Current blocker
+
+- Current state should be treated as:
+  - `waiting on upgrade transport choice`
+- Helius is not viable for the long JS chunked upgrade on this wallet/program path due to rate limiting.
+
+### Next safe step
+
+1. Do not retry Helius for the chunked upgrade path.
+2. If retrying upgrade now, use a different RPC transport path (next candidate: QuickNode) and start from a clean buffer.
+3. If the next RPC shows the same long-write instability, stop endpoint-hopping and switch to a different deploy lane rather than burning time on repeated partial uploads.
+
+## 2026-03-10 09:25 WAT - `open_position_probe_b` finalized; basic-comparison path still aborts
+
+### What changed
+
+- Implemented `open_position_probe_b` locally.
+- `open_position_probe_b` keeps the same encrypted tuple input and callback shape as the working probe path, but adds only basic validations:
+  - `size > 0`
+  - `margin > 0`
+  - `margin == requested_margin`
+  - `leverage >= 1`
+  - `leverage <= max_leverage`
+- No multiplication or division is performed in this probe.
+- Rebuilt the Arcium artifacts in WSL:
+  - `build/open_position_probe_b.arcis`
+- Rebuilt the Anchor program in WSL and upgraded the live program in place.
+
+### What was verified
+
+- Program and market remain:
+  - program: `2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az`
+  - market: `Hx4cXyuoJWqsFh1CKmrPYsvYFpGYFMw9Ntst2bgXvKVC`
+- `open_position_probe_b` comp-def is now finalized and pointed to by the market:
+  - `8fZY6mdYP412KEgMkVtuxFZonfKeV2LhVCstGnQwnUmM`
+- `close_position_v2` remains finalized:
+  - `54gwPKpVrigmnnRtuhmAZ28u3u6Z8QQRXQxRGJNzVuZi`
+- `check_liquidation` remains finalized:
+  - `7KNuD6Z2ZjRKrg3zoqz2GAhdwnn4CKffxXsD7c2gdmSf`
+- Public devnet preflight passed after oracle refresh:
+  - oracle tx: `NAqdh6FcxKZuyTd4u9LdGzQxNPQGAVk6wR1LsXGA1MsAfGyMSUenTTkmU33jnPzWUD4UXEHhrLSFCj2F4oVZSKv`
+- Fresh delegated open smoke on pinned public devnet:
+  - session create tx: `FFkqqXmHtLRVb7ift1FRSP9oyXDFGAPkhta44txjXqUxQyW5BxLLHfbGcZ5KXh5ihmyN9XfFxYdNydJmGF2RYFv`
+  - session id: `1773130902`
+  - open tx: `tzKE1AiUrTpZ48P28UapKKFXVFwJnUcZ5irVa8njSNGn7qDAcWVEAiGAM8GcSavLxDvsAbaHsJc99cppU8opzPs`
+  - position: `GMPToNHBqqxAhxF5SwXxLJQxJMDENDuaz1oj6BuH3dhH`
+- Two callback transactions then hit the position, and both failed with the same chain:
+  - `451Qywf4nShSDpmQu5bzF1qi8L9W8seAh54mjhhTpdvtVZ53vvo7XjUkYtnaJgcKck3QvjvxTVR2jrFcfQV3bGKh`
+  - `5k61QQ2QPffefdwUs4ef8HoWSaQnW7QDhvGsmvUAah13Bg9PMYvcoBdULkrWfBvLVDrM6A7r8xKo9JrBB1Nk5vEp`
+- Relevant callback logs:
+  - `Instruction: OpenPositionProbeBCallback`
+  - `MPC raw verify failed ... AbortedComputation (6000)`
+  - `InvalidComputationResult (6008)`
+
+### Current blocker
+
+- Current state should be treated as:
+  - `waiting on computation isolation`
+- `open_position_probe_b` proves the abort still happens even when the open path is reduced to decrypting the tuple and running only basic comparisons.
+- This rules out multiplication/division as the first failing class.
+
+### Next safe step
+
+1. Build the next minimal open probe that removes or isolates the comparison layer further.
+2. Keep the same queue/callback wiring and return shape.
+3. Rerun one delegated open on a single pinned RPC.
+4. If even the next minimal comparison-free/decrypt-light probe aborts, package the result as a minimal Arcium repro instead of continuing to guess.
+
+## 2026-03-10 10:05 WAT - External reference orderbook wired for all displayed pairs
+
+### What changed
+
+- Added a server-side reference depth adapter:
+  - `app/src/pages/api/reference-depth.ts`
+- Added shared reference-depth types and provider mapping:
+  - `app/src/lib/reference-depth.ts`
+- Replaced the placeholder `PrivateOrderbook` shell with a live external reference-depth view:
+  - `app/src/components/PrivateOrderbook.tsx`
+
+### What the new orderbook does
+
+- Uses Coinbase public market depth first for the full displayed pair set.
+- Falls back to Binance depth if Coinbase is unavailable for a pair.
+- Normalizes everything into one frontend shape:
+  - bids
+  - asks
+  - trades
+  - lastTrade
+  - spread
+  - spreadBps
+  - timestamp
+- Polls the server route every 4 seconds.
+- Renders:
+  - grouped bids
+  - grouped asks
+  - centered spread row
+  - recent trades
+- Labels the feed explicitly as external/reference depth so it is not misrepresented as ShadowPerp-native order flow.
+
+### Pair coverage
+
+- Current adapter path covers the displayed base symbols:
+  - SOL
+  - BONK
+  - WIF
+  - JUP
+  - BTC
+  - ETH
+  - PYTH
+  - RAY
+  - ORCA
+  - W
+  - JTO
+  - RENDER
+  - HNT
+
+### What was verified
+
+- TypeScript app compile passed:
+  - `pnpm --dir app exec tsc --noEmit --incremental false`
+
+### Current blocker
+
+- No runtime blocker for the orderbook adapter itself.
+- Browser-level visual verification is still pending.
+
+### Next safe step
+
+1. Open the app and visually verify:
+   - pair switching
+   - reference provider label
+   - center spread row
+   - low-priced token grouping (BONK)
+2. If the UI looks right, commit the new orderbook route + component as a separate frontend commit.

@@ -3,8 +3,8 @@
  * Use this when the on-chain comp-def binary is stale after a circuit fix.
  *
  * Usage:
- *   npx ts-node scripts/force-upload-circuit.ts --circuit close_position
- *   npx ts-node scripts/force-upload-circuit.ts --circuit open_position
+ *   npx ts-node scripts/force-upload-circuit.ts --circuit close_position_v2
+ *   npx ts-node scripts/force-upload-circuit.ts --circuit open_position_probe_b
  *   npx ts-node scripts/force-upload-circuit.ts --circuit check_liquidation
  */
 
@@ -41,7 +41,7 @@ async function main() {
   const circuit = readArg("circuit");
   if (!circuit) {
     console.error("Usage: npx ts-node scripts/force-upload-circuit.ts --circuit <name>");
-    console.error("  <name>: open_position | close_position | check_liquidation");
+    console.error("  <name>: open_position_probe_b | close_position_v2 | check_liquidation");
     process.exit(1);
   }
 

@@ -11,41 +11,23 @@ mod open_position_circuit {
 
     /// Open a new position with encrypted parameters.
     /// All five user-encrypted values (size, entry_price, leverage, is_long, margin) are
-    /// batched into one Enc<Shared, (...)> to reduce the parameter count from 23 → 15,
-    /// keeping the computation account within Arcium's on-chain space budget.
+    /// batched into one Enc<Shared, (...)> to reduce parameter pressure on the Arcium
+    /// computation account.
+    ///
     #[instruction]
-    pub fn open_position(
+    pub fn open_position_probe_b(
         inputs: Enc<Shared, (u64, u64, u8, bool, u64)>,
         requested_margin: u64,
-        market_params: (u8, u16, u16, u64),
-        oi_state: Enc<Mxe, (u64, u64)>,
-    ) -> (bool, Enc<Mxe, (u64, u64)>) {
-        let (size, entry_price, leverage, is_long, margin) = inputs.to_arcis();
-        let mut oi = oi_state.to_arcis();
+        max_leverage: u8,
+    ) -> bool {
+        let (size, _entry_price, leverage, _is_long, margin) = inputs.to_arcis();
 
-        // Validate leverage is within bounds
-        let leverage_valid = leverage >= 1 && leverage <= market_params.0;
+        let size_ok = size > 0u64;
+        let margin_ok = margin > 0u64;
+        let requested_margin_ok = margin == requested_margin;
+        let leverage_min_ok = leverage >= 1u8;
+        let leverage_max_ok = leverage <= max_leverage;
 
-        // Calculate position value and required margin
-        let position_value = size * entry_price;
-        let required_margin = position_value / (leverage as u64);
-
-        // Validate margin is sufficient
-        let margin_valid = margin >= required_margin;
-        let margin_matches = margin == requested_margin;
-
-        // Validate size is non-zero
-        let size_valid = size > 0;
-
-        let success = leverage_valid && margin_valid && margin_matches && size_valid;
-
-        // Update open interest based on direction
-        if is_long {
-            oi.0 = oi.0 + size;
-        } else {
-            oi.1 = oi.1 + size;
-        }
-
-        (success.reveal(), oi_state.owner.from_arcis(oi))
+        (size_ok && margin_ok && requested_margin_ok && leverage_min_ok && leverage_max_ok).reveal()
     }
 }

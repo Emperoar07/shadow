@@ -88,6 +88,22 @@ export function getGroupingOptions(referencePrice: number | null | undefined): n
   return [1, 10, 50, 100, 500, 1000];
 }
 
+export function getDefaultGrouping(referencePrice: number | null | undefined): number {
+  const options = getGroupingOptions(referencePrice);
+
+  if (!referencePrice || referencePrice <= 0) {
+    return options[1] ?? options[0] ?? 1;
+  }
+
+  if (referencePrice < 0.001) return options[1] ?? options[0] ?? 0.000001;
+  if (referencePrice < 0.01) return options[1] ?? options[0] ?? 0.00001;
+  if (referencePrice < 0.1) return options[1] ?? options[0] ?? 0.001;
+  if (referencePrice < 1) return options[1] ?? options[0] ?? 0.01;
+  if (referencePrice < 100) return options[1] ?? options[0] ?? 0.1;
+  if (referencePrice < 10000) return options[1] ?? options[0] ?? 1;
+  return options[1] ?? options[0] ?? 10;
+}
+
 export function formatPrice(value: number): string {
   if (value >= 10000) return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (value >= 1000) return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });

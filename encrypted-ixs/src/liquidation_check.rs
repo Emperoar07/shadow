@@ -20,7 +20,7 @@ mod liquidation_check_circuit {
     pub fn check_liquidation(
         position: Enc<Mxe, (u64, u64, u8, bool, u64)>,
         mark_price: u64,
-        market_params: (u8, u16, u16, u64),
+        liquidation_threshold_bps: u16,
     ) -> (bool, u64, u64) {
         let pos = position.to_arcis();
 
@@ -49,7 +49,7 @@ mod liquidation_check_circuit {
         let position_value = pos.0 * mark_price;
 
         // Maintenance margin = position_value * threshold / 10000
-        let maintenance_margin = (position_value * market_params.1 as u64) / 10000;
+        let maintenance_margin = (position_value * liquidation_threshold_bps as u64) / 10000;
 
         // Position should be liquidated if equity < maintenance margin
         let should_liquidate = equity < (maintenance_margin as i64);

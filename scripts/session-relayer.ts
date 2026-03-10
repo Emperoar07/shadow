@@ -7,6 +7,8 @@
  *   revoke  - owner revokes a delegated session
  *   open    - relayer opens encrypted position under active session
  *   close   - relayer closes position under active session
+ *   settle-close - permissionlessly settles a close after callback
+ *   settle-liquidation - permissionlessly settles a liquidation after callback
  *   smoke   - create session, then try one delegated open
  *
  * Examples:
@@ -113,10 +115,16 @@ function parsePublicKey(name: string, value?: string): PublicKey {
   return new PublicKey(normalized);
 }
 
-function parsePositiveInt(name: string, value: string | undefined, fallback: number): number {
+function parsePositiveInt(
+  name: string,
+  value: string | undefined,
+  fallback: number,
+  options?: { allowZero?: boolean }
+): number {
   if (!value) return fallback;
   const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  const min = options?.allowZero ? 0 : 1;
+  if (!Number.isFinite(parsed) || parsed < min) {
     throw new Error(`Invalid ${name}: ${value}`);
   }
   return parsed;
@@ -274,7 +282,9 @@ async function main(): Promise<void> {
 
   const rpcSelection = await resolveRpcEndpoint({
     preferred:
-      process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL,
+      normalizeValue(flags.rpc) ||
+      process.env.SOLANA_RPC_URL ||
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL,
     commitment: "confirmed",
   });
   const rpcUrl = rpcSelection.rpcUrl;
@@ -455,7 +465,9 @@ async function main(): Promise<void> {
     }
 
     case "close": {
-      const index = parsePositiveInt("position-index", flags["position-index"], -1);
+      const index = parsePositiveInt("position-index", flags["position-index"], -1, {
+        allowZero: true,
+      });
       if (index < 0) {
         throw new Error("close requires --position-index <u64>");
       }
@@ -468,12 +480,78 @@ async function main(): Promise<void> {
         marketAddress,
         ownerForDelegated,
         sessionId,
-        new BN(index),
-        ownerTokenAccount
+        new BN(index)
       );
       console.log("Delegated close queued");
       console.log(`  Session ID: ${sessionId.toString()}`);
       console.log(`  Position:   ${index}`);
+      console.log(`  Tx:         ${tx}`);
+      console.log(`  Explorer:   https://explorer.solana.com/tx/${tx}?cluster=devnet`);
+      const finalized = await relayerClient.finalizeClosePosition(
+        marketAddress,
+        ownerForDelegated,
+        new BN(index),
+        ownerTokenAccount
+      );
+      if (finalized.settleTxSignature) {
+        console.log("Close settlement submitted");
+        console.log(`  Settle tx:   ${finalized.settleTxSignature}`);
+        console.log(
+          `  Explorer:    https://explorer.solana.com/tx/${finalized.settleTxSignature}?cluster=devnet`
+        );
+      } else {
+        console.log("Close was already settled on-chain");
+      }
+      console.log(`  Final status: ${finalized.status}`);
+      break;
+    }
+
+    case "settle-close": {
+      const index = parsePositiveInt("position-index", flags["position-index"], -1, {
+        allowZero: true,
+      });
+      if (index < 0) {
+        throw new Error("settle-close requires --position-index <u64>");
+      }
+      const market = await relayerClient.getMarket(marketAddress);
+      const ownerTokenAccount = await getAssociatedTokenAddress(
+        market.collateralMint,
+        ownerForDelegated
+      );
+      const tx = await relayerClient.settleClosePosition(
+        marketAddress,
+        ownerForDelegated,
+        new BN(index),
+        ownerTokenAccount
+      );
+      console.log("Close settlement submitted");
+      console.log(`  Position: ${index}`);
+      console.log(`  Tx:       ${tx}`);
+      console.log(`  Explorer: https://explorer.solana.com/tx/${tx}?cluster=devnet`);
+      break;
+    }
+
+    case "settle-liquidation": {
+      const index = parsePositiveInt("position-index", flags["position-index"], -1, {
+        allowZero: true,
+      });
+      if (index < 0) {
+        throw new Error("settle-liquidation requires --position-index <u64>");
+      }
+      const market = await relayerClient.getMarket(marketAddress);
+      const liquidatorTokenAccount = await getAssociatedTokenAddress(
+        market.collateralMint,
+        relayerProvider.wallet.publicKey
+      );
+      const tx = await relayerClient.settleLiquidation(
+        marketAddress,
+        ownerForDelegated,
+        new BN(index),
+        liquidatorTokenAccount
+      );
+      console.log("Liquidation settlement submitted");
+      console.log(`  Position:   ${index}`);
+      console.log(`  Liquidator: ${relayerProvider.wallet.publicKey.toBase58()}`);
       console.log(`  Tx:         ${tx}`);
       console.log(`  Explorer:   https://explorer.solana.com/tx/${tx}?cluster=devnet`);
       break;
@@ -531,7 +609,7 @@ async function main(): Promise<void> {
 
     default:
       throw new Error(
-        `Unknown command: ${parsed.command}. Use create|status|revoke|open|close|smoke`
+        `Unknown command: ${parsed.command}. Use create|status|revoke|open|close|settle-close|settle-liquidation|smoke`
       );
   }
 }

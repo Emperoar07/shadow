@@ -28,7 +28,17 @@ import {
   Connection,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
-import { getArciumProgramId, getClusterAccAddress } from "@arcium-hq/client";
+import {
+  awaitComputationFinalization,
+  getArciumProgramId,
+  getClusterAccAddress,
+  getComputationAccAddress,
+  getClockAccAddress,
+  getExecutingPoolAccAddress,
+  getFeePoolAccAddress,
+  getMXEAccAddress,
+  getMempoolAccAddress,
+} from "@arcium-hq/client";
 import {
   createMint,
   getOrCreateAssociatedTokenAccount,
@@ -79,6 +89,32 @@ function resolveSolanaBin(): string {
   return "solana";
 }
 
+function toWslPath(input: string): string {
+  const normalized = input.replace(/\\/g, "/");
+  const match = normalized.match(/^([A-Za-z]):\/(.*)$/);
+  if (!match) return normalized;
+  return `/mnt/${match[1].toLowerCase()}/${match[2]}`;
+}
+
+function buildAnchorEnv(rootDir: string) {
+  const solanaBin = path.resolve(
+    rootDir,
+    ".tools",
+    "solana-v2.3.13-extracted",
+    "solana-release",
+    "bin"
+  );
+  const wrapperDir = path.resolve(rootDir, "scripts");
+  const sbfSdk = path.join(solanaBin, "platform-tools-sdk", "sbf");
+
+  return {
+    ...process.env,
+    HOME: process.env.USERPROFILE || process.env.HOME,
+    PATH: `${wrapperDir};${solanaBin};${process.env.PATH || ""}`,
+    SBF_SDK_PATH: sbfSdk,
+  };
+}
+
 function readProgramIdFromKeypair(programKeypairPath: string): PublicKey | null {
   if (!fs.existsSync(programKeypairPath)) {
     return null;
@@ -119,7 +155,21 @@ function rotateProgramKeypairForFreshNamespace(
   execSync(`"${anchorBin}" keys sync`, {
     cwd: rootDir,
     stdio: "inherit",
+    env: buildAnchorEnv(rootDir),
   });
+  const arciumTomlPath = path.resolve(rootDir, "Arcium.toml");
+  if (fs.existsSync(arciumTomlPath)) {
+    const arciumToml = fs.readFileSync(arciumTomlPath, "utf-8");
+    const nextProgramId = keypair.publicKey.toBase58();
+    const nextClusterOffset = String(ARCIUM_CLUSTER_OFFSET);
+    const updatedArciumToml = arciumToml
+      .replace(/program_id = "[^"]*"/, `program_id = "${nextProgramId}"`)
+      .replace(/cluster_offset = \d+/, `cluster_offset = ${nextClusterOffset}`);
+    if (updatedArciumToml !== arciumToml) {
+      fs.writeFileSync(arciumTomlPath, updatedArciumToml);
+      console.log("Synced Arcium.toml MXE metadata.");
+    }
+  }
   console.log("Synced program IDs via `anchor keys sync`.");
   return keypair.publicKey;
 }
@@ -129,6 +179,7 @@ async function main() {
   const rootDir = path.resolve(__dirname, "..");
   const anchorBin = resolveAnchorBin();
   const solanaBin = resolveSolanaBin();
+  const anchorEnv = buildAnchorEnv(rootDir);
   const rpcOverride = process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
   const rpcSelection = await resolveRpcEndpoint({ preferred: rpcOverride, commitment: "confirmed" });
   const rpcUrl = rpcSelection.rpcUrl;
@@ -141,6 +192,10 @@ async function main() {
   const freshNamespace =
     process.argv.includes("--fresh-namespace") ||
     process.env.FRESH_NAMESPACE === "1";
+  const useWslBuild =
+    process.platform === "win32" &&
+    process.env.USE_WSL_BUILD !== "0" &&
+    fs.existsSync(path.resolve(rootDir, "scripts", "wsl-anchor-build.sh"));
   console.log("Anchor binary:", anchorBin);
   console.log(
     "Collateral mode:",
@@ -148,6 +203,7 @@ async function main() {
   );
   console.log("Anchor deploy step:", skipDeploy ? "skipped" : "enabled");
   console.log("Fresh namespace:", freshNamespace ? "enabled" : "disabled");
+  console.log("WSL build lane:", useWslBuild ? "enabled" : "disabled");
   console.log("RPC URL:", rpcUrl);
   if (rpcSelection.attempts.length > 1) {
     console.log("RPC failover attempts:");
@@ -189,10 +245,20 @@ async function main() {
   if (needsBuild) {
     console.log("Build artifacts missing/stale, running anchor build...");
     try {
-      execSync(`"${anchorBin}" build`, {
-        cwd: rootDir,
-        stdio: "inherit",
-      });
+      if (useWslBuild) {
+        const repoWslPath = toWslPath(rootDir);
+        execSync(`wsl bash -lc "cd '${repoWslPath}' && bash scripts/wsl-anchor-build.sh"`, {
+          cwd: rootDir,
+          stdio: "inherit",
+          env: process.env,
+        });
+      } else {
+        execSync(`"${anchorBin}" build -- --skip-tools-install`, {
+          cwd: rootDir,
+          stdio: "inherit",
+          env: anchorEnv,
+        });
+      }
     } catch {
       console.error("ERROR: `anchor build` failed.");
       process.exit(1);
@@ -201,30 +267,126 @@ async function main() {
     console.log("Build artifacts are up to date, skipping build.");
   }
 
+  // 1b. Pre-deploy: reclaim stale buffers and ensure sufficient SOL
+  const useWslDeploy =
+    process.platform === "win32" &&
+    process.env.USE_WSL_DEPLOY !== "0";
+  const solanaBinWsl = "$HOME/.local/share/solana-2.3.13/active_release/bin";
+  const walletPath = process.env.SOLANA_WALLET || path.resolve(process.env.HOME || process.env.USERPROFILE || "~", ".config", "solana", "id.json");
+  const walletWsl = toWslPath(walletPath);
+
+  if (!skipDeploy) {
+    // Reclaim any stale deploy buffers from previous failed attempts
+    console.log("\nStep 1b: Reclaiming stale deploy buffers...");
+    try {
+      const wslSolana = `${solanaBinWsl}/solana`;
+      const buffersCmd = `${wslSolana} program show --buffers --keypair '${walletWsl}' --url '${rpcUrl}' --output json`;
+      const buffersOut = execSync(
+        useWslDeploy
+          ? `wsl bash -c "${buffersCmd.replace(/"/g, '\\"')}"`
+          : `"${solanaBin}" program show --buffers --url ${rpcUrl} --output json`,
+        { cwd: rootDir, env: process.env, encoding: "utf-8" }
+      ).trim();
+      if (buffersOut) {
+        const buffers = JSON.parse(buffersOut) as Array<{ address: string; lamports: number }>;
+        for (const buf of buffers) {
+          console.log(`  Closing buffer ${buf.address} (${(buf.lamports / LAMPORTS_PER_SOL).toFixed(4)} SOL)...`);
+          try {
+            const closeCmd = `${wslSolana} program close ${buf.address} --keypair '${walletWsl}' --url '${rpcUrl}'`;
+            execSync(
+              useWslDeploy
+                ? `wsl bash -c "${closeCmd.replace(/"/g, '\\"')}"`
+                : `"${solanaBin}" program close ${buf.address} --url ${rpcUrl}`,
+              { cwd: rootDir, stdio: "inherit", env: process.env }
+            );
+          } catch {
+            console.warn(`  Warning: failed to close buffer ${buf.address}, continuing...`);
+          }
+        }
+      }
+    } catch {
+      console.log("  No stale buffers found (or unable to query).");
+    }
+
+    // Check balance and airdrop if needed (deploy needs ~8 SOL for buffer)
+    const DEPLOY_MIN_SOL = 10;
+    const preDeployConnection = new Connection(rpcUrl, "confirmed");
+    const walletKeypairForBalance = Keypair.fromSecretKey(
+      new Uint8Array(JSON.parse(fs.readFileSync(walletPath, "utf-8")))
+    );
+    const preBal = await preDeployConnection.getBalance(walletKeypairForBalance.publicKey);
+    const preBalSol = preBal / LAMPORTS_PER_SOL;
+    console.log(`  Deploy wallet balance: ${preBalSol.toFixed(4)} SOL (need ~${DEPLOY_MIN_SOL})`);
+    if (preBalSol < DEPLOY_MIN_SOL) {
+      const needed = Math.ceil(DEPLOY_MIN_SOL - preBalSol);
+      console.log(`  Airdropping ${needed} SOL in 2-SOL batches...`);
+      for (let i = 0; i < needed; i += 2) {
+        const amount = Math.min(2, needed - i);
+        try {
+          const sig = await preDeployConnection.requestAirdrop(
+            walletKeypairForBalance.publicKey,
+            amount * LAMPORTS_PER_SOL
+          );
+          await preDeployConnection.confirmTransaction(sig);
+          console.log(`  Airdropped ${amount} SOL`);
+        } catch (e: any) {
+          console.warn(`  Airdrop failed: ${e.message || e}. You may need to fund manually.`);
+          break;
+        }
+      }
+      const postBal = await preDeployConnection.getBalance(walletKeypairForBalance.publicKey);
+      console.log(`  Post-airdrop balance: ${(postBal / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
+    }
+  }
+
   // 2. Deploy to devnet
   if (!skipDeploy) {
     console.log("\nStep 2: Deploying to devnet...");
-    try {
-      execSync(`"${anchorBin}" deploy --provider.cluster ${rpcUrl}`, {
-        cwd: rootDir,
-        stdio: "inherit",
-      });
-    } catch (anchorErr: any) {
-      console.warn(
-        `Anchor deploy failed (${String(anchorErr?.message || anchorErr).split("\n")[0]}). ` +
-          "Falling back to direct solana program deploy over RPC..."
-      );
+    console.log("Deploy lane:", useWslDeploy ? "WSL" : "Windows");
+
+    if (useWslDeploy) {
+      // Deploy from WSL using the clean Solana 2.3.13 lane — avoids Windows
+      // networking issues that cause AlreadyProcessed / write failures.
+      const repoWsl = toWslPath(rootDir);
+      const soPathWsl = toWslPath(soPath);
+      const keypairPathWsl = toWslPath(keypairPath);
+      const deployCmdLine = [
+        `${solanaBinWsl}/solana program deploy '${soPathWsl}'`,
+        `--program-id '${keypairPathWsl}'`,
+        `--keypair '${walletWsl}'`,
+        `--url '${rpcUrl}'`,
+        `--use-rpc`,
+        `--with-compute-unit-price 10000`,
+        `--max-sign-attempts 100`,
+      ].join(" ");
+      const wslDeployCmd = `cd '${repoWsl}' && ${deployCmdLine}`;
+
+      try {
+        execSync(`wsl bash -c "${wslDeployCmd.replace(/"/g, '\\"')}"`, {
+          cwd: rootDir,
+          stdio: "inherit",
+          env: process.env,
+        });
+      } catch {
+        console.error("ERROR: WSL deploy failed.");
+        console.error("Check buffer status: wsl bash -c 'solana program show --buffers --url devnet'");
+        process.exit(1);
+      }
+    } else {
+      // Windows deploy lane — use solana.exe directly (skip anchor deploy which
+      // has toolchain issues on this machine)
       try {
         execSync(
-          `"${solanaBin}" program deploy target/deploy/shadowperp.so --program-id target/deploy/shadowperp-keypair.json --url ${rpcUrl} --use-rpc --max-sign-attempts 12`,
+          `"${solanaBin}" program deploy target/deploy/shadowperp.so --program-id target/deploy/shadowperp-keypair.json --url ${rpcUrl} --use-rpc --with-compute-unit-price 10000 --max-sign-attempts 100`,
           {
             cwd: rootDir,
             stdio: "inherit",
+            env: anchorEnv,
           }
         );
       } catch {
-        console.error("ERROR: Deployment failed in both anchor and solana fallback modes.");
-        console.error("Ensure deploy wallet has enough devnet SOL and RPC is not rate limited.");
+        console.error("ERROR: Windows deploy failed.");
+        console.error("Check buffer status with: solana program show --buffers --url devnet");
         process.exit(1);
       }
     }
@@ -243,6 +405,30 @@ async function main() {
   );
   const PROGRAM_ID = programKeypair.publicKey;
   console.log("Program deployed:", PROGRAM_ID.toBase58());
+
+  console.log("Step 2a: Verifying deployed program is visible on RPC...");
+  let deployVisible = false;
+  for (let attempt = 1; attempt <= 10; attempt += 1) {
+    try {
+      const accountInfo = await new Connection(rpcUrl, "confirmed").getAccountInfo(PROGRAM_ID);
+      if (accountInfo?.executable) {
+        deployVisible = true;
+        break;
+      }
+    } catch {
+      // Retry after a short delay if the selected RPC has not caught up yet.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+  }
+  if (!deployVisible) {
+    console.error(
+      `ERROR: Expected deployed program ${PROGRAM_ID.toBase58()} is not visible on ${rpcUrl}.`
+    );
+    console.error(
+      "Stopping before market initialization to avoid writing state against the wrong program id."
+    );
+    process.exit(1);
+  }
 
   // 3. Connect and set up provider
   const connection = new Connection(rpcUrl, "confirmed");
@@ -356,8 +542,13 @@ async function main() {
     process.exit(1);
   }
 
-  // 9. Set initial oracle price (SOL ~$103)
-  console.log("\nStep 7: Setting initial oracle price...");
+  // 9. Skip encrypted OI seeding.
+  // Aggregate OI is no longer maintained through Arcium because MXE-owned
+  // OI ciphertext creation is the observed abort source on devnet.
+  console.log("\nStep 7: Skipping encrypted OI seed.");
+
+  // 10. Set initial oracle price (SOL ~$103)
+  console.log("\nStep 8: Setting initial oracle price...");
   try {
     await program.methods
       .updatePrice(new anchor.BN(103_000_000)) // $103.00 in 1e6 scale
@@ -372,9 +563,9 @@ async function main() {
     console.error("Failed to set price:", e.message);
   }
 
-  // 10. Optionally mint test USDC (mock-only)
+  // 11. Optionally mint test USDC (mock-only)
   if (useMockCollateral) {
-    console.log("\nStep 8: Minting test USDC...");
+    console.log("\nStep 9: Minting test USDC...");
     const deployerAta = await getOrCreateAssociatedTokenAccount(
       connection,
       walletKeypair,
@@ -391,11 +582,11 @@ async function main() {
     );
     console.log("Minted 10,000 USDC to deployer");
   } else {
-    console.log("\nStep 8: Skipping mint (canonical devnet USDC has external faucet/swap routes).");
+    console.log("\nStep 9: Skipping mint (canonical devnet USDC has external faucet/swap routes).");
   }
 
-  // 11. Write .env.local
-  console.log("\nStep 9: Writing app/.env.local...");
+  // 12. Write .env.local
+  console.log("\nStep 10: Writing app/.env.local...");
   const envContent = `NEXT_PUBLIC_SOLANA_RPC_URL=${rpcUrl}
 NEXT_PUBLIC_ARCIUM_RPC_URL=https://devnet.helius-rpc.com
 

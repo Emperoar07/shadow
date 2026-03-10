@@ -57,6 +57,8 @@ Main handlers:
 - `close_position_callback`
 - `check_liquidation`
 - `check_liquidation_callback`
+- `settle_close_position`
+- `settle_liquidation`
 - `deposit_collateral`
 - `withdraw_collateral`
 - `update_price`
@@ -72,6 +74,7 @@ State accounts:
 - `Market`
 - `MarginAccount`
 - `Position`
+- `LiquidationSettlement` (authorized liquidator binding for deferred liquidation settlement)
 - `TradeSession` (owner-approved relayer window with action/margin caps + expiry)
 - optional private orderbook state
 - feature-gated shielded collateral state:

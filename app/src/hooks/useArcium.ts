@@ -273,6 +273,12 @@ function hasUsableRelayAuth(
   return true;
 }
 
+function wasLikelyJustCreated(session: SessionRelayInfo, nowSeconds: number): boolean {
+  const createdAt = Number(session.sessionId);
+  if (!Number.isFinite(createdAt) || createdAt <= 0) return false;
+  return nowSeconds - createdAt <= 90;
+}
+
 async function waitForOpenPositionCallback(
   client: ReturnType<typeof createShadowPerpClient>["client"],
   positionAddress: PublicKey,
@@ -392,6 +398,8 @@ export const useArciumPrivacy = () => {
   const refreshRelaySession = useCallback(async (candidate?: SessionRelayInfo | null) => {
     const current = candidate ?? relaySession;
     if (!current) return null;
+    const currentOwner = current.owner;
+    const currentMarket = current.market;
     if (!publicKey || current.owner !== publicKey.toBase58()) {
       setRelaySession(null);
       return null;
@@ -404,9 +412,19 @@ export const useArciumPrivacy = () => {
       });
       const response = await fetch(`/api/relay/session?${query.toString()}`);
       const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.ok || !payload?.available || payload.exists === false) {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      if (!response.ok || !payload?.ok || !payload?.available) {
+        return current;
+      }
+      if (payload.exists === false) {
+        if (
+          isUsableRelaySession(current, currentOwner, currentMarket, nowSeconds) ||
+          wasLikelyJustCreated(current, nowSeconds)
+        ) {
+          return current;
+        }
         setRelaySession(null);
-        clearStoredSession(current.owner, current.market);
+        clearStoredSession(currentOwner, currentMarket);
         return null;
       }
       if (!payload.session) return current;

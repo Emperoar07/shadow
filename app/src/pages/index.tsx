@@ -15,7 +15,7 @@ export default function LandingPage() {
   // ── Theme init ────────────────────────────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem("shadow-theme");
-    setIsLight(saved !== "dark");
+    setIsLight(saved === "light");
   }, []);
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function LandingPage() {
   }, [isLight]);
 
   const toggleTheme = () => {
-    setIsLight((current) => !(current ?? true));
+    setIsLight((current) => !(current ?? false));
   };
 
   // ── Particle canvas ──────────────────────────────────────────
@@ -121,8 +121,12 @@ export default function LandingPage() {
     return () => { clearTimeout(t); clearInterval(iv); cancelAnimationFrame(rafId); };
   }, []);
 
+  const dark = isLight === false;
+  const themeReady = isLight !== null;
+
   // ── Scroll reveal ────────────────────────────────────────────
   useEffect(() => {
+    if (isLight === null) return;
     const obs = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
@@ -131,9 +135,14 @@ export default function LandingPage() {
       },
       { threshold: 0.12 }
     );
-    document.querySelectorAll(".lp-reveal").forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
-  }, []);
+    const rafId = requestAnimationFrame(() => {
+      document.querySelectorAll(".lp-reveal").forEach((el) => obs.observe(el));
+    });
+    return () => {
+      cancelAnimationFrame(rafId);
+      obs.disconnect();
+    };
+  }, [isLight]);
 
   // ── Mouse motion effects ─────────────────────────────────────
   useEffect(() => {
@@ -188,9 +197,6 @@ export default function LandingPage() {
     };
   }, []);
 
-  const dark = isLight === false;
-  const themeReady = isLight !== null;
-
   return (
     <>
       <Head>
@@ -200,7 +206,6 @@ export default function LandingPage() {
       </Head>
 
       <div
-        key={isLight ? "light" : "dark"}
         className="relative min-h-screen overflow-x-hidden"
         style={{
           background: dark ? "#05081a" : "#f8f9fc",

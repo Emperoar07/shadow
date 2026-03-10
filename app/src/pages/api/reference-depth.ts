@@ -14,8 +14,8 @@ type ErrorResponse = {
 };
 
 const CACHE_TTL_MS = 3_000;
-const DEPTH_LIMIT = 24;
-const TRADE_LIMIT = 18;
+const DEPTH_LIMIT = 60;
+const TRADE_LIMIT = 40;
 
 let cache = new Map<string, { expiresAt: number; payload: ReferenceDepthSnapshot }>();
 

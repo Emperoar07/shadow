@@ -1,21 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
-
-const TV_SYMBOL_CANDIDATES: Record<string, string[]> = {
-  "SOL-PERP": ["BINANCE:SOLUSDT"],
-  "BONK-PERP": ["BINANCE:1000BONKUSDT", "MEXC:BONKUSDT"],
-  "WIF-PERP": ["BINANCE:WIFUSDT", "BYBIT:WIFUSDT"],
-  "JUP-PERP": ["BYBIT:JUPUSDT", "MEXC:JUPUSDT"],
-  "BTC-PERP": ["BINANCE:BTCUSDT"],
-  "ETH-PERP": ["BINANCE:ETHUSDT"],
-  "PYTH-PERP": ["BYBIT:PYTHUSDT", "MEXC:PYTHUSDT"],
-  "RAY-PERP": ["BINANCE:RAYUSDT", "GATEIO:RAYUSDT"],
-  "ORCA-PERP": ["CRYPTO:ORCAUSD", "MEXC:ORCAUSDT"],
-  "W-PERP": ["BINANCE:WUSDT", "BYBIT:WUSDT"],
-  "JTO-PERP": ["BYBIT:JTOUSDT", "MEXC:JTOUSDT"],
-  "RENDER-PERP": ["BINANCE:RENDERUSDT"],
-  "HNT-PERP": ["COINBASE:HNTUSD", "KRAKEN:HNTUSD", "MEXC:HNTUSDT"],
-};
+import { getMarketFeed } from "../lib/market-feeds";
 
 interface PriceChartProps {
   selectedPair?: TradingPair;
@@ -57,8 +42,7 @@ export default function PriceChart({
     [onPairChange]
   );
 
-  const symbolCandidates =
-    TV_SYMBOL_CANDIDATES[activePair.label] ?? [`BINANCE:${activePair.base.symbol}USDT`];
+  const symbolCandidates = getMarketFeed(activePair).tvCandidates;
   const tvSymbol = symbolCandidates[feedIndex] ?? symbolCandidates[0];
   const canSwitchFeed = symbolCandidates.length > 1;
 

@@ -21,14 +21,12 @@ mod close_position_circuit {
     /// locked_margin is revealed only during close settlement so active
     /// positions do not need a plaintext margin slot on-chain.
     #[instruction]
-    pub fn close_position(
+    pub fn close_position_v2(
         position: Enc<Mxe, (u64, u64, u8, bool, u64)>,
         exit_price: u64,
-        market_params: (u8, u16, u16, u64),
-        oi_state: Enc<Mxe, (u64, u64)>,
-    ) -> (i64, u64, u64, u64, Enc<Mxe, (u64, u64)>) {
+        trading_fee_bps: u16,
+    ) -> (i64, u64, u64, u64) {
         let pos = position.to_arcis();
-        let mut oi = oi_state.to_arcis();
 
         // Calculate price delta
         let entry = pos.1 as i64;
@@ -50,7 +48,7 @@ mod close_position_circuit {
 
         // Trading fee on position value
         let position_value = pos.0 * exit_price;
-        let fee = (position_value * market_params.2 as u64) / 10000;
+        let fee = (position_value * trading_fee_bps as u64) / 10000;
 
         // Settlement = margin + pnl - fees
         let margin_i64 = pos.4 as i64;
@@ -64,19 +62,11 @@ mod close_position_circuit {
             0
         };
 
-        // Reduce OI based on direction
-        if pos.3 {
-            oi.0 = if oi.0 >= pos.0 { oi.0 - pos.0 } else { 0 };
-        } else {
-            oi.1 = if oi.1 >= pos.0 { oi.1 - pos.0 } else { 0 };
-        }
-
         (
             realized_pnl.reveal(),
             settlement_amount.reveal(),
             fee.reveal(),
             pos.4.reveal(),
-            oi_state.owner.from_arcis(oi),
         )
     }
 }

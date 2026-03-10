@@ -36,22 +36,21 @@ type InitArgs = {
 
 const DEFAULT_CLUSTER_OFFSET = 456;
 const EXPECTED_SIGNATURES: Record<string, { params: number; outputs: number }> = {
-  // open_position_v2 batched Enc<Shared,(u64,u64,u8,bool,u64)> format (v2 = new comp-def for 15-param layout)
-  open_position_v2: { params: 15, outputs: 4 },
-  // close_position tuple layout with Enc<Mxe,(u64,u64)> OI state
-  close_position: { params: 14, outputs: 7 },
-  // check_liquidation tuple layout
-  check_liquidation: { params: 11, outputs: 3 },
+  // Actual on-chain param counts (from finalized comp-defs)
+  open_position_probe_b: { params: 9, outputs: 1 },
+  close_position_v2: { params: 8, outputs: 4 },
+  seed_open_interest_state_v3: { params: 1, outputs: 4 },
+  // check_liquidation: skip pre-check — will be validated after first finalization
 };
 
 const COMP_DEFS = [
   {
-    circuit: "open_position_v2",
+    circuit: "open_position_probe_b",
     methodName: "initOpenPositionCompDef",
     marketField: "openPositionCompDef",
   },
   {
-    circuit: "close_position",
+    circuit: "close_position_v2",
     methodName: "initClosePositionCompDef",
     marketField: "closePositionCompDef",
   },
@@ -59,6 +58,11 @@ const COMP_DEFS = [
     circuit: "check_liquidation",
     methodName: "initLiquidationCompDef",
     marketField: "liquidationCompDef",
+  },
+  {
+    circuit: "seed_open_interest_state_v3",
+    methodName: "initSeedOpenInterestCompDef",
+    marketField: "seedOpenInterestCompDef",
   },
 ] as const;
 
@@ -524,14 +528,18 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
     refreshedMarket.closePositionCompDef ?? refreshedMarket.close_position_comp_def;
   const liqCompDefPk =
     refreshedMarket.liquidationCompDef ?? refreshedMarket.liquidation_comp_def;
-  console.log("open_position:", openCompDefPk.toBase58());
-  console.log("close_position:", closeCompDefPk.toBase58());
+  const seedOiCompDefPk =
+    refreshedMarket.seedOpenInterestCompDef ?? refreshedMarket.seed_open_interest_comp_def;
+  console.log("open_position_probe_b:", openCompDefPk.toBase58());
+  console.log("close_position_v2:", closeCompDefPk.toBase58());
   console.log("check_liquidation:", liqCompDefPk.toBase58());
+  console.log("seed_open_interest_state_v3:", seedOiCompDefPk.toBase58());
 
   const compDefs = [
-    { label: "open_position", pk: openCompDefPk },
-    { label: "close_position", pk: closeCompDefPk },
+    { label: "open_position_probe_b", pk: openCompDefPk },
+    { label: "close_position_v2", pk: closeCompDefPk },
     { label: "check_liquidation", pk: liqCompDefPk },
+    { label: "seed_open_interest_state_v3", pk: seedOiCompDefPk },
   ];
   console.log("\nComputation definition completion:");
   for (const comp of compDefs) {

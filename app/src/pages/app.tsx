@@ -209,7 +209,7 @@ const SESSION_DURATION_OPTIONS = [
 
 function SessionTimerChip() {
   const { publicKey } = useWallet();
-  const { relaySession, relayAvailable, ensureRelaySession, refreshRelaySession } = useArciumPrivacy();
+  const { relaySession, relayAvailable, ensureRelaySession } = useArciumPrivacy();
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const [isTimerHovered, setIsTimerHovered] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
@@ -238,7 +238,6 @@ function SessionTimerChip() {
     try {
       const session = await ensureRelaySession({ reason: "trade", userInitiated: true, durationSeconds });
       if (!session) throw new Error("Session creation failed.");
-      await refreshRelaySession();
       toast.success("Delegated session active.");
     } catch (error: any) {
       const message =
@@ -249,7 +248,7 @@ function SessionTimerChip() {
     } finally {
       setIsCreatingSession(false);
     }
-  }, [ensureRelaySession, isCreatingSession, refreshRelaySession]);
+  }, [ensureRelaySession, isCreatingSession]);
 
   if (!publicKey) return null;
 
