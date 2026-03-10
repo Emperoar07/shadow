@@ -5234,6 +5234,34 @@ npm run session:relayer:close -- --session-id <ID> --owner <OWNER> --position-in
 1. Open `/` and confirm the theme toggle is in the top nav before `Launch App`.
 2. Open `/app` on a mobile viewport and confirm `Chart`, `Order Book`, and `Trades` all switch correctly.
 
+## Landing Theme Toggle Cleanup (2026-03-10 UTC)
+
+### What changed
+
+- Removed the stale duplicate `Launch App` nav action from the landing page:
+  - `app/src/pages/index.tsx`
+- Kept the theme toggle in the top nav before `Launch App` as the single landing-page theme control.
+- Corrected the session marketing stat copy from the old broken symbol path to:
+  - `50`
+  - `Trades max`
+- Kept the restored footer links:
+  - `Docs` -> GitHub repo
+  - `built by 0xb` -> X
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+
+### Current blocker
+
+- `needs browser check`
+- The landing-page cleanup is code-verified, not visually rechecked in-browser in this pass.
+
+### Next safe step
+
+1. Open `/` and confirm there is only one `Launch App` action in the top nav.
+2. Confirm the theme toggle sits before it and there is no bottom-right landing toggle.
+
 ## Position Card Label + Badge Cleanup (2026-03-10 UTC)
 
 ### What changed

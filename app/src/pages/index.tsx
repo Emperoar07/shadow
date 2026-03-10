@@ -522,9 +522,6 @@ export default function LandingPage() {
             </button>
             <Link href="/app" className="lp-nav-cta">Launch App &rarr;</Link>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <Link href="/app" className="lp-nav-cta">Launch App →</Link>
-          </div>
         </nav>
 
         {/* HERO */}
@@ -631,8 +628,8 @@ export default function LandingPage() {
                 <div className="lp-session-stat-lbl">Wallet sign</div>
               </div>
               <div className="lp-session-stat">
-                <div className="lp-session-stat-val">∞</div>
-                <div className="lp-session-stat-lbl">Trades within cap</div>
+                <div className="lp-session-stat-val">50</div>
+                <div className="lp-session-stat-lbl">Trades max</div>
               </div>
             </div>
           </div>
