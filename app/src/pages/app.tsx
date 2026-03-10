@@ -12,6 +12,7 @@ import {
   RELAY_SESSION_RENEW_BEFORE_SECONDS,
   useArciumPrivacy,
 } from "../hooks/useArcium";
+import { useMarketSnapshot } from "../hooks/useMarketSnapshot";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 
 const NeuralShadowBackground = dynamic(
@@ -35,11 +36,10 @@ const PriceChart = dynamic(() => import("../components/PriceChart"), {
 
 export default function TradingAppPage() {
   const [selectedPair, setSelectedPair] = useState<TradingPair>(TRADING_PAIRS[0]);
-  const [displayPrice, setDisplayPrice] = useState<number | null>(null);
-  const [displayChange24h, setDisplayChange24h] = useState<number | null>(null);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [openCollateralModal, setOpenCollateralModal] = useState<(() => void) | null>(null);
   const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book">("chart");
+  const { snapshot: marketSnapshot } = useMarketSnapshot(selectedPair);
 
   const handleMarginReady = useCallback((balance: number | null, openModal: () => void) => {
     setMarginBalance(balance);
@@ -48,19 +48,8 @@ export default function TradingAppPage() {
 
   const handlePairChange = useCallback((pair: TradingPair) => {
     setSelectedPair(pair);
-    setDisplayPrice(null);
-    setDisplayChange24h(null);
     setMobileMarketTab("chart");
   }, []);
-
-  const handlePriceUpdate = useCallback(
-    (update: { pairLabel: string; price: number; change24h: number | null }) => {
-      if (update.pairLabel !== selectedPair.label) return;
-      setDisplayPrice(update.price);
-      setDisplayChange24h(update.change24h);
-    },
-    [selectedPair.label]
-  );
 
   return (
     <>
@@ -127,8 +116,8 @@ export default function TradingAppPage() {
             {/* Market info bar: pair selector + stats + portfolio stats */}
             <MarketInfo
               pair={selectedPair}
+              snapshot={marketSnapshot}
               onPairChange={handlePairChange}
-              onPriceUpdate={handlePriceUpdate}
               onMarginReady={handleMarginReady}
             />
 
@@ -166,9 +155,7 @@ export default function TradingAppPage() {
                     >
                       <PriceChart
                         selectedPair={selectedPair}
-                        onPairChange={handlePairChange}
-                        displayPrice={displayPrice}
-                        displayChange24h={displayChange24h}
+                        chartSymbol={marketSnapshot.chartSymbol}
                       />
                     </div>
 
@@ -182,7 +169,7 @@ export default function TradingAppPage() {
                     >
                       <PrivateOrderbook
                         pair={selectedPair}
-                        referencePrice={displayPrice}
+                        marketSnapshot={marketSnapshot}
                       />
                     </div>
                   </div>
@@ -243,10 +230,15 @@ const SESSION_DURATION_OPTIONS = [
 
 function SessionTimerChip() {
   const { publicKey } = useWallet();
-  const { relaySession, relayAvailable, ensureRelaySession } = useArciumPrivacy();
+  const {
+    relaySession,
+    relayAvailable,
+    relaySessionMessage,
+    relaySessionState,
+    ensureRelaySession,
+  } = useArciumPrivacy();
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const [isTimerHovered, setIsTimerHovered] = useState(false);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [durationMenuOpen, setDurationMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -266,8 +258,7 @@ function SessionTimerChip() {
   }, []);
 
   const handleStartSession = useCallback(async (durationSeconds: number) => {
-    if (isCreatingSession) return;
-    setIsCreatingSession(true);
+    if (relaySessionState === "creating" || relaySessionState === "reconnecting") return;
     setDurationMenuOpen(false);
     try {
       const session = await ensureRelaySession({ reason: "trade", userInitiated: true, durationSeconds });
@@ -279,10 +270,8 @@ function SessionTimerChip() {
           ? error.message
           : "Failed to start delegated session.";
       toast.error(message);
-    } finally {
-      setIsCreatingSession(false);
     }
-  }, [ensureRelaySession, isCreatingSession]);
+  }, [ensureRelaySession, relaySessionState]);
 
   if (!publicKey) return null;
 
@@ -349,6 +338,15 @@ function SessionTimerChip() {
     );
   }
 
+  const actionLabel =
+    relaySessionState === "creating"
+      ? "Starting..."
+      : relaySessionState === "reconnecting"
+      ? "Reconnecting..."
+      : relaySessionState === "expired"
+      ? "Renew"
+      : "Start";
+
   return (
     <div className="relative" ref={menuRef}>
       <div
@@ -371,10 +369,13 @@ function SessionTimerChip() {
           <button
             type="button"
             onClick={() => setDurationMenuOpen((o) => !o)}
-            disabled={isCreatingSession}
+            disabled={
+              relaySessionState === "creating" ||
+              relaySessionState === "reconnecting"
+            }
             className="underline-offset-2 hover:underline disabled:opacity-60"
           >
-            {isCreatingSession ? "Starting session..." : "Start session"}
+            {relaySessionMessage}
           </button>
         ) : (
           <span>Relay unavailable</span>
@@ -405,16 +406,19 @@ function SessionTimerChip() {
               <animate attributeName="stroke-dashoffset" from="37.7" to="0" dur="3s" repeatCount="indefinite" />
             </circle>
           </svg>
-          <span className="font-medium">{relayAvailable ? "Delegated session" : "Relay unavailable"}</span>
+          <span className="font-medium">{relaySessionMessage}</span>
         </div>
         {relayAvailable && (
           <button
             type="button"
             onClick={() => setDurationMenuOpen((o) => !o)}
-            disabled={isCreatingSession}
+            disabled={
+              relaySessionState === "creating" ||
+              relaySessionState === "reconnecting"
+            }
             className="rounded-md border border-cyan-300/20 bg-black/10 px-3 py-1 text-xs font-semibold text-cyan-100 disabled:opacity-60"
           >
-            {isCreatingSession ? "Starting..." : "Start"}
+            {actionLabel}
           </button>
         )}
       </div>
@@ -427,7 +431,10 @@ function SessionTimerChip() {
               key={opt.label}
               type="button"
               onClick={() => handleStartSession(opt.seconds)}
-              disabled={isCreatingSession}
+              disabled={
+                relaySessionState === "creating" ||
+                relaySessionState === "reconnecting"
+              }
               className="w-full text-left px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:text-white hover:bg-shadow-700/60 transition-colors disabled:opacity-40"
             >
               {opt.label}

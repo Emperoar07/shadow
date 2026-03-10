@@ -1,23 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
-import { getMarketFeed } from "../lib/market-feeds";
+import { useEffect, useMemo, useState } from "react";
+import type { TradingPair } from "../lib/tokens";
 
 interface PriceChartProps {
-  selectedPair?: TradingPair;
-  onPairChange?: (pair: TradingPair) => void;
-  displayPrice?: number | null;
-  displayChange24h?: number | null;
+  selectedPair: TradingPair;
+  chartSymbol: string;
 }
 
 export default function PriceChart({
   selectedPair,
-  onPairChange,
-  displayPrice,
-  displayChange24h,
+  chartSymbol,
 }: PriceChartProps) {
-  const [activePair, setActivePair] = useState<TradingPair>(selectedPair ?? TRADING_PAIRS[0]);
   const [isLoading, setIsLoading] = useState(true);
-  const [feedIndex, setFeedIndex] = useState(0);
   const [tvTheme, setTvTheme] = useState<"dark" | "light">("dark");
 
   useEffect(() => {
@@ -30,39 +23,12 @@ export default function PriceChart({
   }, []);
 
   useEffect(() => {
-    if (selectedPair) setActivePair(selectedPair);
-  }, [selectedPair]);
-
-  const handlePairChange = useCallback(
-    (pair: TradingPair) => {
-      setActivePair(pair);
-      setFeedIndex(0);
-      onPairChange?.(pair);
-    },
-    [onPairChange]
-  );
-
-  const symbolCandidates = getMarketFeed(activePair).tvCandidates;
-  const tvSymbol = symbolCandidates[feedIndex] ?? symbolCandidates[0];
-  const canSwitchFeed = symbolCandidates.length > 1;
-
-  useEffect(() => {
     setIsLoading(true);
-  }, [tvSymbol]);
-
-  useEffect(() => {
-    if (!canSwitchFeed) return;
-    const timeout = setTimeout(() => {
-      if (isLoading) {
-        setFeedIndex((prev) => (prev + 1) % symbolCandidates.length);
-      }
-    }, 8000);
-    return () => clearTimeout(timeout);
-  }, [tvSymbol, isLoading, canSwitchFeed, symbolCandidates.length]);
+  }, [chartSymbol]);
 
   const iframeSrc = useMemo(() => {
     const params = new URLSearchParams({
-      symbol: tvSymbol,
+      symbol: chartSymbol,
       interval: "15",
       theme: tvTheme,
       style: "1",
@@ -74,7 +40,7 @@ export default function PriceChart({
       saveimage: "0",
     });
     return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
-  }, [tvSymbol, tvTheme]);
+  }, [chartSymbol, tvTheme]);
 
   return (
     <div className="trade-price-chart flex flex-col h-full min-h-0">
@@ -99,18 +65,18 @@ export default function PriceChart({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              <span className="text-sm text-gray-400">Loading {activePair.label} chart...</span>
+              <span className="text-sm text-gray-400">Loading {selectedPair.label} chart...</span>
             </div>
           </div>
         )}
 
         <iframe
-          key={tvSymbol}
+          key={chartSymbol}
           src={iframeSrc}
           className="w-full h-full"
           frameBorder="0"
           allowFullScreen
-          title={`${activePair.label} chart`}
+          title={`${selectedPair.label} chart`}
           onLoad={() => setIsLoading(false)}
         />
 

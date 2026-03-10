@@ -15,17 +15,21 @@ export interface ReferenceProviderConfig {
 }
 
 export interface MarketFeedConfig {
-  tvCandidates: string[];
-  primaryProvider: MarketFeedProvider;
-  primarySymbol: string;
+  primaryChartSymbol: string;
+  primaryDepthProvider: MarketFeedProvider;
+  secondaryDepthProvider?: MarketFeedProvider;
+  minVisibleLevels: number;
+  preferredGrouping: number;
   referenceProviders: ReferenceProviderConfig[];
 }
 
 const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
   "SOL-PERP": {
-    tvCandidates: ["BINANCE:SOLUSDT"],
-    primaryProvider: "binance",
-    primarySymbol: "SOLUSDT",
+    primaryChartSymbol: "BINANCE:SOLUSDT",
+    primaryDepthProvider: "binance",
+    secondaryDepthProvider: "coinbase",
+    minVisibleLevels: 16,
+    preferredGrouping: 0.1,
     referenceProviders: [
       { provider: "binance", symbol: "SOLUSDT", quoteSymbol: "USDT" },
       { provider: "coinbase", symbol: "SOL-USD", quoteSymbol: "USD" },
@@ -33,9 +37,11 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "WIF-PERP": {
-    tvCandidates: ["BINANCE:WIFUSDT", "BYBIT:WIFUSDT"],
-    primaryProvider: "binance",
-    primarySymbol: "WIFUSDT",
+    primaryChartSymbol: "BINANCE:WIFUSDT",
+    primaryDepthProvider: "binance",
+    secondaryDepthProvider: "bybit",
+    minVisibleLevels: 14,
+    preferredGrouping: 0.001,
     referenceProviders: [
       { provider: "binance", symbol: "WIFUSDT", quoteSymbol: "USDT" },
       { provider: "bybit", symbol: "WIFUSDT", quoteSymbol: "USDT" },
@@ -43,9 +49,11 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "JUP-PERP": {
-    tvCandidates: ["BYBIT:JUPUSDT", "MEXC:JUPUSDT"],
-    primaryProvider: "bybit",
-    primarySymbol: "JUPUSDT",
+    primaryChartSymbol: "BYBIT:JUPUSDT",
+    primaryDepthProvider: "bybit",
+    secondaryDepthProvider: "mexc",
+    minVisibleLevels: 14,
+    preferredGrouping: 0.001,
     referenceProviders: [
       { provider: "bybit", symbol: "JUPUSDT", quoteSymbol: "USDT" },
       { provider: "mexc", symbol: "JUPUSDT", quoteSymbol: "USDT" },
@@ -53,9 +61,11 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "BTC-PERP": {
-    tvCandidates: ["BINANCE:BTCUSDT"],
-    primaryProvider: "binance",
-    primarySymbol: "BTCUSDT",
+    primaryChartSymbol: "BINANCE:BTCUSDT",
+    primaryDepthProvider: "binance",
+    secondaryDepthProvider: "coinbase",
+    minVisibleLevels: 16,
+    preferredGrouping: 1,
     referenceProviders: [
       { provider: "binance", symbol: "BTCUSDT", quoteSymbol: "USDT" },
       { provider: "coinbase", symbol: "BTC-USD", quoteSymbol: "USD" },
@@ -63,9 +73,11 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "ETH-PERP": {
-    tvCandidates: ["BINANCE:ETHUSDT"],
-    primaryProvider: "binance",
-    primarySymbol: "ETHUSDT",
+    primaryChartSymbol: "BINANCE:ETHUSDT",
+    primaryDepthProvider: "binance",
+    secondaryDepthProvider: "coinbase",
+    minVisibleLevels: 16,
+    preferredGrouping: 0.5,
     referenceProviders: [
       { provider: "binance", symbol: "ETHUSDT", quoteSymbol: "USDT" },
       { provider: "coinbase", symbol: "ETH-USD", quoteSymbol: "USD" },
@@ -73,9 +85,11 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "PYTH-PERP": {
-    tvCandidates: ["BYBIT:PYTHUSDT", "MEXC:PYTHUSDT"],
-    primaryProvider: "bybit",
-    primarySymbol: "PYTHUSDT",
+    primaryChartSymbol: "BYBIT:PYTHUSDT",
+    primaryDepthProvider: "bybit",
+    secondaryDepthProvider: "mexc",
+    minVisibleLevels: 14,
+    preferredGrouping: 0.001,
     referenceProviders: [
       { provider: "bybit", symbol: "PYTHUSDT", quoteSymbol: "USDT" },
       { provider: "mexc", symbol: "PYTHUSDT", quoteSymbol: "USDT" },
@@ -83,9 +97,11 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "RAY-PERP": {
-    tvCandidates: ["BINANCE:RAYUSDT", "GATEIO:RAYUSDT"],
-    primaryProvider: "binance",
-    primarySymbol: "RAYUSDT",
+    primaryChartSymbol: "BINANCE:RAYUSDT",
+    primaryDepthProvider: "binance",
+    secondaryDepthProvider: "gateio",
+    minVisibleLevels: 14,
+    preferredGrouping: 0.001,
     referenceProviders: [
       { provider: "binance", symbol: "RAYUSDT", quoteSymbol: "USDT" },
       { provider: "gateio", symbol: "RAY_USDT", quoteSymbol: "USDT" },
@@ -93,18 +109,22 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "ORCA-PERP": {
-    tvCandidates: ["MEXC:ORCAUSDT", "GATEIO:ORCA_USDT"],
-    primaryProvider: "mexc",
-    primarySymbol: "ORCAUSDT",
+    primaryChartSymbol: "MEXC:ORCAUSDT",
+    primaryDepthProvider: "mexc",
+    secondaryDepthProvider: "gateio",
+    minVisibleLevels: 14,
+    preferredGrouping: 0.001,
     referenceProviders: [
       { provider: "mexc", symbol: "ORCAUSDT", quoteSymbol: "USDT" },
       { provider: "gateio", symbol: "ORCA_USDT", quoteSymbol: "USDT" },
     ],
   },
   "W-PERP": {
-    tvCandidates: ["BINANCE:WUSDT", "BYBIT:WUSDT"],
-    primaryProvider: "binance",
-    primarySymbol: "WUSDT",
+    primaryChartSymbol: "BINANCE:WUSDT",
+    primaryDepthProvider: "binance",
+    secondaryDepthProvider: "bybit",
+    minVisibleLevels: 14,
+    preferredGrouping: 0.001,
     referenceProviders: [
       { provider: "binance", symbol: "WUSDT", quoteSymbol: "USDT" },
       { provider: "bybit", symbol: "WUSDT", quoteSymbol: "USDT" },
@@ -112,9 +132,11 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "JTO-PERP": {
-    tvCandidates: ["BYBIT:JTOUSDT", "MEXC:JTOUSDT"],
-    primaryProvider: "bybit",
-    primarySymbol: "JTOUSDT",
+    primaryChartSymbol: "BYBIT:JTOUSDT",
+    primaryDepthProvider: "bybit",
+    secondaryDepthProvider: "mexc",
+    minVisibleLevels: 14,
+    preferredGrouping: 0.001,
     referenceProviders: [
       { provider: "bybit", symbol: "JTOUSDT", quoteSymbol: "USDT" },
       { provider: "mexc", symbol: "JTOUSDT", quoteSymbol: "USDT" },
@@ -122,23 +144,15 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "RENDER-PERP": {
-    tvCandidates: ["BINANCE:RENDERUSDT"],
-    primaryProvider: "binance",
-    primarySymbol: "RENDERUSDT",
+    primaryChartSymbol: "BINANCE:RENDERUSDT",
+    primaryDepthProvider: "binance",
+    secondaryDepthProvider: "gateio",
+    minVisibleLevels: 14,
+    preferredGrouping: 0.001,
     referenceProviders: [
       { provider: "binance", symbol: "RENDERUSDT", quoteSymbol: "USDT" },
       { provider: "gateio", symbol: "RENDER_USDT", quoteSymbol: "USDT" },
       { provider: "mexc", symbol: "RENDERUSDT", quoteSymbol: "USDT" },
-    ],
-  },
-  "HNT-PERP": {
-    tvCandidates: ["MEXC:HNTUSDT", "COINBASE:HNTUSD", "KRAKEN:HNTUSD"],
-    primaryProvider: "mexc",
-    primarySymbol: "HNTUSDT",
-    referenceProviders: [
-      { provider: "mexc", symbol: "HNTUSDT", quoteSymbol: "USDT" },
-      { provider: "coinbase", symbol: "HNT-USD", quoteSymbol: "USD" },
-      { provider: "kraken", symbol: "HNTUSD", quoteSymbol: "USD" },
     ],
   },
 };
@@ -146,12 +160,41 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
 export function getMarketFeed(pair: TradingPair): MarketFeedConfig {
   return (
     MARKET_FEEDS[pair.label] ?? {
-      tvCandidates: [`BINANCE:${pair.base.symbol}USDT`],
-      primaryProvider: "binance",
-      primarySymbol: `${pair.base.symbol}USDT`,
+      primaryChartSymbol: `BINANCE:${pair.base.symbol}USDT`,
+      primaryDepthProvider: "binance",
+      secondaryDepthProvider: undefined,
+      minVisibleLevels: 12,
+      preferredGrouping: 0.01,
       referenceProviders: [
         { provider: "binance", symbol: `${pair.base.symbol}USDT`, quoteSymbol: "USDT" },
       ],
     }
   );
+}
+
+export function getOrderedReferenceProviders(pair: TradingPair): ReferenceProviderConfig[] {
+  const feed = getMarketFeed(pair);
+  const providerOrder = [feed.primaryDepthProvider, feed.secondaryDepthProvider].filter(
+    (provider): provider is MarketFeedProvider => Boolean(provider)
+  );
+  const seen = new Set<string>();
+  const ordered: ReferenceProviderConfig[] = [];
+
+  for (const provider of providerOrder) {
+    const match = feed.referenceProviders.find((candidate) => candidate.provider === provider);
+    if (!match) continue;
+    const key = `${match.provider}:${match.symbol}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ordered.push(match);
+  }
+
+  for (const candidate of feed.referenceProviders) {
+    const key = `${candidate.provider}:${candidate.symbol}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ordered.push(candidate);
+  }
+
+  return ordered;
 }

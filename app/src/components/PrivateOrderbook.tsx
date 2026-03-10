@@ -2,54 +2,50 @@ import { useEffect, useRef, useState } from "react";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import {
   getDefaultGrouping,
+  getDepthPresentation,
   formatPrice,
   formatSize,
   formatTime,
   getGroupingOptions,
   groupLevelsAdaptive,
-  type ReferenceDepthSnapshot,
   type GroupedReferenceLevel,
+  type ReferenceDepthSnapshot,
   type ReferenceTrade,
 } from "../lib/reference-depth";
+import type { MarketSnapshot } from "../hooks/useMarketSnapshot";
 
 interface PrivateOrderbookProps {
-  pair?: TradingPair;
-  referencePrice?: number | null;
+  pair: TradingPair;
+  marketSnapshot: MarketSnapshot;
   className?: string;
   activeTab?: "book" | "trades";
   onTabChange?: (tab: "book" | "trades") => void;
 }
 
-function priceForGrouping(snapshot: ReferenceDepthSnapshot | null, referencePrice?: number | null): number | null {
-  if (snapshot?.lastTrade?.price) return snapshot.lastTrade.price;
-  if (snapshot?.bids?.[0]?.price && snapshot?.asks?.[0]?.price) {
-    return (snapshot.bids[0].price + snapshot.asks[0].price) / 2;
-  }
-  return referencePrice ?? null;
-}
-
 export default function PrivateOrderbook({
   pair,
-  referencePrice,
+  marketSnapshot,
   className = "",
   activeTab,
   onTabChange,
 }: PrivateOrderbookProps) {
   const [internalTab, setInternalTab] = useState<"book" | "trades">("book");
-  const [snapshot, setSnapshot] = useState<ReferenceDepthSnapshot | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null);
   const [groupingOpen, setGroupingOpen] = useState(false);
   const groupingRef = useRef<HTMLDivElement>(null);
 
   const activePair = pair ?? TRADING_PAIRS[0];
   const tab = activeTab ?? internalTab;
-  const currentReferencePrice = priceForGrouping(snapshot, referencePrice);
+  const snapshot = marketSnapshot.depthSnapshot;
+  const currentReferencePrice = marketSnapshot.last ?? marketSnapshot.mid;
+  const depthPresentation = getDepthPresentation(activePair);
   const groupingOptions = getGroupingOptions(currentReferencePrice);
-  const [grouping, setGrouping] = useState(getDefaultGrouping(currentReferencePrice));
+  const [grouping, setGrouping] = useState(
+    depthPresentation.preferredGrouping ?? getDefaultGrouping(currentReferencePrice)
+  );
 
   useEffect(() => {
-    setGrouping(getDefaultGrouping(priceForGrouping(snapshot, referencePrice)));
-  }, [activePair.label]);
+    setGrouping(depthPresentation.preferredGrouping ?? getDefaultGrouping(currentReferencePrice));
+  }, [activePair.label, currentReferencePrice, depthPresentation.preferredGrouping]);
 
   useEffect(() => {
     if (!activeTab) {
@@ -60,9 +56,9 @@ export default function PrivateOrderbook({
   useEffect(() => {
     const nextOptions = getGroupingOptions(currentReferencePrice);
     if (!nextOptions.includes(grouping)) {
-      setGrouping(getDefaultGrouping(currentReferencePrice));
+      setGrouping(depthPresentation.preferredGrouping ?? getDefaultGrouping(currentReferencePrice));
     }
-  }, [currentReferencePrice, grouping]);
+  }, [currentReferencePrice, depthPresentation.preferredGrouping, grouping]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -74,36 +70,6 @@ export default function PrivateOrderbook({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const response = await fetch(`/api/reference-depth?pair=${encodeURIComponent(activePair.label)}`, {
-          signal: AbortSignal.timeout(6_000),
-        });
-        if (!response.ok) {
-          throw new Error("Reference depth unavailable");
-        }
-
-        const payload = (await response.json()) as ReferenceDepthSnapshot;
-        if (cancelled) return;
-        setSnapshot(payload);
-        setFetchError(null);
-      } catch (error: any) {
-        if (cancelled) return;
-        setFetchError(typeof error?.message === "string" ? error.message : "Reference depth unavailable");
-      }
-    };
-
-    load();
-    const id = window.setInterval(load, 4_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [activePair.label]);
-
   const quoteSymbol = snapshot?.quoteSymbol ?? activePair.quote.symbol;
   const baseSymbol = activePair.base.symbol;
   const groupedAsks = groupLevelsAdaptive(
@@ -112,7 +78,7 @@ export default function PrivateOrderbook({
     grouping,
     "asks",
     24,
-    12
+    depthPresentation.minVisibleLevels
   );
   const groupedBids = groupLevelsAdaptive(
     snapshot?.bids ?? [],
@@ -120,7 +86,7 @@ export default function PrivateOrderbook({
     grouping,
     "bids",
     24,
-    12
+    depthPresentation.minVisibleLevels
   );
   const trades = snapshot?.trades ?? [];
 
@@ -197,14 +163,14 @@ export default function PrivateOrderbook({
                 </div>
               </div>
 
-              {fetchError ? (
+              {!snapshot ? (
                 <div className="flex flex-1 items-center justify-center px-4 text-center text-[11px] text-gray-500">
-                  {fetchError}
+                  Reference depth unavailable
                 </div>
               ) : (
                 <>
                   <BookSide levels={groupedAsks} tone="ask" />
-                  <SpreadRow snapshot={snapshot} referencePrice={referencePrice} />
+                  <SpreadRow snapshot={snapshot} referencePrice={marketSnapshot.last} />
                   <BookSide levels={groupedBids} tone="bid" />
                 </>
               )}
