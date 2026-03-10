@@ -10,30 +10,22 @@ export default function LandingPage() {
   const orb3Ref = useRef<HTMLDivElement>(null);
   const orb4Ref = useRef<HTMLDivElement>(null);
   const decryptRef = useRef<HTMLSpanElement>(null);
-  const [isLight, setIsLight] = useState(true);
+  const [isLight, setIsLight] = useState<boolean | null>(null);
 
   // ── Theme init ────────────────────────────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem("shadow-theme");
-    const light = saved !== "dark"; // default to light
-    setIsLight(light);
-    if (light) {
-      document.documentElement.classList.add("light");
-      if (!saved) localStorage.setItem("shadow-theme", "light");
-    } else {
-      document.documentElement.classList.remove("light");
-    }
+    setIsLight(saved !== "dark");
   }, []);
 
+  useEffect(() => {
+    if (isLight === null) return;
+    localStorage.setItem("shadow-theme", isLight ? "light" : "dark");
+    document.documentElement.classList.toggle("light", isLight);
+  }, [isLight]);
+
   const toggleTheme = () => {
-    const next = !isLight;
-    setIsLight(next);
-    localStorage.setItem("shadow-theme", next ? "light" : "dark");
-    if (next) {
-      document.documentElement.classList.add("light");
-      return;
-    }
-    document.documentElement.classList.remove("light");
+    setIsLight((current) => !(current ?? true));
   };
 
   // ── Particle canvas ──────────────────────────────────────────
@@ -196,7 +188,8 @@ export default function LandingPage() {
     };
   }, []);
 
-  const dark = !isLight;
+  const dark = isLight === false;
+  const themeReady = isLight !== null;
 
   return (
     <>
@@ -206,7 +199,15 @@ export default function LandingPage() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div className="relative min-h-screen overflow-x-hidden" style={{ background: dark ? "#05081a" : "#f8f9fc", color: dark ? "#e2e8f0" : "#0f172a" }}>
+      <div
+        key={isLight ? "light" : "dark"}
+        className="relative min-h-screen overflow-x-hidden"
+        style={{
+          background: dark ? "#05081a" : "#f8f9fc",
+          color: dark ? "#e2e8f0" : "#0f172a",
+          visibility: themeReady ? "visible" : "hidden",
+        }}
+      >
         <style jsx global>{`
           .lp-grid-bg {
             position: fixed; inset: 0; z-index: 0; pointer-events: none;
@@ -239,9 +240,9 @@ export default function LandingPage() {
             position: fixed; top: 0; left: 0; right: 0; z-index: 100;
             padding: 0 40px; height: 64px;
             display: flex; align-items: center; justify-content: space-between;
-            background: ${dark ? "transparent" : "rgba(248,249,252,.88)"};
-            backdrop-filter: ${dark ? "none" : "blur(12px)"};
-            border-bottom: ${dark ? "none" : "1px solid rgba(221,226,238,.6)"};
+            background: transparent;
+            backdrop-filter: none;
+            border-bottom: none;
           }
           .lp-nav-logo { display:flex;align-items:center;gap:10px;text-decoration:none;transition:transform .15s ease,filter .15s ease;user-select:none }
           .lp-nav-logo:active { transform:scale(0.88);filter:drop-shadow(0 0 14px rgba(139,92,246,.8)) }
@@ -638,7 +639,7 @@ export default function LandingPage() {
         <footer className="lp-footer">
           <span>© 2026 Shadow. Built on Solana &amp; Arcium.</span>
           <span style={{ display: "flex", gap: "20px" }}>
-            <a href="#">Twitter</a>
+            <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer">built by 0xb</a>
             <a href="#">Discord</a>
             <a href="#">Docs</a>
           </span>
