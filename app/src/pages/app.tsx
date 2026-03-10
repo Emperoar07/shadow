@@ -12,6 +12,7 @@ import {
   RELAY_SESSION_RENEW_BEFORE_SECONDS,
   useArciumPrivacy,
 } from "../hooks/useArcium";
+import { useMarketSnapshot } from "../hooks/useMarketSnapshot";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 
 const NeuralShadowBackground = dynamic(
@@ -35,11 +36,10 @@ const PriceChart = dynamic(() => import("../components/PriceChart"), {
 
 export default function TradingAppPage() {
   const [selectedPair, setSelectedPair] = useState<TradingPair>(TRADING_PAIRS[0]);
-  const [displayPrice, setDisplayPrice] = useState<number | null>(null);
-  const [displayChange24h, setDisplayChange24h] = useState<number | null>(null);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [openCollateralModal, setOpenCollateralModal] = useState<(() => void) | null>(null);
   const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book">("chart");
+  const { snapshot: marketSnapshot } = useMarketSnapshot(selectedPair);
 
   const handleMarginReady = useCallback((balance: number | null, openModal: () => void) => {
     setMarginBalance(balance);
@@ -48,19 +48,8 @@ export default function TradingAppPage() {
 
   const handlePairChange = useCallback((pair: TradingPair) => {
     setSelectedPair(pair);
-    setDisplayPrice(null);
-    setDisplayChange24h(null);
     setMobileMarketTab("chart");
   }, []);
-
-  const handlePriceUpdate = useCallback(
-    (update: { pairLabel: string; price: number; change24h: number | null }) => {
-      if (update.pairLabel !== selectedPair.label) return;
-      setDisplayPrice(update.price);
-      setDisplayChange24h(update.change24h);
-    },
-    [selectedPair.label]
-  );
 
   return (
     <>
@@ -127,8 +116,8 @@ export default function TradingAppPage() {
             {/* Market info bar: pair selector + stats + portfolio stats */}
             <MarketInfo
               pair={selectedPair}
+              snapshot={marketSnapshot}
               onPairChange={handlePairChange}
-              onPriceUpdate={handlePriceUpdate}
               onMarginReady={handleMarginReady}
             />
 
@@ -166,9 +155,7 @@ export default function TradingAppPage() {
                     >
                       <PriceChart
                         selectedPair={selectedPair}
-                        onPairChange={handlePairChange}
-                        displayPrice={displayPrice}
-                        displayChange24h={displayChange24h}
+                        chartSymbol={marketSnapshot.chartSymbol}
                       />
                     </div>
 
@@ -182,7 +169,7 @@ export default function TradingAppPage() {
                     >
                       <PrivateOrderbook
                         pair={selectedPair}
-                        referencePrice={displayPrice}
+                        marketSnapshot={marketSnapshot}
                       />
                     </div>
                   </div>

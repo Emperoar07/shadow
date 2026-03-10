@@ -6,6 +6,30 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-03-07 (UTC)
 - Author: Codex
 
+## Reapplied `0f2bf62` + `7b714de` Safely (2026-03-10 UTC)
+- Scope:
+  - reintroduce:
+    - `0f2bf62` Harden market routing and session UX
+    - `7b714de` Tighten pair feeds and mobile trading UI
+- What changed:
+  1. Reapplied both commits on top of the reverted branch via cherry-pick.
+  2. Resolved overlap by keeping the intended newer market-data path:
+     - restored `app/src/hooks/useMarketSnapshot.ts`
+     - restored deterministic `app/src/lib/market-feeds.ts`
+     - switched `app/src/pages/app.tsx` back to the shared snapshot flow
+     - updated `app/src/components/PrivateOrderbook.tsx` to accept shared `marketSnapshot`
+  3. Kept `app/src/pages/terminal-v2.tsx` deleted as a dead product branch.
+  4. Active pair surface now excludes `BONK-PERP` and `HNT-PERP`.
+- What was verified:
+  - `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+  - `npm run oracle:once` -> PASS
+- Current blocker:
+  - `stale oracle`
+  - immediate `npm run check:preflight` still reports old oracle age on public devnet right after the publish tx; this looks like RPC freshness lag, not a code failure
+- Next safe step:
+  1. Push the reconciliation commit so remote `master` includes the reapplied pair-feed/mobile UX changes.
+  2. If needed, rerun preflight on a healthier RPC or after RPC state catches up.
+
 ## Mobile Trading Tabs + Reference Depth Coverage + Landing Theme Toggle Fixes (2026-03-10 UTC)
 - Scope:
   - `app/src/pages/app.tsx`

@@ -11,9 +11,11 @@ import {
   type GroupedReferenceLevel,
   type ReferenceTrade,
 } from "../lib/reference-depth";
+import type { MarketSnapshot } from "../hooks/useMarketSnapshot";
 
 interface PrivateOrderbookProps {
   pair?: TradingPair;
+  marketSnapshot?: MarketSnapshot;
   referencePrice?: number | null;
   className?: string;
   activeTab?: "book" | "trades";
@@ -30,19 +32,20 @@ function priceForGrouping(snapshot: ReferenceDepthSnapshot | null, referencePric
 
 export default function PrivateOrderbook({
   pair,
+  marketSnapshot,
   referencePrice,
   className = "",
   activeTab,
   onTabChange,
 }: PrivateOrderbookProps) {
   const [internalTab, setInternalTab] = useState<"book" | "trades">("book");
-  const [snapshot, setSnapshot] = useState<ReferenceDepthSnapshot | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [groupingOpen, setGroupingOpen] = useState(false);
   const groupingRef = useRef<HTMLDivElement>(null);
 
   const activePair = pair ?? TRADING_PAIRS[0];
   const tab = activeTab ?? internalTab;
+  const snapshot: ReferenceDepthSnapshot | null = marketSnapshot?.depthSnapshot ?? null;
   const currentReferencePrice = priceForGrouping(snapshot, referencePrice);
   const groupingOptions = getGroupingOptions(currentReferencePrice);
   const [grouping, setGrouping] = useState(getDefaultGrouping(currentReferencePrice));
@@ -75,34 +78,14 @@ export default function PrivateOrderbook({
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const response = await fetch(`/api/reference-depth?pair=${encodeURIComponent(activePair.label)}`, {
-          signal: AbortSignal.timeout(6_000),
-        });
-        if (!response.ok) {
-          throw new Error("Reference depth unavailable");
-        }
-
-        const payload = (await response.json()) as ReferenceDepthSnapshot;
-        if (cancelled) return;
-        setSnapshot(payload);
-        setFetchError(null);
-      } catch (error: any) {
-        if (cancelled) return;
-        setFetchError(typeof error?.message === "string" ? error.message : "Reference depth unavailable");
-      }
-    };
-
-    load();
-    const id = window.setInterval(load, 4_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [activePair.label]);
+    if (marketSnapshot?.depthSnapshot) {
+      setFetchError(null);
+      return;
+    }
+    if (marketSnapshot) {
+      setFetchError("Reference depth unavailable");
+    }
+  }, [marketSnapshot]);
 
   const quoteSymbol = snapshot?.quoteSymbol ?? activePair.quote.symbol;
   const baseSymbol = activePair.base.symbol;
