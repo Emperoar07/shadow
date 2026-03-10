@@ -42,25 +42,15 @@ function buildSnapshot(
     bestBid !== null && bestAsk !== null ? (bestBid + bestAsk) / 2 : null;
   const lastTradePrice = positiveFiniteOrNull(depthSnapshot?.lastTrade?.price);
   const liveLast = positiveFiniteOrNull(livePrice?.price);
-  const depthStats = depthSnapshot?.stats24h ?? null;
   const last = lastTradePrice ?? mid ?? liveLast ?? pair.mockPrice;
 
   return {
     pairLabel: pair.label,
     last,
-    change24h:
-      finiteOrNull(livePrice?.change24h) ??
-      finiteOrNull(depthStats?.change24h) ??
-      pair.mockPriceChange,
-    volume24h:
-      finiteOrNull(livePrice?.volume24h) ??
-      finiteOrNull(depthStats?.volume24h),
-    high24h:
-      positiveFiniteOrNull(livePrice?.high24h) ??
-      positiveFiniteOrNull(depthStats?.high24h),
-    low24h:
-      positiveFiniteOrNull(livePrice?.low24h) ??
-      positiveFiniteOrNull(depthStats?.low24h),
+    change24h: finiteOrNull(livePrice?.change24h) ?? pair.mockPriceChange,
+    volume24h: finiteOrNull(livePrice?.volume24h),
+    high24h: positiveFiniteOrNull(livePrice?.high24h),
+    low24h: positiveFiniteOrNull(livePrice?.low24h),
     bestBid,
     bestAsk,
     mid,
