@@ -8,6 +8,8 @@ export enum PositionStatus {
   Closing = 2,
   Closed = 3,
   Liquidated = 4,
+  ClosedPendingSettlement = 5,
+  LiquidatedPendingSettlement = 6,
 }
 
 // Position direction
@@ -56,6 +58,7 @@ export interface Market {
   openPositionCompDef: PublicKey;
   closePositionCompDef: PublicKey;
   liquidationCompDef: PublicKey;
+  seedOpenInterestCompDef: PublicKey;
 }
 
 // Margin account state

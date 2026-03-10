@@ -13,8 +13,8 @@ import {
 } from "@solana/wallet-adapter-wallets";
 import { Toaster } from "react-hot-toast";
 import {
-  getRpcEndpoint,
-  getRpcEndpoints,
+  getRpcTransport,
+  getRpcTransports,
   RPC_CHANGED_EVENT,
   setPreferredRpcIndex,
 } from "../lib/runtime";
@@ -27,8 +27,8 @@ if (typeof window !== "undefined" && !(globalThis as any).Buffer) {
 }
 
 export default function App({ Component, pageProps }: AppProps) {
-  const endpoints = useMemo(() => getRpcEndpoints(), []);
-  const [endpoint, setEndpoint] = useState<string>(() => getRpcEndpoint());
+  const transports = useMemo(() => getRpcTransports(), []);
+  const [transport, setTransport] = useState(() => getRpcTransport());
   const lastSwitchAtRef = useRef<number>(0);
 
   const probeEndpoint = useCallback(async (url: string): Promise<number> => {
@@ -45,15 +45,15 @@ export default function App({ Component, pageProps }: AppProps) {
 
   const autoSelectBestRpc = useCallback(
     async (reason: "startup" | "interval") => {
-      if (endpoints.length < 2) return;
+      if (transports.length < 2) return;
 
       const checks = await Promise.all(
-        endpoints.map(async (url, idx) => {
+        transports.map(async ({ rpc }, idx) => {
           try {
-            const latencyMs = await probeEndpoint(url);
-            return { idx, url, ok: true as const, latencyMs };
+            const latencyMs = await probeEndpoint(rpc);
+            return { idx, rpc, ok: true as const, latencyMs };
           } catch {
-            return { idx, url, ok: false as const, latencyMs: Number.POSITIVE_INFINITY };
+            return { idx, rpc, ok: false as const, latencyMs: Number.POSITIVE_INFINITY };
           }
         })
       );
@@ -63,7 +63,10 @@ export default function App({ Component, pageProps }: AppProps) {
 
       healthy.sort((a, b) => a.latencyMs - b.latencyMs);
       const best = healthy[0];
-      const currentIndex = Math.max(0, endpoints.indexOf(endpoint));
+      const currentIndex = Math.max(
+        0,
+        transports.findIndex((entry) => entry.rpc === transport.rpc)
+      );
       const current = checks[currentIndex];
 
       if (currentIndex === best.idx) return;
@@ -83,31 +86,31 @@ export default function App({ Component, pageProps }: AppProps) {
       if (!shouldSwitch) return;
 
       setPreferredRpcIndex(best.idx);
-      setEndpoint(best.url);
+      setTransport(transports[best.idx]);
       lastSwitchAtRef.current = now;
     },
-    [endpoints, endpoint, probeEndpoint]
+    [transports, transport, probeEndpoint]
   );
 
   useEffect(() => {
-    const handleRpcChange = () => setEndpoint(getRpcEndpoint());
+    const handleRpcChange = () => setTransport(getRpcTransport());
     window.addEventListener(RPC_CHANGED_EVENT, handleRpcChange as EventListener);
     return () => window.removeEventListener(RPC_CHANGED_EVENT, handleRpcChange as EventListener);
   }, []);
 
   useEffect(() => {
-    if (endpoints.length === 0) return;
-    setEndpoint(getRpcEndpoint());
-  }, [endpoints]);
+    if (transports.length === 0) return;
+    setTransport(getRpcTransport());
+  }, [transports]);
 
   useEffect(() => {
-    if (endpoints.length < 2) return;
+    if (transports.length < 2) return;
     void autoSelectBestRpc("startup");
     const interval = setInterval(() => {
       void autoSelectBestRpc("interval");
     }, 45_000);
     return () => clearInterval(interval);
-  }, [autoSelectBestRpc, endpoints.length]);
+  }, [autoSelectBestRpc, transports.length]);
 
   const wallets = useMemo(
     () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
@@ -115,7 +118,10 @@ export default function App({ Component, pageProps }: AppProps) {
   );
 
   return (
-    <ConnectionProvider endpoint={endpoint}>
+    <ConnectionProvider
+      endpoint={transport.rpc}
+      config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
+    >
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>
           <Toaster

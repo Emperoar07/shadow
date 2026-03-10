@@ -7,7 +7,7 @@ import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 
-type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated";
+type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated" | "settling";
 
 interface UiPosition {
   address: string;
@@ -25,6 +25,7 @@ function parseStatus(status: unknown): UiStatus {
     if (status === 1) return "open";
     if (status === 2) return "closing";
     if (status === 3) return "closed";
+    if (status === 5 || status === 6) return "settling";
     return "liquidated";
   }
   if (status && typeof status === "object") {
@@ -33,6 +34,9 @@ function parseStatus(status: unknown): UiStatus {
     if (key === "open") return "open";
     if (key === "closing") return "closing";
     if (key === "closed") return "closed";
+    if (key === "closedpendingsettlement" || key === "liquidatedpendingsettlement") {
+      return "settling";
+    }
     if (key === "liquidated") return "liquidated";
   }
   return "open";
@@ -42,6 +46,7 @@ const STATUS_CONFIG: Record<UiStatus, { label: string; color: string; bgColor: s
   pending: { label: "MPC Processing", color: "text-yellow-400", bgColor: "bg-yellow-400/20" },
   open: { label: "Open", color: "text-accent-green", bgColor: "bg-accent-green/20" },
   closing: { label: "MPC Closing", color: "text-yellow-400", bgColor: "bg-yellow-400/20" },
+  settling: { label: "Settling", color: "text-cyan-300", bgColor: "bg-cyan-400/15" },
   closed: { label: "Settled", color: "text-gray-400", bgColor: "bg-gray-400/20" },
   liquidated: { label: "Liquidated", color: "text-accent-red", bgColor: "bg-accent-red/20" },
 };
@@ -102,20 +107,40 @@ export default function PositionsList() {
         const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(runtime.marketAddress);
         toast.loading("Queuing close via Arcium MPC...", { id: position.address });
-        const tx = await client.closePosition(runtime.marketAddress, position.index, ownerTokenAccount);
+        const tx = await client.closePosition(runtime.marketAddress, position.index);
+        toast.loading("Awaiting MPC callback and settlement...", { id: position.address });
+        const finalized = await client.finalizeClosePosition(
+          runtime.marketAddress,
+          publicKey,
+          position.index,
+          ownerTokenAccount
+        );
         const txUrl = getExplorerTxUrl(tx);
+        const settleUrl = finalized.settleTxSignature
+          ? getExplorerTxUrl(finalized.settleTxSignature)
+          : null;
         toast.success(
           <div>
-            <p className="font-medium">Close queued for MPC computation</p>
-            <p className="text-xs text-gray-400 mt-1">PnL will be revealed after MPC completes</p>
+            <p className="font-medium">Position closed and settled</p>
+            <p className="text-xs text-gray-400 mt-1">PnL was revealed by MPC and settlement completed on-chain</p>
             <a
               href={txUrl}
               target="_blank"
               rel="noreferrer"
               className="text-xs text-accent-purple underline mt-1 block"
             >
-              View transaction
+              View close transaction
             </a>
+            {settleUrl ? (
+              <a
+                href={settleUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-accent-purple underline mt-1 block"
+              >
+                View settlement transaction
+              </a>
+            ) : null}
           </div>,
           { id: position.address, duration: 10000 }
         );
@@ -132,7 +157,14 @@ export default function PositionsList() {
   );
 
   const openPositions = useMemo(
-    () => positions.filter((p) => p.status === "open" || p.status === "pending" || p.status === "closing"),
+    () =>
+      positions.filter(
+        (p) =>
+          p.status === "open" ||
+          p.status === "pending" ||
+          p.status === "closing" ||
+          p.status === "settling"
+      ),
     [positions]
   );
   const closedPositions = useMemo(
@@ -203,6 +235,7 @@ function PositionCard({
   const isOpen = position.status === "open";
   const isPending = position.status === "pending";
   const isClosing = closing || position.status === "closing";
+  const isSettling = position.status === "settling";
   const isFinal = position.status === "closed" || position.status === "liquidated";
   const statusCfg = STATUS_CONFIG[position.status];
 
@@ -267,24 +300,28 @@ function PositionCard({
         </div>
       )}
 
-      {(isOpen || isPending || isClosing) && onClose && (
+      {(isOpen || isPending || isClosing || isSettling) && onClose && (
         <div className="flex items-center justify-between pt-4 border-t border-shadow-500">
           <span className="text-xs text-gray-500">
             {isPending
               ? "MPC is validating your position..."
+              : isSettling
+              ? "MPC finalized. Waiting for the settlement transfer..."
               : isClosing
               ? "MPC is computing PnL..."
               : "Close to reveal PnL via MPC"}
           </span>
           <button
             onClick={onClose}
-            disabled={TRADING_DISABLED || isClosing || isPending}
+            disabled={TRADING_DISABLED || isClosing || isPending || isSettling}
             className="px-4 py-2 bg-accent-red/20 text-accent-red rounded-lg text-sm font-medium hover:bg-accent-red/30 transition-colors disabled:opacity-50"
           >
             {TRADING_DISABLED
               ? "Disabled"
               : isPending
               ? "MPC Processing..."
+              : isSettling
+              ? "Settling..."
               : isClosing
               ? "Computing PnL..."
               : "Close Position"}

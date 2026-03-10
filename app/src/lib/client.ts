@@ -37,10 +37,13 @@ import {
   EncryptedPosition,
   Market,
   MarginAccount,
+  PositionStatus,
   TradeSession,
 } from "../types";
 
 export const DEFAULT_TRADE_SESSION_DURATION_SECONDS = 5 * 60 * 60;
+const DEFAULT_POSITION_STATUS_TIMEOUT_MS = 60_000;
+const DEFAULT_POSITION_STATUS_POLL_MS = 2_000;
 
 /**
  * ShadowPerp Client SDK
@@ -154,6 +157,52 @@ export class ShadowPerpClient {
     return Uint8Array.from(encrypted);
   }
 
+  private encryptOpenTuple(
+    input: OpenPositionInput,
+    nonce: Uint8Array
+  ): {
+    encryptedSize: Uint8Array;
+    encryptedEntryPrice: Uint8Array;
+    encryptedLeverage: Uint8Array;
+    encryptedIsLong: Uint8Array;
+    encryptedMargin: Uint8Array;
+  } {
+    if (!this.cipher) {
+      throw new Error("Encryption not initialized. Call initializeEncryption() first.");
+    }
+
+    const encryptedTuple = this.cipher.encrypt(
+      [
+        BigInt(input.size.toString()),
+        BigInt(input.entryPrice.toString()),
+        BigInt(input.leverage),
+        BigInt(input.direction === "long" ? 1 : 0),
+        BigInt(input.margin.toString()),
+      ],
+      nonce
+    ) as unknown as Uint8Array[];
+
+    if (!Array.isArray(encryptedTuple) || encryptedTuple.length !== 5) {
+      throw new Error("Unexpected encrypted tuple shape for open position");
+    }
+
+    const [
+      encryptedSize,
+      encryptedEntryPrice,
+      encryptedLeverage,
+      encryptedIsLong,
+      encryptedMargin,
+    ] = encryptedTuple.map((value) => Uint8Array.from(value));
+
+    return {
+      encryptedSize,
+      encryptedEntryPrice,
+      encryptedLeverage,
+      encryptedIsLong,
+      encryptedMargin,
+    };
+  }
+
   private generateNonce(): { bytes: Uint8Array; value: BN } {
     const bytes = randomBytes(16);
     const value = new BN(bytes, "le");
@@ -209,6 +258,14 @@ export class ShadowPerpClient {
       this.config.programId
     );
     return positionPda;
+  }
+
+  getLiquidationSettlementAddress(position: PublicKey): PublicKey {
+    const [settlementPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("liquidation_settlement"), position.toBuffer()],
+      this.config.programId
+    );
+    return settlementPda;
   }
 
   getTradeSessionAddress(market: PublicKey, owner: PublicKey, sessionId: BN): PublicKey {
@@ -479,12 +536,14 @@ export class ShadowPerpClient {
     // Generate nonce for encryption session
     const { bytes: nonceBytes, value: nonceBN } = this.generateNonce();
 
-    // Encrypt all position parameters
-    const encryptedSize = this.encryptU64(input.size, nonceBytes);
-    const encryptedEntryPrice = this.encryptU64(input.entryPrice, nonceBytes);
-    const encryptedLeverage = this.encryptU8(input.leverage, nonceBytes);
-    const encryptedIsLong = this.encryptBool(input.direction === "long", nonceBytes);
-    const encryptedMargin = this.encryptU64(input.margin, nonceBytes);
+    // Encrypt the full open tuple in one batch so it matches Enc<Shared, (...)>.
+    const {
+      encryptedSize,
+      encryptedEntryPrice,
+      encryptedLeverage,
+      encryptedIsLong,
+      encryptedMargin,
+    } = this.encryptOpenTuple(input, nonceBytes);
 
     const computationOffset = await this.nextComputationOffset();
     const positionAddress = this.getPositionAddress(
@@ -560,11 +619,13 @@ export class ShadowPerpClient {
     const sessionAddress = this.getTradeSessionAddress(market, owner, this.toU64Bn(sessionId));
 
     const { bytes: nonceBytes, value: nonceBN } = this.generateNonce();
-    const encryptedSize = this.encryptU64(input.size, nonceBytes);
-    const encryptedEntryPrice = this.encryptU64(input.entryPrice, nonceBytes);
-    const encryptedLeverage = this.encryptU8(input.leverage, nonceBytes);
-    const encryptedIsLong = this.encryptBool(input.direction === "long", nonceBytes);
-    const encryptedMargin = this.encryptU64(input.margin, nonceBytes);
+    const {
+      encryptedSize,
+      encryptedEntryPrice,
+      encryptedLeverage,
+      encryptedIsLong,
+      encryptedMargin,
+    } = this.encryptOpenTuple(input, nonceBytes);
 
     const computationOffset = await this.nextComputationOffset();
     const positionAddress = this.getPositionAddress(market, owner, marginSnapshot.positionsOpened);
@@ -622,8 +683,7 @@ export class ShadowPerpClient {
    */
   async closePosition(
     market: PublicKey,
-    positionIndex: BN,
-    ownerTokenAccount: PublicKey
+    positionIndex: BN
   ): Promise<string> {
     const owner = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
@@ -642,8 +702,6 @@ export class ShadowPerpClient {
         market,
         position: positionAddress,
         marginAccount,
-        ownerTokenAccount,
-        vault: marketAccount.vault,
         mxeAccount: this.getMXEPda(),
         compDefAccount: marketAccount.closePositionCompDef,
         clusterAccount: this.config.clusterAddress,
@@ -667,8 +725,7 @@ export class ShadowPerpClient {
     market: PublicKey,
     owner: PublicKey,
     sessionId: BN | number,
-    positionIndex: BN,
-    ownerTokenAccount: PublicKey
+    positionIndex: BN
   ): Promise<string> {
     const relayer = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
@@ -690,8 +747,6 @@ export class ShadowPerpClient {
         session: sessionAddress,
         position: positionAddress,
         marginAccount,
-        ownerTokenAccount,
-        vault: marketAccount.vault,
         mxeAccount: this.getMXEPda(),
         compDefAccount: marketAccount.closePositionCompDef,
         clusterAccount: this.config.clusterAddress,
@@ -716,8 +771,7 @@ export class ShadowPerpClient {
   async checkLiquidation(
     market: PublicKey,
     positionOwner: PublicKey,
-    positionIndex: BN,
-    liquidatorTokenAccount: PublicKey
+    positionIndex: BN
   ): Promise<string> {
     const marketAccount = await this.getMarket(market);
     const positionAddress = this.getPositionAddress(market, positionOwner, positionIndex);
@@ -733,9 +787,8 @@ export class ShadowPerpClient {
         liquidator: this.provider.wallet.publicKey,
         market,
         position: positionAddress,
-        liquidatorTokenAccount,
-        vault: marketAccount.vault,
         marginAccount: this.getMarginAccountAddress(market, positionOwner),
+        liquidationSettlement: this.getLiquidationSettlementAddress(positionAddress),
         mxeAccount: this.getMXEPda(),
         compDefAccount: marketAccount.liquidationCompDef,
         clusterAccount: this.config.clusterAddress,
@@ -750,6 +803,163 @@ export class ShadowPerpClient {
       })
       .rpc();
     return tx;
+  }
+
+  async settleClosePosition(
+    market: PublicKey,
+    positionOwner: PublicKey,
+    positionIndex: BN,
+    ownerTokenAccount: PublicKey
+  ): Promise<string> {
+    const payer = this.provider.wallet.publicKey;
+    const marketAccount = await this.getMarket(market);
+    const positionAddress = this.getPositionAddress(market, positionOwner, positionIndex);
+    const methods = (this.program as any).methods;
+    if (!methods?.settleClosePosition) {
+      throw new Error(
+        "settleClosePosition is unavailable in the loaded IDL. Rebuild/sync IDL first."
+      );
+    }
+
+    return methods
+      .settleClosePosition()
+      .accounts({
+        payer,
+        position: positionAddress,
+        market,
+        ownerTokenAccount,
+        vault: marketAccount.vault,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+  }
+
+  async settleLiquidation(
+    market: PublicKey,
+    positionOwner: PublicKey,
+    positionIndex: BN,
+    liquidatorTokenAccount: PublicKey
+  ): Promise<string> {
+    const payer = this.provider.wallet.publicKey;
+    const liquidator = this.provider.wallet.publicKey;
+    const marketAccount = await this.getMarket(market);
+    const positionAddress = this.getPositionAddress(market, positionOwner, positionIndex);
+    const methods = (this.program as any).methods;
+    if (!methods?.settleLiquidation) {
+      throw new Error(
+        "settleLiquidation is unavailable in the loaded IDL. Rebuild/sync IDL first."
+      );
+    }
+
+    return methods
+      .settleLiquidation()
+      .accounts({
+        payer,
+        liquidator,
+        position: positionAddress,
+        market,
+        liquidationSettlement: this.getLiquidationSettlementAddress(positionAddress),
+        liquidatorTokenAccount,
+        vault: marketAccount.vault,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+  }
+
+  async waitForPositionStatus(
+    positionAddress: PublicKey,
+    acceptedStatuses: PositionStatus[],
+    options?: { timeoutMs?: number; pollMs?: number }
+  ): Promise<EncryptedPosition> {
+    const timeoutMs = options?.timeoutMs ?? DEFAULT_POSITION_STATUS_TIMEOUT_MS;
+    const pollMs = options?.pollMs ?? DEFAULT_POSITION_STATUS_POLL_MS;
+    const deadline = Date.now() + timeoutMs;
+    const accepted = new Set<number>(acceptedStatuses as number[]);
+    let lastStatus: PositionStatus | null = null;
+
+    while (Date.now() < deadline) {
+      try {
+        const position = await this.getPosition(positionAddress);
+        lastStatus = position.status;
+        if (accepted.has(position.status as number)) {
+          return position;
+        }
+      } catch (error: any) {
+        const message = typeof error?.message === "string" ? error.message : "";
+        const isMissingAccount =
+          message.includes("Account does not exist") ||
+          message.includes("Account does not exist or has no data") ||
+          message.includes("could not find account");
+        if (!isMissingAccount) {
+          throw error;
+        }
+      }
+
+      const remainingMs = deadline - Date.now();
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(pollMs, Math.max(remainingMs, 0)))
+      );
+    }
+
+    const statusLabel =
+      lastStatus === null ? "no position state observed yet" : PositionStatus[lastStatus];
+    throw new Error(
+      `Position did not reach an expected settlement state within ${timeoutMs / 1000}s (${statusLabel}).`
+    );
+  }
+
+  async finalizeClosePosition(
+    market: PublicKey,
+    positionOwner: PublicKey,
+    positionIndex: BN,
+    ownerTokenAccount: PublicKey,
+    options?: { timeoutMs?: number; pollMs?: number }
+  ): Promise<{ positionAddress: PublicKey; settleTxSignature: string | null; status: PositionStatus }> {
+    const positionAddress = this.getPositionAddress(market, positionOwner, positionIndex);
+    const callbackResult = await this.waitForPositionStatus(
+      positionAddress,
+      [PositionStatus.ClosedPendingSettlement, PositionStatus.Closed],
+      options
+    );
+    if (callbackResult.status === PositionStatus.Closed) {
+      return { positionAddress, settleTxSignature: null, status: PositionStatus.Closed };
+    }
+
+    const settleTxSignature = await this.settleClosePosition(
+      market,
+      positionOwner,
+      positionIndex,
+      ownerTokenAccount
+    );
+    await this.waitForPositionStatus(positionAddress, [PositionStatus.Closed], options);
+    return { positionAddress, settleTxSignature, status: PositionStatus.Closed };
+  }
+
+  async finalizeLiquidation(
+    market: PublicKey,
+    positionOwner: PublicKey,
+    positionIndex: BN,
+    liquidatorTokenAccount: PublicKey,
+    options?: { timeoutMs?: number; pollMs?: number }
+  ): Promise<{ positionAddress: PublicKey; settleTxSignature: string | null; status: PositionStatus }> {
+    const positionAddress = this.getPositionAddress(market, positionOwner, positionIndex);
+    const callbackResult = await this.waitForPositionStatus(
+      positionAddress,
+      [PositionStatus.LiquidatedPendingSettlement, PositionStatus.Liquidated],
+      options
+    );
+    if (callbackResult.status === PositionStatus.Liquidated) {
+      return { positionAddress, settleTxSignature: null, status: PositionStatus.Liquidated };
+    }
+
+    const settleTxSignature = await this.settleLiquidation(
+      market,
+      positionOwner,
+      positionIndex,
+      liquidatorTokenAccount
+    );
+    await this.waitForPositionStatus(positionAddress, [PositionStatus.Liquidated], options);
+    return { positionAddress, settleTxSignature, status: PositionStatus.Liquidated };
   }
 
   // ============ QUERY ============

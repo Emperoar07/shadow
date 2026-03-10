@@ -14,6 +14,7 @@ const DEFAULT_RPC_ENDPOINT = "https://api.devnet.solana.com";
 const DEFAULT_COLLATERAL_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; // canonical devnet USDC
 const RPC_PREF_STORAGE_KEY = "shadowperp.rpc.index";
 export const RPC_CHANGED_EVENT = "shadowperp:rpc-changed";
+export type RpcTransport = { rpc: string; ws: string };
 const DEFAULT_IDL_PROGRAM_ID =
   typeof shadowperpIdl.address === "string" && shadowperpIdl.address.length > 0
     ? shadowperpIdl.address
@@ -42,6 +43,17 @@ function parseRpcList(raw?: string): string[] {
     .split(/[\n,]+/)
     .map((entry) => normalizeRpcUrl(entry))
     .filter((entry): entry is string => Boolean(entry));
+}
+
+function deriveWsEndpoint(rpcEndpoint: string): string {
+  try {
+    const url = new URL(rpcEndpoint);
+    if (url.protocol === "https:") url.protocol = "wss:";
+    else if (url.protocol === "http:") url.protocol = "ws:";
+    return url.toString();
+  } catch {
+    return rpcEndpoint.replace(/^https:/i, "wss:").replace(/^http:/i, "ws:");
+  }
 }
 
 function parsePublicKey(name: string, fallback?: string): PublicKey {
@@ -138,7 +150,7 @@ export function getRuntimeConfig(): ShadowPerpConfig {
   };
 }
 
-export function getRpcEndpoints(): string[] {
+function getRawRpcEndpoints(): string[] {
   const all = [
     ...parseRpcList(process.env.NEXT_PUBLIC_SOLANA_RPC_URLS),
     ...parseRpcList(process.env.NEXT_PUBLIC_SOLANA_RPC_URL),
@@ -152,6 +164,30 @@ export function getRpcEndpoints(): string[] {
   }
   if (deduped.length === 0) deduped.push(DEFAULT_RPC_ENDPOINT);
   return deduped;
+}
+
+function getRawWsEndpoints(): string[] {
+  return [
+    ...parseRpcList(process.env.NEXT_PUBLIC_SOLANA_WSS_URLS),
+    ...parseRpcList(process.env.NEXT_PUBLIC_SOLANA_WSS_URL),
+  ];
+}
+
+export function getRpcTransports(): RpcTransport[] {
+  const rpcEndpoints = getRawRpcEndpoints();
+  const wsEndpoints = getRawWsEndpoints();
+  return rpcEndpoints.map((rpc, index) => ({
+    rpc,
+    ws: wsEndpoints[index] ?? deriveWsEndpoint(rpc),
+  }));
+}
+
+export function getRpcEndpoints(): string[] {
+  return getRpcTransports().map((transport) => transport.rpc);
+}
+
+export function getWsEndpoints(): string[] {
+  return getRpcTransports().map((transport) => transport.ws);
 }
 
 export function getPreferredRpcIndex(): number {
@@ -171,7 +207,15 @@ export function setPreferredRpcIndex(index: number): void {
 }
 
 export function getRpcEndpoint(): string {
-  const endpoints = getRpcEndpoints();
-  const index = getPreferredRpcIndex() % endpoints.length;
-  return endpoints[index];
+  return getRpcTransport().rpc;
+}
+
+export function getWsEndpoint(): string {
+  return getRpcTransport().ws;
+}
+
+export function getRpcTransport(): RpcTransport {
+  const transports = getRpcTransports();
+  const index = getPreferredRpcIndex() % transports.length;
+  return transports[index];
 }

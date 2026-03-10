@@ -21,7 +21,7 @@ import {
   updateLimitOrder,
 } from "../lib/trade-automation";
 
-type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated";
+type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated" | "settling";
 
 interface UiPosition {
   address: string;
@@ -41,6 +41,7 @@ function parseStatus(status: unknown): UiStatus {
     if (status === 1) return "open";
     if (status === 2) return "closing";
     if (status === 3) return "closed";
+    if (status === 5 || status === 6) return "settling";
     return "liquidated";
   }
   if (status && typeof status === "object") {
@@ -49,6 +50,9 @@ function parseStatus(status: unknown): UiStatus {
     if (key === "open") return "open";
     if (key === "closing") return "closing";
     if (key === "closed") return "closed";
+    if (key === "closedpendingsettlement" || key === "liquidatedpendingsettlement") {
+      return "settling";
+    }
     if (key === "liquidated") return "liquidated";
   }
   return "open";
@@ -58,6 +62,7 @@ const STATUS_COLORS: Record<UiStatus, string> = {
   pending: "text-yellow-400 bg-yellow-400/15",
   open: "text-accent-green bg-accent-green/15",
   closing: "text-yellow-400 bg-yellow-400/15",
+  settling: "text-cyan-300 bg-cyan-400/15",
   closed: "text-gray-400 bg-gray-400/15",
   liquidated: "text-accent-red bg-accent-red/15",
 };
@@ -66,6 +71,7 @@ const STATUS_LABELS: Record<UiStatus, string> = {
   pending: "MPC Processing",
   open: "Open",
   closing: "Closing",
+  settling: "Settling",
   closed: "Settled",
   liquidated: "Liquidated",
 };
@@ -247,21 +253,37 @@ export default function BottomPositionsPanel() {
         toast.loading("Queuing close via Arcium MPC...", { id: pos.address });
         const tx = await client.closePosition(
           runtime.marketAddress,
+          pos.index
+        );
+        toast.loading("Awaiting MPC callback and settlement...", { id: pos.address });
+        const finalized = await client.finalizeClosePosition(
+          runtime.marketAddress,
+          publicKey,
           pos.index,
           ownerTokenAccount
         );
         toast.success(
           <div>
-            <p className="font-medium">Close queued for MPC computation</p>
-            <p className="text-xs text-gray-400 mt-0.5">PnL revealed after MPC completes</p>
+            <p className="font-medium">Position closed and settled</p>
+            <p className="text-xs text-gray-400 mt-0.5">PnL was revealed by MPC and settlement completed on-chain</p>
             <a
               href={getExplorerTxUrl(tx)}
               target="_blank"
               rel="noreferrer"
               className="text-xs text-accent-purple underline mt-1 block"
             >
-              View transaction
+              View close transaction
             </a>
+            {finalized.settleTxSignature ? (
+              <a
+                href={getExplorerTxUrl(finalized.settleTxSignature)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-accent-purple underline mt-1 block"
+              >
+                View settlement transaction
+              </a>
+            ) : null}
           </div>,
           { id: pos.address, duration: 10_000 }
         );
@@ -307,7 +329,7 @@ export default function BottomPositionsPanel() {
   }, [editAddress, editSide, editStopLoss, editTakeProfit]);
 
   const openPositions = useMemo(
-    () => positions.filter((p) => ["open", "pending", "closing"].includes(p.status)),
+    () => positions.filter((p) => ["open", "pending", "closing", "settling"].includes(p.status)),
     [positions]
   );
   const openOrders = useMemo(
@@ -573,6 +595,7 @@ export default function BottomPositionsPanel() {
               const isOpen = pos.status === "open";
               const isPending = pos.status === "pending";
               const isClosing = closingAddress === pos.address || pos.status === "closing";
+              const isSettling = pos.status === "settling";
               const card = derivePositionCard(pos);
               const rule = positionRules[pos.address];
               const pnlValue = card.unrealizedPnl;
@@ -637,13 +660,15 @@ export default function BottomPositionsPanel() {
                       </button>
                       <button
                         onClick={() => void handleClose(pos)}
-                        disabled={TRADING_DISABLED || isClosing || isPending}
+                        disabled={TRADING_DISABLED || isClosing || isPending || isSettling}
                         className="rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-1 text-[12px] font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         {TRADING_DISABLED
                           ? "Disabled"
                           : isPending
                           ? "MPC..."
+                          : isSettling
+                          ? "Settling..."
                           : isClosing
                           ? "Closing..."
                           : "Close"}

@@ -105,7 +105,7 @@ export default async function handler(
 
   let relay;
   try {
-    relay = createRelayRuntimeContext();
+    relay = await createRelayRuntimeContext();
   } catch (error: any) {
     res.status(503).json({
       ok: false,

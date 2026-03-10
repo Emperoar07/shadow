@@ -17,6 +17,7 @@ import { ShadowPerpConfig } from "../../types";
 const DEFAULT_CLUSTER_OFFSET = 456;
 const DEFAULT_RPC_ENDPOINT = "https://api.devnet.solana.com";
 const DEFAULT_COLLATERAL_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+type RpcTransport = { rpcUrl: string; wsUrl: string };
 
 function normalize(value?: string): string | undefined {
   if (!value) return undefined;
@@ -53,7 +54,18 @@ function parseRpcEndpoints(raw?: string): string[] {
     .filter((entry): entry is string => Boolean(entry));
 }
 
-function resolveRpcUrl(): string {
+function deriveWsEndpoint(rpcEndpoint: string): string {
+  try {
+    const url = new URL(rpcEndpoint);
+    if (url.protocol === "https:") url.protocol = "wss:";
+    else if (url.protocol === "http:") url.protocol = "ws:";
+    return url.toString();
+  } catch {
+    return rpcEndpoint.replace(/^https:/i, "wss:").replace(/^http:/i, "ws:");
+  }
+}
+
+function collectRpcUrls(): string[] {
   const candidates = [
     ...parseRpcEndpoints(process.env.SOLANA_RPC_URL),
     ...parseRpcEndpoints(process.env.SOLANA_RPC_URLS),
@@ -61,7 +73,53 @@ function resolveRpcUrl(): string {
     ...parseRpcEndpoints(process.env.NEXT_PUBLIC_SOLANA_RPC_URL),
   ];
   const deduped = Array.from(new Set(candidates));
-  return deduped[0] || DEFAULT_RPC_ENDPOINT;
+  return deduped.length > 0 ? deduped : [DEFAULT_RPC_ENDPOINT];
+}
+
+function collectWsUrls(): string[] {
+  return [
+    ...parseRpcEndpoints(process.env.SOLANA_WSS_URLS),
+    ...parseRpcEndpoints(process.env.SOLANA_WSS_URL),
+    ...parseRpcEndpoints(process.env.NEXT_PUBLIC_SOLANA_WSS_URLS),
+    ...parseRpcEndpoints(process.env.NEXT_PUBLIC_SOLANA_WSS_URL),
+  ];
+}
+
+function collectRpcTransports(): RpcTransport[] {
+  const rpcUrls = collectRpcUrls();
+  const wsUrls = collectWsUrls();
+  return rpcUrls.map((rpcUrl, index) => ({
+    rpcUrl,
+    wsUrl: wsUrls[index] ?? deriveWsEndpoint(rpcUrl),
+  }));
+}
+
+async function probeRpcUrl(url: string): Promise<void> {
+  const connection = new Connection(url, "confirmed");
+  await Promise.race([
+    connection.getLatestBlockhash("processed"),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`RPC probe timed out for ${url}`)), 6_000)
+    ),
+  ]);
+}
+
+async function resolveRpcTransport(): Promise<RpcTransport> {
+  const candidates = collectRpcTransports();
+  let lastError: string | null = null;
+
+  for (const candidate of candidates) {
+    try {
+      await probeRpcUrl(candidate.rpcUrl);
+      return candidate;
+    } catch (error: any) {
+      lastError = typeof error?.message === "string" ? error.message : String(error);
+    }
+  }
+
+  throw new Error(
+    `No healthy relay RPC endpoint found${lastError ? ` (${lastError})` : ""}`
+  );
 }
 
 function parseKeypairFromJson(name: string, value?: string): Keypair | null {
@@ -167,18 +225,19 @@ export type RelayRuntimeContext = {
   config: ShadowPerpConfig;
   relayer: Keypair;
   rpcUrl: string;
+  wsUrl: string;
 };
 
-export function createRelayRuntimeContext(): RelayRuntimeContext {
+export async function createRelayRuntimeContext(): Promise<RelayRuntimeContext> {
   const programId = parsePublicKey(
     "NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID",
     typeof shadowperpIdl.address === "string" ? shadowperpIdl.address : undefined
   );
   const config = buildRelayConfig(programId);
-  const rpcUrl = resolveRpcUrl();
+  const { rpcUrl, wsUrl } = await resolveRpcTransport();
   const relayer = resolveRelayerKeypair();
   const provider = new AnchorProvider(
-    new Connection(rpcUrl, "confirmed"),
+    new Connection(rpcUrl, { commitment: "confirmed", wsEndpoint: wsUrl }),
     new Wallet(relayer),
     { commitment: "confirmed" }
   );
@@ -188,5 +247,6 @@ export function createRelayRuntimeContext(): RelayRuntimeContext {
     config,
     relayer,
     rpcUrl,
+    wsUrl,
   };
 }
