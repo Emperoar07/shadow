@@ -16,8 +16,6 @@ interface PrivateOrderbookProps {
   pair?: TradingPair;
   referencePrice?: number | null;
   className?: string;
-  activeTab?: "book" | "trades";
-  onTabChange?: (tab: "book" | "trades") => void;
 }
 
 function priceForGrouping(snapshot: ReferenceDepthSnapshot | null, referencePrice?: number | null): number | null {
@@ -32,17 +30,14 @@ export default function PrivateOrderbook({
   pair,
   referencePrice,
   className = "",
-  activeTab,
-  onTabChange,
 }: PrivateOrderbookProps) {
-  const [internalTab, setInternalTab] = useState<"book" | "trades">("book");
+  const [tab, setTab] = useState<"book" | "trades">("book");
   const [snapshot, setSnapshot] = useState<ReferenceDepthSnapshot | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [groupingOpen, setGroupingOpen] = useState(false);
   const groupingRef = useRef<HTMLDivElement>(null);
 
   const activePair = pair ?? TRADING_PAIRS[0];
-  const tab = activeTab ?? internalTab;
   const currentReferencePrice = priceForGrouping(snapshot, referencePrice);
   const groupingOptions = getGroupingOptions(currentReferencePrice);
   const [grouping, setGrouping] = useState(getDefaultGrouping(currentReferencePrice));
@@ -50,12 +45,6 @@ export default function PrivateOrderbook({
   useEffect(() => {
     setGrouping(getDefaultGrouping(priceForGrouping(snapshot, referencePrice)));
   }, [activePair.label]);
-
-  useEffect(() => {
-    if (!activeTab) {
-      setInternalTab("book");
-    }
-  }, [activePair.label, activeTab]);
 
   useEffect(() => {
     const nextOptions = getGroupingOptions(currentReferencePrice);
@@ -117,13 +106,7 @@ export default function PrivateOrderbook({
           {(["book", "trades"] as const).map((nextTab) => (
             <button
               key={nextTab}
-              onClick={() => {
-                if (activeTab) {
-                  onTabChange?.(nextTab);
-                } else {
-                  setInternalTab(nextTab);
-                }
-              }}
+              onClick={() => setTab(nextTab)}
               className={`relative mr-3 py-1 text-[11px] font-semibold transition-colors ${
                 tab === nextTab ? "text-white" : "text-gray-500 hover:text-gray-300"
               }`}
@@ -231,7 +214,6 @@ function BookSide({
   const maxTotal = levels.length > 0 ? levels[levels.length - 1].total : 0;
   const toneClass = tone === "ask" ? "text-accent-red" : "text-accent-green";
   const barClass = tone === "ask" ? "bg-red-500/10" : "bg-emerald-500/10";
-  const alignmentClass = tone === "ask" ? "justify-end" : "justify-start";
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
@@ -240,19 +222,17 @@ function BookSide({
           Waiting for depth
         </div>
       ) : (
-        <div className={`flex min-h-full flex-col ${alignmentClass}`}>
-          {levels.map((level) => {
-            const barWidth = maxTotal > 0 ? Math.max(6, (level.total / maxTotal) * 100) : 0;
-            return (
-              <div key={`${tone}-${level.price}`} className="relative grid grid-cols-3 px-2 py-[3px] text-[11px] tabular-nums">
-                <div className={`absolute inset-y-0 right-0 ${barClass}`} style={{ width: `${barWidth}%` }} />
-                <span className={`relative z-10 ${toneClass}`}>{formatPrice(level.price)}</span>
-                <span className="relative z-10 text-right text-gray-300">{formatSize(level.size)}</span>
-                <span className="relative z-10 text-right text-gray-500">{formatSize(level.total)}</span>
-              </div>
-            );
-          })}
-        </div>
+        levels.map((level) => {
+          const barWidth = maxTotal > 0 ? Math.max(6, (level.total / maxTotal) * 100) : 0;
+          return (
+            <div key={`${tone}-${level.price}`} className="relative grid grid-cols-3 px-2 py-[3px] text-[11px] tabular-nums">
+              <div className={`absolute inset-y-0 right-0 ${barClass}`} style={{ width: `${barWidth}%` }} />
+              <span className={`relative z-10 ${toneClass}`}>{formatPrice(level.price)}</span>
+              <span className="relative z-10 text-right text-gray-300">{formatSize(level.size)}</span>
+              <span className="relative z-10 text-right text-gray-500">{formatSize(level.total)}</span>
+            </div>
+          );
+        })
       )}
     </div>
   );

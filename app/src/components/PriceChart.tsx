@@ -47,10 +47,6 @@ export default function PriceChart({
   const canSwitchFeed = symbolCandidates.length > 1;
 
   useEffect(() => {
-    setIsLoading(true);
-  }, [tvSymbol]);
-
-  useEffect(() => {
     if (!canSwitchFeed) return;
     const timeout = setTimeout(() => {
       if (isLoading) {

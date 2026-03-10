@@ -24,12 +24,6 @@ interface MarketInfoProps {
   className?: string;
 }
 
-interface ReferenceDepthPayload {
-  lastTrade?: { price?: number | null } | null;
-  bids?: Array<{ price?: number | null }> | null;
-  asks?: Array<{ price?: number | null }> | null;
-}
-
 export default function MarketInfo({
   pair,
   onPairChange,
@@ -55,8 +49,8 @@ export default function MarketInfo({
   }, [anchorWallet]);
 
   const setFallbackData = useCallback(
-    (livePrice?: PriceData, referencePrice?: number | null) => {
-      const price = referencePrice ?? livePrice?.price ?? activePair.mockPrice;
+    (livePrice?: PriceData) => {
+      const price = livePrice?.price ?? activePair.mockPrice;
       const change = livePrice?.change24h ?? activePair.mockPriceChange;
       const volume24h =
         typeof livePrice?.volume24h === "number" && Number.isFinite(livePrice.volume24h)
@@ -82,36 +76,11 @@ export default function MarketInfo({
   );
 
   const loadMarket = useCallback(async () => {
-      const [livePrices, referenceDepth] = await Promise.all([
-        fetchPrices().catch(() => null),
-        fetch(`/api/reference-depth?pair=${encodeURIComponent(activePair.label)}`, {
-          signal: AbortSignal.timeout(6_000),
-        })
-          .then(async (res) => (res.ok ? ((await res.json()) as ReferenceDepthPayload) : null))
-          .catch(() => null),
-      ]);
-      const livePrice = livePrices?.[activePair.label] ?? undefined;
-      const bestBid =
-        typeof referenceDepth?.bids?.[0]?.price === "number" &&
-        Number.isFinite(referenceDepth.bids[0].price)
-          ? referenceDepth.bids[0].price
-          : null;
-      const bestAsk =
-        typeof referenceDepth?.asks?.[0]?.price === "number" &&
-        Number.isFinite(referenceDepth.asks[0].price)
-          ? referenceDepth.asks[0].price
-          : null;
-      const referencePriceValue =
-        typeof referenceDepth?.lastTrade?.price === "number" &&
-        Number.isFinite(referenceDepth.lastTrade.price) &&
-        referenceDepth.lastTrade.price > 0
-          ? referenceDepth.lastTrade.price
-          : bestBid !== null && bestAsk !== null
-          ? (bestBid + bestAsk) / 2
-          : null;
-      const livePriceValue =
-        typeof livePrice?.price === "number" && Number.isFinite(livePrice.price) && livePrice.price > 0
-          ? livePrice.price
+    const livePrices = await fetchPrices().catch(() => null);
+    const livePrice = livePrices?.[activePair.label] ?? undefined;
+    const livePriceValue =
+      typeof livePrice?.price === "number" && Number.isFinite(livePrice.price) && livePrice.price > 0
+        ? livePrice.price
         : null;
     const liveChangeValue =
       typeof livePrice?.change24h === "number" && Number.isFinite(livePrice.change24h)
@@ -130,10 +99,10 @@ export default function MarketInfo({
         ? livePrice.low24h
         : null;
 
-      if (!anchorWallet) {
-        setFallbackData(livePrice, referencePriceValue);
-        return;
-      }
+    if (!anchorWallet) {
+      setFallbackData(livePrice);
+      return;
+    }
 
     try {
       if (!clientRef.current) {
@@ -142,7 +111,7 @@ export default function MarketInfo({
       const { client, runtime } = clientRef.current;
       const data = await client.getMarket(runtime.marketAddress);
       const oraclePriceOnchain = new BN(data.oraclePrice.toString()).toNumber() / 1_000_000;
-      const uiDisplayPrice = referencePriceValue ?? livePriceValue ?? oraclePriceOnchain;
+      const uiDisplayPrice = livePriceValue ?? oraclePriceOnchain;
       const previousPrice = previousPriceRef.current;
       if (liveChangeValue !== null) {
         setPriceChange(liveChangeValue);
@@ -157,7 +126,7 @@ export default function MarketInfo({
         low24h: liveLowValue ?? previous?.low24h ?? null,
       }));
     } catch {
-      setFallbackData(livePrice, referencePriceValue);
+      setFallbackData(livePrice);
     }
   }, [anchorWallet, connection, activePair, setFallbackData]);
 
@@ -190,29 +159,20 @@ export default function MarketInfo({
 
   return (
     <div
-      className={`trade-market-bar relative z-[120] flex flex-col gap-2 border-b border-shadow-600 bg-shadow-900 px-4 py-2 overflow-visible sm:flex-row sm:items-center sm:gap-3 ${className}`}
+      className={`trade-market-bar relative z-[120] flex items-center gap-3 px-4 py-2 border-b border-shadow-600 bg-shadow-900 overflow-visible ${className}`}
     >
-      <div className="flex items-center justify-between gap-3 sm:min-w-0">
-        <PairSelector
-          activePair={activePair}
-          displayPrice={price}
-          displayChange24h={priceChange}
-          onSelect={(p) => onPairChange?.(p)}
-        />
+      {/* Pair selector */}
+      <PairSelector
+        activePair={activePair}
+        displayPrice={price}
+        displayChange24h={priceChange}
+        onSelect={(p) => onPairChange?.(p)}
+      />
 
-        <div className="min-w-0 text-right sm:hidden">
-          <p className="text-[10px] uppercase tracking-[0.1em] text-gray-500">Price</p>
-          <p className="text-sm font-semibold text-gray-100">${formattedPrice}</p>
-          <p className={`text-[11px] font-medium ${changePositive ? "text-accent-green" : "text-accent-red"}`}>
-            {changeFormatted}
-          </p>
-        </div>
-      </div>
-
-      <div className="hidden h-6 w-px shrink-0 bg-shadow-600 sm:block" />
+      <div className="w-px h-6 bg-shadow-600 shrink-0" />
 
       {/* Market stats */}
-      <div className="hidden min-w-0 flex-1 items-center gap-4 sm:flex">
+      <div className="flex items-center gap-4 flex-1">
         <MarketStat label="Price" value={`$${formattedPrice}`} />
         <div className="w-px h-5 bg-shadow-600 shrink-0" />
         <MarketStat
@@ -229,23 +189,7 @@ export default function MarketInfo({
       </div>
 
       {/* Portfolio stats — renders only when wallet is connected */}
-      <div className="overflow-x-auto pb-1 sm:hidden">
-        <div className="flex min-w-max items-center gap-4 pr-4">
-          <MarketStat
-            label="24H Change"
-            value={changeFormatted}
-            valueClass={changePositive ? "text-accent-green" : "text-accent-red"}
-          />
-          <div className="w-px h-5 bg-shadow-600 shrink-0" />
-          <MarketStat label="24H Volume" value={formattedVolume24h} />
-          <div className="w-px h-5 bg-shadow-600 shrink-0" />
-          <MarketStat label="24H High" value={formattedHigh24h} />
-          <div className="w-px h-5 bg-shadow-600 shrink-0" />
-          <MarketStat label="24H Low" value={formattedLow24h} />
-        </div>
-      </div>
-
-      <div className="hidden h-6 w-px shrink-0 bg-shadow-600 sm:block" />
+      <div className="w-px h-6 bg-shadow-600 shrink-0" />
       <PortfolioSummary onMarginReady={onMarginReady} />
     </div>
   );
