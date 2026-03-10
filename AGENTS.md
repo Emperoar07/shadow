@@ -4,7 +4,7 @@ This file is the required operating guide for any incoming coding agent.
 
 ## Read Order (Do Not Skip)
 
-1. `DEV_NOTES.md` (current live status, blockers, recent actions)
+1. local `DEV_NOTES.md` if present, otherwise `DEV_NOTES.template.md` (current live status format, blockers, recent actions)
 2. `ARCHITECTURE.md` (system boundaries and component map)
 3. `DATA_FLOW.md` (execution paths and failure classes)
 4. `PERP_UI_SYSTEM.md` (UI behavior and layout conventions)
@@ -34,7 +34,7 @@ Ship a privacy-first perpetual DEX on Solana devnet with Arcium-powered confiden
 
 At the start of every session:
 
-1. read `DEV_NOTES.md`
+1. read local `DEV_NOTES.md` if present, otherwise `DEV_NOTES.template.md`
 2. run `git status --short`
 3. verify active program/market env values
 4. run `npm run check:preflight`
@@ -42,7 +42,7 @@ At the start of every session:
 
 Before ending a session:
 
-1. update `DEV_NOTES.md` with:
+1. update local `DEV_NOTES.md` with:
    - what changed
    - what was verified
    - current blocker (if any)
@@ -88,5 +88,5 @@ Before ending a session:
 
 ## Single Source of Live Truth
 
-`DEV_NOTES.md` is the live operational log. If docs disagree with code or chain state, update docs immediately after verification.
+Local `DEV_NOTES.md` is the live operational log and is intentionally not tracked publicly. `DEV_NOTES.template.md` exists only as the public structure reference. If docs disagree with code or chain state, update the local notes immediately after verification.
 

@@ -49,6 +49,8 @@ app/.env.*
 # =============================
 # Runtime, logs, temp
 # =============================
+.playwright-cli/
+DEV_NOTES.md
 .runtime/
 *.log
 npm-debug.log*
