@@ -1,64 +1,92 @@
 # ShadowPerp
 
-ShadowPerp is a privacy-first perpetuals trading prototype on Solana devnet, built with Arcium for confidential computation.
+ShadowPerp is a privacy-first perpetuals trading prototype on Solana devnet built around Arcium confidential computation.
 
-The project is designed to reduce trader intent leakage. Position inputs are encrypted before they are submitted, sensitive trade logic is evaluated privately, and only the minimum required public state is exposed on-chain.
+The project is trying to reduce trader-intent leakage. Position inputs are encrypted before submission, sensitive trade logic is evaluated through Arcium, and only the minimum required public state is kept on-chain.
 
-## What ShadowPerp Does
+## What It Covers
 
-ShadowPerp applies private computation to core perpetuals flows:
+ShadowPerp currently includes:
 
-- Position opening checks
-- Position close and settlement logic
-- Liquidation checks
-- Session-based delegated trading for smoother UX
+- encrypted open / close / liquidation computation paths
+- delegated session trading so a relayer can execute multiple actions after one owner approval
+- fixed settlement paths for deferred close and liquidation handling
+- an oracle feeder and preflight/devnet runbook
+- a terminal-style frontend with live external reference depth
 
-The goal is straightforward: make it harder for other market participants to infer live trader intent, copy positions, or target liquidations based on public state.
+## How Arcium Fits
 
-## How Arcium Is Used
+ShadowPerp uses Arcium as the confidential compute layer.
 
-Arcium is the confidential compute layer behind ShadowPerp.
-
-The flow is:
+The intended flow is:
 
 1. The client encrypts sensitive trade inputs such as size, entry price, leverage, direction, and margin.
-2. The Solana program queues a computation request to Arcium using those encrypted inputs.
-3. Arcium processes the encrypted data off-chain using confidential computation.
-4. The result is verified on-chain before ShadowPerp updates trade state.
+2. The Solana program queues an Arcium computation with those encrypted values.
+3. Arcium processes the encrypted inputs off-chain.
+4. The callback verifies the result on-chain before ShadowPerp updates trade state.
 
-### Privacy Benefits
+Privacy goal:
 
-- Live position details are not exposed in plaintext on-chain.
-- Sensitive risk logic can be evaluated without publishing trader intent.
-- Final realized PnL is revealed only when settlement requires it.
-- The design reduces copy-trading and liquidation targeting based on visible positions.
+- trader-specific position details are not published in plaintext
+- sensitive risk checks do not require public intent disclosure
+- liquidation-sensitive information is kept out of the public state path
 
 ## Current Status
 
-ShadowPerp is an active devnet prototype with a real Solana + Arcium integration.
+This repository is an active devnet prototype, not a production exchange.
 
-Current limitation:
+What is working:
 
-- The callback-backed `open_position` queue path is currently blocked on Arcium devnet by `AccountDidNotSerialize (3004)` on the Arcium `comp` account.
+- Solana program deploy/upgrade path
+- comp-def rollout path
+- delegated session creation
+- oracle feed + preflight checks
+- frontend runtime and relay plumbing
+- external reference orderbook in the UI
 
-This means the architecture, privacy model, frontend, and integration are in place, but the main open-position path should still be treated as a devnet prototype until the upstream callback serialization issue is resolved or a validated workaround is adopted.
+What is still blocked:
 
-## Project Structure
+- the real `open_position` computation path is still aborting on Arcium devnet
+- the failure currently surfaces as:
+  - Arcium `AbortedComputation (6000)`
+  - then ShadowPerp `InvalidComputationResult (6008)`
 
-- `programs/shadowperp/` - Anchor program for the on-chain protocol
-- `encrypted-ixs/` - Arcium/Arcis confidential circuits
-- `app/` - Next.js frontend
-- `scripts/` - deployment, oracle, health-check, and devnet utility scripts
+That means the main private trading path should still be treated as experimental until a successful real open/close cycle is verified end to end.
 
-## Getting Started
+## UI Data Model
+
+The orderbook shown in the terminal is **external reference depth**, not ShadowPerp-native venue liquidity.
+
+Current reference sources:
+
+- Coinbase first
+- Binance fallback
+
+That orderbook is there to make the terminal useful and live-looking without pretending ShadowPerp already has a public matching engine or public venue depth of its own.
+
+## Repository Layout
+
+- `programs/shadowperp/`
+  - Anchor on-chain program
+- `encrypted-ixs/`
+  - Arcium/Arcis circuit sources
+- `app/`
+  - Next.js frontend and relay routes
+- `scripts/`
+  - deploy, oracle, comp-def, smoke, and devnet utility scripts
+- `build/`
+  - compiled circuit artifacts
+
+## Quick Start
 
 ### Prerequisites
 
 - Node.js 20+
+- pnpm
 - Rust
 - Solana CLI
 - Anchor
-- pnpm
+- Arcium CLI / build environment
 
 ### Install
 
@@ -69,19 +97,26 @@ pnpm install
 cd ..
 ```
 
-### Configure
+### Environment
 
 ```bash
 cp app/.env.example app/.env.local
 ```
 
-Set the required environment values for your devnet setup before running the app.
+Then set the devnet values you want to use for:
 
-### Run Checks
+- program id
+- market account
+- RPC URLs
+- Arcium program id / cluster offset
+
+## Safe Validation Commands
+
+These are the repo’s normal devnet-safe checks:
 
 ```bash
-npm run check:preflight
 npm run check:oracle
+npm run check:preflight
 ```
 
 If the oracle is stale:
@@ -90,18 +125,19 @@ If the oracle is stale:
 npm run oracle:once
 ```
 
-### Run the App
+Frontend:
 
 ```bash
 cd app
 pnpm dev
 ```
 
-## Open Source
+## Development Rules
 
-This repository is intended to be open and readable. Please do not commit secrets, private keys, or local environment files.
-
-If you use this project publicly, keep claims aligned with verified behavior on the current deployment.
+- do not claim the app is fully live without successful end-to-end open and close verification
+- do not commit secrets, keypairs, or local env files
+- keep docs aligned with verified chain state, not old assumptions
+- treat `DEV_NOTES.md` as the operational source of truth for live devnet state
 
 ## References
 
