@@ -6,6 +6,28 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-03-07 (UTC)
 - Author: Codex
 
+## Safe Revert Batch Completed (2026-03-10 UTC)
+- Scope:
+  - revert the last five pushed UI/runtime commits without rewriting branch history
+- What changed:
+  1. Confirmed the branch had already safely reverted four of the five target commits:
+     - `3e05f26` revert of `ba696d0`
+     - `618df0e` revert of `044d2a2`
+     - `a52a43c` revert of `0f2bf62`
+     - `466d0e1` revert of `7b714de`
+  2. Completed the fifth and final revert:
+     - `5000e34` revert of `055ae66`
+  3. Chose `git revert` instead of reset/rebase because the target commits were already on `master`.
+- What was verified:
+  - `git status --short` was cleaned before the revert
+  - the fifth revert applied without conflicts
+- Current blocker:
+  - `none`
+  - revert batch is complete locally
+- Next safe step:
+  1. Push `master` if the user wants the branch/remote to match the reverted local state.
+  2. Recheck the site behavior after deploy hosting picks up the reverted branch state.
+
 ## Market Feed + Theme Default + TP/SL Light-Mode Fixes (2026-03-10 UTC)
 - Scope:
   - `app/src/lib/market-feeds.ts`
