@@ -72,6 +72,7 @@ app/tsconfig.tsbuildinfo
 # =============================
 .tools/
 .claude/
+.playwright-cli/
 .tmp_arcium_examples/
 .tmp_arcium_playbook_1/
 app-local-*/

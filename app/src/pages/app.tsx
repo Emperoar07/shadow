@@ -233,6 +233,7 @@ function SessionTimerChip() {
   const {
     relaySession,
     relayAvailable,
+    relaySessionHydrated,
     relaySessionMessage,
     relaySessionState,
     ensureRelaySession,
@@ -277,7 +278,13 @@ function SessionTimerChip() {
   }, []);
 
   const handleStartSession = useCallback(async (durationSeconds: number) => {
-    if (relaySessionState === "creating" || relaySessionState === "reconnecting") return;
+    if (
+      !relaySessionHydrated ||
+      relaySessionState === "creating" ||
+      relaySessionState === "reconnecting"
+    ) {
+      return;
+    }
     setDurationMenuOpen(false);
     try {
       const session = await ensureRelaySession({ reason: "trade", userInitiated: true, durationSeconds });
@@ -290,7 +297,7 @@ function SessionTimerChip() {
           : "Failed to start delegated session.";
       toast.error(message);
     }
-  }, [ensureRelaySession, relaySessionState]);
+  }, [ensureRelaySession, relaySessionHydrated, relaySessionState]);
 
   if (!publicKey) return null;
 
@@ -389,6 +396,7 @@ function SessionTimerChip() {
             type="button"
             onClick={() => setDurationMenuOpen((o) => !o)}
             disabled={
+              !relaySessionHydrated ||
               relaySessionState === "creating" ||
               relaySessionState === "reconnecting"
             }
@@ -432,6 +440,7 @@ function SessionTimerChip() {
             type="button"
             onClick={() => setDurationMenuOpen((o) => !o)}
             disabled={
+              !relaySessionHydrated ||
               relaySessionState === "creating" ||
               relaySessionState === "reconnecting"
             }
@@ -451,6 +460,7 @@ function SessionTimerChip() {
               type="button"
               onClick={() => handleStartSession(opt.seconds)}
               disabled={
+                !relaySessionHydrated ||
                 relaySessionState === "creating" ||
                 relaySessionState === "reconnecting"
               }
