@@ -153,7 +153,6 @@ export const TRADING_PAIRS: TradingPair[] = [
   { base: DEVNET_TOKENS.W, quote: DEVNET_TOKENS.USDC, label: "W-PERP", mockPrice: 0.58, mockPriceChange: 6.78 },
   { base: DEVNET_TOKENS.JTO, quote: DEVNET_TOKENS.USDC, label: "JTO-PERP", mockPrice: 3.45, mockPriceChange: -0.45 },
   { base: DEVNET_TOKENS.RENDER, quote: DEVNET_TOKENS.USDC, label: "RENDER-PERP", mockPrice: 7.82, mockPriceChange: 2.10 },
-  { base: DEVNET_TOKENS.HNT, quote: DEVNET_TOKENS.USDC, label: "HNT-PERP", mockPrice: 3.96, mockPriceChange: -3.21 },
 ];
 
 // Tokens to display in wallet balance bar
@@ -169,7 +168,6 @@ export const WALLET_DISPLAY_TOKENS = [
   DEVNET_TOKENS.W,
   DEVNET_TOKENS.JTO,
   DEVNET_TOKENS.RENDER,
-  DEVNET_TOKENS.HNT,
   DEVNET_TOKENS.BTC,
   DEVNET_TOKENS.ETH,
 ];

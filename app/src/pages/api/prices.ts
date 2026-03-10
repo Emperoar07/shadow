@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getMarketFeed, type MarketFeedProvider } from "../../lib/market-feeds";
+import { getOrderedReferenceProviders, type MarketFeedProvider } from "../../lib/market-feeds";
 import { TRADING_PAIRS } from "../../lib/tokens";
 
 type PriceData = {
@@ -36,11 +36,11 @@ type PairConfig = {
 const CACHE_TTL_MS = 20_000;
 
 const PAIRS: PairConfig[] = TRADING_PAIRS.map((pair) => {
-  const feed = getMarketFeed(pair);
+  const primaryReference = getOrderedReferenceProviders(pair)[0];
   return {
     label: pair.label,
-    provider: feed.primaryProvider,
-    symbol: feed.primarySymbol,
+    provider: primaryReference?.provider ?? "binance",
+    symbol: primaryReference?.symbol ?? `${pair.base.symbol}USDT`,
     mockPrice: pair.mockPrice,
     mockPriceChange: pair.mockPriceChange,
   };

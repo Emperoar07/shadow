@@ -2,56 +2,63 @@ import { useEffect, useRef, useState } from "react";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import {
   getDefaultGrouping,
+  getDepthPresentation,
   formatPrice,
   formatSize,
   formatTime,
   getGroupingOptions,
-  groupLevels,
-  type ReferenceDepthSnapshot,
+  groupLevelsAdaptive,
   type GroupedReferenceLevel,
+  type ReferenceDepthSnapshot,
   type ReferenceTrade,
 } from "../lib/reference-depth";
+import type { MarketSnapshot } from "../hooks/useMarketSnapshot";
 
 interface PrivateOrderbookProps {
-  pair?: TradingPair;
-  referencePrice?: number | null;
+  pair: TradingPair;
+  marketSnapshot: MarketSnapshot;
   className?: string;
-}
-
-function priceForGrouping(snapshot: ReferenceDepthSnapshot | null, referencePrice?: number | null): number | null {
-  if (snapshot?.lastTrade?.price) return snapshot.lastTrade.price;
-  if (snapshot?.bids?.[0]?.price && snapshot?.asks?.[0]?.price) {
-    return (snapshot.bids[0].price + snapshot.asks[0].price) / 2;
-  }
-  return referencePrice ?? null;
+  activeTab?: "book" | "trades";
+  onTabChange?: (tab: "book" | "trades") => void;
 }
 
 export default function PrivateOrderbook({
   pair,
-  referencePrice,
+  marketSnapshot,
   className = "",
+  activeTab,
+  onTabChange,
 }: PrivateOrderbookProps) {
-  const [tab, setTab] = useState<"book" | "trades">("book");
-  const [snapshot, setSnapshot] = useState<ReferenceDepthSnapshot | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [internalTab, setInternalTab] = useState<"book" | "trades">("book");
   const [groupingOpen, setGroupingOpen] = useState(false);
   const groupingRef = useRef<HTMLDivElement>(null);
 
   const activePair = pair ?? TRADING_PAIRS[0];
-  const currentReferencePrice = priceForGrouping(snapshot, referencePrice);
+  const tab = activeTab ?? internalTab;
+  const snapshot = marketSnapshot.depthSnapshot;
+  const currentReferencePrice = marketSnapshot.last ?? marketSnapshot.mid;
+  const depthPresentation = getDepthPresentation(activePair);
   const groupingOptions = getGroupingOptions(currentReferencePrice);
-  const [grouping, setGrouping] = useState(getDefaultGrouping(currentReferencePrice));
+  const [grouping, setGrouping] = useState(
+    depthPresentation.preferredGrouping ?? getDefaultGrouping(currentReferencePrice)
+  );
 
   useEffect(() => {
-    setGrouping(getDefaultGrouping(priceForGrouping(snapshot, referencePrice)));
-  }, [activePair.label]);
+    setGrouping(depthPresentation.preferredGrouping ?? getDefaultGrouping(currentReferencePrice));
+  }, [activePair.label, currentReferencePrice, depthPresentation.preferredGrouping]);
+
+  useEffect(() => {
+    if (!activeTab) {
+      setInternalTab("book");
+    }
+  }, [activePair.label, activeTab]);
 
   useEffect(() => {
     const nextOptions = getGroupingOptions(currentReferencePrice);
     if (!nextOptions.includes(grouping)) {
-      setGrouping(getDefaultGrouping(currentReferencePrice));
+      setGrouping(depthPresentation.preferredGrouping ?? getDefaultGrouping(currentReferencePrice));
     }
-  }, [currentReferencePrice, grouping]);
+  }, [currentReferencePrice, depthPresentation.preferredGrouping, grouping]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -63,40 +70,24 @@ export default function PrivateOrderbook({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const response = await fetch(`/api/reference-depth?pair=${encodeURIComponent(activePair.label)}`, {
-          signal: AbortSignal.timeout(6_000),
-        });
-        if (!response.ok) {
-          throw new Error("Reference depth unavailable");
-        }
-
-        const payload = (await response.json()) as ReferenceDepthSnapshot;
-        if (cancelled) return;
-        setSnapshot(payload);
-        setFetchError(null);
-      } catch (error: any) {
-        if (cancelled) return;
-        setFetchError(typeof error?.message === "string" ? error.message : "Reference depth unavailable");
-      }
-    };
-
-    load();
-    const id = window.setInterval(load, 4_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [activePair.label]);
-
   const quoteSymbol = snapshot?.quoteSymbol ?? activePair.quote.symbol;
   const baseSymbol = activePair.base.symbol;
-  const groupedAsks = groupLevels(snapshot?.asks ?? [], grouping, "asks");
-  const groupedBids = groupLevels(snapshot?.bids ?? [], grouping, "bids");
+  const groupedAsks = groupLevelsAdaptive(
+    snapshot?.asks ?? [],
+    groupingOptions,
+    grouping,
+    "asks",
+    24,
+    depthPresentation.minVisibleLevels
+  );
+  const groupedBids = groupLevelsAdaptive(
+    snapshot?.bids ?? [],
+    groupingOptions,
+    grouping,
+    "bids",
+    24,
+    depthPresentation.minVisibleLevels
+  );
   const trades = snapshot?.trades ?? [];
 
   return (
@@ -106,7 +97,13 @@ export default function PrivateOrderbook({
           {(["book", "trades"] as const).map((nextTab) => (
             <button
               key={nextTab}
-              onClick={() => setTab(nextTab)}
+              onClick={() => {
+                if (activeTab) {
+                  onTabChange?.(nextTab);
+                } else {
+                  setInternalTab(nextTab);
+                }
+              }}
               className={`relative mr-3 py-1 text-[11px] font-semibold transition-colors ${
                 tab === nextTab ? "text-white" : "text-gray-500 hover:text-gray-300"
               }`}
@@ -166,14 +163,14 @@ export default function PrivateOrderbook({
                 </div>
               </div>
 
-              {fetchError ? (
+              {!snapshot ? (
                 <div className="flex flex-1 items-center justify-center px-4 text-center text-[11px] text-gray-500">
-                  {fetchError}
+                  Reference depth unavailable
                 </div>
               ) : (
                 <>
                   <BookSide levels={groupedAsks} tone="ask" />
-                  <SpreadRow snapshot={snapshot} referencePrice={referencePrice} />
+                  <SpreadRow snapshot={snapshot} referencePrice={marketSnapshot.last} />
                   <BookSide levels={groupedBids} tone="bid" />
                 </>
               )}
@@ -214,6 +211,7 @@ function BookSide({
   const maxTotal = levels.length > 0 ? levels[levels.length - 1].total : 0;
   const toneClass = tone === "ask" ? "text-accent-red" : "text-accent-green";
   const barClass = tone === "ask" ? "bg-red-500/10" : "bg-emerald-500/10";
+  const alignmentClass = tone === "ask" ? "justify-end" : "justify-start";
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
@@ -222,17 +220,19 @@ function BookSide({
           Waiting for depth
         </div>
       ) : (
-        levels.map((level) => {
-          const barWidth = maxTotal > 0 ? Math.max(6, (level.total / maxTotal) * 100) : 0;
-          return (
-            <div key={`${tone}-${level.price}`} className="relative grid grid-cols-3 px-2 py-[3px] text-[11px] tabular-nums">
-              <div className={`absolute inset-y-0 right-0 ${barClass}`} style={{ width: `${barWidth}%` }} />
-              <span className={`relative z-10 ${toneClass}`}>{formatPrice(level.price)}</span>
-              <span className="relative z-10 text-right text-gray-300">{formatSize(level.size)}</span>
-              <span className="relative z-10 text-right text-gray-500">{formatSize(level.total)}</span>
-            </div>
-          );
-        })
+        <div className={`flex min-h-full flex-col ${alignmentClass}`}>
+          {levels.map((level) => {
+            const barWidth = maxTotal > 0 ? Math.max(6, (level.total / maxTotal) * 100) : 0;
+            return (
+              <div key={`${tone}-${level.price}`} className="relative grid grid-cols-3 px-2 py-[3px] text-[11px] tabular-nums">
+                <div className={`absolute inset-y-0 right-0 ${barClass}`} style={{ width: `${barWidth}%` }} />
+                <span className={`relative z-10 ${toneClass}`}>{formatPrice(level.price)}</span>
+                <span className="relative z-10 text-right text-gray-300">{formatSize(level.size)}</span>
+                <span className="relative z-10 text-right text-gray-500">{formatSize(level.total)}</span>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
