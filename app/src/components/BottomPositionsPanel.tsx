@@ -34,6 +34,11 @@ interface UiPosition {
 }
 
 type Direction = "long" | "short";
+type RuleDraft = {
+  side: Direction;
+  takeProfit: string;
+  stopLoss: string;
+};
 
 function parseStatus(status: unknown): UiStatus {
   if (typeof status === "number") {
@@ -164,11 +169,8 @@ export default function BottomPositionsPanel({
   const [ownerPositionViews, setOwnerPositionViews] = useState<Record<string, OwnerPositionView>>(
     {}
   );
-  const [editAddress, setEditAddress] = useState<string | null>(null);
+  const [ruleDrafts, setRuleDrafts] = useState<Record<string, RuleDraft>>({});
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
-  const [editSide, setEditSide] = useState<Direction>("long");
-  const [editTakeProfit, setEditTakeProfit] = useState("");
-  const [editStopLoss, setEditStopLoss] = useState("");
   const [oraclePrice, setOraclePrice] = useState<number | null>(null);
   const [liqThreshold, setLiqThreshold] = useState(5);
   const autoCloseInFlightRef = useRef<Set<string>>(new Set());
@@ -238,6 +240,33 @@ export default function BottomPositionsPanel({
     return subscribeAutomationUpdates(loadAutomationState);
   }, [loadAutomationState]);
 
+  useEffect(() => {
+    setRuleDrafts((current) => {
+      const next = { ...current };
+      let changed = false;
+
+      for (const position of positions) {
+        if (next[position.address]) continue;
+        const rule = positionRules[position.address];
+        const view = ownerPositionViews[position.address];
+        next[position.address] = {
+          side: view?.side ?? rule?.side ?? "long",
+          takeProfit: rule?.takeProfit?.toString() ?? "",
+          stopLoss: rule?.stopLoss?.toString() ?? "",
+        };
+        changed = true;
+      }
+
+      for (const address of Object.keys(next)) {
+        if (positions.some((position) => position.address === address)) continue;
+        delete next[address];
+        changed = true;
+      }
+
+      return changed ? next : current;
+    });
+  }, [ownerPositionViews, positionRules, positions]);
+
   const handleClose = useCallback(
     async (pos: UiPosition) => {
       if (TRADING_DISABLED) {
@@ -302,40 +331,42 @@ export default function BottomPositionsPanel({
     [publicKey, anchorWallet, connection, loadPositions]
   );
 
-  const beginEditRule = useCallback((position: UiPosition) => {
-    const rule = getPositionRule(position.address);
-    const view = ownerPositionViews[position.address];
-    const resolvedSide = view?.side ?? rule?.side ?? "long";
-    setEditAddress(position.address);
-    setEditSide(resolvedSide);
-    setEditTakeProfit(rule?.takeProfit?.toString() ?? "");
-    setEditStopLoss(rule?.stopLoss?.toString() ?? "");
-  }, [ownerPositionViews]);
+  const updateRuleDraft = useCallback(
+    (address: string, field: "takeProfit" | "stopLoss", value: string) => {
+      setRuleDrafts((current) => ({
+        ...current,
+        [address]: {
+          ...(current[address] ?? { side: "long" as Direction, takeProfit: "", stopLoss: "" }),
+          [field]: value,
+        },
+      }));
+    },
+    []
+  );
 
-  const saveRule = useCallback(() => {
-    if (!editAddress) return;
-    const tp = parseOptionalPositive(editTakeProfit);
-    const sl = parseOptionalPositive(editStopLoss);
-    const existingRule = positionRules[editAddress];
-    const view = ownerPositionViews[editAddress];
+  const saveRule = useCallback((address: string) => {
+    const draft = ruleDrafts[address];
+    if (!draft) return;
+    const tp = parseOptionalPositive(draft.takeProfit);
+    const sl = parseOptionalPositive(draft.stopLoss);
+    const existingRule = positionRules[address];
+    const view = ownerPositionViews[address];
     const pairLabel = view?.pairLabel ?? existingRule?.pairLabel ?? activePairLabel ?? "PERP";
     if (tp === null && sl === null) {
-      removePositionRule(editAddress);
+      removePositionRule(address);
       toast.success("TP/SL rule removed");
-      setEditAddress(null);
       return;
     }
     setPositionRule({
-      positionAddress: editAddress,
+      positionAddress: address,
       pairLabel,
-      side: editSide,
+      side: draft.side,
       takeProfit: tp,
       stopLoss: sl,
       updatedAt: Date.now(),
     });
     toast.success("TP/SL rule saved");
-    setEditAddress(null);
-  }, [activePairLabel, editAddress, editSide, editStopLoss, editTakeProfit, ownerPositionViews, positionRules]);
+  }, [activePairLabel, ownerPositionViews, positionRules, ruleDrafts]);
 
   const openPositions = useMemo(
     () => positions.filter((p) => ["open", "pending", "closing", "settling"].includes(p.status)),
@@ -357,7 +388,7 @@ export default function BottomPositionsPanel({
     (position: UiPosition) => {
       const view = ownerPositionViews[position.address] ?? null;
       const rule = positionRules[position.address] ?? null;
-      const side = view?.side ?? null;
+      const side = view?.side ?? rule?.side ?? null;
       const marginMode = view?.marginMode ?? "cross";
       const leverage = view?.leverage ?? null;
       const entryPrice = view?.entryPrice ?? null;
@@ -621,6 +652,11 @@ export default function BottomPositionsPanel({
               const isSettling = pos.status === "settling";
               const card = derivePositionCard(pos);
               const rule = positionRules[pos.address];
+              const draft = ruleDrafts[pos.address] ?? {
+                side: card.side ?? rule?.side ?? "long",
+                takeProfit: rule?.takeProfit?.toString() ?? "",
+                stopLoss: rule?.stopLoss?.toString() ?? "",
+              };
               const pnlValue = card.unrealizedPnl;
               const pnlPercent = card.pnlPercent;
               const health = card.healthPercent;
@@ -672,12 +708,6 @@ export default function BottomPositionsPanel({
 
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => beginEditRule(pos)}
-                        className="rounded-lg bg-cyan-500/15 px-2.5 py-1 text-[11px] font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
-                      >
-                        TP/SL
-                      </button>
-                      <button
                         onClick={() => void handleClose(pos)}
                         disabled={TRADING_DISABLED || isClosing || isPending || isSettling}
                         className="rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-1 text-[12px] font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
@@ -685,7 +715,7 @@ export default function BottomPositionsPanel({
                         {TRADING_DISABLED
                           ? "Disabled"
                           : isPending
-                          ? "MPC..."
+                          ? "Waiting MPC"
                           : isSettling
                           ? "Settling..."
                           : isClosing
@@ -741,10 +771,50 @@ export default function BottomPositionsPanel({
                         style={{ width: healthBarWidth }}
                       />
                     </div>
-                    {rule && (
-                      <p className="mt-2 text-[10px] text-cyan-300">
-                        TP/SL: {rule.side.toUpperCase()} {formatPrice(rule.takeProfit)} /{" "}
-                        {formatPrice(rule.stopLoss)}
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-shadow-600 bg-shadow-800/60 p-3">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-cyan-300">Edit TP/SL</p>
+                        <p className="mt-1 text-[11px] text-gray-500">{card.pairLabel}</p>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase ${
+                          draft.side === "long"
+                            ? "bg-accent-green/20 text-accent-green"
+                            : "bg-accent-red/20 text-accent-red"
+                        }`}
+                      >
+                        {draft.side}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px]">
+                      <input
+                        type="number"
+                        value={draft.takeProfit}
+                        onChange={(e) => updateRuleDraft(pos.address, "takeProfit", e.target.value)}
+                        placeholder="Take Profit"
+                        className="rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
+                      />
+                      <input
+                        type="number"
+                        value={draft.stopLoss}
+                        onChange={(e) => updateRuleDraft(pos.address, "stopLoss", e.target.value)}
+                        placeholder="Stop Loss"
+                        className="rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => saveRule(pos.address)}
+                        className="rounded-lg bg-cyan-500/15 px-3 py-2 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
+                      >
+                        Save Rule
+                      </button>
+                    </div>
+                    {(rule || draft.takeProfit || draft.stopLoss) && (
+                      <p className="mt-3 text-[10px] text-cyan-300">
+                        Current: {draft.side.toUpperCase()} {formatPrice(rule?.takeProfit ?? parseOptionalPositive(draft.takeProfit))} /{" "}
+                        {formatPrice(rule?.stopLoss ?? parseOptionalPositive(draft.stopLoss))}
                       </p>
                     )}
                   </div>
@@ -819,61 +889,6 @@ export default function BottomPositionsPanel({
         )}
       </div>
 
-      {editAddress && (
-        <div className="tpsl-editor-panel border-t border-shadow-600 bg-shadow-800/60 px-4 py-4">
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-cyan-300">Edit TP/SL</p>
-              <p className="mt-1 text-[11px] text-gray-500">
-                {ownerPositionViews[editAddress]?.pairLabel ??
-                  positionRules[editAddress]?.pairLabel ??
-                  activePairLabel ??
-                  "PERP"}
-              </p>
-            </div>
-            <button
-              onClick={() => setEditAddress(null)}
-              className="text-[11px] text-gray-400 transition-colors hover:text-gray-200"
-            >
-              Close
-            </button>
-          </div>
-          <div className="mb-3 flex items-center gap-2 text-[11px] text-gray-400">
-            <span className="uppercase tracking-[0.08em] text-gray-500">Position side</span>
-            <span
-              className={`rounded-full px-2.5 py-0.5 font-semibold uppercase ${
-                editSide === "long"
-                  ? "bg-accent-green/20 text-accent-green"
-                  : "bg-accent-red/20 text-accent-red"
-              }`}
-            >
-              {editSide}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px]">
-            <input
-              type="number"
-              value={editTakeProfit}
-              onChange={(e) => setEditTakeProfit(e.target.value)}
-              placeholder="Take Profit"
-              className="rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
-            />
-            <input
-              type="number"
-              value={editStopLoss}
-              onChange={(e) => setEditStopLoss(e.target.value)}
-              placeholder="Stop Loss"
-              className="rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
-            />
-            <button
-              onClick={saveRule}
-              className="rounded-lg bg-cyan-500/15 px-3 py-2 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
-            >
-              Save Rule
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

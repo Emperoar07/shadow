@@ -5327,3 +5327,64 @@ npm run session:relayer:close -- --session-id <ID> --owner <OWNER> --position-in
 2. Confirm the TP/SL editor heading reads `Edit TP/SL`.
 3. Confirm the removed automation copy is no longer visible.
 
+## Inline TP/SL Editor In Position Cards (2026-03-10 UTC)
+
+### What changed
+
+- Removed the detached bottom TP/SL editor panel from:
+  - `app/src/components/BottomPositionsPanel.tsx`
+- Moved TP/SL editing into each open position card so rules are visible and editable without opening a separate panel.
+- Removed the card-level `TP/SL` button because the editor is now inline.
+- Added per-position TP/SL draft state keyed by position address.
+- Position cards now show:
+  - pair label
+  - side badge
+  - inline take-profit input
+  - inline stop-loss input
+  - inline `Save Rule` action
+  - current TP/SL summary when a rule or draft exists
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+
+### Current blocker
+
+- `needs browser check`
+- The inline TP/SL card flow is code-verified, not visually rechecked yet.
+
+### Next safe step
+
+1. Open `/app` and confirm each open position card shows TP/SL fields inline.
+2. Confirm the detached TP/SL panel no longer appears below the positions section.
+3. Confirm saving a rule still works for an open position.
+
+## Position Card Action Label + Direction Fallback (2026-03-10 UTC)
+
+### What changed
+
+- Clarified the pending close-action button label in:
+  - `app/src/components/BottomPositionsPanel.tsx`
+- Replaced the opaque pending label:
+  - `MPC...`
+  with:
+  - `Waiting MPC`
+- Updated the position-card direction resolution to prefer any available stored side metadata before falling back to the private-state badge:
+  1. owner position view `side`
+  2. saved TP/SL rule `side`
+  3. private/unknown -> `Encrypted`
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+
+### Current blocker
+
+- `needs browser check`
+- The clearer pending action label and direction fallback are code-verified, not visually rechecked yet.
+
+### Next safe step
+
+1. Open a pending position card and confirm the action button reads `Waiting MPC`.
+2. Confirm positions with stored side metadata render `LONG` / `SHORT` instead of the generic private badge.
+

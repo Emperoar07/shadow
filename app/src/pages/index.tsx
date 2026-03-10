@@ -540,9 +540,6 @@ export default function LandingPage() {
           </p>
           <div className="lp-hero-ctas">
             <Link href="/app" className="lp-btn-primary">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
               Start Trading
             </Link>
           </div>
