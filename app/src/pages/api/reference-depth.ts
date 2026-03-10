@@ -39,7 +39,8 @@ function buildSnapshot(
   provider: ReferenceProviderConfig,
   bids: ReferenceLevel[],
   asks: ReferenceLevel[],
-  trades: ReferenceTrade[]
+  trades: ReferenceTrade[],
+  stats24h: ReferenceDepthSnapshot["stats24h"]
 ): ReferenceDepthSnapshot | null {
   if (bids.length === 0 && asks.length === 0) return null;
 
@@ -61,9 +62,20 @@ function buildSnapshot(
     lastTrade,
     spread,
     spreadBps,
+    stats24h,
     fetchedAt: Date.now(),
     external: true,
   };
+}
+
+function finiteOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function positiveFiniteOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : null;
 }
 
 async function fetchJson(url: string): Promise<any | null> {
@@ -85,9 +97,10 @@ async function fetchJson(url: string): Promise<any | null> {
 
 async function fetchCoinbase(pairLabel: string, provider: ReferenceProviderConfig): Promise<ReferenceDepthSnapshot | null> {
   const baseUrl = `https://api.exchange.coinbase.com/products/${encodeURIComponent(provider.symbol)}`;
-  const [book, trades] = await Promise.all([
+  const [book, trades, stats] = await Promise.all([
     fetchJson(`${baseUrl}/book?level=2`),
     fetchJson(`${baseUrl}/trades`),
+    fetchJson(`${baseUrl}/stats`),
   ]);
 
   if (!book || !Array.isArray(book.bids) || !Array.isArray(book.asks)) return null;
@@ -110,14 +123,24 @@ async function fetchCoinbase(pairLabel: string, provider: ReferenceProviderConfi
         .slice(0, TRADE_LIMIT)
     : [];
 
-  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
+  const stats24h = stats
+    ? {
+        changePct: null,
+        volume: positiveFiniteOrNull(Number.parseFloat(String(stats?.volume ?? ""))),
+        high: positiveFiniteOrNull(Number.parseFloat(String(stats?.high ?? ""))),
+        low: positiveFiniteOrNull(Number.parseFloat(String(stats?.low ?? ""))),
+      }
+    : null;
+
+  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades, stats24h);
 }
 
 async function fetchBinance(pairLabel: string, provider: ReferenceProviderConfig): Promise<ReferenceDepthSnapshot | null> {
   const symbol = encodeURIComponent(provider.symbol);
-  const [book, trades] = await Promise.all([
+  const [book, trades, ticker] = await Promise.all([
     fetchJson(`https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=${DEPTH_LIMIT}`),
     fetchJson(`https://api.binance.com/api/v3/trades?symbol=${symbol}&limit=${TRADE_LIMIT}`),
+    fetchJson(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`),
   ]);
 
   if (!book || !Array.isArray(book.bids) || !Array.isArray(book.asks)) return null;
@@ -140,14 +163,24 @@ async function fetchBinance(pairLabel: string, provider: ReferenceProviderConfig
         .slice(0, TRADE_LIMIT)
     : [];
 
-  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
+  const stats24h = ticker
+    ? {
+        changePct: finiteOrNull(Number.parseFloat(String(ticker?.priceChangePercent ?? ""))),
+        volume: positiveFiniteOrNull(Number.parseFloat(String(ticker?.quoteVolume ?? ""))),
+        high: positiveFiniteOrNull(Number.parseFloat(String(ticker?.highPrice ?? ""))),
+        low: positiveFiniteOrNull(Number.parseFloat(String(ticker?.lowPrice ?? ""))),
+      }
+    : null;
+
+  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades, stats24h);
 }
 
 async function fetchBybit(pairLabel: string, provider: ReferenceProviderConfig): Promise<ReferenceDepthSnapshot | null> {
   const symbol = encodeURIComponent(provider.symbol);
-  const [book, trades] = await Promise.all([
+  const [book, trades, ticker] = await Promise.all([
     fetchJson(`https://api.bybit.com/v5/market/orderbook?category=spot&symbol=${symbol}&limit=${DEPTH_LIMIT}`),
     fetchJson(`https://api.bybit.com/v5/market/recent-trade?category=spot&symbol=${symbol}&limit=${TRADE_LIMIT}`),
+    fetchJson(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${symbol}`),
   ]);
 
   const bookResult = book?.result;
@@ -172,14 +205,25 @@ async function fetchBybit(pairLabel: string, provider: ReferenceProviderConfig):
         .slice(0, TRADE_LIMIT)
     : [];
 
-  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
+  const tickerRow = Array.isArray(ticker?.result?.list) ? ticker.result.list[0] : null;
+  const stats24h = tickerRow
+    ? {
+        changePct: finiteOrNull(Number.parseFloat(String(tickerRow?.price24hPcnt ?? "")) * 100),
+        volume: positiveFiniteOrNull(Number.parseFloat(String(tickerRow?.turnover24h ?? ""))),
+        high: positiveFiniteOrNull(Number.parseFloat(String(tickerRow?.highPrice24h ?? ""))),
+        low: positiveFiniteOrNull(Number.parseFloat(String(tickerRow?.lowPrice24h ?? ""))),
+      }
+    : null;
+
+  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades, stats24h);
 }
 
 async function fetchMexc(pairLabel: string, provider: ReferenceProviderConfig): Promise<ReferenceDepthSnapshot | null> {
   const symbol = encodeURIComponent(provider.symbol);
-  const [book, trades] = await Promise.all([
+  const [book, trades, ticker] = await Promise.all([
     fetchJson(`https://api.mexc.com/api/v3/depth?symbol=${symbol}&limit=${DEPTH_LIMIT}`),
     fetchJson(`https://api.mexc.com/api/v3/trades?symbol=${symbol}&limit=${TRADE_LIMIT}`),
+    fetchJson(`https://api.mexc.com/api/v3/ticker/24hr?symbol=${symbol}`),
   ]);
 
   if (!book || !Array.isArray(book.bids) || !Array.isArray(book.asks)) return null;
@@ -202,14 +246,24 @@ async function fetchMexc(pairLabel: string, provider: ReferenceProviderConfig): 
         .slice(0, TRADE_LIMIT)
     : [];
 
-  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
+  const stats24h = ticker
+    ? {
+        changePct: finiteOrNull(Number.parseFloat(String(ticker?.priceChangePercent ?? ""))),
+        volume: positiveFiniteOrNull(Number.parseFloat(String(ticker?.quoteVolume ?? ""))),
+        high: positiveFiniteOrNull(Number.parseFloat(String(ticker?.highPrice ?? ""))),
+        low: positiveFiniteOrNull(Number.parseFloat(String(ticker?.lowPrice ?? ""))),
+      }
+    : null;
+
+  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades, stats24h);
 }
 
 async function fetchGateIo(pairLabel: string, provider: ReferenceProviderConfig): Promise<ReferenceDepthSnapshot | null> {
   const symbol = encodeURIComponent(provider.symbol);
-  const [book, trades] = await Promise.all([
+  const [book, trades, ticker] = await Promise.all([
     fetchJson(`https://api.gateio.ws/api/v4/spot/order_book?currency_pair=${symbol}&limit=${DEPTH_LIMIT}&with_id=false`),
     fetchJson(`https://api.gateio.ws/api/v4/spot/trades?currency_pair=${symbol}&limit=${TRADE_LIMIT}`),
+    fetchJson(`https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${symbol}`),
   ]);
 
   if (!book || !Array.isArray(book.bids) || !Array.isArray(book.asks)) return null;
@@ -232,14 +286,25 @@ async function fetchGateIo(pairLabel: string, provider: ReferenceProviderConfig)
         .slice(0, TRADE_LIMIT)
     : [];
 
-  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
+  const tickerRow = Array.isArray(ticker) ? ticker[0] : null;
+  const stats24h = tickerRow
+    ? {
+        changePct: finiteOrNull(Number.parseFloat(String(tickerRow?.change_percentage ?? ""))),
+        volume: positiveFiniteOrNull(Number.parseFloat(String(tickerRow?.quote_volume ?? ""))),
+        high: positiveFiniteOrNull(Number.parseFloat(String(tickerRow?.high_24h ?? ""))),
+        low: positiveFiniteOrNull(Number.parseFloat(String(tickerRow?.low_24h ?? ""))),
+      }
+    : null;
+
+  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades, stats24h);
 }
 
 async function fetchKraken(pairLabel: string, provider: ReferenceProviderConfig): Promise<ReferenceDepthSnapshot | null> {
   const symbol = encodeURIComponent(provider.symbol);
-  const [book, trades] = await Promise.all([
+  const [book, trades, ticker] = await Promise.all([
     fetchJson(`https://api.kraken.com/0/public/Depth?pair=${symbol}&count=${DEPTH_LIMIT}`),
     fetchJson(`https://api.kraken.com/0/public/Trades?pair=${symbol}`),
+    fetchJson(`https://api.kraken.com/0/public/Ticker?pair=${symbol}`),
   ]);
 
   const depthResult = book?.result && typeof book.result === "object" ? Object.values(book.result)[0] as any : null;
@@ -264,7 +329,25 @@ async function fetchKraken(pairLabel: string, provider: ReferenceProviderConfig)
         .slice(0, TRADE_LIMIT)
     : [];
 
-  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades);
+  const tickerResult = ticker?.result && typeof ticker.result === "object" ? Object.values(ticker.result)[0] as any : null;
+  const stats24h = tickerResult
+    ? {
+        changePct:
+          finiteOrNull(
+            (() => {
+              const open = Number.parseFloat(String(tickerResult?.o ?? ""));
+              const last = Number.parseFloat(String(tickerResult?.c?.[0] ?? ""));
+              if (!Number.isFinite(open) || open <= 0 || !Number.isFinite(last)) return NaN;
+              return ((last - open) / open) * 100;
+            })()
+          ),
+        volume: positiveFiniteOrNull(Number.parseFloat(String(tickerResult?.v?.[1] ?? ""))),
+        high: positiveFiniteOrNull(Number.parseFloat(String(tickerResult?.h?.[1] ?? ""))),
+        low: positiveFiniteOrNull(Number.parseFloat(String(tickerResult?.l?.[1] ?? ""))),
+      }
+    : null;
+
+  return buildSnapshot(pairLabel, provider, bids, asks, normalizedTrades, stats24h);
 }
 
 async function fetchReferenceDepth(pairLabel: string): Promise<ReferenceDepthSnapshot | null> {

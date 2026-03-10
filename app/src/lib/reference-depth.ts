@@ -32,6 +32,12 @@ export interface ReferenceDepthSnapshot {
   lastTrade: ReferenceTrade | null;
   spread: number | null;
   spreadBps: number | null;
+  stats24h: {
+    changePct: number | null;
+    volume: number | null;
+    high: number | null;
+    low: number | null;
+  } | null;
   fetchedAt: number;
   external: true;
 }

@@ -5388,3 +5388,29 @@ npm run session:relayer:close -- --session-id <ID> --owner <OWNER> --position-in
 1. Open a pending position card and confirm the action button reads `Waiting MPC`.
 2. Confirm positions with stored side metadata render `LONG` / `SHORT` instead of the generic private badge.
 
+## Market Header 24H Stats Fallback (2026-03-10 UTC)
+
+### What changed
+
+- Added `stats24h` to the shared live reference-depth snapshot in:
+  - `app/src/lib/reference-depth.ts`
+- Extended the reference-depth API to fetch 24H stats from the same venue family used for the live book in:
+  - `app/src/pages/api/reference-depth.ts`
+  - supported providers: Coinbase, Binance, Bybit, MEXC, Gate.io, Kraken
+- Updated the shared market snapshot hook to prefer live depth-derived 24H stats before falling back to `/api/prices` in:
+  - `app/src/hooks/useMarketSnapshot.ts`
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+
+### Current blocker
+
+- `needs browser check`
+- The code path is verified, but the market header still needs a visual check to confirm `24H Volume`, `24H High`, and `24H Low` no longer drop to `--` while the orderbook is live.
+
+### Next safe step
+
+1. Open `/app` on a pair with live orderbook data.
+2. Confirm `24H Volume`, `24H High`, and `24H Low` render from the live reference-depth path.
+
