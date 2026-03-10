@@ -142,7 +142,6 @@ export const DEVNET_TOKENS: Record<string, TokenInfo> = {
 // Trading pairs available on ShadowPerp
 export const TRADING_PAIRS: TradingPair[] = [
   { base: DEVNET_TOKENS.SOL, quote: DEVNET_TOKENS.USDC, label: "SOL-PERP", mockPrice: 178.45, mockPriceChange: 3.12 },
-  { base: DEVNET_TOKENS.BONK, quote: DEVNET_TOKENS.USDC, label: "BONK-PERP", mockPrice: 0.0000234, mockPriceChange: -5.67 },
   { base: DEVNET_TOKENS.WIF, quote: DEVNET_TOKENS.USDC, label: "WIF-PERP", mockPrice: 0.68, mockPriceChange: 12.34 },
   { base: DEVNET_TOKENS.JUP, quote: DEVNET_TOKENS.USDC, label: "JUP-PERP", mockPrice: 0.92, mockPriceChange: 1.45 },
   { base: DEVNET_TOKENS.BTC, quote: DEVNET_TOKENS.USDC, label: "BTC-PERP", mockPrice: 97250.00, mockPriceChange: 0.87 },
@@ -159,7 +158,6 @@ export const TRADING_PAIRS: TradingPair[] = [
 export const WALLET_DISPLAY_TOKENS = [
   DEVNET_TOKENS.USDC,
   DEVNET_TOKENS.USDT,
-  DEVNET_TOKENS.BONK,
   DEVNET_TOKENS.WIF,
   DEVNET_TOKENS.JUP,
   DEVNET_TOKENS.PYTH,

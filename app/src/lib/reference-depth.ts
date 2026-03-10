@@ -1,7 +1,6 @@
 import { TRADING_PAIRS, type TradingPair } from "./tokens";
 import {
   getMarketFeed,
-  getOrderedReferenceProviders,
   type ReferenceProviderConfig,
   type MarketFeedProvider,
 } from "./market-feeds";
@@ -42,18 +41,7 @@ export interface GroupedReferenceLevel extends ReferenceLevel {
 }
 
 export function getReferenceProviders(pair: TradingPair): ReferenceProviderConfig[] {
-  return getOrderedReferenceProviders(pair);
-}
-
-export function getDepthPresentation(pair: TradingPair): {
-  preferredGrouping: number;
-  minVisibleLevels: number;
-} {
-  const feed = getMarketFeed(pair);
-  return {
-    preferredGrouping: feed.preferredGrouping,
-    minVisibleLevels: feed.minVisibleLevels,
-  };
+  return getMarketFeed(pair).referenceProviders;
 }
 
 export function findTradingPair(label: string): TradingPair | null {
