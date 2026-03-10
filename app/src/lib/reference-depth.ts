@@ -83,8 +83,8 @@ export function getGroupingOptions(referencePrice: number | null | undefined): n
   if (referencePrice < 0.01) return [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1];
   if (referencePrice < 0.1) return [0.0001, 0.001, 0.01, 0.1, 1, 10];
   if (referencePrice < 1) return [0.001, 0.01, 0.1, 0.25, 0.5, 1];
-  if (referencePrice < 100) return [0.01, 0.1, 0.5, 1, 5, 10];
-  if (referencePrice < 10000) return [0.1, 1, 5, 10, 50, 100];
+  if (referencePrice < 100) return [0.01, 0.05, 0.1, 0.25, 0.5, 1];
+  if (referencePrice < 10000) return [0.1, 0.5, 1, 5, 10, 25];
   return [1, 10, 50, 100, 500, 1000];
 }
 
@@ -99,8 +99,8 @@ export function getDefaultGrouping(referencePrice: number | null | undefined): n
   if (referencePrice < 0.01) return options[1] ?? options[0] ?? 0.00001;
   if (referencePrice < 0.1) return options[1] ?? options[0] ?? 0.001;
   if (referencePrice < 1) return options[1] ?? options[0] ?? 0.01;
-  if (referencePrice < 100) return options[1] ?? options[0] ?? 0.1;
-  if (referencePrice < 10000) return options[1] ?? options[0] ?? 1;
+  if (referencePrice < 100) return options[0] ?? 0.01;
+  if (referencePrice < 10000) return options[0] ?? 0.1;
   return options[1] ?? options[0] ?? 10;
 }
 
@@ -124,7 +124,7 @@ export function groupLevels(
   levels: ReferenceLevel[],
   grouping: number,
   side: "bids" | "asks",
-  limit = 14
+  limit = 24
 ): GroupedReferenceLevel[] {
   const buckets = new Map<number, number>();
 

@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 
+function detectLightTheme(): boolean {
+  if (typeof document !== "undefined") {
+    return document.documentElement.classList.contains("light");
+  }
+  return false;
+}
+
 export default function ThemeToggle() {
-  const [isLight, setIsLight] = useState(false);
+  const [isLight, setIsLight] = useState<boolean>(detectLightTheme);
 
   useEffect(() => {
     const saved = localStorage.getItem("shadow-theme");
     const light = saved === "light";
+    document.documentElement.classList.toggle("light", light);
+    if (!saved) localStorage.setItem("shadow-theme", "dark");
     setIsLight(light);
-    if (light) {
-      document.documentElement.classList.add("light");
-    } else {
-      document.documentElement.classList.remove("light");
-      if (!saved) localStorage.setItem("shadow-theme", "dark");
-    }
   }, []);
 
   const toggle = () => {

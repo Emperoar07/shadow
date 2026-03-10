@@ -6,6 +6,47 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Date: 2026-03-07 (UTC)
 - Author: Codex
 
+## Market Bar / Orderbook Alignment Fixes (2026-03-10 UTC)
+- Scope:
+  - `app/src/components/MarketInfo.tsx`
+  - `app/src/components/PrivateOrderbook.tsx`
+  - `app/src/lib/reference-depth.ts`
+- What changed:
+  1. The top market bar now prefers the same live reference-depth snapshot used by the orderbook before falling back to `/api/prices` or on-chain oracle state. This prevents the header from drifting to stale/mock values while the book is live.
+  2. Orderbook grouping defaults were tightened for sub-$100 and sub-$10k markets so depth does not collapse into only a few grouped levels.
+  3. Grouped level limit was increased from `14` to `24`.
+  4. Ask rows are now visually anchored toward the spread so the book uses vertical space better instead of leaving the upper side looking sparse.
+- What was verified:
+  - `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+- Current blocker:
+  - `needs browser verification`
+  - The price-source alignment and fuller orderbook rendering are typechecked, but not visually rechecked in a running browser during this pass.
+- Next safe step:
+  1. Verify the top market bar price now tracks the orderbook last trade / mid more closely for `SOL-PERP`.
+  2. Confirm the book renders fuller and asks sit nearer the spread instead of floating at the top.
+
+## Mobile Market Tabs + Theme Init Sync (2026-03-10 UTC)
+- Scope:
+  - `app/src/pages/app.tsx`
+  - `app/src/components/PrivateOrderbook.tsx`
+  - `app/src/components/PriceChart.tsx`
+  - `app/src/components/ThemeToggle.tsx`
+  - `app/src/pages/index.tsx`
+- What changed:
+  1. Added mobile-only market tabs in the app terminal for `Chart`, `Order Book`, and `Trades`.
+  2. Wired `PrivateOrderbook` to accept an optional controlled tab state so mobile app-level buttons can switch directly into the trades view.
+  3. Reset TradingView loading state when the symbol/feed changes so fallback rotation and pair changes do not keep stale chart state.
+  4. Synchronized theme toggle initialization with the actual document theme state on first render.
+  5. Landing page theme state now also initializes from the active document class instead of briefly assuming a different state during hydration.
+- What was verified:
+  - `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+- Current blocker:
+  - `needs browser verification`
+  - Mobile chart/orderbook/trades navigation and first-paint theme toggle state are code-verified only.
+- Next safe step:
+  1. Open the app on a narrow/mobile viewport and verify the market tabs switch cleanly between chart, order book, and trades.
+  2. Confirm the theme button reflects dark mode on first load when no light preference is saved.
+
 ## Market Feed + Theme Default + TP/SL Light-Mode Fixes (2026-03-10 UTC)
 - Scope:
   - `app/src/lib/market-feeds.ts`
@@ -4923,3 +4964,58 @@ npm run session:relayer:close -- --session-id <ID> --owner <OWNER> --position-in
    - center spread row
    - low-priced token grouping (BONK)
 2. If the UI looks right, commit the new orderbook route + component as a separate frontend commit.
+
+## 2026-03-10 11:58 WAT - Mobile header/navigation and landing-page text verified in browser
+
+### What changed
+
+- Made the app header more mobile-safe in `app/src/pages/app.tsx`:
+  - session control now reserves its own full-width row on mobile
+  - active sessions render as a full-width status pill on mobile instead of the desktop-only shrinking dot
+  - inactive session control renders as a dedicated mobile `Start` action with a full-width duration menu
+- Improved the market header layout in `app/src/components/MarketInfo.tsx`:
+  - compact top-row mobile price summary
+  - secondary stats row stays accessible on narrow viewports
+- Confirmed chart fallback reset logic remains in place in `app/src/components/PriceChart.tsx`
+- Cleaned visible landing-page punctuation in `app/src/pages/index.tsx`
+
+### What was verified
+
+- TypeScript compile passed:
+  - `pnpm --dir app exec tsc --noEmit --incremental false`
+- Browser/mobile pass completed with Playwright on a `430x932` viewport against local dev server
+- `/app` on mobile:
+  - top `SOL-PERP` price matched the chart price visually
+  - mobile `Chart`, `Order Book`, and `Trades` buttons all switched views successfully
+  - orderbook/trades sections are reachable without relying on horizontal page scrolling
+- `/` landing page on mobile:
+  - core hero copy renders on first load
+  - no visible mojibake remained in the rendered screenshot
+
+### Current blocker
+
+- `needs connected-wallet mobile verification`
+- I could verify mobile layout and navigation, but not the live connected-wallet session chip flow in-browser during this pass.
+
+### Next safe step
+
+1. Verify the mobile header while a wallet is connected and confirm the session action remains reachable.
+2. If that looks right, commit the current mobile/landing updates separately from the Arcium probe work.
+
+## 2026-03-10 12:14 WAT - Footer docs link and mobile header batch ready to push
+
+### What changed
+- Footer docs link on the landing page now points to the GitHub repo and the Discord link was removed.
+- Mobile header/session controls, market bar, orderbook mobile tabs, and landing-page text cleanup remain in the current frontend batch.
+
+### What was verified
+- TypeScript compile passed: pnpm --dir app exec tsc --noEmit --incremental false`n- Mobile browser pass verified /app chart/orderbook/trades tabs and market price alignment.
+
+### Current blocker
+- No code blocker for this batch.
+- Remaining gap is only connected-wallet mobile verification for the session chip.
+
+### Next safe step
+1. Commit and push the current frontend/docs batch.
+2. Later, verify the connected-wallet mobile session action in a live wallet state.
+
