@@ -5290,3 +5290,40 @@ npm run session:relayer:close -- --session-id <ID> --owner <OWNER> --position-in
 1. Open the positions panel and confirm the card title uses the traded pair instead of `SHADOW-PERP`.
 2. Confirm only one private-state badge is shown when side/leverage are not yet revealed.
 
+## TP/SL Panel Cleanup + Pair Fallback (2026-03-10 UTC)
+
+### What changed
+
+- Reworked the TP/SL editor panel in:
+  - `app/src/components/BottomPositionsPanel.tsx`
+- Renamed the editor heading from:
+  - `Edit TP/SL Automation`
+  to:
+  - `Edit TP/SL`
+- Removed the stale explanatory line:
+  - `Client automation: position closes automatically when oracle hits TP/SL while this app is running.`
+- Tightened the editor layout into a cleaner three-column action row on desktop with stacked inputs on mobile.
+- Replaced the generic position-card fallback label path so the panel now prefers:
+  1. owner position view `pairLabel`
+  2. saved rule `pairLabel`
+  3. active selected pair label from the app shell
+- Wired the active selected pair label from:
+  - `app/src/pages/app.tsx`
+  into:
+  - `app/src/components/BottomPositionsPanel.tsx`
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+
+### Current blocker
+
+- `needs browser check`
+- The TP/SL editor cleanup and active-pair fallback are code-verified, not visually rechecked yet.
+
+### Next safe step
+
+1. Open the positions panel and confirm the card title no longer falls back to plain `PERP` while trading a selected pair.
+2. Confirm the TP/SL editor heading reads `Edit TP/SL`.
+3. Confirm the removed automation copy is no longer visible.
+

@@ -147,7 +147,11 @@ function MetricBlock({
   );
 }
 
-export default function BottomPositionsPanel() {
+export default function BottomPositionsPanel({
+  activePairLabel,
+}: {
+  activePairLabel?: string;
+}) {
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
@@ -314,7 +318,7 @@ export default function BottomPositionsPanel() {
     const sl = parseOptionalPositive(editStopLoss);
     const existingRule = positionRules[editAddress];
     const view = ownerPositionViews[editAddress];
-    const pairLabel = view?.pairLabel ?? existingRule?.pairLabel ?? "PERP";
+    const pairLabel = view?.pairLabel ?? existingRule?.pairLabel ?? activePairLabel ?? "PERP";
     if (tp === null && sl === null) {
       removePositionRule(editAddress);
       toast.success("TP/SL rule removed");
@@ -331,7 +335,7 @@ export default function BottomPositionsPanel() {
     });
     toast.success("TP/SL rule saved");
     setEditAddress(null);
-  }, [editAddress, editSide, editStopLoss, editTakeProfit, ownerPositionViews, positionRules]);
+  }, [activePairLabel, editAddress, editSide, editStopLoss, editTakeProfit, ownerPositionViews, positionRules]);
 
   const openPositions = useMemo(
     () => positions.filter((p) => ["open", "pending", "closing", "settling"].includes(p.status)),
@@ -357,7 +361,7 @@ export default function BottomPositionsPanel() {
       const marginMode = view?.marginMode ?? "cross";
       const leverage = view?.leverage ?? null;
       const entryPrice = view?.entryPrice ?? null;
-      const pairLabel = view?.pairLabel ?? rule?.pairLabel ?? "PERP";
+      const pairLabel = view?.pairLabel ?? rule?.pairLabel ?? activePairLabel ?? "PERP";
       const sizeBase = view?.sizeBase ?? null;
 
       let liqPrice: number | null = null;
@@ -425,7 +429,7 @@ export default function BottomPositionsPanel() {
         healthPercent,
       };
     },
-    [liqThreshold, oraclePrice, ownerPositionViews, positionRules]
+    [activePairLabel, liqThreshold, oraclePrice, ownerPositionViews, positionRules]
   );
 
   useEffect(() => {
@@ -816,17 +820,25 @@ export default function BottomPositionsPanel() {
       </div>
 
       {editAddress && (
-        <div className="tpsl-editor-panel border-t border-shadow-600 p-3 bg-shadow-800/50">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-cyan-300">Edit TP/SL Automation</p>
+        <div className="tpsl-editor-panel border-t border-shadow-600 bg-shadow-800/60 px-4 py-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-cyan-300">Edit TP/SL</p>
+              <p className="mt-1 text-[11px] text-gray-500">
+                {ownerPositionViews[editAddress]?.pairLabel ??
+                  positionRules[editAddress]?.pairLabel ??
+                  activePairLabel ??
+                  "PERP"}
+              </p>
+            </div>
             <button
               onClick={() => setEditAddress(null)}
-              className="text-[11px] text-gray-400 hover:text-gray-200"
+              className="text-[11px] text-gray-400 transition-colors hover:text-gray-200"
             >
               Close
             </button>
           </div>
-          <div className="mb-2 flex items-center gap-2 text-[11px] text-gray-400">
+          <div className="mb-3 flex items-center gap-2 text-[11px] text-gray-400">
             <span className="uppercase tracking-[0.08em] text-gray-500">Position side</span>
             <span
               className={`rounded-full px-2.5 py-0.5 font-semibold uppercase ${
@@ -838,31 +850,28 @@ export default function BottomPositionsPanel() {
               {editSide}
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px]">
             <input
               type="number"
               value={editTakeProfit}
               onChange={(e) => setEditTakeProfit(e.target.value)}
               placeholder="Take Profit"
-              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50 sm:col-span-1"
+              className="rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
             />
             <input
               type="number"
               value={editStopLoss}
               onChange={(e) => setEditStopLoss(e.target.value)}
               placeholder="Stop Loss"
-              className="bg-shadow-700 border border-shadow-500 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400/50 sm:col-span-1"
+              className="rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
             />
             <button
               onClick={saveRule}
-              className="px-3 py-1.5 rounded text-xs font-medium bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25 transition-colors sm:col-span-2"
+              className="rounded-lg bg-cyan-500/15 px-3 py-2 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
             >
               Save Rule
             </button>
           </div>
-          <p className="text-[10px] text-gray-500 mt-2">
-            Client automation: position closes automatically when oracle hits TP/SL while this app is running.
-          </p>
         </div>
       )}
     </div>
