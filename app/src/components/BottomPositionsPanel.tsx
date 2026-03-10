@@ -547,13 +547,6 @@ export default function BottomPositionsPanel({
           </TabBtn>
         </div>
 
-        <div className="flex items-center pr-4">
-          <span className="text-[11px] text-gray-400">
-            Price is public | positions are{" "}
-            <span className="text-accent-purple font-semibold">MPC encrypted</span>
-            <span className="text-gray-500"> via Arcium</span>
-          </span>
-        </div>
       </div>
 
       {/* Table */}
@@ -690,11 +683,7 @@ export default function BottomPositionsPanel({
                         >
                           {card.side}
                         </span>
-                      ) : (
-                        <span className="rounded-full bg-accent-purple/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent-purple">
-                          Encrypted
-                        </span>
-                      )}
+                      ) : null}
                       {card.leverage ? (
                         <span className="rounded-full bg-accent-purple/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent-purple">
                           {card.leverage}x
@@ -703,10 +692,15 @@ export default function BottomPositionsPanel({
                       <span className="rounded-full bg-shadow-600 px-2.5 py-0.5 text-[11px] font-semibold uppercase text-gray-300">
                         {card.marginMode}
                       </span>
-                      <StatusBadge status={pos.status} isClosing={isClosing} />
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {pos.hasEncryptedData ? (
+                        <span className="rounded-full bg-accent-purple/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent-purple">
+                          Encrypted
+                        </span>
+                      ) : null}
+                      <StatusBadge status={pos.status} isClosing={isClosing} />
                       <button
                         onClick={() => void handleClose(pos)}
                         disabled={TRADING_DISABLED || isClosing || isPending || isSettling}

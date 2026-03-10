@@ -208,7 +208,6 @@ export default function TradingAppPage() {
                 </a>{" "}
                 | Built on Solana
               </p>
-              <p>Your trades are encrypted end-to-end. Only PnL is ever revealed.</p>
             </div>
           </footer>
         </div>
