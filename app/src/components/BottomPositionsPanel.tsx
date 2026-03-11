@@ -729,7 +729,7 @@ export default function BottomPositionsPanel({
                       value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
                     />
                     <div className="flex h-full w-full flex-col justify-center gap-2 md:w-fit md:justify-self-start md:-ml-28">
-                      <div className="grid grid-cols-2 gap-2 md:min-w-[320px]">
+                      <div className="grid grid-cols-2 gap-2 md:min-w-[260px]">
                         <div className="relative">
                           <input
                             type="number"
