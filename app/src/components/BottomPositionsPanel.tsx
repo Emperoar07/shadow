@@ -731,7 +731,7 @@ export default function BottomPositionsPanel({
                       label="Margin"
                       value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
                     />
-                    <div className="rounded-xl border border-shadow-600 bg-shadow-800/60 p-3">
+                    <div className="flex flex-col justify-center gap-2">
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-cyan-300">
                           TP / SL
