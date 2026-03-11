@@ -728,22 +728,7 @@ export default function BottomPositionsPanel({
                       label="Margin"
                       value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
                     />
-                    <div className="-mt-2 flex flex-col justify-start gap-2 md:-ml-6">
-                      {rule?.takeProfit === null && rule?.stopLoss === null && !draft.takeProfit && !draft.stopLoss ? (
-                        <p className="mb-2 text-[10px] text-gray-500">
-                          No TP/SL set. Add take profit or stop loss here while the position is live.
-                        </p>
-                      ) : null}
-                      {rule && (rule.takeProfit !== null || rule.stopLoss !== null) ? (
-                        <div className="mb-2 flex flex-wrap gap-2">
-                          <span className="rounded-full border border-shadow-500 bg-shadow-700/80 px-2.5 py-1 text-[10px] font-medium text-cyan-300">
-                            TP {formatPrice(rule.takeProfit)}
-                          </span>
-                          <span className="rounded-full border border-shadow-500 bg-shadow-700/80 px-2.5 py-1 text-[10px] font-medium text-accent-red">
-                            SL {formatPrice(rule.stopLoss)}
-                          </span>
-                        </div>
-                      ) : null}
+                    <div className="flex h-full flex-col justify-center gap-2 md:px-1">
                       <div className="grid grid-cols-2 gap-2">
                         <div className="relative">
                           <input
@@ -778,8 +763,23 @@ export default function BottomPositionsPanel({
                           Save
                         </button>
                       </div>
+                      {rule?.takeProfit === null && rule?.stopLoss === null && !draft.takeProfit && !draft.stopLoss ? (
+                        <p className="text-[10px] text-gray-500">
+                          No TP/SL set. Add take profit or stop loss here while the position is live.
+                        </p>
+                      ) : null}
+                      {rule && (rule.takeProfit !== null || rule.stopLoss !== null) ? (
+                        <div className="flex flex-wrap gap-2">
+                          <span className="rounded-full border border-shadow-500 bg-shadow-700/80 px-2.5 py-1 text-[10px] font-medium text-cyan-300">
+                            TP {formatPrice(rule.takeProfit)}
+                          </span>
+                          <span className="rounded-full border border-shadow-500 bg-shadow-700/80 px-2.5 py-1 text-[10px] font-medium text-accent-red">
+                            SL {formatPrice(rule.stopLoss)}
+                          </span>
+                        </div>
+                      ) : null}
                       {(draft.takeProfit || draft.stopLoss) && (
-                        <p className="mt-2 text-[10px] text-gray-500">
+                        <p className="text-[10px] text-gray-500">
                           Save to add or update this position&apos;s TP/SL.
                         </p>
                       )}
