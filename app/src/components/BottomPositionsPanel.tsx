@@ -650,6 +650,7 @@ export default function BottomPositionsPanel({
                 takeProfit: rule?.takeProfit?.toString() ?? "",
                 stopLoss: rule?.stopLoss?.toString() ?? "",
               };
+              const displaySide = card.side ?? draft.side;
               const pnlValue = card.unrealizedPnl;
               const pnlPercent = card.pnlPercent;
               const health = card.healthPercent;
@@ -673,15 +674,15 @@ export default function BottomPositionsPanel({
                       <p className="text-2xl font-semibold tracking-tight text-white">
                         {card.pairLabel}
                       </p>
-                      {card.side ? (
+                      {displaySide ? (
                         <span
                           className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase ${
-                            card.side === "long"
+                            displaySide === "long"
                               ? "bg-accent-green/20 text-accent-green"
                               : "bg-accent-red/20 text-accent-red"
                           }`}
                         >
-                          {card.side}
+                          {displaySide}
                         </span>
                       ) : null}
                       {card.leverage ? (
@@ -731,40 +732,61 @@ export default function BottomPositionsPanel({
                       value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
                     />
                     <div className="rounded-xl border border-shadow-600 bg-shadow-800/60 p-3">
-                      <div className="mb-2">
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-cyan-300">
-                            Edit TP/SL
-                          </p>
-                          <p className="mt-1 text-[10px] text-gray-500">{card.pairLabel}</p>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px]">
-                        <input
-                          type="number"
-                          value={draft.takeProfit}
-                          onChange={(e) => updateRuleDraft(pos.address, "takeProfit", e.target.value)}
-                          placeholder="Take Profit"
-                          className="rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
-                        />
-                        <input
-                          type="number"
-                          value={draft.stopLoss}
-                          onChange={(e) => updateRuleDraft(pos.address, "stopLoss", e.target.value)}
-                          placeholder="Stop Loss"
-                          className="rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
-                        />
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-cyan-300">
+                          TP / SL
+                        </p>
                         <button
                           onClick={() => saveRule(pos.address)}
-                          className="rounded-lg bg-cyan-500/15 px-3 py-2 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
+                          className="rounded-md bg-cyan-500/15 px-2.5 py-1 text-[11px] font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
                         >
                           Save
                         </button>
                       </div>
-                      {(rule || draft.takeProfit || draft.stopLoss) && (
-                        <p className="mt-2 text-[10px] text-cyan-300">
-                          Current: {draft.side.toUpperCase()} {formatPrice(rule?.takeProfit ?? parseOptionalPositive(draft.takeProfit))} /{" "}
-                          {formatPrice(rule?.stopLoss ?? parseOptionalPositive(draft.stopLoss))}
+                      {rule?.takeProfit === null && rule?.stopLoss === null && !draft.takeProfit && !draft.stopLoss ? (
+                        <p className="mb-2 text-[10px] text-gray-500">
+                          No TP/SL set. Add take profit or stop loss here while the position is live.
+                        </p>
+                      ) : null}
+                      {rule && (rule.takeProfit !== null || rule.stopLoss !== null) ? (
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          <span className="rounded-full border border-shadow-500 bg-shadow-700/80 px-2.5 py-1 text-[10px] font-medium text-cyan-300">
+                            TP {formatPrice(rule.takeProfit)}
+                          </span>
+                          <span className="rounded-full border border-shadow-500 bg-shadow-700/80 px-2.5 py-1 text-[10px] font-medium text-accent-red">
+                            SL {formatPrice(rule.stopLoss)}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={draft.takeProfit}
+                            onChange={(e) => updateRuleDraft(pos.address, "takeProfit", e.target.value)}
+                            placeholder="0.00"
+                            className="w-full rounded-xl border border-shadow-500 bg-shadow-700 px-3 py-2 pr-10 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
+                          />
+                          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-cyan-300">
+                            TP
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={draft.stopLoss}
+                            onChange={(e) => updateRuleDraft(pos.address, "stopLoss", e.target.value)}
+                            placeholder="0.00"
+                            className="w-full rounded-xl border border-shadow-500 bg-shadow-700 px-3 py-2 pr-10 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
+                          />
+                          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-accent-red">
+                            SL
+                          </span>
+                        </div>
+                      </div>
+                      {(draft.takeProfit || draft.stopLoss) && (
+                        <p className="mt-2 text-[10px] text-gray-500">
+                          Save to add or update this position&apos;s TP/SL.
                         </p>
                       )}
                     </div>
