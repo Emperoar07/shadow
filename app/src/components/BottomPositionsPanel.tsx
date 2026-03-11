@@ -731,22 +731,13 @@ export default function BottomPositionsPanel({
                       value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
                     />
                     <div className="rounded-xl border border-shadow-600 bg-shadow-800/60 p-3">
-                      <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="mb-2">
                         <div>
                           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-cyan-300">
                             Edit TP/SL
                           </p>
                           <p className="mt-1 text-[10px] text-gray-500">{card.pairLabel}</p>
                         </div>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-                            draft.side === "long"
-                              ? "bg-accent-green/20 text-accent-green"
-                              : "bg-accent-red/20 text-accent-red"
-                          }`}
-                        >
-                          {draft.side}
-                        </span>
                       </div>
                       <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px]">
                         <input

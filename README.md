@@ -112,7 +112,7 @@ Then set the devnet values you want to use for:
 
 ## Safe Validation Commands
 
-These are the repo’s normal devnet-safe checks:
+These are the repo's normal devnet-safe checks:
 
 ```bash
 npm run check:oracle
@@ -131,13 +131,6 @@ Frontend:
 cd app
 pnpm dev
 ```
-
-## Development Rules
-
-- do not claim the app is fully live without successful end-to-end open and close verification
-- do not commit secrets, keypairs, or local env files
-- keep docs aligned with verified chain state, not old assumptions
-- treat `DEV_NOTES.md` as the operational source of truth for live devnet state
 
 ## References
 
