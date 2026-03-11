@@ -717,7 +717,7 @@ export default function BottomPositionsPanel({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-[repeat(2,minmax(0,1fr))_minmax(320px,1.35fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-[repeat(2,minmax(0,1fr))_minmax(300px,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
                     <MetricBlock label="Entry Price" value={formatPrice(card.entryPrice)} />
                     <MetricBlock
                       label="Liq. Price"
@@ -728,7 +728,7 @@ export default function BottomPositionsPanel({
                       label="Margin"
                       value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
                     />
-                    <div className="flex h-full flex-col justify-center gap-2 md:px-1">
+                    <div className="flex h-full flex-col justify-center gap-2 md:-ml-6 md:pr-2">
                       <div className="grid grid-cols-2 gap-2">
                         <div className="relative">
                           <input
