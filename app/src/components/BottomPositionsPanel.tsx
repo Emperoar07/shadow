@@ -383,6 +383,7 @@ export default function BottomPositionsPanel({
   const displayed =
     activeTab === "position" ? openPositions : activeTab === "history" ? historyPositions : [];
   const showActionCol = activeTab === "position";
+  const hasEncryptedPositions = openPositions.some((position) => position.hasEncryptedData);
 
   const derivePositionCard = useCallback(
     (position: UiPosition) => {
@@ -525,7 +526,7 @@ export default function BottomPositionsPanel({
   return (
     <div className="trade-bottom-panel position-card rounded-xl overflow-hidden h-full">
       {/* Tab bar */}
-      <div className="flex items-center justify-between border-b border-shadow-600 pl-1">
+      <div className="flex items-center justify-between border-b border-shadow-600 pl-1 pr-3">
         <div className="flex">
           <TabBtn active={activeTab === "position"} onClick={() => setActiveTab("position")}>
             Position
@@ -545,6 +546,13 @@ export default function BottomPositionsPanel({
               {historyPositions.length}
             </span>
           </TabBtn>
+        </div>
+        <div className="flex items-center gap-2">
+          {hasEncryptedPositions ? (
+            <span className="rounded-full bg-accent-purple/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent-purple">
+              Encrypted
+            </span>
+          ) : null}
         </div>
 
       </div>
@@ -696,31 +704,20 @@ export default function BottomPositionsPanel({
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-1.5">
-                      {pos.hasEncryptedData ? (
-                        <span className="rounded-full bg-accent-purple/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent-purple">
-                          Encrypted
-                        </span>
-                      ) : null}
                       <StatusBadge status={pos.status} isClosing={isClosing} />
-                      <button
-                        onClick={() => void handleClose(pos)}
-                        disabled={TRADING_DISABLED || isClosing || isPending || isSettling}
-                        className="rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-1 text-[12px] font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {TRADING_DISABLED
-                          ? "Disabled"
-                          : isPending
-                          ? "Waiting MPC"
-                          : isSettling
-                          ? "Settling..."
-                          : isClosing
-                          ? "Closing..."
-                          : "Close"}
-                      </button>
+                      {!isPending && !isSettling ? (
+                        <button
+                          onClick={() => void handleClose(pos)}
+                          disabled={TRADING_DISABLED || isClosing}
+                          className="rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-1 text-[12px] font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {TRADING_DISABLED ? "Disabled" : isClosing ? "Closing..." : "Close"}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-[repeat(2,minmax(0,1fr))_minmax(280px,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-[repeat(2,minmax(0,1fr))_minmax(320px,1.35fr)_minmax(0,1fr)_minmax(0,1fr)]">
                     <MetricBlock label="Entry Price" value={formatPrice(card.entryPrice)} />
                     <MetricBlock
                       label="Liq. Price"
@@ -731,18 +728,7 @@ export default function BottomPositionsPanel({
                       label="Margin"
                       value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
                     />
-                    <div className="flex flex-col justify-center gap-2">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-cyan-300">
-                          TP / SL
-                        </p>
-                        <button
-                          onClick={() => saveRule(pos.address)}
-                          className="rounded-md bg-cyan-500/15 px-2.5 py-1 text-[11px] font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
-                        >
-                          Save
-                        </button>
-                      </div>
+                    <div className="-mt-2 flex flex-col justify-start gap-2 md:-ml-6">
                       {rule?.takeProfit === null && rule?.stopLoss === null && !draft.takeProfit && !draft.stopLoss ? (
                         <p className="mb-2 text-[10px] text-gray-500">
                           No TP/SL set. Add take profit or stop loss here while the position is live.
@@ -783,6 +769,14 @@ export default function BottomPositionsPanel({
                             SL
                           </span>
                         </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => saveRule(pos.address)}
+                          className="rounded-md bg-cyan-500/15 px-2.5 py-1 text-[11px] font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
+                        >
+                          Save
+                        </button>
                       </div>
                       {(draft.takeProfit || draft.stopLoss) && (
                         <p className="mt-2 text-[10px] text-gray-500">
