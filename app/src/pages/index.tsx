@@ -625,7 +625,7 @@ export default function LandingPage() {
                 <div className="lp-session-stat-lbl">Wallet sign</div>
               </div>
               <div className="lp-session-stat">
-                <div className="lp-session-stat-val">50</div>
+                <div className="lp-session-stat-val">&infin;</div>
                 <div className="lp-session-stat-lbl">Trades max</div>
               </div>
             </div>
