@@ -452,6 +452,8 @@ pub fn close_position_with_session_handler(
         .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
 
     let args = ArgBuilder::new()
+        // position: Enc<Shared, Position> - client x25519 key needed for decryption
+        .x25519_pubkey(position.client_pubkey)
         .plaintext_u128(nonce)
         .encrypted_u64(encrypted_size)
         .encrypted_u64(encrypted_entry_price)

@@ -51,14 +51,34 @@ pub fn check_liquidation_callback_handler(
     ctx: Context<CheckLiquidationCallback>,
     output: SignedComputationOutputs<CheckLiquidationOutput>,
 ) -> Result<()> {
-    // Verify the computation output from the MPC cluster
-    let verified_output = match output.verify_output(
+    // Split verification into raw-signature verification and typed deserialization
+    // so we can tell whether failures are caused by BLS/signature checks or by
+    // output-shape drift between the finalized comp-def and the Rust output type.
+    let raw_output = match output.verify_output_raw(
         &ctx.accounts.cluster_account,
         &ctx.accounts.computation_account,
     ) {
-        Ok(o) => o,
-        Err(_) => {
-            msg!("MPC verify failed for position {}", ctx.accounts.position.key());
+        Ok(bytes) => bytes,
+        Err(error) => {
+            msg!(
+                "MPC raw verify failed for position {}: {}",
+                ctx.accounts.position.key(),
+                error
+            );
+            return Err(ShadowPerpError::InvalidComputationResult.into());
+        }
+    };
+
+    let verified_output = match CheckLiquidationOutput::try_from_slice(&raw_output) {
+        Ok(output) => output,
+        Err(error) => {
+            msg!(
+                "MPC output deserialize failed for position {}: raw_len={}, expected_size={}, error={}",
+                ctx.accounts.position.key(),
+                raw_output.len(),
+                <CheckLiquidationOutput as HasSize>::SIZE,
+                error
+            );
             return Err(ShadowPerpError::InvalidComputationResult.into());
         }
     };

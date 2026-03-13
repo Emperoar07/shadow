@@ -18,7 +18,7 @@ mod liquidation_check_circuit {
     /// - current mark/liquidation price marker
     #[instruction]
     pub fn check_liquidation(
-        position: Enc<Mxe, (u64, u64, u8, bool, u64)>,
+        position: Enc<Shared, (u64, u64, u8, bool, u64)>,
         mark_price: u64,
         liquidation_threshold_bps: u16,
     ) -> (bool, u64, u64) {

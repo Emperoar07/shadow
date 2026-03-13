@@ -22,7 +22,7 @@ mod close_position_circuit {
     /// positions do not need a plaintext margin slot on-chain.
     #[instruction]
     pub fn close_position_v2(
-        position: Enc<Mxe, (u64, u64, u8, bool, u64)>,
+        position: Enc<Shared, (u64, u64, u8, bool, u64)>,
         exit_price: u64,
         trading_fee_bps: u16,
     ) -> (i64, u64, u64, u64) {

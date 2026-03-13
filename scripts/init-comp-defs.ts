@@ -38,7 +38,7 @@ const DEFAULT_CLUSTER_OFFSET = 456;
 const EXPECTED_SIGNATURES: Record<string, { params: number; outputs: number }> = {
   // Actual on-chain param counts (from finalized comp-defs)
   open_position_probe_b: { params: 9, outputs: 1 },
-  close_position_v2: { params: 8, outputs: 4 },
+  close_position_v2: { params: 9, outputs: 4 },
   seed_open_interest_state_v3: { params: 1, outputs: 4 },
   // check_liquidation: skip pre-check — will be validated after first finalization
 };

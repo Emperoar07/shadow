@@ -130,11 +130,12 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
         .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
 
     // Build arguments for liquidation check MPC circuit
-    // position: Enc<Mxe, Position> - encrypted position data
+    // position: Enc<Shared, Position> - encrypted position data (client x25519 key)
     // mark_price: u64 - plaintext current price
     // liquidation_threshold_bps: only market field used by the liquidation circuit
     let args = ArgBuilder::new()
-        // position: Enc<Mxe, Position>
+        // position: Enc<Shared, Position> - client x25519 key needed for decryption
+        .x25519_pubkey(position.client_pubkey)
         .plaintext_u128(nonce)
         .encrypted_u64(encrypted_size) // size
         .encrypted_u64(encrypted_entry_price) // entry_price

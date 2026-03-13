@@ -116,7 +116,7 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
     )?;
 
     // Build arguments for close_position_v2 MPC circuit
-    // position: Enc<Mxe, Position> - pass the encrypted position data stored on-chain
+    // position: Enc<Shared, Position> - pass the encrypted position data stored on-chain
     // exit_price: u64 - plaintext oracle price
     // trading_fee_bps: u16 - only market field used by the close circuit
     let nonce = u128::from_le_bytes(position.nonce);
@@ -137,7 +137,8 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
 
     let args = ArgBuilder::new()
-        // position: Enc<Mxe, Position> - 5 fields (size, entry_price, leverage, is_long, margin)
+        // position: Enc<Shared, Position> - client x25519 key needed for decryption
+        .x25519_pubkey(position.client_pubkey)
         .plaintext_u128(nonce)
         .encrypted_u64(encrypted_size) // size
         .encrypted_u64(encrypted_entry_price) // entry_price

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Private Perpetual Futures Protocol"
 
 [mxe]
-program_id = "2M13ddTqbV438Ln9dVNtzqDsrCGWik6HtWB4sCypm2az"
+program_id = "Fc8SmsvjqDH768HYeAJmHkoEu6xP4FuThJaDaqco3beV"
 cluster_offset = 456
 
 [circuits]
@@ -14,6 +14,13 @@ path = "encrypted-ixs"
 output = "build"
 
 [devnet]
-arcium_program = "3R4wZSJFTfCJyofLGrVHPCyjMgP8x2cJCDwKUANKsMAE"
+arcium_program = "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
 cluster = "devnet"
+
+[clusters]
+
+[clusters.devnet]
+offset = 456
+backend = "cerberus"
+num_nodes = 2
 
