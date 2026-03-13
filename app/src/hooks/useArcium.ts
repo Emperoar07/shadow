@@ -1193,6 +1193,11 @@ export const useArciumPrivacy = () => {
         );
       }
 
+      // Ensure we have a valid auth signature (may have been cleared from storage)
+      if (!hasUsableRelayAuth(activeRelaySession, "open", Math.floor(Date.now() / 1000))) {
+        activeRelaySession = await ensureRelaySessionAuth(activeRelaySession, "open", true);
+      }
+
       setStatus("queued");
       setStatusMessage("Queued on Arcium cluster via delegated session...");
 
