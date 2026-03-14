@@ -6,6 +6,7 @@ import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
+import { classifyArciumError } from "../lib/arcium-errors";
 import {
   PendingLimitOrder,
   OwnerPositionView,
@@ -322,7 +323,8 @@ export default function BottomPositionsPanel({
         );
         await loadPositions();
       } catch (error: any) {
-        const msg = error?.message ?? "Failed to close position";
+        const classified = error?.classified ?? classifyArciumError(error);
+        const msg = classified.message || "Failed to close position";
         if (!msg.includes("env var")) toast.error(msg, { id: pos.address });
       } finally {
         setClosingAddress(null);

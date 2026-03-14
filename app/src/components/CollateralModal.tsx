@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
+import { classifyArciumError } from "../lib/arcium-errors";
 import type {
   EnsureRelaySessionOptions,
   SessionRelayInfo,
@@ -233,7 +234,8 @@ export default function CollateralModal({
       setAmount("");
       onSuccess();
     } catch (error: any) {
-      const msg = error?.message ?? "Deposit failed";
+      const classified = error?.classified ?? classifyArciumError(error);
+      const msg = classified.message || "Deposit failed";
       const runtimeError = getRuntimeErrorMessage(msg, "deposit");
       if (runtimeError) {
         toast.error(runtimeError, { id: "collateral" });
@@ -340,7 +342,8 @@ export default function CollateralModal({
       setAmount("");
       onSuccess();
     } catch (error: any) {
-      const msg = error?.message ?? "Withdraw failed";
+      const classified = error?.classified ?? classifyArciumError(error);
+      const msg = classified.message || "Withdraw failed";
       const runtimeError = getRuntimeErrorMessage(msg, "withdraw");
       if (runtimeError) {
         toast.error(runtimeError, { id: "collateral" });

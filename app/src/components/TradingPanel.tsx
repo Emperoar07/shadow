@@ -13,6 +13,7 @@ import {
 } from "../hooks/useArcium";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { TRADING_DISABLED } from "../lib/feature-flags";
+import { classifyArciumError } from "../lib/arcium-errors";
 import {
   disableEncryptedAutomationPersistence,
   enableEncryptedAutomationPersistence,
@@ -565,7 +566,8 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       setStopLoss("");
       void refreshMarketData();
     } catch (error: any) {
-      const msg = error?.message || "Failed to open position";
+      const classified = error?.classified ?? classifyArciumError(error);
+      const msg = classified.message || "Failed to open position";
       if (typeof error?.txSignature === "string" && error.txSignature.length > 0) {
         setTradeTxSig(error.txSignature);
       }
