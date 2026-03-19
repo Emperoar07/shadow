@@ -1170,6 +1170,7 @@ export const useArciumPrivacy = () => {
           ? relaySession
           : null;
 
+      let sessionFreshlyCreated = false;
       if (!activeRelaySession) {
         const ensured = await ensureRelaySession({
           reason: "trade",
@@ -1184,6 +1185,7 @@ export const useArciumPrivacy = () => {
           )
         ) {
           activeRelaySession = ensured;
+          sessionFreshlyCreated = true;
         }
       }
 
@@ -1193,8 +1195,9 @@ export const useArciumPrivacy = () => {
         );
       }
 
-      // Ensure we have a valid auth signature (may have been cleared from storage)
-      if (!hasUsableRelayAuth(activeRelaySession, "open", Math.floor(Date.now() / 1000))) {
+      // Ensure we have a valid auth signature (may have been cleared from storage).
+      // Skip if the session was just created — it already has a fresh auth signature.
+      if (!sessionFreshlyCreated && !hasUsableRelayAuth(activeRelaySession, "open", Math.floor(Date.now() / 1000))) {
         activeRelaySession = await ensureRelaySessionAuth(activeRelaySession, "open", true);
       }
 
