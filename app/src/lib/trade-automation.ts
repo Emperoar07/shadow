@@ -50,6 +50,7 @@ export interface OwnerPositionView {
 
 const UPDATE_EVENT = "shadowperp:automation-updated";
 const STORAGE_KEY_PREFIX = "shadowperp:automation:v1:";
+const POSITION_VIEWS_KEY_PREFIX = "shadowperp:posviews:v1:";
 const ENVELOPE_VERSION = 1;
 const KEY_DERIVATION_LABEL = "shadowperp-automation-key-v1";
 const SIGN_MESSAGE_PREFIX = "ShadowPerp automation unlock";
@@ -564,6 +565,7 @@ export function setOwnerPositionView(
       updatedAt: Date.now(),
     },
   };
+  persistPositionViewsPlain();
   queuePersist();
   emitUpdate();
 }
@@ -573,12 +575,87 @@ export function removeOwnerPositionView(positionAddress: string): void {
   const next = { ...ownerPositionViewsState };
   delete next[positionAddress];
   ownerPositionViewsState = next;
+  persistPositionViewsPlain();
   queuePersist();
   emitUpdate();
 }
 
+// ── Plain-text persistence for position views ──
+// Position views (pair, side, leverage, marginMode) are not secret — they're
+// UI convenience data. Storing them in plain localStorage (keyed by wallet)
+// lets them survive refreshes and work across devices without a signMessage.
+
+function positionViewsStorageKey(): string | null {
+  return persistenceState.owner
+    ? `${POSITION_VIEWS_KEY_PREFIX}${persistenceState.owner}`
+    : null;
+}
+
+function persistPositionViewsPlain(): void {
+  if (!hasWindow()) return;
+  const key = positionViewsStorageKey();
+  if (!key) return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(ownerPositionViewsState));
+  } catch {
+    // quota exceeded or private mode — ignore
+  }
+}
+
+function loadPositionViewsPlain(): Record<string, OwnerPositionView> {
+  if (!hasWindow()) return {};
+  const key = positionViewsStorageKey();
+  if (!key) return {};
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const result: Record<string, OwnerPositionView> = {};
+    for (const [addr, viewRaw] of Object.entries(parsed)) {
+      const view = sanitizeOwnerPositionView(viewRaw);
+      if (view) result[addr] = view;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 export function isEncryptedAutomationPersistenceEnabled(): boolean {
   return !!persistenceState.owner && !!persistenceState.key;
+}
+
+/**
+ * Set the wallet owner for plain-text position view persistence.
+ * This does NOT require signMessage — call it as soon as wallet connects.
+ * Position views (pair/side/leverage) are non-secret UI metadata.
+ */
+export function setPositionViewsOwner(owner: string): void {
+  const trimmed = owner.trim();
+  if (!trimmed || trimmed === persistenceState.owner) return;
+  // If owner changed, update and load from plain storage
+  if (persistenceState.owner && persistenceState.owner !== trimmed) {
+    // Save current views for old owner before switching
+    persistPositionViewsPlain();
+  }
+  persistenceState.owner = trimmed;
+  // Merge plain-text views (don't overwrite in-memory views that may already exist)
+  const stored = loadPositionViewsPlain();
+  for (const [addr, view] of Object.entries(stored)) {
+    if (!ownerPositionViewsState[addr]) {
+      ownerPositionViewsState[addr] = view;
+    }
+  }
+  emitUpdate();
+}
+
+export function clearPositionViewsOwner(): void {
+  persistPositionViewsPlain(); // save before clearing
+  // Don't clear persistenceState.owner if encrypted persistence is active
+  if (!persistenceState.key) {
+    persistenceState.owner = null;
+  }
 }
 
 export async function enableEncryptedAutomationPersistence(params: {

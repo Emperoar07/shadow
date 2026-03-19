@@ -21,6 +21,8 @@ import {
   getLimitOrders,
   setOwnerPositionView,
   setPositionRule,
+  setPositionViewsOwner,
+  clearPositionViewsOwner,
   updateLimitOrder,
   upsertLimitOrder,
 } from "../lib/trade-automation";
@@ -234,6 +236,15 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       disableEncryptedAutomationPersistence();
     }
   }, [publicKey, signMessage]);
+
+  // Set owner for plain-text position view persistence (no signMessage needed)
+  useEffect(() => {
+    if (publicKey) {
+      setPositionViewsOwner(publicKey.toBase58());
+    } else {
+      clearPositionViewsOwner();
+    }
+  }, [publicKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
