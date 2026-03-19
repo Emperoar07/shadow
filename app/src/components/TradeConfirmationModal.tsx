@@ -234,7 +234,7 @@ export default function TradeConfirmationModal({
               </p>
               {hasQueuedTx ? (
                 <p className="mt-2 text-[10px] text-gray-500">
-                  The request was already queued. Minimize this card if you want to keep working while the callback settles.
+                  The request was already queued on Arcium. The callback may still settle.
                 </p>
               ) : null}
             </div>
@@ -279,20 +279,11 @@ export default function TradeConfirmationModal({
             </button>
           )}
           {!isComplete && !isError && (
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <div className="flex items-center gap-1.5 text-[10px] text-gray-600">
-                <svg className="h-2.5 w-2.5 text-accent-purple/50" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                </svg>
-                Secured by Arcium MPC
-              </div>
-              <button
-                type="button"
-                onClick={() => setMinimized(true)}
-                className="text-[10px] font-medium text-gray-500 transition-colors hover:text-gray-300"
-              >
-                Minimize
-              </button>
+            <div className="flex items-center justify-center gap-1.5 pt-1 text-[10px] text-gray-600">
+              <svg className="h-2.5 w-2.5 text-accent-purple/50" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+              Secured by Arcium MPC
             </div>
           )}
         </div>
