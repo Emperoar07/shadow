@@ -675,7 +675,7 @@ export default function BottomPositionsPanel({
                   {/* Row 1: pair info + metrics + actions — all in one line */}
                   <div className="flex items-center gap-3">
                     {/* Pair label + badges */}
-                    <div className="flex items-center gap-1.5 shrink-0 min-w-[140px]">
+                    <div className="flex items-center gap-1.5 shrink-0 min-w-[160px]">
                       <span className="text-sm font-bold text-white">{card.pairLabel}</span>
                       {displaySide ? (
                         <span
@@ -686,6 +686,11 @@ export default function BottomPositionsPanel({
                           }`}
                         >
                           {displaySide}
+                        </span>
+                      ) : null}
+                      {card.leverage ? (
+                        <span className="rounded bg-accent-purple/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-purple leading-none">
+                          {card.leverage}x
                         </span>
                       ) : null}
                       <span className="rounded bg-shadow-600 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-400 leading-none">

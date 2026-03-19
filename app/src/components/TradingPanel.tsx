@@ -396,6 +396,28 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         {
           onProgress: (update) => {
             if (update.stage !== "queued") return;
+            // Save position metadata immediately when the tx lands on-chain,
+            // not after MPC callback — so the card shows correct labels even
+            // if the MPC callback times out.
+            setOwnerPositionView({
+              positionAddress: update.positionAddress,
+              pairLabel: input.pairLabel,
+              side: input.side,
+              marginMode: input.marginMode,
+              sizeBase: input.sizeBase,
+              entryPrice: input.entryPrice,
+              leverage: input.leverage,
+            });
+            if (input.takeProfit !== null || input.stopLoss !== null) {
+              setPositionRule({
+                positionAddress: update.positionAddress,
+                pairLabel: input.pairLabel,
+                side: input.side,
+                takeProfit: input.takeProfit,
+                stopLoss: input.stopLoss,
+                updatedAt: Date.now(),
+              });
+            }
             input.onQueued?.({
               txSignature: update.txSignature,
               positionAddress: update.positionAddress,
@@ -403,27 +425,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           },
         }
       );
-
-      if (input.takeProfit !== null || input.stopLoss !== null) {
-        setPositionRule({
-          positionAddress,
-          pairLabel: input.pairLabel,
-          side: input.side,
-          takeProfit: input.takeProfit,
-          stopLoss: input.stopLoss,
-          updatedAt: Date.now(),
-        });
-      }
-
-      setOwnerPositionView({
-        positionAddress,
-        pairLabel: input.pairLabel,
-        side: input.side,
-        marginMode: input.marginMode,
-        sizeBase: input.sizeBase,
-        entryPrice: input.entryPrice,
-        leverage: input.leverage,
-      });
 
       return { txSignature, positionAddress };
     },
