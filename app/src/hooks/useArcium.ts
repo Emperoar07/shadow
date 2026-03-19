@@ -187,18 +187,6 @@ function readStoredSession(owner?: string, market?: string): SessionRelayInfo | 
   if (owner && market) {
     const keyed = parseSession(window.localStorage.getItem(storageKey(owner, market)));
     if (keyed) {
-      if (keyed.authSignature.length > 0) {
-        try {
-          writeStoredSession(keyed);
-        } catch {
-          // no-op
-        }
-        return {
-          ...keyed,
-          authSignature: "",
-          authExpiresAt: keyed.expiresAt,
-        };
-      }
       return keyed;
     }
 
@@ -233,12 +221,9 @@ export function getStoredRelaySession(owner?: string, market?: string): SessionR
 }
 
 function sanitizeSessionForStorage(session: SessionRelayInfo): SessionRelayInfo {
-  return {
-    ...session,
-    // Never persist delegated auth material in plaintext browser storage.
-    authSignature: "",
-    authExpiresAt: session.expiresAt,
-  };
+  // Auth signature is a scoped, expiring message signature (not a private key).
+  // Persisting it avoids redundant wallet popups when the session is restored.
+  return { ...session };
 }
 
 function writeStoredSession(session: SessionRelayInfo): void {
