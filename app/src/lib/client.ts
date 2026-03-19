@@ -45,6 +45,20 @@ export const DEFAULT_TRADE_SESSION_DURATION_SECONDS = 5 * 60 * 60;
 const DEFAULT_POSITION_STATUS_TIMEOUT_MS = 60_000;
 const DEFAULT_POSITION_STATUS_POLL_MS = 2_000;
 
+const ANCHOR_STATUS_MAP: Record<string, number> = {
+  pending: 0, open: 1, closing: 2, closed: 3, liquidated: 4,
+  closedPendingSettlement: 5, liquidatedPendingSettlement: 6,
+};
+
+function normalizeStatus(raw: unknown): number {
+  if (typeof raw === "number") return raw;
+  if (raw && typeof raw === "object") {
+    const key = Object.keys(raw)[0];
+    if (key && key in ANCHOR_STATUS_MAP) return ANCHOR_STATUS_MAP[key];
+  }
+  return -1;
+}
+
 /**
  * ShadowPerp Client SDK
  *
@@ -880,8 +894,9 @@ export class ShadowPerpClient {
     while (Date.now() < deadline) {
       try {
         const position = await this.getPosition(positionAddress);
-        lastStatus = position.status;
-        if (accepted.has(position.status as number)) {
+        const statusNum = normalizeStatus(position.status);
+        lastStatus = statusNum as PositionStatus;
+        if (accepted.has(statusNum)) {
           return position;
         }
       } catch (error: any) {
@@ -902,7 +917,7 @@ export class ShadowPerpClient {
     }
 
     const statusLabel =
-      lastStatus === null ? "no position state observed yet" : PositionStatus[lastStatus];
+      lastStatus === null ? "no position state observed yet" : (PositionStatus[lastStatus] ?? `unknown(${lastStatus})`);
     throw new Error(
       `Position did not reach an expected settlement state within ${timeoutMs / 1000}s (${statusLabel}).`
     );

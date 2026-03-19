@@ -14,6 +14,29 @@ import {
 } from "../lib/relay-session-auth";
 import { PositionStatus } from "../types";
 
+/**
+ * Anchor deserializes Rust enums as `{ variantName: {} }` objects.
+ * Convert to our numeric PositionStatus enum for reliable comparison.
+ */
+const ANCHOR_ENUM_MAP: Record<string, PositionStatus> = {
+  pending: PositionStatus.Pending,
+  open: PositionStatus.Open,
+  closing: PositionStatus.Closing,
+  closed: PositionStatus.Closed,
+  liquidated: PositionStatus.Liquidated,
+  closedPendingSettlement: PositionStatus.ClosedPendingSettlement,
+  liquidatedPendingSettlement: PositionStatus.LiquidatedPendingSettlement,
+};
+
+function normalizePositionStatus(raw: unknown): PositionStatus {
+  if (typeof raw === "number") return raw;
+  if (raw && typeof raw === "object") {
+    const key = Object.keys(raw)[0];
+    if (key && key in ANCHOR_ENUM_MAP) return ANCHOR_ENUM_MAP[key];
+  }
+  return PositionStatus.Pending;
+}
+
 type PrivacyStatus =
   | "idle"
   | "preparing"
@@ -321,17 +344,18 @@ async function waitForOpenPositionCallback(
   while (Date.now() < deadline) {
     try {
       const position = await client.getPosition(positionAddress);
-      lastStatus = position.status;
+      const status = normalizePositionStatus(position.status);
+      lastStatus = status;
 
-      if (position.status === PositionStatus.Open) {
+      if (status === PositionStatus.Open) {
         return;
       }
 
-      if (position.status === PositionStatus.Pending) {
+      if (status === PositionStatus.Pending) {
         // Callback has not landed yet.
       } else {
         throw new Error(
-          `Queued on Arcium cluster ${clusterOffset}, but the position entered unexpected status ${PositionStatus[position.status]}.`
+          `Queued on Arcium cluster ${clusterOffset}, but the position entered unexpected status ${PositionStatus[status] ?? status}.`
         );
       }
     } catch (error: any) {

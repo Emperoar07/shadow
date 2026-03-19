@@ -2,6 +2,20 @@ import type { Connection, VersionedTransaction, Transaction } from "@solana/web3
 import type { PublicKey } from "@solana/web3.js";
 import { EncryptedPosition, PositionStatus } from "../types";
 
+const ANCHOR_ENUM_MAP: Record<string, number> = {
+  pending: 0, open: 1, closing: 2, closed: 3, liquidated: 4,
+  closedPendingSettlement: 5, liquidatedPendingSettlement: 6,
+};
+
+function normalizeAnchorEnum(raw: unknown): number {
+  if (typeof raw === "number") return raw;
+  if (raw && typeof raw === "object") {
+    const key = Object.keys(raw)[0];
+    if (key && key in ANCHOR_ENUM_MAP) return ANCHOR_ENUM_MAP[key];
+  }
+  return -1;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -435,7 +449,7 @@ export async function waitForPositionStatus(
         positionAddress
       )) as unknown as EncryptedPosition;
 
-      const status = position.status as number;
+      const status = normalizeAnchorEnum(position.status);
 
       // Detect aborted callbacks: if position stays in Pending or Closing for
       // an unusually long time, it likely means the Arcium MPC callback was

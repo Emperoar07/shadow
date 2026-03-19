@@ -133,22 +133,19 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-function MetricBlock({
+function MetricCell({
   label,
   value,
-  subtitle,
   valueClassName = "text-white",
 }: {
   label: string;
   value: string;
-  subtitle?: string;
   valueClassName?: string;
 }) {
   return (
-    <div>
-      <p className="mb-1 text-[11px] uppercase tracking-[0.12em] text-gray-500">{label}</p>
-      <p className={`text-xl font-semibold leading-tight ${valueClassName}`}>{value}</p>
-      {subtitle ? <p className={`text-lg font-semibold leading-tight ${valueClassName}`}>{subtitle}</p> : null}
+    <div className="min-w-0">
+      <p className="text-[10px] uppercase tracking-wider text-gray-500 leading-none mb-0.5">{label}</p>
+      <p className={`text-xs font-semibold leading-tight truncate ${valueClassName}`}>{value}</p>
     </div>
   );
 }
@@ -395,7 +392,7 @@ export default function BottomPositionsPanel({
       const marginMode = view?.marginMode ?? "cross";
       const leverage = view?.leverage ?? null;
       const entryPrice = view?.entryPrice ?? null;
-      const pairLabel = view?.pairLabel ?? rule?.pairLabel ?? activePairLabel ?? "PERP";
+      const pairLabel = view?.pairLabel ?? rule?.pairLabel ?? "SOL-PERP";
       const sizeBase = view?.sizeBase ?? null;
 
       let liqPrice: number | null = null;
@@ -647,9 +644,8 @@ export default function BottomPositionsPanel({
               : "No closed positions yet"}
           </div>
         ) : activeTab === "position" ? (
-          <div className="space-y-3 p-3">
+          <div className="divide-y divide-shadow-700">
             {displayed.map((pos) => {
-              const isOpen = pos.status === "open";
               const isPending = pos.status === "pending";
               const isClosing = closingAddress === pos.address || pos.status === "closing";
               const isSettling = pos.status === "settling";
@@ -669,24 +665,21 @@ export default function BottomPositionsPanel({
                 health === null
                   ? "bg-gray-500/60"
                   : health >= 70
-                  ? "bg-gradient-to-r from-accent-green to-cyan-400"
+                  ? "bg-accent-green"
                   : health >= 40
-                  ? "bg-gradient-to-r from-yellow-400 to-orange-400"
-                  : "bg-gradient-to-r from-accent-red to-rose-500";
+                  ? "bg-yellow-400"
+                  : "bg-accent-red";
 
               return (
-                <div
-                  key={pos.address}
-                  className="rounded-xl border border-shadow-500 bg-shadow-700/55 p-4"
-                >
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-2xl font-semibold tracking-tight text-white">
-                        {card.pairLabel}
-                      </p>
+                <div key={pos.address} className="px-3 py-2.5">
+                  {/* Row 1: pair info + metrics + actions — all in one line */}
+                  <div className="flex items-center gap-3">
+                    {/* Pair label + badges */}
+                    <div className="flex items-center gap-1.5 shrink-0 min-w-[140px]">
+                      <span className="text-sm font-bold text-white">{card.pairLabel}</span>
                       {displaySide ? (
                         <span
-                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase ${
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none ${
                             displaySide === "long"
                               ? "bg-accent-green/20 text-accent-green"
                               : "bg-accent-red/20 text-accent-red"
@@ -695,134 +688,105 @@ export default function BottomPositionsPanel({
                           {displaySide}
                         </span>
                       ) : null}
-                      {card.leverage ? (
-                        <span className="rounded-full bg-accent-purple/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent-purple">
-                          {card.leverage}x
-                        </span>
-                      ) : null}
-                      <span className="rounded-full bg-shadow-600 px-2.5 py-0.5 text-[11px] font-semibold uppercase text-gray-300">
+                      <span className="rounded bg-shadow-600 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-400 leading-none">
                         {card.marginMode}
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    {/* Metrics row */}
+                    <div className="flex-1 grid grid-cols-5 gap-x-4 items-center min-w-0">
+                      <MetricCell label="Entry" value={formatPrice(card.entryPrice)} />
+                      <MetricCell
+                        label="Liq. Price"
+                        value={formatPrice(card.liqPrice)}
+                        valueClassName="text-accent-red"
+                      />
+                      <MetricCell
+                        label="Margin"
+                        value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
+                      />
+                      <MetricCell
+                        label="PnL"
+                        value={
+                          pnlValue === null
+                            ? "--"
+                            : `${pnlValue >= 0 ? "+" : ""}$${Math.abs(pnlValue).toFixed(2)}${
+                                pnlPercent !== null ? ` (${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(1)}%)` : ""
+                              }`
+                        }
+                        valueClassName={
+                          pnlValue === null
+                            ? "text-gray-500"
+                            : pnlValue >= 0
+                            ? "text-accent-green"
+                            : "text-accent-red"
+                        }
+                      />
+                      {/* Health inline */}
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-500 leading-none mb-1">Health</p>
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex-1 h-1 rounded-full bg-shadow-600 max-w-[48px]">
+                            <div
+                              className={`h-full rounded-full transition-all ${healthTone}`}
+                              style={{ width: healthBarWidth }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-semibold text-gray-300">
+                            {health === null ? "--" : `${Math.round(health)}%`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* TP/SL compact inputs */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={draft.takeProfit}
+                          onChange={(e) => updateRuleDraft(pos.address, "takeProfit", e.target.value)}
+                          placeholder="0.00"
+                          className="w-[80px] rounded-lg border border-shadow-500 bg-shadow-700 px-2 py-1 pr-7 text-[11px] text-white focus:border-cyan-400/50 focus:outline-none"
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] font-bold text-cyan-300">
+                          TP
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={draft.stopLoss}
+                          onChange={(e) => updateRuleDraft(pos.address, "stopLoss", e.target.value)}
+                          placeholder="0.00"
+                          className="w-[80px] rounded-lg border border-shadow-500 bg-shadow-700 px-2 py-1 pr-7 text-[11px] text-white focus:border-cyan-400/50 focus:outline-none"
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] font-bold text-accent-red">
+                          SL
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => saveRule(pos.address)}
+                        className="rounded-md bg-cyan-500/15 px-2 py-1 text-[10px] font-medium text-cyan-300 hover:bg-cyan-500/25"
+                      >
+                        Save
+                      </button>
+                    </div>
+
+                    {/* Status + close */}
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <StatusBadge status={pos.status} isClosing={isClosing} />
                       {!isPending && !isSettling ? (
                         <button
                           onClick={() => void handleClose(pos)}
                           disabled={TRADING_DISABLED || isClosing}
-                          className="rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-1 text-[12px] font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-40"
                         >
                           {TRADING_DISABLED ? "Disabled" : isClosing ? "Closing..." : "Close"}
                         </button>
                       ) : null}
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-[repeat(2,minmax(0,1fr))_minmax(260px,0.95fr)_minmax(0,1fr)_minmax(0,1fr)]">
-                    <MetricBlock label="Entry Price" value={formatPrice(card.entryPrice)} />
-                    <MetricBlock
-                      label="Liq. Price"
-                      value={formatPrice(card.liqPrice)}
-                      valueClassName="text-accent-red"
-                    />
-                    <MetricBlock
-                      label="Margin"
-                      value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
-                    />
-                    <div className="flex h-full w-full flex-col justify-center gap-2 md:w-fit md:justify-self-start md:-ml-28">
-                      <div className="grid grid-cols-2 gap-2 md:min-w-[260px]">
-                        <div className="relative">
-                          <input
-                            type="number"
-                            value={draft.takeProfit}
-                            onChange={(e) => updateRuleDraft(pos.address, "takeProfit", e.target.value)}
-                            placeholder="0.00"
-                            className="w-full rounded-xl border border-shadow-500 bg-shadow-700 px-3 py-2 pr-10 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
-                          />
-                          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-cyan-300">
-                            TP
-                          </span>
-                        </div>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            value={draft.stopLoss}
-                            onChange={(e) => updateRuleDraft(pos.address, "stopLoss", e.target.value)}
-                            placeholder="0.00"
-                            className="w-full rounded-xl border border-shadow-500 bg-shadow-700 px-3 py-2 pr-10 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
-                          />
-                          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-accent-red">
-                            SL
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <button
-                          onClick={() => saveRule(pos.address)}
-                          className="rounded-md bg-cyan-500/15 px-2.5 py-1 text-[11px] font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
-                        >
-                          Save
-                        </button>
-                      </div>
-                      {rule?.takeProfit === null && rule?.stopLoss === null && !draft.takeProfit && !draft.stopLoss ? (
-                        <p className="text-[10px] text-gray-500">
-                          No TP/SL set. Add take profit or stop loss here while the position is live.
-                        </p>
-                      ) : null}
-                      {rule && (rule.takeProfit !== null || rule.stopLoss !== null) ? (
-                        <div className="flex flex-wrap gap-2">
-                          <span className="rounded-full border border-shadow-500 bg-shadow-700/80 px-2.5 py-1 text-[10px] font-medium text-cyan-300">
-                            TP {formatPrice(rule.takeProfit)}
-                          </span>
-                          <span className="rounded-full border border-shadow-500 bg-shadow-700/80 px-2.5 py-1 text-[10px] font-medium text-accent-red">
-                            SL {formatPrice(rule.stopLoss)}
-                          </span>
-                        </div>
-                      ) : null}
-                      {(draft.takeProfit || draft.stopLoss) && (
-                        <p className="text-[10px] text-gray-500">
-                          Save to add or update this position&apos;s TP/SL.
-                        </p>
-                      )}
-                    </div>
-                    <MetricBlock
-                      label="PnL"
-                      value={
-                        pnlValue === null
-                          ? "Encrypted"
-                          : `${pnlValue >= 0 ? "+" : ""}$${Math.abs(pnlValue).toFixed(2)}`
-                      }
-                      subtitle={
-                        pnlPercent === null
-                          ? undefined
-                          : `(${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(2)}%)`
-                      }
-                      valueClassName={
-                        pnlValue === null
-                          ? "text-accent-purple encrypted-blur"
-                          : pnlValue >= 0
-                          ? "text-accent-green"
-                          : "text-accent-red"
-                      }
-                    />
-                  </div>
-
-                  <div className="mt-3">
-                    <div className="mb-1.5 flex items-center justify-between text-[11px] text-gray-400">
-                      <span>Health</span>
-                      <span className="font-semibold text-gray-300">
-                        {health === null ? "--" : `${Math.round(health)}%`}
-                      </span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-shadow-600">
-                      <div
-                        className={`h-full rounded-full transition-all ${healthTone}`}
-                        style={{ width: healthBarWidth }}
-                      />
-                    </div>
-                  </div>
-
                 </div>
               );
             })}
