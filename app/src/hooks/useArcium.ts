@@ -396,7 +396,55 @@ export const useArciumPrivacy = () => {
   const [status, setStatus] = useState<PrivacyStatus>("idle");
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [lastSignature, setLastSignature] = useState<string | null>(null);
-  const [relaySession, setRelaySession] = useState<SessionRelayInfo | null>(null);
+  const [relaySession, setRelaySessionRaw] = useState<SessionRelayInfo | null>(null);
+  // In-memory auth cache — survives localStorage sanitization which wipes authSignature.
+  const relayAuthRef = useRef<{
+    sessionId: string;
+    owner: string;
+    market: string;
+    authSignature: string;
+    authAction: string;
+    authExpiresAt: number;
+  } | null>(null);
+
+  const setRelaySession = useCallback((update: SessionRelayInfo | null | ((prev: SessionRelayInfo | null) => SessionRelayInfo | null)) => {
+    setRelaySessionRaw((prev) => {
+      const next = typeof update === "function" ? update(prev) : update;
+      if (!next) {
+        relayAuthRef.current = null;
+        return next;
+      }
+      // If setting a session WITH auth, cache it in the ref.
+      if (next.authSignature && next.authSignature.length > 0) {
+        relayAuthRef.current = {
+          sessionId: next.sessionId,
+          owner: next.owner,
+          market: next.market,
+          authSignature: next.authSignature,
+          authAction: next.authAction,
+          authExpiresAt: next.authExpiresAt,
+        };
+        return next;
+      }
+      // If setting a session WITHOUT auth, restore from ref if it matches.
+      const cached = relayAuthRef.current;
+      if (
+        cached &&
+        cached.sessionId === next.sessionId &&
+        cached.owner === next.owner &&
+        cached.market === next.market &&
+        cached.authSignature.length > 0
+      ) {
+        return {
+          ...next,
+          authSignature: cached.authSignature,
+          authAction: cached.authAction as RelaySessionAction,
+          authExpiresAt: cached.authExpiresAt,
+        };
+      }
+      return next;
+    });
+  }, []);
   const [relayAvailable, setRelayAvailable] = useState<boolean>(false);
   const [relayError, setRelayError] = useState<string | null>(null);
   const [relaySessionHydrated, setRelaySessionHydrated] = useState<boolean>(false);
@@ -1170,7 +1218,6 @@ export const useArciumPrivacy = () => {
           ? relaySession
           : null;
 
-      let sessionFreshlyCreated = false;
       if (!activeRelaySession) {
         const ensured = await ensureRelaySession({
           reason: "trade",
@@ -1185,7 +1232,6 @@ export const useArciumPrivacy = () => {
           )
         ) {
           activeRelaySession = ensured;
-          sessionFreshlyCreated = true;
         }
       }
 
@@ -1196,8 +1242,9 @@ export const useArciumPrivacy = () => {
       }
 
       // Ensure we have a valid auth signature (may have been cleared from storage).
-      // Skip if the session was just created — it already has a fresh auth signature.
-      if (!sessionFreshlyCreated && !hasUsableRelayAuth(activeRelaySession, "open", Math.floor(Date.now() / 1000))) {
+      // The relayAuthRef preserves auth in memory even when localStorage wipes it,
+      // so this should only trigger signMessage on a genuinely new/expired auth.
+      if (!hasUsableRelayAuth(activeRelaySession, "open", Math.floor(Date.now() / 1000))) {
         activeRelaySession = await ensureRelaySessionAuth(activeRelaySession, "open", true);
       }
 
