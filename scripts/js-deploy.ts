@@ -275,7 +275,7 @@ async function sendWithRetry(
 async function main() {
   const rootDir = path.resolve(__dirname, "..");
   const soPath = path.resolve(rootDir, "target", "deploy", "shadowperp.so");
-  const programKeypairPath = path.resolve(rootDir, "target", "deploy", "shadowperp-keypair.json");
+  const programKeypairPath = path.resolve(rootDir, "target", "deploy", parseFlag("--keypair") || "shadowperp-keypair.json");
   const bufferKeypairPath = path.resolve(rootDir, "target", "deploy", "shadowperp-buffer-keypair.json");
   const progressPath = path.resolve(
     rootDir,

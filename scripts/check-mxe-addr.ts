@@ -1,7 +1,7 @@
 import { getMXEAccAddress } from "@arcium-hq/client";
 import { PublicKey } from "@solana/web3.js";
 
-const pid = new PublicKey("Fc8SmsvjqDH768HYeAJmHkoEu6xP4FuThJaDaqco3beV");
+const pid = new PublicKey("ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4");
 console.log("SDK MXE address:", getMXEAccAddress(pid).toBase58());
 
 // The CLI error showed it tried to allocate 123bSDnqkixpSYpwWREQtcsm9JFnhHYzaZTjyiwrj1WE

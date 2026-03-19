@@ -1,8 +1,0 @@
-mxe:
-  name: shadow-mxe
-  executionModel: ENCLAVE
-  solanaCluster: devnet
-  rpcUrl: https://devnet.helius-rpc.com
-  recoverySetSize: 4
-  programId: 6JSACVRd4TxePjsfvy3d5sXP5ykS4m3wbtkYJjHK8SCA
-

@@ -1,5 +1,5 @@
 {
-  "address": "Fc8SmsvjqDH768HYeAJmHkoEu6xP4FuThJaDaqco3beV",
+  "address": "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4",
   "metadata": {
     "name": "shadowperp",
     "version": "0.1.0",
@@ -5051,7 +5051,7 @@
             "name": "Active"
           },
           {
-            "name": "Recovery"
+            "name": "Migration"
           }
         ]
       }
@@ -6092,8 +6092,103 @@
   "errors": [
     {
       "code": 6000,
-      "name": "ClusterNotSet",
-      "msg": "Cluster not set on MXE account"
+      "name": "Unauthorized",
+      "msg": "Unauthorized access"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidLeverage",
+      "msg": "Invalid leverage - must be between 1 and max leverage"
+    },
+    {
+      "code": 6002,
+      "name": "InsufficientMargin",
+      "msg": "Insufficient margin for position"
+    },
+    {
+      "code": 6003,
+      "name": "PositionNotOpen",
+      "msg": "Position is not open"
+    },
+    {
+      "code": 6004,
+      "name": "PositionAlreadyClosed",
+      "msg": "Position is already closed"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidPrice",
+      "msg": "Invalid oracle price"
+    },
+    {
+      "code": 6006,
+      "name": "StalePrice",
+      "msg": "Price is stale - needs update"
+    },
+    {
+      "code": 6007,
+      "name": "ComputationInProgress",
+      "msg": "Computation already in progress"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidComputationResult",
+      "msg": "Invalid computation result"
+    },
+    {
+      "code": 6009,
+      "name": "MarketPaused",
+      "msg": "Market is paused"
+    },
+    {
+      "code": 6010,
+      "name": "InsufficientBalance",
+      "msg": "Insufficient balance for withdrawal"
+    },
+    {
+      "code": 6011,
+      "name": "ZeroAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6012,
+      "name": "CannotLiquidate",
+      "msg": "Position cannot be liquidated - health factor above threshold"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidNonce",
+      "msg": "Invalid nonce"
+    },
+    {
+      "code": 6014,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidAccountData",
+      "msg": "Invalid account data"
+    },
+    {
+      "code": 6016,
+      "name": "SessionExpired",
+      "msg": "Trade session is expired"
+    },
+    {
+      "code": 6017,
+      "name": "SessionRevoked",
+      "msg": "Trade session is revoked"
+    },
+    {
+      "code": 6018,
+      "name": "SessionActionLimitReached",
+      "msg": "Trade session action limit reached"
+    },
+    {
+      "code": 6019,
+      "name": "SessionMarginLimitExceeded",
+      "msg": "Trade session per-action margin limit exceeded"
     }
   ]
 }

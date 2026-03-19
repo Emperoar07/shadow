@@ -76,7 +76,7 @@ use handlers::update_mxe_cluster::UpdateMxeCluster;
 use handlers::update_price::UpdatePrice;
 use handlers::withdraw_collateral::WithdrawCollateral;
 
-declare_id!("Fc8SmsvjqDH768HYeAJmHkoEu6xP4FuThJaDaqco3beV");
+declare_id!("ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4");
 
 #[arcium_program]
 pub mod shadowperp {

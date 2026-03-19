@@ -15,7 +15,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-const PROGRAM_ID = new PublicKey("Fc8SmsvjqDH768HYeAJmHkoEu6xP4FuThJaDaqco3beV");
+const PROGRAM_ID = new PublicKey("ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4");
 const CLUSTER_OFFSET = 456;
 
 function readArg(name: string): string | undefined {

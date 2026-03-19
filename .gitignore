@@ -19,6 +19,7 @@ app/out/
 # Anchor / Solana local state
 .anchor/
 test-ledger/
+mxconfig.yaml
 
 # Generated IDL/build artifacts
 idl/
