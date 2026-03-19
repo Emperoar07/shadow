@@ -133,22 +133,6 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-function MetricCell({
-  label,
-  value,
-  valueClassName = "text-white",
-}: {
-  label: string;
-  value: string;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wider text-gray-500 leading-none mb-0.5">{label}</p>
-      <p className={`text-xs font-semibold leading-tight truncate ${valueClassName}`}>{value}</p>
-    </div>
-  );
-}
 
 export default function BottomPositionsPanel({
   activePairLabel,
@@ -381,7 +365,6 @@ export default function BottomPositionsPanel({
   );
   const displayed =
     activeTab === "position" ? openPositions : activeTab === "history" ? historyPositions : [];
-  const showActionCol = activeTab === "position";
   const hasEncryptedPositions = openPositions.some((position) => position.hasEncryptedData);
 
   const derivePositionCard = useCallback(
@@ -556,304 +539,249 @@ export default function BottomPositionsPanel({
 
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto" style={{ maxHeight: 200, overflowY: "auto" }}>
+      {/* Content */}
+      <div className="overflow-x-auto flex-1" style={{ overflowY: "auto" }}>
+        {/* ── ORDERS TAB ── */}
         {activeTab === "orders" ? (
           openOrders.length === 0 ? (
-            <div className="py-7 text-center text-sm text-gray-500">No active orders.</div>
+            <div className="py-6 text-center text-xs text-gray-500">No active orders.</div>
           ) : (
-            <div className="divide-y divide-shadow-700">
-              {openOrders.map((order) => (
-                <div key={order.id} className="p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="text-xs">
-                      <p className="font-medium text-gray-100">
-                        {order.pairLabel} | {order.side.toUpperCase()} | {order.marginMode.toUpperCase()} | {order.leverage}x
-                      </p>
-                      <p className="mt-1 text-gray-400">
-                        Limit {formatPrice(order.limitPrice)} | TP {formatPrice(order.takeProfit)} | SL{" "}
-                        {formatPrice(order.stopLoss)}
-                      </p>
-                      {order.error && <p className="mt-1 text-red-400">{order.error}</p>}
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="rounded border border-shadow-500 px-2 py-0.5 text-[10px] text-gray-300">
-                        {order.status}
-                      </span>
-                      <div className="flex gap-1">
-                        {(order.status === "pending" || order.status === "failed") && (
-                          <button
-                            onClick={() =>
-                              setEditingOrderId(editingOrderId === order.id ? null : order.id)
-                            }
-                            className="rounded bg-shadow-600 px-2 py-1 text-[10px] text-gray-300"
-                          >
-                            Edit
-                          </button>
-                        )}
-                        {order.status === "failed" ? (
-                          <button
-                            onClick={() => removeFailedLimitOrder(order)}
-                            className="rounded bg-red-500/15 px-2 py-1 text-[10px] text-red-300"
-                          >
-                            Remove
-                          </button>
+            <table className="w-full min-w-[700px] text-[11px]">
+              <thead>
+                <tr className="border-b border-shadow-700 text-[10px] uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-1.5 text-left font-medium">Pair</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Side</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Type</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Size</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Limit Price</th>
+                  <th className="px-2 py-1.5 text-right font-medium">TP</th>
+                  <th className="px-2 py-1.5 text-right font-medium">SL</th>
+                  <th className="px-2 py-1.5 text-center font-medium">Status</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {openOrders.map((order) => {
+                  const isEditing = editingOrderId === order.id;
+                  return (
+                    <tr key={order.id} className="border-b border-shadow-700/50 hover:bg-shadow-700/20">
+                      <td className="px-3 py-1.5 font-medium text-white">{order.pairLabel}</td>
+                      <td className="px-2 py-1.5">
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                          order.side === "long" ? "bg-accent-green/20 text-accent-green" : "bg-accent-red/20 text-accent-red"
+                        }`}>
+                          {order.side}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <div className="flex items-center gap-1">
+                          <span className="rounded bg-shadow-600 px-1.5 py-0.5 text-[10px] uppercase text-gray-400">{order.marginMode}</span>
+                          <span className="rounded bg-accent-purple/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-purple">{order.leverage}x</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-gray-300">{order.sizeBase.toFixed(4)}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        {isEditing ? (
+                          <input type="number" defaultValue={order.limitPrice} onBlur={(e) => updateOrderField(order.id, "limitPrice", e.target.value)}
+                            className="w-[72px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 text-[11px] text-white text-right focus:border-accent-purple/50 focus:outline-none" />
                         ) : (
-                          <span className="rounded bg-shadow-600 px-2 py-1 text-[10px] text-gray-400">
-                            {order.status === "triggered" ? "In Flight" : "Queued"}
-                          </span>
+                          <span className="text-white font-medium">{formatPrice(order.limitPrice)}</span>
                         )}
-                      </div>
-                    </div>
-                  </div>
-                  {editingOrderId === order.id && (
-                    <div className="mt-2 grid grid-cols-3 gap-1.5">
-                      <input
-                        type="number"
-                        defaultValue={order.limitPrice}
-                        onBlur={(e) => updateOrderField(order.id, "limitPrice", e.target.value)}
-                        placeholder="Limit"
-                        className="rounded border border-shadow-500 bg-shadow-700 px-2 py-1 text-[11px]"
-                      />
-                      <input
-                        type="number"
-                        defaultValue={order.takeProfit ?? ""}
-                        onBlur={(e) => updateOrderField(order.id, "takeProfit", e.target.value)}
-                        placeholder="TP"
-                        className="rounded border border-shadow-500 bg-shadow-700 px-2 py-1 text-[11px]"
-                      />
-                      <input
-                        type="number"
-                        defaultValue={order.stopLoss ?? ""}
-                        onBlur={(e) => updateOrderField(order.id, "stopLoss", e.target.value)}
-                        placeholder="SL"
-                        className="rounded border border-shadow-500 bg-shadow-700 px-2 py-1 text-[11px]"
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
+                        {isEditing ? (
+                          <input type="number" defaultValue={order.takeProfit ?? ""} onBlur={(e) => updateOrderField(order.id, "takeProfit", e.target.value)}
+                            placeholder="--" className="w-[72px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 text-[11px] text-white text-right focus:border-cyan-400/50 focus:outline-none" />
+                        ) : (
+                          <span className="text-cyan-300">{formatPrice(order.takeProfit) || "--"}</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
+                        {isEditing ? (
+                          <input type="number" defaultValue={order.stopLoss ?? ""} onBlur={(e) => updateOrderField(order.id, "stopLoss", e.target.value)}
+                            placeholder="--" className="w-[72px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 text-[11px] text-white text-right focus:border-accent-red/50 focus:outline-none" />
+                        ) : (
+                          <span className="text-accent-red">{formatPrice(order.stopLoss) || "--"}</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                          order.status === "failed" ? "bg-red-500/15 text-red-400"
+                            : order.status === "triggered" ? "bg-yellow-400/15 text-yellow-400"
+                            : "bg-shadow-600 text-gray-400"
+                        }`}>
+                          {order.status === "triggered" && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
+                          {order.status === "triggered" ? "Executing" : order.status === "failed" ? "Failed" : "Queued"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {(order.status === "pending" || order.status === "failed") && (
+                            <button onClick={() => setEditingOrderId(isEditing ? null : order.id)}
+                              className="rounded bg-shadow-600 px-2 py-0.5 text-[10px] text-gray-300 hover:bg-shadow-500">
+                              {isEditing ? "Done" : "Edit"}
+                            </button>
+                          )}
+                          {order.status === "failed" && (
+                            <button onClick={() => removeFailedLimitOrder(order)}
+                              className="rounded bg-red-500/15 px-2 py-0.5 text-[10px] text-red-300 hover:bg-red-500/25">
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              {openOrders.some((o) => o.error) && (
+                <tfoot>
+                  <tr>
+                    <td colSpan={9} className="px-3 py-1.5 text-[10px] text-red-400/80">
+                      {openOrders.filter((o) => o.error).map((o) => (
+                        <p key={o.id} className="truncate">{o.pairLabel}: {o.error}</p>
+                      ))}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
           )
+
+        /* ── POSITIONS TAB ── */
         ) : displayed.length === 0 ? (
-          <div className="py-7 text-center text-sm text-gray-500">
+          <div className="py-6 text-center text-xs text-gray-500">
             {!publicKey
               ? "Connect wallet to view positions"
               : activeTab === "position"
-              ? "No open positions - open a trade using the panel above"
+              ? "No open positions"
               : "No closed positions yet"}
           </div>
-        ) : activeTab === "position" ? (
-          <div className="divide-y divide-shadow-700">
-            {displayed.map((pos) => {
-              const isPending = pos.status === "pending";
-              const isClosing = closingAddress === pos.address || pos.status === "closing";
-              const isSettling = pos.status === "settling";
-              const card = derivePositionCard(pos);
-              const rule = positionRules[pos.address];
-              const draft = ruleDrafts[pos.address] ?? {
-                side: card.side ?? rule?.side ?? "long",
-                takeProfit: rule?.takeProfit?.toString() ?? "",
-                stopLoss: rule?.stopLoss?.toString() ?? "",
-              };
-              const displaySide = card.side ?? draft.side;
-              const pnlValue = card.unrealizedPnl;
-              const pnlPercent = card.pnlPercent;
-              const health = card.healthPercent;
-              const healthBarWidth = `${Math.max(2, Math.round(health ?? 0))}%`;
-              const healthTone =
-                health === null
-                  ? "bg-gray-500/60"
-                  : health >= 70
-                  ? "bg-accent-green"
-                  : health >= 40
-                  ? "bg-yellow-400"
-                  : "bg-accent-red";
-
-              return (
-                <div key={pos.address} className="px-3 py-2.5">
-                  {/* Row 1: pair info + metrics + actions — all in one line */}
-                  <div className="flex items-center gap-3">
-                    {/* Pair label + badges */}
-                    <div className="flex items-center gap-1.5 shrink-0 min-w-[160px]">
-                      <span className="text-sm font-bold text-white">{card.pairLabel}</span>
-                      {displaySide ? (
-                        <span
-                          className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none ${
-                            displaySide === "long"
-                              ? "bg-accent-green/20 text-accent-green"
-                              : "bg-accent-red/20 text-accent-red"
-                          }`}
-                        >
-                          {displaySide}
-                        </span>
-                      ) : null}
-                      {card.leverage ? (
-                        <span className="rounded bg-accent-purple/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-purple leading-none">
-                          {card.leverage}x
-                        </span>
-                      ) : null}
-                      <span className="rounded bg-shadow-600 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-400 leading-none">
-                        {card.marginMode}
-                      </span>
-                    </div>
-
-                    {/* Metrics row */}
-                    <div className="flex-1 grid grid-cols-5 gap-x-4 items-center min-w-0">
-                      <MetricCell label="Entry" value={formatPrice(card.entryPrice)} />
-                      <MetricCell
-                        label="Liq. Price"
-                        value={formatPrice(card.liqPrice)}
-                        valueClassName="text-accent-red"
-                      />
-                      <MetricCell
-                        label="Margin"
-                        value={`$${(card.localMargin ?? pos.margin).toFixed(2)}`}
-                      />
-                      <MetricCell
-                        label="PnL"
-                        value={
-                          pnlValue === null
-                            ? "--"
-                            : `${pnlValue >= 0 ? "+" : ""}$${Math.abs(pnlValue).toFixed(2)}${
-                                pnlPercent !== null ? ` (${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(1)}%)` : ""
-                              }`
-                        }
-                        valueClassName={
-                          pnlValue === null
-                            ? "text-gray-500"
-                            : pnlValue >= 0
-                            ? "text-accent-green"
-                            : "text-accent-red"
-                        }
-                      />
-                      {/* Health inline */}
-                      <div className="min-w-0">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-500 leading-none mb-1">Health</p>
-                        <div className="flex items-center gap-1.5">
-                          <div className="flex-1 h-1 rounded-full bg-shadow-600 max-w-[48px]">
-                            <div
-                              className={`h-full rounded-full transition-all ${healthTone}`}
-                              style={{ width: healthBarWidth }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-semibold text-gray-300">
-                            {health === null ? "--" : `${Math.round(health)}%`}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* TP/SL compact inputs */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={draft.takeProfit}
-                          onChange={(e) => updateRuleDraft(pos.address, "takeProfit", e.target.value)}
-                          placeholder="0.00"
-                          className="w-[80px] rounded-lg border border-shadow-500 bg-shadow-700 px-2 py-1 pr-7 text-[11px] text-white focus:border-cyan-400/50 focus:outline-none"
-                        />
-                        <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] font-bold text-cyan-300">
-                          TP
-                        </span>
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={draft.stopLoss}
-                          onChange={(e) => updateRuleDraft(pos.address, "stopLoss", e.target.value)}
-                          placeholder="0.00"
-                          className="w-[80px] rounded-lg border border-shadow-500 bg-shadow-700 px-2 py-1 pr-7 text-[11px] text-white focus:border-cyan-400/50 focus:outline-none"
-                        />
-                        <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] font-bold text-accent-red">
-                          SL
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => saveRule(pos.address)}
-                        className="rounded-md bg-cyan-500/15 px-2 py-1 text-[10px] font-medium text-cyan-300 hover:bg-cyan-500/25"
-                      >
-                        Save
-                      </button>
-                    </div>
-
-                    {/* Status + close */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <StatusBadge status={pos.status} isClosing={isClosing} />
-                      {!isPending && !isSettling ? (
-                        <button
-                          onClick={() => void handleClose(pos)}
-                          disabled={TRADING_DISABLED || isClosing}
-                          className="rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-40"
-                        >
-                          {TRADING_DISABLED ? "Disabled" : isClosing ? "Closing..." : "Close"}
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         ) : (
-          <table className="w-full min-w-[640px] text-xs">
+          <table className="w-full min-w-[800px] text-[11px]">
             <thead>
-              <tr className="border-b border-shadow-700 text-gray-500">
-                <th className="px-4 py-2 text-left font-medium">#</th>
-                <th className="px-3 py-2 text-left font-medium">Status</th>
-                <th className="px-3 py-2 text-left font-medium">Opened</th>
-                <th className="px-3 py-2 text-right font-medium">Margin</th>
-                <th className="px-3 py-2 text-right font-medium">TP / SL</th>
-                <th className="px-3 py-2 text-right font-medium">Realized PnL</th>
-                {showActionCol && <th className="px-4 py-2 text-right font-medium">Action</th>}
+              <tr className="border-b border-shadow-700 text-[10px] uppercase tracking-wider text-gray-500">
+                <th className="px-3 py-1.5 text-left font-medium">Pair</th>
+                <th className="px-2 py-1.5 text-left font-medium">Side</th>
+                <th className="px-2 py-1.5 text-left font-medium">Type</th>
+                <th className="px-2 py-1.5 text-right font-medium">Entry</th>
+                <th className="px-2 py-1.5 text-right font-medium">Liq. Price</th>
+                <th className="px-2 py-1.5 text-right font-medium">Margin</th>
+                <th className="px-2 py-1.5 text-right font-medium">PnL</th>
+                {activeTab === "position" && <th className="px-2 py-1.5 text-right font-medium">TP / SL</th>}
+                <th className="px-2 py-1.5 text-center font-medium">Health</th>
+                <th className="px-3 py-1.5 text-right font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
               {displayed.map((pos) => {
+                const isPending = pos.status === "pending";
                 const isClosing = closingAddress === pos.address || pos.status === "closing";
+                const isSettling = pos.status === "settling";
                 const isFinal = pos.status === "closed" || pos.status === "liquidated";
+                const card = derivePositionCard(pos);
                 const rule = positionRules[pos.address];
+                const draft = ruleDrafts[pos.address] ?? {
+                  side: card.side ?? rule?.side ?? "long",
+                  takeProfit: rule?.takeProfit?.toString() ?? "",
+                  stopLoss: rule?.stopLoss?.toString() ?? "",
+                };
+                const displaySide = card.side ?? draft.side;
+                const pnlValue = card.unrealizedPnl;
+                const pnlPercent = card.pnlPercent;
+                const health = card.healthPercent;
+                const healthBarWidth = `${Math.max(2, Math.round(health ?? 0))}%`;
+                const healthTone =
+                  health === null ? "bg-gray-500/60"
+                    : health >= 70 ? "bg-accent-green"
+                    : health >= 40 ? "bg-yellow-400"
+                    : "bg-accent-red";
 
                 return (
-                  <tr
-                    key={pos.address}
-                    className="border-b border-shadow-700 transition-colors hover:bg-shadow-700/30"
-                  >
-                    <td className="px-4 py-2.5 text-gray-400">#{pos.index.toString()}</td>
-                    <td className="px-3 py-2.5">
-                      <StatusBadge status={pos.status} isClosing={isClosing} />
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-gray-400">
-                      {pos.openedAt.toLocaleDateString()}{" "}
-                      {pos.openedAt.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-medium">${pos.margin.toFixed(2)}</td>
-                    <td className="px-3 py-2.5 text-right">
-                      {rule ? (
-                        <span className="text-[10px] text-cyan-300">
-                          {rule.side.toUpperCase()} {formatPrice(rule.takeProfit)} /{" "}
-                          {formatPrice(rule.stopLoss)}
+                  <tr key={pos.address} className="border-b border-shadow-700/50 hover:bg-shadow-700/20 group">
+                    {/* Pair */}
+                    <td className="px-3 py-1.5 font-medium text-white whitespace-nowrap">{card.pairLabel}</td>
+                    {/* Side */}
+                    <td className="px-2 py-1.5">
+                      {displaySide ? (
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                          displaySide === "long" ? "bg-accent-green/20 text-accent-green" : "bg-accent-red/20 text-accent-red"
+                        }`}>
+                          {displaySide}
                         </span>
-                      ) : (
-                        <span className="text-[10px] text-gray-500">Not set</span>
-                      )}
+                      ) : <span className="text-gray-500">--</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
+                    {/* Type: leverage + margin mode */}
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center gap-1">
+                        {card.leverage ? (
+                          <span className="rounded bg-accent-purple/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-purple">{card.leverage}x</span>
+                        ) : null}
+                        <span className="rounded bg-shadow-600 px-1.5 py-0.5 text-[10px] uppercase text-gray-400">{card.marginMode}</span>
+                      </div>
+                    </td>
+                    {/* Entry */}
+                    <td className="px-2 py-1.5 text-right text-white font-medium">{formatPrice(card.entryPrice)}</td>
+                    {/* Liq */}
+                    <td className="px-2 py-1.5 text-right text-accent-red">{formatPrice(card.liqPrice)}</td>
+                    {/* Margin */}
+                    <td className="px-2 py-1.5 text-right text-gray-300">${(card.localMargin ?? pos.margin).toFixed(2)}</td>
+                    {/* PnL */}
+                    <td className={`px-2 py-1.5 text-right font-medium ${
+                      pnlValue === null ? "text-gray-500"
+                        : pnlValue >= 0 ? "text-accent-green" : "text-accent-red"
+                    }`}>
                       {isFinal ? (
-                        <span
-                          className={`font-medium ${
-                            pos.realizedPnl >= 0 ? "text-accent-green" : "text-accent-red"
-                          }`}
-                        >
-                          {pos.realizedPnl >= 0 ? "+" : ""}${pos.realizedPnl.toFixed(2)}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-gray-500">--</span>
+                        <>{pos.realizedPnl >= 0 ? "+" : ""}${pos.realizedPnl.toFixed(2)}</>
+                      ) : pnlValue === null ? "--" : (
+                        <>{pnlValue >= 0 ? "+" : ""}${Math.abs(pnlValue).toFixed(2)}
+                          {pnlPercent !== null && <span className="text-[10px] ml-0.5 opacity-70">({pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(1)}%)</span>}
+                        </>
                       )}
+                    </td>
+                    {/* TP/SL */}
+                    {activeTab === "position" && (
+                      <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          <div className="relative">
+                            <input type="number" value={draft.takeProfit} onChange={(e) => updateRuleDraft(pos.address, "takeProfit", e.target.value)}
+                              placeholder="TP" className="w-[60px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 pr-5 text-[10px] text-white text-right focus:border-cyan-400/50 focus:outline-none" />
+                            <span className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[9px] font-bold text-cyan-300">TP</span>
+                          </div>
+                          <div className="relative">
+                            <input type="number" value={draft.stopLoss} onChange={(e) => updateRuleDraft(pos.address, "stopLoss", e.target.value)}
+                              placeholder="SL" className="w-[60px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 pr-5 text-[10px] text-white text-right focus:border-accent-red/50 focus:outline-none" />
+                            <span className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[9px] font-bold text-accent-red">SL</span>
+                          </div>
+                          <button onClick={() => saveRule(pos.address)}
+                            className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-medium text-cyan-300 hover:bg-cyan-500/25">
+                            Save
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                    {/* Health */}
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <div className="w-10 h-1 rounded-full bg-shadow-600">
+                          <div className={`h-full rounded-full transition-all ${healthTone}`} style={{ width: healthBarWidth }} />
+                        </div>
+                        <span className="text-[10px] font-semibold text-gray-300 w-7 text-right">
+                          {health === null ? "--" : `${Math.round(health)}%`}
+                        </span>
+                      </div>
+                    </td>
+                    {/* Action */}
+                    <td className="px-3 py-1.5 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <StatusBadge status={pos.status} isClosing={isClosing} />
+                        {!isPending && !isSettling && !isFinal ? (
+                          <button onClick={() => void handleClose(pos)} disabled={TRADING_DISABLED || isClosing}
+                            className="rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-40">
+                            {TRADING_DISABLED ? "Off" : isClosing ? "Closing..." : "Close"}
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );
