@@ -1241,9 +1241,24 @@ export const useArciumPrivacy = () => {
         );
       }
 
-      // Ensure we have a valid auth signature (may have been cleared from storage).
-      // The relayAuthRef preserves auth in memory even when localStorage wipes it,
-      // so this should only trigger signMessage on a genuinely new/expired auth.
+      // Restore auth from in-memory cache if localStorage wiped it.
+      const cachedAuth = relayAuthRef.current;
+      if (
+        cachedAuth &&
+        cachedAuth.sessionId === activeRelaySession.sessionId &&
+        cachedAuth.owner === activeRelaySession.owner &&
+        cachedAuth.market === activeRelaySession.market &&
+        cachedAuth.authSignature.length > 0
+      ) {
+        activeRelaySession = {
+          ...activeRelaySession,
+          authSignature: cachedAuth.authSignature,
+          authAction: cachedAuth.authAction as RelaySessionAction,
+          authExpiresAt: cachedAuth.authExpiresAt,
+        };
+      }
+
+      // If still no valid auth, request a new signature.
       if (!hasUsableRelayAuth(activeRelaySession, "open", Math.floor(Date.now() / 1000))) {
         activeRelaySession = await ensureRelaySessionAuth(activeRelaySession, "open", true);
       }
