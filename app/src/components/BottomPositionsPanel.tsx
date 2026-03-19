@@ -18,6 +18,7 @@ import {
   removeLimitOrder,
   removePositionRule,
   setPositionRule,
+  setPositionViewsOwner,
   subscribeAutomationUpdates,
   updateLimitOrder,
 } from "../lib/trade-automation";
@@ -206,16 +207,27 @@ export default function BottomPositionsPanel({
   }, [publicKey, anchorWallet, connection]);
 
   const loadAutomationState = useCallback(() => {
+    // Ensure owner is set before reading views so plain-text storage is loaded
+    if (publicKey) {
+      setPositionViewsOwner(publicKey.toBase58());
+    }
     setPositionRules(getPositionRules());
     setLimitOrders(getLimitOrders());
     setOwnerPositionViews(getOwnerPositionViews());
-  }, []);
+  }, [publicKey]);
 
   useEffect(() => {
     void loadPositions();
     const id = setInterval(() => void loadPositions(), 15_000);
     return () => clearInterval(id);
   }, [loadPositions]);
+
+  // Load plain-text position views as soon as wallet is available
+  useEffect(() => {
+    if (publicKey) {
+      setPositionViewsOwner(publicKey.toBase58());
+    }
+  }, [publicKey]);
 
   useEffect(() => {
     loadAutomationState();
