@@ -122,7 +122,7 @@ export default function TradingAppPage() {
             />
 
             {/* Terminal body: separated chart/orderbook and trading panel */}
-            <div className="min-h-[560px] shrink-0 border-b border-shadow-600 p-2 lg:h-[80vh] lg:max-h-[900px]">
+            <div className="min-h-[560px] shrink-0 border-b border-shadow-600 p-2 lg:h-[64vh] lg:max-h-[720px]">
               <div className="mb-2 flex rounded-xl border border-shadow-600 bg-shadow-900 p-1 lg:hidden">
                 {([
                   ["chart", "Chart"],

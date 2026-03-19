@@ -705,9 +705,9 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   }, [runLimitExecutor]);
 
   return (
-    <div className="trade-trading-panel flex flex-col bg-shadow-900 p-2.5 h-full overflow-y-auto">
-      <div className={isHorizontal ? "grid grid-cols-1 items-start gap-2 lg:grid-cols-12" : "space-y-1.5"}>
-        <div className={isHorizontal ? "space-y-1.5 lg:col-span-12" : "space-y-1.5"}>
+    <div className="trade-trading-panel flex flex-col bg-shadow-900 p-2 h-full overflow-y-auto">
+      <div className={isHorizontal ? "grid grid-cols-1 items-start gap-1.5 lg:grid-cols-12" : "space-y-1"}>
+        <div className={isHorizontal ? "space-y-1 lg:col-span-12" : "space-y-1"}>
           {/* Market / Limit — underlined text tabs */}
           <div className="flex items-center gap-3 border-b border-shadow-600 pb-0">
             <button
@@ -733,10 +733,10 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           </div>
 
           {/* Long / Short — direction buttons */}
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-2 gap-1">
             <button
               onClick={() => setDirection("long")}
-              className={`rounded-lg py-1.5 text-xs font-bold transition-all btn-press ${
+              className={`rounded-lg py-1 text-xs font-bold transition-all btn-press ${
                 direction === "long"
                   ? "bg-accent-green text-white"
                   : "bg-accent-green/10 text-accent-green border border-accent-green/25 hover:bg-accent-green/20"
@@ -746,7 +746,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </button>
             <button
               onClick={() => setDirection("short")}
-              className={`rounded-lg py-1.5 text-xs font-bold transition-all btn-press ${
+              className={`rounded-lg py-1 text-xs font-bold transition-all btn-press ${
                 direction === "short"
                   ? "bg-accent-red text-white"
                   : "bg-accent-red/8 text-accent-red border border-accent-red/25 hover:bg-accent-red/15"
@@ -770,13 +770,13 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             </span>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
+          <div className="flex flex-col gap-1">
+            <div className="flex gap-1.5">
               {/* Margin mode chip — click to cycle */}
               <button
                 type="button"
                 onClick={() => setMarginMode(marginMode === "cross" ? "isolated" : "cross")}
-                className="flex items-center gap-1.5 rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:text-white hover:border-shadow-400 transition-colors"
+                className="flex items-center gap-1.5 rounded-lg border border-shadow-500 bg-shadow-700 px-2.5 py-1 text-[11px] font-semibold text-gray-300 hover:text-white hover:border-shadow-400 transition-colors"
               >
                 <span className="capitalize">{marginMode}</span>
                 <svg className="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -787,7 +787,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
               <button
                 type="button"
                 onClick={() => setLeverageOpen((o) => !o)}
-                className="flex items-center gap-1.5 rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:text-white hover:border-shadow-400 transition-colors"
+                className="flex items-center gap-1.5 rounded-lg border border-shadow-500 bg-shadow-700 px-2.5 py-1 text-[11px] font-semibold text-gray-300 hover:text-white hover:border-shadow-400 transition-colors"
               >
                 <span>{leverage}x</span>
                 <svg className="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -796,7 +796,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
               </button>
             </div>
             {leverageOpen && (
-              <div className="rounded-lg border border-shadow-500 bg-shadow-700/70 px-3 py-2.5">
+              <div className="rounded-lg border border-shadow-500 bg-shadow-700/70 px-2.5 py-2">
                 <input
                   type="range"
                   min={MIN_LEVERAGE}
@@ -855,13 +855,13 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 value={size}
                 onChange={(e) => setSize(e.target.value)}
                 placeholder="0.00"
-                className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-xl leading-none text-white transition-colors focus:border-accent-purple focus:outline-none pr-14"
+                className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 text-lg leading-none text-white transition-colors focus:border-accent-purple focus:outline-none pr-14"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
                 {sizeUnit === "usd" ? "USDC" : activePair.base.symbol}
               </span>
             </div>
-            <div className="mt-1.5">
+            <div className="mt-1">
               {(() => {
                 const effectiveMarginBalance = availableMarginBalance ?? marginBalance;
                 const maxNotional =
@@ -919,7 +919,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
           </div>
 
           {orderType === "limit" && (
-            <div className="mt-2 mb-2">
+            <div className="mt-1 mb-1">
               <label className="mb-1 block text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 Limit Price
               </label>
@@ -929,7 +929,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                   value={limitPrice}
                   onChange={(e) => setLimitPrice(e.target.value)}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-2 text-lg text-white transition-colors focus:border-accent-purple focus:outline-none pr-14"
+                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 text-base text-white transition-colors focus:border-accent-purple focus:outline-none pr-14"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
                   USDC
@@ -943,14 +943,14 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             <label className="mb-1 block text-[10px] uppercase tracking-[0.12em] text-gray-500">
               Take Profit / Stop Loss
             </label>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-1">
               <div className="relative">
                 <input
                   type="number"
                   value={takeProfit}
                   onChange={(e) => setTakeProfit(e.target.value)}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 pr-10 text-xs text-white transition-colors focus:border-accent-green focus:outline-none"
+                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-2.5 py-1 pr-10 text-xs text-white transition-colors focus:border-accent-green focus:outline-none"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-accent-green">
                   TP
@@ -962,7 +962,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                   value={stopLoss}
                   onChange={(e) => setStopLoss(e.target.value)}
                   placeholder="0.00"
-                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 pr-10 text-xs text-white transition-colors focus:border-accent-red focus:outline-none"
+                  className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-2.5 py-1 pr-10 text-xs text-white transition-colors focus:border-accent-red focus:outline-none"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-accent-red">
                   SL
@@ -981,7 +981,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
               sizeInBase <= 0 ||
               (orderType === "limit" && !parsedLimitPrice)
             }
-            className={`mb-1 w-full rounded-lg py-2.5 text-base font-semibold transition-all btn-press ${
+            className={`mb-0.5 w-full rounded-lg py-2 text-sm font-semibold transition-all btn-press ${
               direction === "long"
                 ? "bg-gradient-to-r from-accent-green to-emerald-600 hover:from-emerald-600 hover:to-accent-green"
                 : "bg-gradient-to-r from-accent-red to-rose-600 hover:from-rose-600 hover:to-accent-red"
@@ -1020,7 +1020,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             )}
           </button>
 
-          <div className="rounded-lg bg-shadow-900 border border-shadow-600 p-2.5 mt-1 space-y-1.5 text-[12px]">
+          <div className="rounded-lg bg-shadow-900 border border-shadow-600 p-2 mt-0.5 space-y-1 text-[11px]">
             <div className="flex items-center justify-between">
               <span className="text-gray-500">Liquidation Price</span>
               <span className="font-medium text-gray-300">
