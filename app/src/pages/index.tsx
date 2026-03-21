@@ -455,7 +455,7 @@ export default function LandingPage() {
             position:relative;z-index:1;
             border-top:1px solid ${dark ? "rgba(255,255,255,.06)" : "#e8ebf4"};
             background: ${dark ? "rgba(10,10,18,0.8)" : "#ffffff"};
-            padding:48px 40px 32px;
+            padding:34px 40px 22px;
             font-size:13px;color:${dark ? "#6b7280" : "#64748b"};
           }
           .lp-footer-inner {
@@ -469,7 +469,7 @@ export default function LandingPage() {
           .lp-footer-col a { display:block;color:${dark ? "#6b7280" : "#94a3b8"};text-decoration:none;transition:color .15s;padding:3px 0;font-size:13px }
           .lp-footer-col a:hover { color:#a78bfa }
           .lp-footer-bottom {
-            max-width:1200px;margin:32px auto 0;padding-top:20px;
+            max-width:1200px;margin:22px auto 0;padding-top:14px;
             border-top:1px solid ${dark ? "rgba(255,255,255,.04)" : "#e8ebf4"};
             display:flex;align-items:center;justify-content:space-between;font-size:12px;
             color:${dark ? "#374151" : "#94a3b8"};
