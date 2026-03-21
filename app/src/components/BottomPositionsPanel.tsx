@@ -518,7 +518,7 @@ export default function BottomPositionsPanel({
   }, []);
 
   return (
-    <div className="trade-bottom-panel position-card rounded-xl overflow-hidden min-h-[750px] h-full">
+    <div className="trade-bottom-panel position-card rounded-xl overflow-hidden">
       {/* Tab bar */}
       <div className="flex items-center justify-between border-b border-shadow-600 pl-1 pr-3">
         <div className="flex">
@@ -552,15 +552,15 @@ export default function BottomPositionsPanel({
       </div>
 
       {/* Content */}
-      <div className="overflow-x-auto flex-1" style={{ overflowY: "auto" }}>
+      <div className="overflow-x-auto">
         {/* ── ORDERS TAB ── */}
         {activeTab === "orders" ? (
           openOrders.length === 0 ? (
             <div className="py-6 text-center text-xs text-gray-500">No active orders.</div>
           ) : (
-            <table className="w-full min-w-[700px] text-[11px]">
+            <table className="w-full min-w-[700px] text-[11px]" style={{ borderCollapse: "separate", borderSpacing: "0 6px" }}>
               <thead>
-                <tr className="border-b border-shadow-700 text-[10px] uppercase tracking-wider text-gray-500">
+                <tr className="text-[10px] uppercase tracking-wider text-gray-500">
                   <th className="px-3 py-1.5 text-left font-medium">Pair</th>
                   <th className="px-2 py-1.5 text-left font-medium">Side</th>
                   <th className="px-2 py-1.5 text-left font-medium">Type</th>
@@ -576,23 +576,23 @@ export default function BottomPositionsPanel({
                 {openOrders.map((order) => {
                   const isEditing = editingOrderId === order.id;
                   return (
-                    <tr key={order.id} className="border-b border-shadow-700/50 hover:bg-shadow-700/20">
-                      <td className="px-3 py-1.5 font-medium text-white">{order.pairLabel}</td>
-                      <td className="px-2 py-1.5">
+                    <tr key={order.id} className="position-row group">
+                      <td className="px-3 py-2.5 font-medium text-white">{order.pairLabel}</td>
+                      <td className="px-2 py-2.5">
                         <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
                           order.side === "long" ? "bg-accent-green/20 text-accent-green" : "bg-accent-red/20 text-accent-red"
                         }`}>
                           {order.side}
                         </span>
                       </td>
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-2.5">
                         <div className="flex items-center gap-1">
                           <span className="rounded bg-shadow-600 px-1.5 py-0.5 text-[10px] uppercase text-gray-400">{order.marginMode}</span>
                           <span className="rounded bg-accent-purple/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-purple">{order.leverage}x</span>
                         </div>
                       </td>
-                      <td className="px-2 py-1.5 text-right text-gray-300">{order.sizeBase.toFixed(4)}</td>
-                      <td className="px-2 py-1.5 text-right">
+                      <td className="px-2 py-2.5 text-right text-gray-300">{order.sizeBase.toFixed(4)}</td>
+                      <td className="px-2 py-2.5 text-right">
                         {isEditing ? (
                           <input type="number" defaultValue={order.limitPrice} onBlur={(e) => updateOrderField(order.id, "limitPrice", e.target.value)}
                             className="w-[72px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 text-[11px] text-white text-right focus:border-accent-purple/50 focus:outline-none" />
@@ -600,7 +600,7 @@ export default function BottomPositionsPanel({
                           <span className="text-white font-medium">{formatPrice(order.limitPrice)}</span>
                         )}
                       </td>
-                      <td className="px-2 py-1.5 text-right">
+                      <td className="px-2 py-2.5 text-right">
                         {isEditing ? (
                           <input type="number" defaultValue={order.takeProfit ?? ""} onBlur={(e) => updateOrderField(order.id, "takeProfit", e.target.value)}
                             placeholder="--" className="w-[72px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 text-[11px] text-white text-right focus:border-cyan-400/50 focus:outline-none" />
@@ -608,7 +608,7 @@ export default function BottomPositionsPanel({
                           <span className="text-cyan-300">{formatPrice(order.takeProfit) || "--"}</span>
                         )}
                       </td>
-                      <td className="px-2 py-1.5 text-right">
+                      <td className="px-2 py-2.5 text-right">
                         {isEditing ? (
                           <input type="number" defaultValue={order.stopLoss ?? ""} onBlur={(e) => updateOrderField(order.id, "stopLoss", e.target.value)}
                             placeholder="--" className="w-[72px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 text-[11px] text-white text-right focus:border-accent-red/50 focus:outline-none" />
@@ -616,7 +616,7 @@ export default function BottomPositionsPanel({
                           <span className="text-accent-red">{formatPrice(order.stopLoss) || "--"}</span>
                         )}
                       </td>
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-2 py-2.5 text-center">
                         <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
                           order.status === "failed" ? "bg-red-500/15 text-red-400"
                             : order.status === "triggered" ? "bg-yellow-400/15 text-yellow-400"
@@ -626,7 +626,7 @@ export default function BottomPositionsPanel({
                           {order.status === "triggered" ? "Executing" : order.status === "failed" ? "Failed" : "Queued"}
                         </span>
                       </td>
-                      <td className="px-3 py-1.5 text-right">
+                      <td className="px-3 py-2.5 text-right">
                         <div className="flex items-center justify-end gap-1">
                           {(order.status === "pending" || order.status === "failed") && (
                             <button onClick={() => setEditingOrderId(isEditing ? null : order.id)}
