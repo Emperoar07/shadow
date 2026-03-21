@@ -105,6 +105,35 @@ body {
   border-color: rgba(139, 92, 246, 0.5);
 }
 
+/* Position table rows */
+.position-row td {
+  background: linear-gradient(135deg, rgba(26, 26, 37, 0.6) 0%, rgba(18, 18, 26, 0.7) 100%);
+  border-top: 1px solid rgba(139, 92, 246, 0.1);
+  border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+  transition: background 0.15s, border-color 0.15s;
+}
+.position-row td:first-child {
+  border-left: 1px solid rgba(139, 92, 246, 0.1);
+  border-radius: 8px 0 0 8px;
+}
+.position-row td:last-child {
+  border-right: 1px solid rgba(139, 92, 246, 0.1);
+  border-radius: 0 8px 8px 0;
+}
+.position-row:hover td {
+  background: rgba(139, 92, 246, 0.06);
+  border-color: rgba(139, 92, 246, 0.25);
+}
+
+html.light .position-row td {
+  background: rgba(248, 250, 252, 0.7);
+  border-color: rgba(139, 92, 246, 0.12);
+}
+html.light .position-row:hover td {
+  background: rgba(139, 92, 246, 0.05);
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
 /* Skeleton loading pulse */
 .skeleton-pulse {
   background: linear-gradient(90deg, #1a1a25 25%, #252530 50%, #1a1a25 75%);

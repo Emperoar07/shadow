@@ -37,19 +37,23 @@ This repository is an active devnet prototype, not a production exchange.
 
 What is working:
 
-- Solana program deploy/upgrade path
-- comp-def rollout path
-- delegated session creation
-- oracle feed + preflight checks
-- frontend runtime and relay plumbing
-- external reference orderbook in the UI
+- Solana program deploy/upgrade on devnet (Arcium SDK v0.9.2)
+- delegated session trading with relay (no wallet popups after initial session)
+- oracle price auto-refresh before every trade (relay-side)
+- encrypted position open/close/liquidation computation paths
+- privacy-preserving position metadata (side, leverage, margin mode stored client-side)
+- cross and isolated margin modes
+- leverage selection (1x-50x) with popup modal
+- limit orders with client-side automation
+- take-profit / stop-loss rules
+- external reference orderbook (Coinbase/Binance depth)
+- collateral deposit/withdraw (direct and session-delegated)
 
-What is still blocked:
+What is in progress:
 
-- the real `open_position` computation path is still aborting on Arcium devnet
-- the failure currently surfaces as:
-  - Arcium `AbortedComputation (6000)`
-  - then ShadowPerp `InvalidComputationResult (6008)`
+- Arcium MPC callbacks are arriving from cluster 456 but failing with `InstructionDidNotDeserialize` (Anchor error 102)
+- root cause: comp-def output schema mismatch with the deployed callback handler
+- fix requires re-registering the computation definition to match the current `OpenPositionProbeBOutput` struct
 
 That means the main private trading path should still be treated as experimental until a successful real open/close cycle is verified end to end.
 

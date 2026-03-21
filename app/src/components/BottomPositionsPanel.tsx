@@ -670,9 +670,9 @@ export default function BottomPositionsPanel({
               : "No closed positions yet"}
           </div>
         ) : (
-          <table className="w-full min-w-[800px] text-[11px]">
+          <table className="w-full min-w-[800px] text-[11px]" style={{ borderCollapse: "separate", borderSpacing: "0 6px" }}>
             <thead>
-              <tr className="border-b border-shadow-700 text-[10px] uppercase tracking-wider text-gray-500">
+              <tr className="text-[10px] uppercase tracking-wider text-gray-500">
                 <th className="px-3 py-1.5 text-left font-medium">Pair</th>
                 <th className="px-2 py-1.5 text-left font-medium">Side</th>
                 <th className="px-2 py-1.5 text-left font-medium">Type</th>
@@ -710,11 +710,11 @@ export default function BottomPositionsPanel({
                     : "bg-accent-red";
 
                 return (
-                  <tr key={pos.address} className="border-b border-shadow-700/50 hover:bg-shadow-700/20 group">
+                  <tr key={pos.address} className="position-row group">
                     {/* Pair */}
-                    <td className="px-3 py-1.5 font-medium text-white whitespace-nowrap">{card.pairLabel}</td>
+                    <td className="px-3 py-2.5 font-medium text-white whitespace-nowrap">{card.pairLabel}</td>
                     {/* Side */}
-                    <td className="px-2 py-1.5">
+                    <td className="px-2 py-2.5">
                       {displaySide ? (
                         <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
                           displaySide === "long" ? "bg-accent-green/20 text-accent-green" : "bg-accent-red/20 text-accent-red"
@@ -724,7 +724,7 @@ export default function BottomPositionsPanel({
                       ) : <span className="text-gray-500">--</span>}
                     </td>
                     {/* Type: leverage + margin mode */}
-                    <td className="px-2 py-1.5">
+                    <td className="px-2 py-2.5">
                       <div className="flex items-center gap-1">
                         {card.leverage ? (
                           <span className="rounded bg-accent-purple/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-purple">{card.leverage}x</span>
@@ -733,13 +733,13 @@ export default function BottomPositionsPanel({
                       </div>
                     </td>
                     {/* Entry */}
-                    <td className="px-2 py-1.5 text-right text-white font-medium">{formatPrice(card.entryPrice)}</td>
+                    <td className="px-2 py-2.5 text-right text-white font-medium">{formatPrice(card.entryPrice)}</td>
                     {/* Liq */}
-                    <td className="px-2 py-1.5 text-right text-accent-red">{formatPrice(card.liqPrice)}</td>
+                    <td className="px-2 py-2.5 text-right text-accent-red">{formatPrice(card.liqPrice)}</td>
                     {/* Margin */}
-                    <td className="px-2 py-1.5 text-right text-gray-300">${(card.localMargin ?? pos.margin).toFixed(2)}</td>
+                    <td className="px-2 py-2.5 text-right text-gray-300">${(card.localMargin ?? pos.margin).toFixed(2)}</td>
                     {/* PnL */}
-                    <td className={`px-2 py-1.5 text-right font-medium ${
+                    <td className={`px-2 py-2.5 text-right font-medium ${
                       pnlValue === null ? "text-gray-500"
                         : pnlValue >= 0 ? "text-accent-green" : "text-accent-red"
                     }`}>
@@ -753,7 +753,7 @@ export default function BottomPositionsPanel({
                     </td>
                     {/* TP/SL */}
                     {activeTab === "position" && (
-                      <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                      <td className="px-2 py-2.5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <div className="relative">
                             <input type="number" value={draft.takeProfit} onChange={(e) => updateRuleDraft(pos.address, "takeProfit", e.target.value)}
@@ -773,7 +773,7 @@ export default function BottomPositionsPanel({
                       </td>
                     )}
                     {/* Health */}
-                    <td className="px-2 py-1.5">
+                    <td className="px-2 py-2.5">
                       <div className="flex items-center justify-center gap-1.5">
                         <div className="w-10 h-1 rounded-full bg-shadow-600">
                           <div className={`h-full rounded-full transition-all ${healthTone}`} style={{ width: healthBarWidth }} />
@@ -784,7 +784,7 @@ export default function BottomPositionsPanel({
                       </div>
                     </td>
                     {/* Action */}
-                    <td className="px-3 py-1.5 text-right">
+                    <td className="px-3 py-2.5 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <StatusBadge status={pos.status} isClosing={isClosing} />
                         {!isPending && !isSettling && !isFinal ? (
