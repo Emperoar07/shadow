@@ -1,6 +1,6 @@
 # ShadowPerp
 
-ShadowPerp is a privacy-first perpetuals trading prototype on Solana devnet built around Arcium confidential computation.
+ShadowPerp is a privacy perpetuals trading dex on Solana devnet built around Arcium confidential computation.
 
 The project is trying to reduce trader-intent leakage. Position inputs are encrypted before submission, sensitive trade logic is evaluated through Arcium, and only the minimum required public state is kept on-chain.
 
