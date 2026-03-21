@@ -710,16 +710,16 @@ export default function LandingPage() {
 
             <div className="lp-footer-col">
               <h4>Resources</h4>
-              <a href="https://github.com/Emperoar07/shadow" target="_blank" rel="noopener noreferrer">Documentation</a>
+              <Link href="/docs">Documentation</Link>
               <a href="https://github.com/Emperoar07/shadow" target="_blank" rel="noopener noreferrer">GitHub</a>
               <a href="https://docs.arcium.com/" target="_blank" rel="noopener noreferrer">Arcium Docs</a>
             </div>
 
             <div className="lp-footer-col">
               <h4>Legal</h4>
-              <a href="#">Privacy Policy</a>
-              <a href="#">Terms of Use</a>
-              <a href="#">Cookie Policy</a>
+              <Link href="/docs#privacy-policy">Privacy Policy</Link>
+              <Link href="/docs#terms">Terms of Use</Link>
+              <Link href="/docs#cookies">Cookie Policy</Link>
             </div>
           </div>
 
