@@ -79,10 +79,10 @@ export default function TradingAppPage() {
               <div className="flex items-center justify-between gap-3 sm:justify-start">
                 <Link
                   href="/"
-                  className="flex items-center gap-2 text-xl font-bold bg-gradient-to-r from-accent-purple to-accent-blue bg-clip-text text-transparent"
+                  className="flex items-center gap-1 text-xl font-bold bg-gradient-to-r from-accent-purple to-accent-blue bg-clip-text text-transparent"
                 >
-                  <ShadowLogo className="h-7 w-7 shrink-0 header-logo-animate" />
-                  Shadow
+                  <ShadowLogo className="h-14 w-14 shrink-0 header-logo-animate" />
+                  <span className="text-lg font-extrabold tracking-wide bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">SHADOW</span>
                 </Link>
                 <NetworkIndicator mode="network" />
               </div>
@@ -437,8 +437,9 @@ function ShadowLogo({ className }: { className?: string }) {
           <stop offset="100%" style={{ stopColor: "#3b82f6", stopOpacity: 1 }} />
         </linearGradient>
       </defs>
-      <circle cx="50" cy="50" r="40" fill="url(#trade-shadow-logo-grad)" />
-      <circle cx="62" cy="38" r="41" fill="#05081a" />
+      <path d="M50 15 L85 35 L50 55 L15 35 Z" fill="url(#trade-shadow-logo-grad)" opacity={0.4} />
+      <path d="M50 25 L85 45 L50 65 L15 45 Z" fill="url(#trade-shadow-logo-grad)" opacity={0.65} />
+      <path d="M50 35 L85 55 L50 75 L15 55 Z" fill="url(#trade-shadow-logo-grad)" />
     </svg>
   );
 }

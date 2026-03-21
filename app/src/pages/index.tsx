@@ -252,15 +252,15 @@ export default function LandingPage() {
             backdrop-filter: none;
             border-bottom: none;
           }
-          .lp-nav-logo { display:flex;align-items:center;gap:10px;text-decoration:none;transition:transform .15s ease,filter .15s ease;user-select:none }
+          .lp-nav-logo { display:flex;align-items:center;gap:2px;text-decoration:none;transition:transform .15s ease,filter .15s ease;user-select:none }
           .lp-nav-logo:active { transform:scale(0.88);filter:drop-shadow(0 0 14px rgba(139,92,246,.8)) }
-          .lp-nav-logo-svg { width:28px;height:28px;animation:lp-logo-pulse 4s ease-in-out infinite }
+          .lp-nav-logo-svg { width:56px;height:56px;animation:lp-logo-pulse 4s ease-in-out infinite }
           @keyframes lp-logo-pulse {
             0%,100% { filter: drop-shadow(0 0 10px rgba(109,82,255,.4)) }
             50%      { filter: drop-shadow(0 0 20px rgba(56,189,248,.35)) }
           }
           .lp-nav-name {
-            font-size:15px;font-weight:800;letter-spacing:.02em;
+            font-size:18px;font-weight:800;letter-spacing:.04em;
             background:linear-gradient(90deg,#a78bfa,#60a5fa);
             -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
           }
@@ -455,15 +455,15 @@ export default function LandingPage() {
             position:relative;z-index:1;
             border-top:1px solid ${dark ? "rgba(255,255,255,.06)" : "#e8ebf4"};
             background: ${dark ? "rgba(10,10,18,0.8)" : "#ffffff"};
-            padding:34px 40px 22px;
+            padding:24px 40px 15px;
             font-size:13px;color:${dark ? "#6b7280" : "#64748b"};
           }
           .lp-footer-inner {
             max-width:1200px;margin:0 auto;
-            display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;
+            display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:28px;
           }
-          .lp-footer-brand { display:flex;flex-direction:column;gap:12px }
-          .lp-footer-brand-name { font-size:18px;font-weight:700;color:${dark ? "#f1f5f9" : "#0f172a"};display:flex;align-items:center;gap:8px }
+          .lp-footer-brand { display:flex;flex-direction:column;gap:8px }
+          .lp-footer-brand-name { font-size:18px;font-weight:800;display:flex;align-items:center;gap:2px;background:linear-gradient(90deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text }
           .lp-footer-brand-desc { font-size:13px;line-height:1.6;color:${dark ? "#6b7280" : "#94a3b8"};max-width:360px }
           .lp-footer-col h4 { font-size:14px;font-weight:600;color:${dark ? "#e2e8f0" : "#1e293b"};margin-bottom:12px }
           .lp-footer-col a { display:block;color:${dark ? "#6b7280" : "#94a3b8"};text-decoration:none;transition:color .15s;padding:3px 0;font-size:13px }
@@ -685,7 +685,7 @@ export default function LandingPage() {
             <div className="lp-footer-brand">
               <div className="lp-footer-brand-name">
                 <ShadowLogo className="lp-nav-logo-svg" dark={dark} />
-                Shadow
+                SHADOW
               </div>
               <p className="lp-footer-brand-desc">
                 Privacy-first perpetual trading infrastructure on Solana.
@@ -744,8 +744,9 @@ function ShadowLogo({ className, dark }: { className?: string; dark?: boolean })
           <stop offset="100%" style={{ stopColor: "#3b82f6", stopOpacity: 1 }} />
         </linearGradient>
       </defs>
-      <circle cx="50" cy="50" r="40" fill="url(#lp-logo-grad)" />
-      <circle cx="62" cy="38" r="41" fill={dark ? "#05081a" : "#f8f9fc"} />
+      <path d="M50 15 L85 35 L50 55 L15 35 Z" fill="url(#lp-logo-grad)" opacity={0.4} />
+      <path d="M50 25 L85 45 L50 65 L15 45 Z" fill="url(#lp-logo-grad)" opacity={0.65} />
+      <path d="M50 35 L85 55 L50 75 L15 55 Z" fill="url(#lp-logo-grad)" />
     </svg>
   );
 }

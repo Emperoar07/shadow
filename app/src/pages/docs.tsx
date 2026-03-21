@@ -69,16 +69,20 @@ export default function DocsPage() {
         .docs-sidebar-logo {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 2px;
           padding: 0 20px 24px;
           border-bottom: 1px solid rgba(255,255,255,0.06);
           text-decoration: none;
-          color: #f1f5f9;
-          font-size: 15px;
-          font-weight: 700;
+          color: transparent;
+          background: linear-gradient(90deg, #a78bfa, #60a5fa);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          font-size: 18px;
+          font-weight: 800;
         }
         .docs-sidebar-logo-svg {
-          width: 28px; height: 28px; flex-shrink: 0;
+          width: 56px; height: 56px; flex-shrink: 0;
         }
         .docs-sidebar-section {
           padding: 16px 20px 8px;
@@ -235,10 +239,11 @@ export default function DocsPage() {
                   <stop offset="100%" style={{ stopColor: "#3b82f6", stopOpacity: 1 }} />
                 </linearGradient>
               </defs>
-              <circle cx="50" cy="50" r="40" fill="url(#docs-logo-grad)" />
-              <circle cx="62" cy="38" r="41" fill="#0a0a0f" />
+              <path d="M50 15 L85 35 L50 55 L15 35 Z" fill="url(#docs-logo-grad)" opacity={0.4} />
+              <path d="M50 25 L85 45 L50 65 L15 45 Z" fill="url(#docs-logo-grad)" opacity={0.65} />
+              <path d="M50 35 L85 55 L50 75 L15 55 Z" fill="url(#docs-logo-grad)" />
             </svg>
-            Shadow
+            SHADOW
           </Link>
           {NAV.map((group) => (
             <div key={group.group}>
