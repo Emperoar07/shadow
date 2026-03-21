@@ -974,14 +974,14 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                   rel="noopener noreferrer"
                   className="flex-1 rounded-md border border-yellow-500/30 bg-yellow-500/10 py-1.5 text-center text-[10px] font-semibold text-yellow-300 hover:bg-yellow-500/20 transition-colors"
                 >
-                  Get USDC Faucet ↗
+                  Get USDC Faucet
                 </a>
                 <button
                   type="button"
                   onClick={() => setCollateralModalOpen(true)}
                   className="flex-1 rounded-md bg-accent-purple py-1.5 text-center text-[10px] font-semibold text-white hover:bg-accent-purple/85 transition-colors"
                 >
-                  Deposit →
+                  Deposit
                 </button>
               </div>
             </div>

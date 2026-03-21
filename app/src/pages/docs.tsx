@@ -275,7 +275,7 @@ export default function DocsPage() {
               textDecoration: "none",
               textAlign: "center",
             }}>
-              Launch App →
+              Launch App
             </Link>
           </div>
         </aside>
