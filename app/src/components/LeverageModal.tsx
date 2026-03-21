@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-const LEVERAGE_MARKERS = [1, 2, 3, 5, 10, 15, 20, 25, 30, 40, 50] as const;
+const LEVERAGE_MARKERS = [1, 5, 10, 15, 20, 30, 40, 50] as const;
 const MIN_LEVERAGE = 1;
 const MAX_LEVERAGE = 50;
 
