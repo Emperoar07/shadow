@@ -187,7 +187,7 @@ export default function TradingAppPage() {
 
 
             {/* Positions panel */}
-            <div className="min-h-[500px]">
+            <div className="min-h-[750px]">
               <BottomPositionsPanel activePairLabel={selectedPair.label} />
             </div>
 
