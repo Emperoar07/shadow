@@ -499,6 +499,19 @@ export default function CollateralModal({
           <p className="text-[10px] text-center text-gray-600">
             Collateral is held on-chain in the Shadow vault
           </p>
+          <div className="text-center mt-1">
+            <a
+              href="https://faucet.circle.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-accent-purple hover:text-accent-purple/80 transition-colors"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              Get USDC Faucet
+            </a>
+          </div>
         </div>
       </div>
     </div>
