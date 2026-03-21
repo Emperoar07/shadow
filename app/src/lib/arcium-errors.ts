@@ -151,7 +151,7 @@ export function classifyArciumError(error: unknown): ArciumErrorInfo {
   // --- StalePrice (6006) ---
   if (code === ANCHOR_ERROR_OFFSET + 6 || msg.includes("StalePrice")) {
     return {
-      message: "Oracle price is stale. Refreshing...",
+      message: "Oracle price was stale. Retrying with fresh price...",
       isRetryable: true,
       errorCode: 6006,
       category: "program",

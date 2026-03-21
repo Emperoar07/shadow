@@ -6,11 +6,51 @@ import {
   base64ToUint8,
   buildRelaySessionAuthMessage,
 } from "../../../lib/relay-session-auth";
-import { createRelayRuntimeContext } from "../../../lib/server/relay-client";
+import { createRelayRuntimeContext, RelayRuntimeContext } from "../../../lib/server/relay-client";
 import { checkRateLimit } from "../../../lib/server/rate-limit";
 
 const OPEN_RATE_LIMIT = 10;   // max 10 open requests per owner per minute
 const RATE_WINDOW_MS = 60_000;
+const ORACLE_MAX_AGE_SECONDS = 250; // refresh if older than this (contract requires < 300)
+
+/** Fetch SOL price from multiple sources; return median. */
+async function fetchSolPrice(): Promise<number> {
+  const sources = await Promise.allSettled([
+    fetch("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd")
+      .then((r) => r.json())
+      .then((d: any) => d?.solana?.usd as number),
+    fetch("https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT")
+      .then((r) => r.json())
+      .then((d: any) => parseFloat(d?.price)),
+  ]);
+  const prices = sources
+    .filter((r): r is PromiseFulfilledResult<number> => r.status === "fulfilled" && r.value > 0)
+    .map((r) => r.value);
+  if (!prices.length) throw new Error("No live price sources available");
+  prices.sort((a, b) => a - b);
+  return prices[Math.floor(prices.length / 2)];
+}
+
+/** Refresh oracle if stale. Returns silently on failure — the open tx will produce a clearer error. */
+async function ensureOracleFresh(relay: RelayRuntimeContext): Promise<void> {
+  try {
+    const market = await relay.client.getMarket(relay.config.marketAddress);
+    const lastUpdate = Number(market.lastPriceUpdate?.toString?.() ?? "0");
+    const age = Math.floor(Date.now() / 1000) - lastUpdate;
+    if (age < ORACLE_MAX_AGE_SECONDS) return; // still fresh
+
+    const price = await fetchSolPrice();
+    const priceMicro = new BN(Math.round(price * 1_000_000));
+    await relay.client.updateOraclePrice(
+      relay.config.marketAddress,
+      relay.relayer.publicKey,
+      priceMicro
+    );
+  } catch {
+    // Non-fatal: if the oracle is already fresh or the relayer isn't the price feeder,
+    // the open tx will either succeed or fail with StalePrice for the user to see.
+  }
+}
 
 type OpenRequestBody = {
   owner?: string;
@@ -150,6 +190,9 @@ export default async function handler(
     if (margin.gt(session.maxMarginPerAction)) {
       throw new Error("Margin exceeds delegated session limit");
     }
+
+    // Auto-refresh oracle price if stale (contract requires < 300s freshness)
+    await ensureOracleFresh(relay);
 
     const result = await relay.client.openPositionWithSession(
       relay.config.marketAddress,

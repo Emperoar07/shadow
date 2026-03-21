@@ -1009,6 +1009,26 @@ export class ShadowPerpClient {
     return getAssociatedTokenAddress(marketAccount.collateralMint, owner);
   }
 
+  // ============ ORACLE ============
+
+  /**
+   * Update the on-chain oracle price. Caller must be the authorized price feeder.
+   */
+  async updateOraclePrice(
+    market: PublicKey,
+    priceFeeder: PublicKey,
+    priceMicro: BN
+  ): Promise<string> {
+    const tx = await this.program.methods
+      .updatePrice(priceMicro)
+      .accounts({
+        priceFeeder,
+        market,
+      })
+      .rpc();
+    return tx;
+  }
+
   // ============ EVENTS ============
 
   onPositionOpened(callback: (event: any, slot: number) => void): number {

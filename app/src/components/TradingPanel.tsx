@@ -7,6 +7,7 @@ import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import { fetchPrices, getLastPriceMeta } from "../lib/prices";
 import TradeConfirmationModal, { TradeStep } from "./TradeConfirmationModal";
 import CollateralModal from "./CollateralModal";
+import LeverageModal from "./LeverageModal";
 import {
   RELAY_SESSION_RENEW_BEFORE_SECONDS,
   useArciumPrivacy,
@@ -32,9 +33,6 @@ type SizeUnit = "base" | "usd";
 type OrderType = "market" | "limit";
 type MarginMode = "cross" | "isolated";
 
-const LEVERAGE_MARKERS = [1, 5, 10, 25, 50] as const;
-const MIN_LEVERAGE = LEVERAGE_MARKERS[0];
-const MAX_LEVERAGE = LEVERAGE_MARKERS[LEVERAGE_MARKERS.length - 1];
 const TP_SL_MIN_GAP_BPS = 10; // 0.10%
 const MAX_POSITION_SIZE_BASE = 1_000_000;
 const MAX_POSITION_NOTIONAL_USDC = 5_000_000;
@@ -134,7 +132,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
   const [takeProfit, setTakeProfit] = useState("");
   const [stopLoss, setStopLoss] = useState("");
   const [leverage, setLeverage] = useState(10);
-  const [leverageOpen, setLeverageOpen] = useState(false);
+  const [leverageModalOpen, setLeverageModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
@@ -795,10 +793,10 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
                 </svg>
               </button>
-              {/* Leverage chip — click to expand slider */}
+              {/* Leverage chip — click to open modal */}
               <button
                 type="button"
-                onClick={() => setLeverageOpen((o) => !o)}
+                onClick={() => setLeverageModalOpen(true)}
                 className="flex items-center gap-1.5 rounded-lg border border-shadow-500 bg-shadow-700 px-2.5 py-1 text-[11px] font-semibold text-gray-300 hover:text-white hover:border-shadow-400 transition-colors"
               >
                 <span>{leverage}x</span>
@@ -807,32 +805,6 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
                 </svg>
               </button>
             </div>
-            {leverageOpen && (
-              <div className="rounded-lg border border-shadow-500 bg-shadow-700/70 px-2.5 py-2">
-                <input
-                  type="range"
-                  min={MIN_LEVERAGE}
-                  max={MAX_LEVERAGE}
-                  value={leverage}
-                  onChange={(e) => setLeverage(Number.parseInt(e.target.value, 10))}
-                  className="h-1.5 w-full cursor-pointer appearance-none rounded-lg accent-accent-purple"
-                  style={{
-                    background: `linear-gradient(to right, #8b5cf6 ${((leverage - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%, var(--range-track-empty) ${((leverage - MIN_LEVERAGE) / (MAX_LEVERAGE - MIN_LEVERAGE)) * 100}%)`,
-                  }}
-                />
-                <div className="mt-1.5 flex justify-between text-[9px] text-gray-600">
-                  {LEVERAGE_MARKERS.map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setLeverage(m)}
-                      className="hover:text-accent-purple transition-colors"
-                    >
-                      {m}x
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           <div>
@@ -1077,6 +1049,13 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
         errorMessage={tradeError}
         txSignature={tradeTxSig}
         onClose={() => setModalOpen(false)}
+      />
+
+      <LeverageModal
+        isOpen={leverageModalOpen}
+        leverage={leverage}
+        onClose={() => setLeverageModalOpen(false)}
+        onConfirm={setLeverage}
       />
 
       <CollateralModal
