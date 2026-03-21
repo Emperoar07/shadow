@@ -77,12 +77,8 @@ export default function DocsPage() {
           font-size: 15px;
           font-weight: 700;
         }
-        .docs-sidebar-logo-dot {
-          width: 24px; height: 24px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #8b5cf6, #6d28d9);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 11px; font-weight: 800; color: #fff;
+        .docs-sidebar-logo-svg {
+          width: 28px; height: 28px; flex-shrink: 0;
         }
         .docs-sidebar-section {
           padding: 16px 20px 8px;
@@ -232,7 +228,16 @@ export default function DocsPage() {
         {/* Sidebar */}
         <aside className="docs-sidebar">
           <Link href="/" className="docs-sidebar-logo">
-            <div className="docs-sidebar-logo-dot">S</div>
+            <svg viewBox="0 0 100 100" className="docs-sidebar-logo-svg" aria-hidden="true">
+              <defs>
+                <linearGradient id="docs-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style={{ stopColor: "#8b5cf6", stopOpacity: 1 }} />
+                  <stop offset="100%" style={{ stopColor: "#3b82f6", stopOpacity: 1 }} />
+                </linearGradient>
+              </defs>
+              <circle cx="50" cy="50" r="40" fill="url(#docs-logo-grad)" />
+              <circle cx="62" cy="38" r="41" fill="#0a0a0f" />
+            </svg>
             Shadow
           </Link>
           {NAV.map((group) => (
@@ -243,7 +248,22 @@ export default function DocsPage() {
               ))}
             </div>
           ))}
-          <div style={{ marginTop: "24px", padding: "0 20px" }}>
+          <div style={{ marginTop: "24px", padding: "0 20px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <Link href="/" style={{
+              display: "block",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "8px",
+              padding: "9px 14px",
+              fontSize: "13px",
+              fontWeight: "500",
+              color: "#9ca3af",
+              textDecoration: "none",
+              textAlign: "center",
+              transition: "all 0.15s",
+            }}>
+              ← Home
+            </Link>
             <Link href="/app" style={{
               display: "block",
               background: "linear-gradient(135deg, #8b5cf6, #6d28d9)",
