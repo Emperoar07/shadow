@@ -41,6 +41,8 @@ const MARGIN_MODE_STORAGE_PREFIX = "shadowperp:ui:margin-mode:v1";
 interface TradingPanelProps {
   pair?: TradingPair;
   layout?: "vertical" | "horizontal";
+  confirmOpen?: boolean;
+  showNotifications?: boolean;
 }
 
 function parseOptionalPositive(value: string): number | null {
@@ -117,9 +119,17 @@ function validateTpSl(
   return null;
 }
 
-export default function TradingPanel({ pair, layout = "vertical" }: TradingPanelProps) {
+export default function TradingPanel({ pair, layout = "vertical", confirmOpen = true, showNotifications = true }: TradingPanelProps) {
   const activePair = pair ?? TRADING_PAIRS[0];
   const isHorizontal = layout === "horizontal";
+  const toastSuccess: typeof toast.success = useCallback((...args: Parameters<typeof toast.success>) => {
+    if (!showNotifications) return "";
+    return toast.success(...args);
+  }, [showNotifications]) as typeof toast.success;
+  const toastLoading: typeof toast.loading = useCallback((...args: Parameters<typeof toast.loading>) => {
+    if (!showNotifications) return "";
+    return toast.loading(...args);
+  }, [showNotifications]) as typeof toast.loading;
   const { publicKey, signMessage } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
@@ -531,7 +541,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
       setLimitPrice("");
       setTakeProfit("");
       setStopLoss("");
-      toast.success(`Limit order queued at ${formatPrice(entryPrice)}`);
+      toastSuccess(`Limit order queued at ${formatPrice(entryPrice)}`);
       return;
     }
 
@@ -540,7 +550,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
     setTradeTxSig(undefined);
     setTradeError(undefined);
     resetPrivacyStatus();
-    setModalOpen(true);
+    if (confirmOpen) setModalOpen(true);
 
     try {
       const ctx = getClient();
@@ -694,7 +704,7 @@ export default function TradingPanel({ pair, layout = "vertical" }: TradingPanel
             positionAddress,
             error: undefined,
           });
-          toast.success(`${order.pairLabel} ${order.side} limit filled`);
+          toastSuccess(`${order.pairLabel} ${order.side} limit filled`);
           void refreshMarketData();
         } catch (error: any) {
           const msg = error?.message || "Limit execution failed";

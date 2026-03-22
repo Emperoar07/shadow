@@ -20,6 +20,7 @@ interface PrivateOrderbookProps {
   className?: string;
   activeTab?: "book" | "trades";
   onTabChange?: (tab: "book" | "trades") => void;
+  animate?: boolean;
 }
 
 function priceForGrouping(snapshot: ReferenceDepthSnapshot | null, referencePrice?: number | null): number | null {
@@ -37,6 +38,7 @@ export default function PrivateOrderbook({
   className = "",
   activeTab,
   onTabChange,
+  animate = true,
 }: PrivateOrderbookProps) {
   const [internalTab, setInternalTab] = useState<"book" | "trades">("book");
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -186,9 +188,9 @@ export default function PrivateOrderbook({
                 </div>
               ) : (
                 <>
-                  <BookSide levels={groupedAsks} tone="ask" />
+                  <BookSide levels={groupedAsks} tone="ask" animate={animate} />
                   <SpreadRow snapshot={snapshot} referencePrice={referencePrice} />
-                  <BookSide levels={groupedBids} tone="bid" />
+                  <BookSide levels={groupedBids} tone="bid" animate={animate} />
                 </>
               )}
             </>
@@ -221,9 +223,11 @@ export default function PrivateOrderbook({
 function BookSide({
   levels,
   tone,
+  animate = true,
 }: {
   levels: GroupedReferenceLevel[];
   tone: "bid" | "ask";
+  animate?: boolean;
 }) {
   const maxTotal = levels.length > 0 ? levels[levels.length - 1].total : 0;
   const toneClass = tone === "ask" ? "text-accent-red" : "text-accent-green";
@@ -242,7 +246,7 @@ function BookSide({
             const barWidth = maxTotal > 0 ? Math.max(6, (level.total / maxTotal) * 100) : 0;
             return (
               <div key={`${tone}-${level.price}`} className="relative grid grid-cols-3 px-2 py-[3px] text-[11px] tabular-nums">
-                <div className={`absolute inset-y-0 right-0 ${barClass}`} style={{ width: `${barWidth}%` }} />
+                <div className={`absolute inset-y-0 right-0 ${barClass}`} style={{ width: `${barWidth}%`, transition: animate ? "width 150ms ease" : "none" }} />
                 <span className={`relative z-10 ${toneClass}`}>{formatPrice(level.price)}</span>
                 <span className="relative z-10 text-right text-gray-300">{formatSize(level.size)}</span>
                 <span className="relative z-10 text-right text-gray-500">{formatSize(level.total)}</span>

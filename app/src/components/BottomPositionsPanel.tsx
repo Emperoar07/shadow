@@ -137,9 +137,23 @@ function clampPercent(value: number): number {
 
 export default function BottomPositionsPanel({
   activePairLabel,
+  hidePnl = false,
+  confirmClose = true,
+  showNotifications = true,
 }: {
   activePairLabel?: string;
+  hidePnl?: boolean;
+  confirmClose?: boolean;
+  showNotifications?: boolean;
 }) {
+  const toastSuccess = useCallback((...args: Parameters<typeof toast.success>) => {
+    if (!showNotifications) return "";
+    return toast.success(...args);
+  }, [showNotifications]) as typeof toast.success;
+  const toastLoading = useCallback((...args: Parameters<typeof toast.loading>) => {
+    if (!showNotifications) return "";
+    return toast.loading(...args);
+  }, [showNotifications]) as typeof toast.loading;
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
@@ -267,6 +281,7 @@ export default function BottomPositionsPanel({
         toast.error("Trading is temporarily disabled while Arcium devnet is being patched.");
         return;
       }
+      if (confirmClose && !window.confirm("Are you sure you want to close this position?")) return;
       if (!publicKey || !anchorWallet) return;
       setClosingAddress(pos.address);
       try {
@@ -277,19 +292,19 @@ export default function BottomPositionsPanel({
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(
           runtime.marketAddress
         );
-        toast.loading("Queuing close via Arcium MPC...", { id: pos.address });
+        toastLoading("Queuing close via Arcium MPC...", { id: pos.address });
         const tx = await client.closePosition(
           runtime.marketAddress,
           pos.index
         );
-        toast.loading("Awaiting MPC callback and settlement...", { id: pos.address });
+        toastLoading("Awaiting MPC callback and settlement...", { id: pos.address });
         const finalized = await client.finalizeClosePosition(
           runtime.marketAddress,
           publicKey,
           pos.index,
           ownerTokenAccount
         );
-        toast.success(
+        toastSuccess(
           <div>
             <p className="font-medium">Position closed and settled</p>
             <p className="text-xs text-gray-400 mt-0.5">PnL was revealed by MPC and settlement completed on-chain</p>
@@ -323,7 +338,7 @@ export default function BottomPositionsPanel({
         setClosingAddress(null);
       }
     },
-    [publicKey, anchorWallet, connection, loadPositions]
+    [publicKey, anchorWallet, connection, loadPositions, confirmClose, toastSuccess, toastLoading]
   );
 
   const updateRuleDraft = useCallback(
@@ -346,10 +361,10 @@ export default function BottomPositionsPanel({
     const sl = parseOptionalPositive(draft.stopLoss);
     const existingRule = positionRules[address];
     const view = ownerPositionViews[address];
-    const pairLabel = view?.pairLabel ?? existingRule?.pairLabel ?? activePairLabel ?? "PERP";
+    const pairLabel = view?.pairLabel ?? existingRule?.pairLabel ?? activePairLabel ?? "USD";
     if (tp === null && sl === null) {
       removePositionRule(address);
-      toast.success("TP/SL rule removed");
+      toastSuccess("TP/SL rule removed");
       return;
     }
     setPositionRule({
@@ -360,7 +375,7 @@ export default function BottomPositionsPanel({
       stopLoss: sl,
       updatedAt: Date.now(),
     });
-    toast.success("TP/SL rule saved");
+    toastSuccess("TP/SL rule saved");
   }, [activePairLabel, ownerPositionViews, positionRules, ruleDrafts]);
 
   const openPositions = useMemo(
@@ -387,7 +402,7 @@ export default function BottomPositionsPanel({
       const marginMode = view?.marginMode ?? "cross";
       const leverage = view?.leverage ?? null;
       const entryPrice = view?.entryPrice ?? null;
-      const pairLabel = view?.pairLabel ?? rule?.pairLabel ?? "SOL-PERP";
+      const pairLabel = view?.pairLabel ?? rule?.pairLabel ?? "SOL-USD";
       const sizeBase = view?.sizeBase ?? null;
 
       let liqPrice: number | null = null;
@@ -513,12 +528,12 @@ export default function BottomPositionsPanel({
   const removeFailedLimitOrder = useCallback((order: PendingLimitOrder) => {
     if (order.status === "failed") {
       removeLimitOrder(order.id);
-      toast.success("Removed failed order");
+      toastSuccess("Removed failed order");
     }
   }, []);
 
   return (
-    <div className="trade-bottom-panel position-card rounded-xl overflow-hidden">
+    <div className="trade-bottom-panel position-card">
       {/* Tab bar */}
       <div className="flex items-center justify-between border-b border-shadow-600 pl-1 pr-3">
         <div className="flex">
@@ -740,10 +755,11 @@ export default function BottomPositionsPanel({
                     <td className="px-2 py-2.5 text-right text-gray-300">${(card.localMargin ?? pos.margin).toFixed(2)}</td>
                     {/* PnL */}
                     <td className={`px-2 py-2.5 text-right font-medium ${
-                      pnlValue === null ? "text-gray-500"
+                      hidePnl ? "text-gray-500"
+                        : pnlValue === null ? "text-gray-500"
                         : pnlValue >= 0 ? "text-accent-green" : "text-accent-red"
                     }`}>
-                      {isFinal ? (
+                      {hidePnl ? "***" : isFinal ? (
                         <>{pos.realizedPnl >= 0 ? "+" : ""}${pos.realizedPnl.toFixed(2)}</>
                       ) : pnlValue === null ? "--" : (
                         <>{pnlValue >= 0 ? "+" : ""}${Math.abs(pnlValue).toFixed(2)}

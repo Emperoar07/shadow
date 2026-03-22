@@ -4,10 +4,13 @@ import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import SettingsPanel, { useVisibility, useLayoutLocked } from "../components/layout/SettingsPanel";
+import { useTradingSettings } from "../hooks/useTradingSettings";
 import MarketInfo from "../components/MarketInfo";
 import PrivateOrderbook from "../components/PrivateOrderbook";
 import TradingPanel from "../components/TradingPanel";
 import NetworkIndicator from "../components/NetworkIndicator";
+import WalletPopup from "../components/WalletPopup";
 import {
   RELAY_SESSION_RENEW_BEFORE_SECONDS,
   useArciumPrivacy,
@@ -33,13 +36,74 @@ const WalletMultiButton = dynamic(
 const PriceChart = dynamic(() => import("../components/PriceChart"), {
   ssr: false,
 });
+const TerminalGrid = dynamic(
+  () => import("../components/layout/TerminalGrid"),
+  { ssr: false }
+);
+
+function FaucetsDropdown() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1 border border-shadow-500/50 bg-shadow-800/80 px-3 py-1.5 text-[11px] font-medium text-gray-400 transition-all hover:text-gray-200 hover:border-shadow-400/60 hover:bg-shadow-700/80"
+      >
+        Faucets
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`text-gray-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-44 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] py-1">
+          <a
+            href="https://faucet.solana.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-3 py-2 text-[11px] text-gray-300 hover:bg-shadow-700/60 transition-colors"
+            onClick={() => setOpen(false)}
+          >
+            <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
+            SOL Faucet
+          </a>
+          <a
+            href="https://faucet.circle.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-3 py-2 text-[11px] text-gray-300 hover:bg-shadow-700/60 transition-colors"
+            onClick={() => setOpen(false)}
+          >
+            <div className="w-3 h-3 rounded-full shrink-0 bg-[#2775CA]" />
+            USDC Faucet
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TradingAppPage() {
   const [selectedPair, setSelectedPair] = useState<TradingPair>(TRADING_PAIRS[0]);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [openCollateralModal, setOpenCollateralModal] = useState<(() => void) | null>(null);
   const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book" | "trades">("chart");
+  const resetLayoutRef = useRef<(() => void) | null>(null);
   const { snapshot: marketSnapshot } = useMarketSnapshot(selectedPair);
+  const { visibility: panelVisibility, update: updateVisibility } = useVisibility();
+  const { locked: layoutLocked, toggle: toggleLayoutLock } = useLayoutLocked();
+  const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
 
   const handleMarginReady = useCallback((balance: number | null, openModal: () => void) => {
     setMarginBalance(balance);
@@ -90,21 +154,20 @@ export default function TradingAppPage() {
                 <div className="basis-full sm:basis-auto">
                   <SessionTimerChip />
                 </div>
-                <NetworkIndicator mode="wallet" />
-                {marginBalance !== null && openCollateralModal && (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] text-gray-500 leading-none">Margin Balance</span>
-                      <span className="text-xs font-semibold text-gray-200 leading-tight">${marginBalance.toFixed(2)}</span>
-                    </div>
-                    <button
-                      onClick={openCollateralModal}
-                      className="rounded-lg border border-accent-purple/35 bg-accent-purple/15 px-3 py-1.5 text-[11px] font-medium text-accent-purple transition-colors hover:bg-accent-purple/25"
-                    >
-                      {marginBalance === 0 ? "Deposit" : "Manage"}
-                    </button>
-                  </div>
-                )}
+                <FaucetsDropdown />
+                <WalletPopup
+                  marginBalance={marginBalance}
+                  onOpenCollateral={openCollateralModal ?? undefined}
+                />
+                <SettingsPanel
+                  onResetLayout={() => resetLayoutRef.current?.()}
+                  onVisibilityChange={updateVisibility}
+                  tradingSettings={tradingSettings}
+                  onTradingSettingsChange={updateTradingSettings}
+                  onResetTradingSettings={resetTradingSettings}
+                  layoutLocked={layoutLocked}
+                  onToggleLayoutLock={toggleLayoutLock}
+                />
                 <ConnectWalletButton />
               </div>
             </div>
@@ -113,17 +176,67 @@ export default function TradingAppPage() {
           {/* ── Terminal body ── */}
           <main className="trade-main flex-1 max-w-[1600px] w-full mx-auto flex flex-col min-h-0">
 
-            {/* Market info bar: pair selector + stats + portfolio stats */}
-            <MarketInfo
-              pair={selectedPair}
-              snapshot={marketSnapshot}
-              onPairChange={handlePairChange}
-              onMarginReady={handleMarginReady}
-            />
+            {/* Mobile: market info bar (always visible) */}
+            <div className="lg:hidden">
+              <MarketInfo
+                pair={selectedPair}
+                snapshot={marketSnapshot}
+                onPairChange={handlePairChange}
+                onMarginReady={handleMarginReady}
+              />
+            </div>
 
-            {/* Terminal body: separated chart/orderbook and trading panel */}
-            <div className="min-h-[560px] shrink-0 border-b border-shadow-600 p-2 lg:h-[64vh] lg:max-h-[720px]">
-              <div className="mb-2 flex rounded-xl border border-shadow-600 bg-shadow-900 p-1 lg:hidden">
+            {/* Desktop: modular drag-and-drop grid layout */}
+            <div className="hidden lg:flex flex-1 min-h-0">
+              <TerminalGrid
+                selectedPair={selectedPair}
+                marketSnapshot={marketSnapshot}
+                marketInfoComponent={
+                  <MarketInfo
+                    pair={selectedPair}
+                    snapshot={marketSnapshot}
+                    onPairChange={handlePairChange}
+                    onMarginReady={handleMarginReady}
+                  />
+                }
+                chartComponent={
+                  <PriceChart
+                    selectedPair={selectedPair}
+                    chartSymbol={marketSnapshot.chartSymbol}
+                  />
+                }
+                orderbookComponent={
+                  <PrivateOrderbook
+                    pair={selectedPair}
+                    marketSnapshot={marketSnapshot}
+                    animate={tradingSettings.animateOrderBook}
+                  />
+                }
+                tradingPanelComponent={
+                  <TradingPanel
+                    pair={selectedPair}
+                    layout="vertical"
+                    confirmOpen={tradingSettings.confirmOpenOrder}
+                    showNotifications={tradingSettings.showNotifications}
+                  />
+                }
+                positionsComponent={
+                  <BottomPositionsPanel
+                    activePairLabel={selectedPair.label}
+                    hidePnl={tradingSettings.hidePnl}
+                    confirmClose={tradingSettings.confirmCloseOrder}
+                    showNotifications={tradingSettings.showNotifications}
+                  />
+                }
+                panelVisibility={panelVisibility}
+                layoutLocked={layoutLocked}
+                onResetRef={(fn) => { resetLayoutRef.current = fn; }}
+              />
+            </div>
+
+            {/* Mobile: stacked tab layout */}
+            <div className="lg:hidden min-h-[560px] shrink-0 border-b border-shadow-600 p-2">
+              <div className="mb-2 flex border border-shadow-600 bg-shadow-900 p-1">
                 {([
                   ["chart", "Chart"],
                   ["book", "Order Book"],
@@ -133,7 +246,7 @@ export default function TradingAppPage() {
                     key={tab}
                     type="button"
                     onClick={() => setMobileMarketTab(tab)}
-                    className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
                       mobileMarketTab === tab
                         ? "bg-cyan-500/10 text-cyan-300"
                         : "text-gray-400"
@@ -144,30 +257,13 @@ export default function TradingAppPage() {
                 ))}
               </div>
 
-              <div className="flex h-full min-h-0 flex-col gap-2 lg:flex-row lg:items-stretch">
-                {/* Chart + Orderbook block */}
-                <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-shadow-600">
-                  <div className="trade-terminal-grid h-[420px] min-w-0 min-h-0 flex-1 grid grid-cols-1 lg:h-full lg:grid-cols-[minmax(0,1fr)_340px]">
-                    {/* Chart */}
-                    <div
-                      className={`min-w-0 min-h-0 lg:border-r lg:border-shadow-600 ${
-                        mobileMarketTab === "chart" ? "block" : "hidden lg:block"
-                      }`}
-                    >
-                      <PriceChart
-                        selectedPair={selectedPair}
-                        chartSymbol={marketSnapshot.chartSymbol}
-                      />
+              <div className="flex h-full min-h-0 flex-col gap-0">
+                <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden border border-shadow-600">
+                  <div className="trade-terminal-grid h-[420px] min-w-0 min-h-0 flex-1 grid grid-cols-1">
+                    <div className={`min-w-0 min-h-0 ${mobileMarketTab === "chart" ? "block" : "hidden"}`}>
+                      <PriceChart selectedPair={selectedPair} chartSymbol={marketSnapshot.chartSymbol} />
                     </div>
-
-                    {/* Orderbook */}
-                    <div
-                      className={`min-h-0 ${
-                      mobileMarketTab === "book" || mobileMarketTab === "trades"
-                          ? "block"
-                          : "hidden lg:block"
-                      }`}
-                    >
+                    <div className={`min-h-0 ${mobileMarketTab === "book" || mobileMarketTab === "trades" ? "block" : "hidden"}`}>
                       <PrivateOrderbook
                         pair={selectedPair}
                         marketSnapshot={marketSnapshot}
@@ -178,16 +274,14 @@ export default function TradingAppPage() {
                   </div>
                 </div>
 
-                {/* Standalone TradingPanel outside chart/orderbook block */}
-                <div className="h-full w-full shrink-0 min-h-0 overflow-y-auto rounded-xl border border-shadow-600 bg-shadow-900 lg:w-[360px]">
+                <div className="h-full w-full shrink-0 min-h-0 overflow-y-auto border border-shadow-600 bg-shadow-900">
                   <TradingPanel pair={selectedPair} layout="vertical" />
                 </div>
               </div>
             </div>
 
-
-            {/* Positions panel */}
-            <div>
+            {/* Mobile positions */}
+            <div className="lg:hidden">
               <BottomPositionsPanel activePairLabel={selectedPair.label} />
             </div>
 
@@ -341,11 +435,11 @@ function SessionTimerChip() {
   return (
     <div className="relative" ref={menuRef}>
       <div
-        className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs ${
+        className={`hidden sm:inline-flex items-center gap-1.5 border px-3 py-1.5 text-[11px] font-medium ${
           relayAvailable
-            ? "border-cyan-400/35 bg-cyan-500/10 text-cyan-200"
+            ? "border-shadow-500/50 bg-shadow-800/80 text-gray-400 hover:text-gray-200 hover:border-shadow-400/60 hover:bg-shadow-700/80"
             : "border-yellow-500/35 bg-yellow-500/10 text-yellow-300"
-        }`}
+        } transition-all`}
       >
         <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <circle cx="8" cy="8" r="6" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />

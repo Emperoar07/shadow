@@ -3,9 +3,19 @@ set -euo pipefail
 
 REPO="/mnt/c/Users/bolaj/projects/shadowperp"
 LINUX_CARGO_BIN="$HOME/.cargo/bin"
-LINUX_SOLANA_BIN="$HOME/.local/share/solana-2.3.13/active_release/bin"
-# Native Linux Rust toolchain installed offline from Windows-downloaded archive.
-NATIVE_RUST_BIN="$HOME/.rust-native/install/bin"
+DEFAULT_SOLANA_BIN="$HOME/.local/share/solana-2.3.13/active_release/bin"
+LINUX_SOLANA_BIN="$(dirname "$(command -v cargo-build-sbf 2>/dev/null || true)")"
+if [ -z "$LINUX_SOLANA_BIN" ] || [ "$LINUX_SOLANA_BIN" = "." ]; then
+  LINUX_SOLANA_BIN="$DEFAULT_SOLANA_BIN"
+fi
+
+# Prefer the active Linux Rust toolchain on PATH. Fall back to the historical
+# offline install path if it still exists on a given machine.
+DEFAULT_NATIVE_RUST_BIN="$HOME/.rust-native/install/bin"
+NATIVE_RUST_BIN="$(dirname "$(command -v cargo 2>/dev/null || true)")"
+if [ -z "$NATIVE_RUST_BIN" ] || [ "$NATIVE_RUST_BIN" = "." ]; then
+  NATIVE_RUST_BIN="$DEFAULT_NATIVE_RUST_BIN"
+fi
 
 mkdir -p "$LINUX_CARGO_BIN"
 
@@ -21,11 +31,11 @@ if [ ! -x "$LINUX_CARGO_BIN/arcup" ] && [ -f "$REPO/arcup_x86_64_linux" ]; then
 fi
 
 # Use native Linux Rust for arcis circuit compilation.
-# The Windows cargo.exe bridge fails because arcis proc-macros check CARGO_MANIFEST_DIR
-# and panic when it resolves to a Windows (C:\...) path.
+# The Windows cargo.exe bridge fails because arcis proc-macros check
+# CARGO_MANIFEST_DIR and panic when it resolves to a Windows (C:\...) path.
 if [ ! -x "$NATIVE_RUST_BIN/cargo" ]; then
   echo "ERROR: Native Linux Rust not found at $NATIVE_RUST_BIN"
-  echo "Run: scripts/wsl-arcium-build.sh (first time installs toolchain)"
+  echo "Install Rust in WSL or add it to PATH before running this script."
   exit 1
 fi
 
@@ -35,7 +45,7 @@ if [ ! -x "$LINUX_CARGO_BIN/anchor" ]; then
   exit 1
 fi
 if [ ! -x "$LINUX_SOLANA_BIN/cargo-build-sbf" ]; then
-  echo "ERROR: Solana 2.3.13 lane not found at $LINUX_SOLANA_BIN"
+  echo "ERROR: Solana cargo-build-sbf not found at $LINUX_SOLANA_BIN"
   exit 1
 fi
 
