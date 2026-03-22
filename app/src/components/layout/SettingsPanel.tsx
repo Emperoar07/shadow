@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Settings, RotateCcw, Lock, Unlock, Sun, Moon } from "lucide-react";
 import type { TradingSettings } from "../../hooks/useTradingSettings";
 
@@ -174,17 +175,24 @@ export default function SettingsPanel({
   const ts = tradingSettings ?? TRADING_DEFAULTS;
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"trading" | "layout" | "style">("trading");
+  const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const { visibility, update, isVisible } = useVisibility();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      if (typeof window !== "undefined" && window.innerWidth < 640) return;
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
   }, []);
 
   const togglePanel = (key: string) => {
@@ -202,6 +210,150 @@ export default function SettingsPanel({
     setOpen(false);
   };
 
+  const panelContent = (
+    <>
+      <div className="flex border-b border-shadow-600">
+        {(["trading", "layout", "style"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`flex-1 px-3 py-2.5 text-[12px] font-semibold capitalize transition-colors ${
+              tab === t
+                ? "text-white border-b-2 border-accent-purple"
+                : "text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === "trading" && (
+        <div className="p-3">
+          <p className="text-[11px] font-semibold text-gray-200 mb-2">
+            Order Confirmation
+          </p>
+          <div className="flex flex-col gap-0">
+            <Checkbox
+              checked={ts.confirmOpenOrder}
+              onChange={() => onTradingSettingsChange({ confirmOpenOrder: !ts.confirmOpenOrder })}
+              label="Open Order"
+            />
+            <Checkbox
+              checked={ts.confirmCloseOrder}
+              onChange={() => onTradingSettingsChange({ confirmCloseOrder: !ts.confirmCloseOrder })}
+              label="Close Order"
+            />
+            <Checkbox
+              checked={ts.confirmCancelAll}
+              onChange={() => onTradingSettingsChange({ confirmCancelAll: !ts.confirmCancelAll })}
+              label="Cancel All Orders - Double Confirmation"
+            />
+            <Checkbox
+              checked={ts.confirmChaseOrder}
+              onChange={() => onTradingSettingsChange({ confirmChaseOrder: !ts.confirmChaseOrder })}
+              label="Chase Order - Double Confirmation"
+            />
+          </div>
+
+          <div className="border-t border-shadow-600 my-2" />
+
+          <p className="text-[11px] font-semibold text-gray-200 mb-2">
+            Features
+          </p>
+          <div className="flex flex-col gap-0">
+            <Checkbox
+              checked={ts.hidePnl}
+              onChange={() => onTradingSettingsChange({ hidePnl: !ts.hidePnl })}
+              label="Hide PNL"
+            />
+            <Checkbox
+              checked={ts.animateOrderBook}
+              onChange={() => onTradingSettingsChange({ animateOrderBook: !ts.animateOrderBook })}
+              label="Animate Order Book"
+            />
+            <Checkbox
+              checked={ts.showNotifications}
+              onChange={() => onTradingSettingsChange({ showNotifications: !ts.showNotifications })}
+              label="Show Notifications"
+            />
+          </div>
+
+          <div className="border-t border-shadow-600 my-2" />
+
+          <p className="text-[11px] font-semibold text-gray-200 mb-2">
+            Theme
+          </p>
+          <ThemeSwitch />
+        </div>
+      )}
+
+      {tab === "layout" && (
+        <div className="p-3">
+          <button
+            type="button"
+            onClick={onToggleLayoutLock}
+            className={`flex items-center justify-between w-full py-2 px-2 mb-3 text-[12px] font-medium rounded transition-colors ${
+              layoutLocked
+                ? "bg-accent-purple/15 text-accent-purple border border-accent-purple/30"
+                : "bg-shadow-700/50 text-gray-400 border border-shadow-500/50 hover:text-gray-200"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              {layoutLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+              {layoutLocked ? "Layout Locked" : "Lock Layout"}
+            </span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+              layoutLocked ? "bg-accent-purple/20 text-accent-purple" : "bg-shadow-600 text-gray-500"
+            }`}>
+              {layoutLocked ? "ON" : "OFF"}
+            </span>
+          </button>
+          <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-2 font-semibold">
+            Panels
+          </p>
+          <div className="flex flex-col gap-1">
+            {PANEL_OPTIONS.map(({ key, label }) => (
+              <div
+                key={key}
+                className="flex items-center justify-between py-1.5 px-1"
+              >
+                <span className="text-[12px] text-gray-300">{label}</span>
+                <Toggle
+                  checked={isVisible(key)}
+                  onChange={() => togglePanel(key)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "style" && (
+        <div className="p-3">
+          <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-2 font-semibold">
+            Coming Soon
+          </p>
+          <p className="text-[11px] text-gray-500">
+            Theme, colors, and font customization.
+          </p>
+        </div>
+      )}
+
+      <div className="border-t border-shadow-600 p-2 flex justify-end">
+        <button
+          type="button"
+          onClick={resetAll}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-accent-purple hover:text-accent-purple/80 transition-colors"
+        >
+          <RotateCcw className="w-3 h-3" />
+          Reset all
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <div className="relative" ref={panelRef}>
       <button
@@ -214,152 +366,25 @@ export default function SettingsPanel({
       </button>
 
       {open && (
-        <div className="trade-header-popover absolute right-0 top-full mt-2 w-72 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400]">
-          {/* Tabs */}
-          <div className="flex border-b border-shadow-600">
-            {(["trading", "layout", "style"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                className={`flex-1 px-3 py-2.5 text-[12px] font-semibold capitalize transition-colors ${
-                  tab === t
-                    ? "text-white border-b-2 border-accent-purple"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
+        <>
+          <div className="trade-header-popover absolute right-0 top-full mt-2 hidden w-72 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] sm:block">
+            {panelContent}
           </div>
-
-          {/* Trading tab */}
-          {tab === "trading" && (
-            <div className="p-3">
-              <p className="text-[11px] font-semibold text-gray-200 mb-2">
-                Order Confirmation
-              </p>
-              <div className="flex flex-col gap-0">
-                <Checkbox
-                  checked={ts.confirmOpenOrder}
-                  onChange={() => onTradingSettingsChange({ confirmOpenOrder: !ts.confirmOpenOrder })}
-                  label="Open Order"
-                />
-                <Checkbox
-                  checked={ts.confirmCloseOrder}
-                  onChange={() => onTradingSettingsChange({ confirmCloseOrder: !ts.confirmCloseOrder })}
-                  label="Close Order"
-                />
-                <Checkbox
-                  checked={ts.confirmCancelAll}
-                  onChange={() => onTradingSettingsChange({ confirmCancelAll: !ts.confirmCancelAll })}
-                  label="Cancel All Orders - Double Confirmation"
-                />
-                <Checkbox
-                  checked={ts.confirmChaseOrder}
-                  onChange={() => onTradingSettingsChange({ confirmChaseOrder: !ts.confirmChaseOrder })}
-                  label="Chase Order - Double Confirmation"
-                />
-              </div>
-
-              <div className="border-t border-shadow-600 my-2" />
-
-              <p className="text-[11px] font-semibold text-gray-200 mb-2">
-                Features
-              </p>
-              <div className="flex flex-col gap-0">
-                <Checkbox
-                  checked={ts.hidePnl}
-                  onChange={() => onTradingSettingsChange({ hidePnl: !ts.hidePnl })}
-                  label="Hide PNL"
-                />
-                <Checkbox
-                  checked={ts.animateOrderBook}
-                  onChange={() => onTradingSettingsChange({ animateOrderBook: !ts.animateOrderBook })}
-                  label="Animate Order Book"
-                />
-                <Checkbox
-                  checked={ts.showNotifications}
-                  onChange={() => onTradingSettingsChange({ showNotifications: !ts.showNotifications })}
-                  label="Show Notifications"
-                />
-              </div>
-
-              <div className="border-t border-shadow-600 my-2" />
-
-              <p className="text-[11px] font-semibold text-gray-200 mb-2">
-                Theme
-              </p>
-              <ThemeSwitch />
-            </div>
-          )}
-
-          {/* Layout tab */}
-          {tab === "layout" && (
-            <div className="p-3">
-              <button
-                type="button"
-                onClick={onToggleLayoutLock}
-                className={`flex items-center justify-between w-full py-2 px-2 mb-3 text-[12px] font-medium rounded transition-colors ${
-                  layoutLocked
-                    ? "bg-accent-purple/15 text-accent-purple border border-accent-purple/30"
-                    : "bg-shadow-700/50 text-gray-400 border border-shadow-500/50 hover:text-gray-200"
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  {layoutLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                  {layoutLocked ? "Layout Locked" : "Lock Layout"}
-                </span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                  layoutLocked ? "bg-accent-purple/20 text-accent-purple" : "bg-shadow-600 text-gray-500"
-                }`}>
-                  {layoutLocked ? "ON" : "OFF"}
-                </span>
-              </button>
-              <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-2 font-semibold">
-                Panels
-              </p>
-              <div className="flex flex-col gap-1">
-                {PANEL_OPTIONS.map(({ key, label }) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between py-1.5 px-1"
-                  >
-                    <span className="text-[12px] text-gray-300">{label}</span>
-                    <Toggle
-                      checked={isVisible(key)}
-                      onChange={() => togglePanel(key)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Style tab */}
-          {tab === "style" && (
-            <div className="p-3">
-              <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-2 font-semibold">
-                Coming Soon
-              </p>
-              <p className="text-[11px] text-gray-500">
-                Theme, colors, and font customization.
-              </p>
-            </div>
-          )}
-
-          {/* Reset */}
-          <div className="border-t border-shadow-600 p-2 flex justify-end">
-            <button
-              type="button"
-              onClick={resetAll}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-accent-purple hover:text-accent-purple/80 transition-colors"
+          {mounted && createPortal(
+            <div
+              className="fixed inset-0 z-[450] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:hidden"
+              onClick={() => setOpen(false)}
             >
-              <RotateCcw className="w-3 h-3" />
-              Reset all
-            </button>
-          </div>
-        </div>
+              <div
+                className="w-full max-w-sm overflow-hidden rounded-2xl border border-shadow-500 bg-shadow-900 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {panelContent}
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
@@ -43,16 +44,48 @@ const TerminalGrid = dynamic(
 
 function FaucetsDropdown() {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
+      if (typeof window !== "undefined" && window.innerWidth < 640) return;
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  const panelContent = (
+    <div className="py-1">
+      <a
+        href="https://faucet.solana.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 px-3 py-2 text-[11px] text-gray-300 hover:bg-shadow-700/60 transition-colors"
+        onClick={() => setOpen(false)}
+      >
+        <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
+        SOL Faucet
+      </a>
+      <a
+        href="https://faucet.circle.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 px-3 py-2 text-[11px] text-gray-300 hover:bg-shadow-700/60 transition-colors"
+        onClick={() => setOpen(false)}
+      >
+        <div className="w-3 h-3 rounded-full shrink-0 bg-[#2775CA]" />
+        USDC Faucet
+      </a>
+    </div>
+  );
 
   return (
     <div className="relative" ref={ref}>
@@ -67,28 +100,25 @@ function FaucetsDropdown() {
         </svg>
       </button>
       {open && (
-        <div className="trade-header-popover absolute right-0 top-full mt-2 w-44 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] py-1">
-          <a
-            href="https://faucet.solana.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 text-[11px] text-gray-300 hover:bg-shadow-700/60 transition-colors"
-            onClick={() => setOpen(false)}
-          >
-            <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
-            SOL Faucet
-          </a>
-          <a
-            href="https://faucet.circle.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 text-[11px] text-gray-300 hover:bg-shadow-700/60 transition-colors"
-            onClick={() => setOpen(false)}
-          >
-            <div className="w-3 h-3 rounded-full shrink-0 bg-[#2775CA]" />
-            USDC Faucet
-          </a>
-        </div>
+        <>
+          <div className="trade-header-popover absolute right-0 top-full mt-2 hidden w-44 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] sm:block">
+            {panelContent}
+          </div>
+          {mounted && createPortal(
+            <div
+              className="fixed inset-0 z-[450] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:hidden"
+              onClick={() => setOpen(false)}
+            >
+              <div
+                className="w-full max-w-xs overflow-hidden rounded-2xl border border-shadow-500 bg-shadow-900 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {panelContent}
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
       )}
     </div>
   );

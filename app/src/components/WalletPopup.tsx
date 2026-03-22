@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
@@ -29,12 +30,14 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
+      if (typeof window !== "undefined" && window.innerWidth < 640) return;
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
@@ -42,6 +45,11 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   // Fetch SOL + SPL token balances
   useEffect(() => {
@@ -89,6 +97,74 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
   }, [publicKey, connected, connection]);
 
   const hasBalances = connected && (solBalance !== null || tokenBalances.length > 0);
+  const panelContent = (
+    <>
+      <div className="px-3 py-2.5 border-b border-shadow-600">
+        <p className="text-[11px] font-semibold text-gray-200">Wallet</p>
+      </div>
+
+      {hasBalances ? (
+        <div className="px-3 py-2">
+          <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1.5 font-semibold">
+            Balances
+          </p>
+          {solBalance !== null && (
+            <div className="flex items-center justify-between py-1.5">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
+                <span className="text-[12px] text-gray-400">SOL</span>
+              </div>
+              <span className="text-[12px] font-semibold text-gray-200">{formatBalance(solBalance, "SOL")}</span>
+            </div>
+          )}
+          {tokenBalances.map((tb) => (
+            <div key={tb.symbol} className="flex items-center justify-between py-1.5">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: tb.color }} />
+                <span className="text-[12px] text-gray-400">{tb.symbol}</span>
+              </div>
+              <span className="text-[12px] font-semibold text-gray-200">{formatBalance(tb.balance, tb.symbol)}</span>
+            </div>
+          ))}
+        </div>
+      ) : connected ? (
+        <div className="px-3 py-3">
+          <p className="text-[11px] text-gray-500">No balances found</p>
+        </div>
+      ) : (
+        <div className="px-3 py-3">
+          <p className="text-[11px] text-gray-500">Connect wallet to view balances</p>
+        </div>
+      )}
+
+      <div className="border-t border-shadow-600 px-3 py-2">
+        <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1.5 font-semibold">
+          Trading Account
+        </p>
+        <div className="flex items-center justify-between py-1.5">
+          <span className="text-[12px] text-gray-400">Margin Balance</span>
+          <span className="text-[12px] font-semibold text-gray-200">
+            {marginBalance !== null ? `$${marginBalance.toFixed(2)}` : "--"}
+          </span>
+        </div>
+      </div>
+
+      {onOpenCollateral && (
+        <div className="border-t border-shadow-600 p-2">
+          <button
+            type="button"
+            onClick={() => {
+              onOpenCollateral();
+              setOpen(false);
+            }}
+            className="w-full py-1.5 text-[11px] font-medium text-accent-purple border border-accent-purple/30 bg-accent-purple/10 hover:bg-accent-purple/20 transition-colors"
+          >
+            {marginBalance === 0 || marginBalance === null ? "Deposit Collateral" : "Manage Collateral"}
+          </button>
+        </div>
+      )}
+    </>
+  );
 
   return (
     <div className="relative" ref={panelRef}>
@@ -102,76 +178,25 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
       </button>
 
       {open && (
-        <div className="trade-header-popover absolute right-0 top-full mt-2 w-64 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400]">
-          {/* Header */}
-          <div className="px-3 py-2.5 border-b border-shadow-600">
-            <p className="text-[11px] font-semibold text-gray-200">Wallet</p>
+        <>
+          <div className="trade-header-popover absolute right-0 top-full mt-2 hidden w-64 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] sm:block">
+            {panelContent}
           </div>
-
-          {/* Wallet Balances */}
-          {hasBalances ? (
-            <div className="px-3 py-2">
-              <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1.5 font-semibold">
-                Balances
-              </p>
-              {solBalance !== null && (
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
-                    <span className="text-[12px] text-gray-400">SOL</span>
-                  </div>
-                  <span className="text-[12px] font-semibold text-gray-200">{formatBalance(solBalance, "SOL")}</span>
-                </div>
-              )}
-              {tokenBalances.map((tb) => (
-                <div key={tb.symbol} className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: tb.color }} />
-                    <span className="text-[12px] text-gray-400">{tb.symbol}</span>
-                  </div>
-                  <span className="text-[12px] font-semibold text-gray-200">{formatBalance(tb.balance, tb.symbol)}</span>
-                </div>
-              ))}
-            </div>
-          ) : connected ? (
-            <div className="px-3 py-3">
-              <p className="text-[11px] text-gray-500">No balances found</p>
-            </div>
-          ) : (
-            <div className="px-3 py-3">
-              <p className="text-[11px] text-gray-500">Connect wallet to view balances</p>
-            </div>
-          )}
-
-          {/* Margin Balance */}
-          <div className="border-t border-shadow-600 px-3 py-2">
-            <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1.5 font-semibold">
-              Trading Account
-            </p>
-            <div className="flex items-center justify-between py-1.5">
-              <span className="text-[12px] text-gray-400">Margin Balance</span>
-              <span className="text-[12px] font-semibold text-gray-200">
-                {marginBalance !== null ? `$${marginBalance.toFixed(2)}` : "--"}
-              </span>
-            </div>
-          </div>
-
-          {/* Deposit/Manage button */}
-          {onOpenCollateral && (
-            <div className="border-t border-shadow-600 p-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenCollateral();
-                  setOpen(false);
-                }}
-                className="w-full py-1.5 text-[11px] font-medium text-accent-purple border border-accent-purple/30 bg-accent-purple/10 hover:bg-accent-purple/20 transition-colors"
+          {mounted && createPortal(
+            <div
+              className="fixed inset-0 z-[450] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:hidden"
+              onClick={() => setOpen(false)}
+            >
+              <div
+                className="w-full max-w-xs overflow-hidden rounded-2xl border border-shadow-500 bg-shadow-900 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
               >
-                {marginBalance === 0 || marginBalance === null ? "Deposit Collateral" : "Manage Collateral"}
-              </button>
-            </div>
+                {panelContent}
+              </div>
+            </div>,
+            document.body
           )}
-        </div>
+        </>
       )}
     </div>
   );

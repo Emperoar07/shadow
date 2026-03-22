@@ -392,7 +392,7 @@ export default function CollateralModal({
 
   return createPortal(
     <div
-      className={`fixed inset-x-0 bottom-0 top-24 sm:top-20 z-[500] flex items-center justify-center overflow-y-auto p-4 transition-all duration-300 ${
+      className={`fixed inset-0 z-[500] flex items-center justify-center overflow-y-auto p-4 transition-all duration-300 sm:top-20 sm:bottom-0 sm:inset-x-0 ${
         visible ? "bg-black/60 backdrop-blur-sm" : "bg-black/0"
       }`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
