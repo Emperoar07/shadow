@@ -125,7 +125,7 @@ export default function TradingAppPage() {
         />
       </Head>
 
-      <div className="relative min-h-screen gradient-bg overflow-hidden trade-shell">
+      <div className="relative h-screen gradient-bg overflow-hidden trade-shell">
         <style jsx>{`
           @keyframes header-logo-glow {
             0%, 100% { filter: drop-shadow(0 0 10px rgba(109, 82, 255, 0.32)); }
@@ -135,7 +135,7 @@ export default function TradingAppPage() {
         `}</style>
         <NeuralShadowBackground />
 
-        <div className="relative z-10 flex flex-col min-h-screen">
+        <div className="relative z-10 flex h-screen flex-col overflow-hidden">
 
           {/* ── Header ── */}
           <header className="trade-header border-b border-shadow-600 shrink-0 bg-shadow-900 relative z-[200]">
@@ -174,7 +174,7 @@ export default function TradingAppPage() {
           </header>
 
           {/* ── Terminal body ── */}
-          <main className="trade-main flex-1 max-w-[1600px] w-full mx-auto flex flex-col min-h-0">
+          <main className="trade-main flex-1 max-w-[1600px] w-full mx-auto flex flex-col min-h-0 overflow-y-auto lg:overflow-hidden">
 
             {/* Mobile: market info bar (always visible) */}
             <div className="lg:hidden">

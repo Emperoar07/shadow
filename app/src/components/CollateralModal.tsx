@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import BN from "bn.js";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
@@ -48,6 +49,7 @@ export default function CollateralModal({
   const [amount, setAmount] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const getRuntimeErrorMessage = useCallback((rawMessage: string, action: "deposit" | "withdraw") => {
     if (!rawMessage.includes("env var")) return null;
@@ -139,6 +141,11 @@ export default function CollateralModal({
       publicKey,
     ]
   );
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -366,7 +373,7 @@ export default function CollateralModal({
     submitDelegatedCollateral,
   ]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const QUICK_AMOUNTS = tab === "deposit"
     ? ["10", "50", "100", "500"]
@@ -383,9 +390,9 @@ export default function CollateralModal({
     ? ["25%", "50%", "75%", "100%"]
     : QUICK_AMOUNTS.map((v) => `$${v}`);
 
-  return (
+  return createPortal(
     <div
-      className={`fixed inset-x-0 bottom-0 top-24 sm:top-20 z-[300] flex items-center justify-center overflow-y-auto p-4 transition-all duration-300 ${
+      className={`fixed inset-x-0 bottom-0 top-24 sm:top-20 z-[500] flex items-center justify-center overflow-y-auto p-4 transition-all duration-300 ${
         visible ? "bg-black/60 backdrop-blur-sm" : "bg-black/0"
       }`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -514,6 +521,7 @@ export default function CollateralModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
