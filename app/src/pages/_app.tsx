@@ -119,15 +119,25 @@ export default function App({ Component, pageProps }: AppProps) {
     []
   );
 
-  // Page transition loading state
+  // Page transition loading state with minimum display time
   const router = useRouter();
   const [pageLoading, setPageLoading] = useState(false);
+  const loadStartRef = useRef(0);
 
   useEffect(() => {
+    const MIN_DISPLAY_MS = 1200;
+
     const handleStart = (url: string) => {
-      if (url !== router.asPath) setPageLoading(true);
+      if (url !== router.asPath) {
+        loadStartRef.current = Date.now();
+        setPageLoading(true);
+      }
     };
-    const handleDone = () => setPageLoading(false);
+    const handleDone = () => {
+      const elapsed = Date.now() - loadStartRef.current;
+      const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
+      setTimeout(() => setPageLoading(false), remaining);
+    };
 
     router.events.on("routeChangeStart", handleStart);
     router.events.on("routeChangeComplete", handleDone);
@@ -156,7 +166,7 @@ export default function App({ Component, pageProps }: AppProps) {
               },
             }}
           />
-          {pageLoading && <ShadowLoader fullScreen message="Loading..." />}
+          {pageLoading && <ShadowLoader fullScreen message="" />}
           <Component {...pageProps} />
         </WalletModalProvider>
       </WalletProvider>

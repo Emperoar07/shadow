@@ -209,19 +209,6 @@ export default function LandingPage() {
     };
   }, []);
 
-  if (!ready) {
-    return (
-      <>
-        <Head>
-          <title>Shadow | Private Perpetual Exchange</title>
-          <meta name="description" content="A fully confidential perpetual exchange on Solana, powered by Arcium." />
-          <link rel="icon" href="/favicon.ico" />
-        </Head>
-        <ShadowLoader fullScreen size="lg" message="Initializing Shadow..." />
-      </>
-    );
-  }
-
   return (
     <>
       <Head>
@@ -229,6 +216,9 @@ export default function LandingPage() {
         <meta name="description" content="A fully confidential perpetual exchange on Solana, powered by Arcium." />
         <link rel="icon" href="/favicon.ico" />
       </Head>
+
+      {/* Intro loader overlay — fades out after 1.8s */}
+      {!ready && <ShadowLoader fullScreen size="lg" message="" />}
 
       <div
         className="relative min-h-screen overflow-x-hidden"
