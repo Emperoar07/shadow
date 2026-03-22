@@ -302,9 +302,6 @@ export default function TradingAppPage() {
                 </a>{" "}
                 | Built on Solana
               </p>
-              <Link href="/docs#privacy-policy" className="text-gray-400 hover:text-gray-200 transition-colors">
-                Privacy Policy
-              </Link>
             </div>
           </footer>
         </div>
