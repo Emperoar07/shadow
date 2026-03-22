@@ -300,6 +300,15 @@ export default function TradingAppPage() {
                     </div>
                   </div>
                 </div>
+
+                <div className="h-full w-full shrink-0 min-h-0 overflow-y-auto border border-shadow-600 bg-shadow-900">
+                  <TradingPanel
+                    pair={selectedPair}
+                    layout="vertical"
+                    confirmOpen={tradingSettings.confirmOpenOrder}
+                    showNotifications={tradingSettings.showNotifications}
+                  />
+                </div>
               </div>
             </div>
 
@@ -325,9 +334,19 @@ export default function TradingAppPage() {
                 </a>{" "}
                 | Built on Solana
               </p>
-              <Link href="/docs#privacy-policy" className="text-gray-400 hover:text-gray-200 transition-colors">
-                Privacy Policy
-              </Link>
+              <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-4">
+                <a
+                  href="https://x.com/emperoar007"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-gray-200 transition-colors"
+                >
+                  Built with love by 0xb for the decentralized world.
+                </a>
+                <Link href="/docs#privacy-policy" className="text-gray-400 hover:text-gray-200 transition-colors">
+                  Privacy Policy
+                </Link>
+              </div>
             </div>
           </footer>
         </div>
