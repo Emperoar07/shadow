@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppProps } from "next/app";
+import { useRouter } from "next/router";
 import { Buffer } from "buffer";
 import { Connection } from "@solana/web3.js";
 import {
@@ -12,6 +13,7 @@ import {
   SolflareWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
 import { Toaster } from "react-hot-toast";
+import ShadowLoader from "../components/ShadowLoader";
 import {
   getRpcTransport,
   getRpcTransports,
@@ -117,6 +119,26 @@ export default function App({ Component, pageProps }: AppProps) {
     []
   );
 
+  // Page transition loading state
+  const router = useRouter();
+  const [pageLoading, setPageLoading] = useState(false);
+
+  useEffect(() => {
+    const handleStart = (url: string) => {
+      if (url !== router.asPath) setPageLoading(true);
+    };
+    const handleDone = () => setPageLoading(false);
+
+    router.events.on("routeChangeStart", handleStart);
+    router.events.on("routeChangeComplete", handleDone);
+    router.events.on("routeChangeError", handleDone);
+    return () => {
+      router.events.off("routeChangeStart", handleStart);
+      router.events.off("routeChangeComplete", handleDone);
+      router.events.off("routeChangeError", handleDone);
+    };
+  }, [router]);
+
   return (
     <ConnectionProvider
       endpoint={transport.rpc}
@@ -134,6 +156,7 @@ export default function App({ Component, pageProps }: AppProps) {
               },
             }}
           />
+          {pageLoading && <ShadowLoader fullScreen message="Loading..." />}
           <Component {...pageProps} />
         </WalletModalProvider>
       </WalletProvider>

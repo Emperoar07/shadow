@@ -1,96 +1,92 @@
 # ShadowPerp
 
-ShadowPerp is a privacy perpetuals trading dex on Solana devnet built around Arcium confidential computation.
+ShadowPerp is a private perpetuals trading app on Solana devnet, built with Arcium confidential compute.
 
-The project is trying to reduce trader-intent leakage. Position inputs are encrypted before submission, sensitive trade logic is evaluated through Arcium, and only the minimum required public state is kept on-chain.
+The goal is straightforward: make trading feel usable without turning every position into public intent. Sensitive trade inputs are encrypted before submission, Arcium handles the private computation, and only the minimum public state needed for settlement is written on chain.
 
-## What It Covers
+## What ShadowPerp Includes
 
-ShadowPerp currently includes:
+Today the repo covers:
 
-- encrypted open / close / liquidation computation paths
-- delegated session trading so a relayer can execute multiple actions after one owner approval
-- fixed settlement paths for deferred close and liquidation handling
-- an oracle feeder and preflight/devnet runbook
-- a terminal-style frontend with live external reference depth
+- encrypted open, close, and liquidation flows
+- delegated trading sessions so a relayer can handle multiple actions after one approval
+- settlement paths for deferred close and liquidation handling
+- an oracle feeder and a practical devnet preflight runbook
+- a terminal style frontend with live reference market depth
 
-## How Arcium Fits
+## How Arcium Fits In
 
-ShadowPerp uses Arcium as the confidential compute layer.
+Arcium is the confidential compute layer behind ShadowPerp.
 
-The intended flow is:
+The intended flow looks like this:
 
 1. The client encrypts sensitive trade inputs such as size, entry price, leverage, direction, and margin.
 2. The Solana program queues an Arcium computation with those encrypted values.
-3. Arcium processes the encrypted inputs off-chain.
-4. The callback verifies the result on-chain before ShadowPerp updates trade state.
+3. Arcium processes the encrypted inputs inside its confidential compute network.
+4. The callback verifies the result on chain before ShadowPerp updates trade state.
 
-Privacy goal:
+In practice, that means:
 
-- trader-specific position details are not published in plaintext
-- sensitive risk checks do not require public intent disclosure
-- liquidation-sensitive information is kept out of the public state path
+- position details are not published in plain text
+- sensitive risk checks do not need to reveal trader intent
+- liquidation related data stays out of the public state path as much as possible
 
 ## Current Status
 
 This repository is an active devnet prototype, not a production exchange.
 
-What is working:
+What is working today:
 
-- Solana program deploy/upgrade on devnet (Arcium SDK v0.9.2)
-- delegated session trading with relay (no wallet popups after initial session)
-- oracle price auto-refresh before every trade (relay-side)
-- encrypted position open/close/liquidation computation paths
-- privacy-preserving position metadata (side, leverage, margin mode stored client-side)
+- Solana program deploy and upgrade on devnet with Arcium SDK `0.9.2`
+- delegated session trading with a relay, so users do not sign every action
+- automatic oracle refresh before trades on the relay path
+- encrypted open, close, and liquidation computation flows
+- private position metadata stored in the browser for UI continuity
 - cross and isolated margin modes
-- leverage selection (1x-50x) with popup modal
-- limit orders with client-side automation
-- take-profit / stop-loss rules
-- external reference orderbook (Coinbase/Binance depth)
-- collateral deposit/withdraw (direct and session-delegated)
+- leverage selection from `1x` to `50x`
+- limit orders with browser based automation
+- take profit and stop loss rules
+- external reference orderbook data
+- collateral deposit and withdrawal, both direct and session delegated
 
-What is in progress:
+What is still in progress:
 
-- Arcium MPC callbacks are arriving from cluster 456 but failing with `InstructionDidNotDeserialize` (Anchor error 102)
-- root cause: comp-def output schema mismatch with the deployed callback handler
-- fix requires re-registering the computation definition to match the current `OpenPositionProbeBOutput` struct
+- Arcium MPC callbacks from cluster `456` are still failing with `InstructionDidNotDeserialize` (`Anchor` error `102`)
+- the current leading cause is a mismatch between the deployed callback handler and the active computation definition output shape
+- the private open flow should still be treated as experimental until we complete a successful open and close cycle from start to finish
 
-That means the main private trading path should still be treated as experimental until a successful real open/close cycle is verified end to end.
+## Market Data Model
 
-## UI Data Model
-
-The orderbook shown in the terminal is **external reference depth**, not ShadowPerp-native venue liquidity.
+The orderbook in the terminal is external reference depth. It is there to make the product useful and readable. It is not presenting ShadowPerp as if it already has public venue liquidity of its own.
 
 Current reference sources:
 
 - Coinbase first
-- Binance fallback
-
-That orderbook is there to make the terminal useful and live-looking without pretending ShadowPerp already has a public matching engine or public venue depth of its own.
+- Binance as fallback
 
 ## Repository Layout
 
 - `programs/shadowperp/`
-  - Anchor on-chain program
+  Anchor program code
 - `encrypted-ixs/`
-  - Arcium/Arcis circuit sources
+  Arcium and Arcis circuit sources
 - `app/`
-  - Next.js frontend and relay routes
+  Next.js frontend and relay routes
 - `scripts/`
-  - deploy, oracle, comp-def, smoke, and devnet utility scripts
+  deploy, oracle, computation definition, smoke, and devnet utility scripts
 - `build/`
-  - compiled circuit artifacts
+  compiled circuit artifacts
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 20+
-- pnpm
+- Node.js `20+`
+- `pnpm`
 - Rust
 - Solana CLI
 - Anchor
-- Arcium CLI / build environment
+- Arcium CLI and build environment
 
 ### Install
 
@@ -107,16 +103,16 @@ cd ..
 cp app/.env.example app/.env.local
 ```
 
-Then set the devnet values you want to use for:
+Then fill in the devnet values you want to use for:
 
 - program id
 - market account
 - RPC URLs
-- Arcium program id / cluster offset
+- Arcium program id and cluster offset
 
 ## Safe Validation Commands
 
-These are the repo's normal devnet-safe checks:
+These are the normal repo checks we use on devnet:
 
 ```bash
 npm run check:oracle
@@ -129,7 +125,7 @@ If the oracle is stale:
 npm run oracle:once
 ```
 
-Frontend:
+For the frontend:
 
 ```bash
 cd app

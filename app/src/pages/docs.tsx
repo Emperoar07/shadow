@@ -2,22 +2,28 @@ import Head from "next/head";
 import Link from "next/link";
 
 const NAV = [
-  { group: "Guide", items: [
-    { id: "overview", label: "Overview" },
-    { id: "how-it-works", label: "How It Works" },
-    { id: "session-trading", label: "Session Trading" },
-    { id: "privacy", label: "Privacy Model" },
-    { id: "margin", label: "Margin & Leverage" },
-    { id: "orders", label: "Order Types" },
-    { id: "tp-sl", label: "TP / SL" },
-    { id: "liquidation", label: "Liquidation" },
-    { id: "faq", label: "FAQ" },
-  ]},
-  { group: "Legal", items: [
-    { id: "privacy-policy", label: "Privacy Policy" },
-    { id: "terms", label: "Terms of Use" },
-    { id: "cookies", label: "Cookie Policy" },
-  ]},
+  {
+    group: "Guide",
+    items: [
+      { id: "overview", label: "Overview" },
+      { id: "how-it-works", label: "How It Works" },
+      { id: "session-trading", label: "Session Trading" },
+      { id: "privacy", label: "Privacy Model" },
+      { id: "margin", label: "Margin and Leverage" },
+      { id: "orders", label: "Order Types" },
+      { id: "tp-sl", label: "TP / SL" },
+      { id: "liquidation", label: "Liquidation" },
+      { id: "faq", label: "FAQ" },
+    ],
+  },
+  {
+    group: "Legal",
+    items: [
+      { id: "privacy-policy", label: "Privacy Policy" },
+      { id: "terms", label: "Terms of Use" },
+      { id: "cookies", label: "Cookie Policy" },
+    ],
+  },
 ];
 
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
@@ -41,8 +47,11 @@ export default function DocsPage() {
   return (
     <>
       <Head>
-        <title>Documentation — Shadow</title>
-        <meta name="description" content="Shadow perpetuals documentation: privacy model, session trading, margin, leverage, and more." />
+        <title>Documentation | Shadow</title>
+        <meta
+          name="description"
+          content="Shadow docs covering privacy, session trading, margin, leverage, order flow, and the current devnet prototype."
+        />
       </Head>
 
       <style>{`
@@ -54,7 +63,6 @@ export default function DocsPage() {
           min-height: 100vh;
         }
 
-        /* Sidebar */
         .docs-sidebar {
           width: 240px;
           flex-shrink: 0;
@@ -107,7 +115,6 @@ export default function DocsPage() {
           background: rgba(139,92,246,0.05);
         }
 
-        /* Main content */
         .docs-main {
           flex: 1;
           min-width: 0;
@@ -208,7 +215,6 @@ export default function DocsPage() {
         }
         .docs-table td:first-child { color: #e2e8f0; font-weight: 500; }
 
-        /* Back to top */
         .docs-back {
           display: inline-flex;
           align-items: center;
@@ -229,7 +235,6 @@ export default function DocsPage() {
       `}</style>
 
       <div className="docs-layout">
-        {/* Sidebar */}
         <aside className="docs-sidebar">
           <Link href="/" className="docs-sidebar-logo">
             <svg viewBox="0 0 100 100" className="docs-sidebar-logo-svg" aria-hidden="true">
@@ -249,161 +254,234 @@ export default function DocsPage() {
             <div key={group.group}>
               <div className="docs-sidebar-section">{group.group}</div>
               {group.items.map((item) => (
-                <a key={item.id} href={`#${item.id}`}>{item.label}</a>
+                <a key={item.id} href={`#${item.id}`}>
+                  {item.label}
+                </a>
               ))}
             </div>
           ))}
           <div style={{ marginTop: "24px", padding: "0 20px", display: "flex", flexDirection: "column", gap: "8px" }}>
-            <Link href="/" style={{
-              display: "block",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: "8px",
-              padding: "9px 14px",
-              fontSize: "13px",
-              fontWeight: "500",
-              color: "#9ca3af",
-              textDecoration: "none",
-              textAlign: "center",
-              transition: "all 0.15s",
-            }}>
-              ← Home
+            <Link
+              href="/"
+              style={{
+                display: "block",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "8px",
+                padding: "9px 14px",
+                fontSize: "13px",
+                fontWeight: "500",
+                color: "#9ca3af",
+                textDecoration: "none",
+                textAlign: "center",
+                transition: "all 0.15s",
+              }}
+            >
+              Back Home
             </Link>
-            <Link href="/app" style={{
-              display: "block",
-              background: "linear-gradient(135deg, #8b5cf6, #6d28d9)",
-              borderRadius: "8px",
-              padding: "10px 14px",
-              fontSize: "13px",
-              fontWeight: "600",
-              color: "#fff",
-              textDecoration: "none",
-              textAlign: "center",
-            }}>
+            <Link
+              href="/app"
+              style={{
+                display: "block",
+                background: "linear-gradient(135deg, #8b5cf6, #6d28d9)",
+                borderRadius: "8px",
+                padding: "10px 14px",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#fff",
+                textDecoration: "none",
+                textAlign: "center",
+              }}
+            >
               Launch App
             </Link>
           </div>
         </aside>
 
-        {/* Main */}
         <main className="docs-main">
           <div className="docs-header">
             <h1>Shadow Documentation</h1>
             <p>
-              Shadow is a privacy-first perpetual futures exchange built on Solana.
-              Trade with encrypted positions, delegated sessions, and on-chain privacy powered by Arcium MPC.
+              Shadow is a private perpetuals trading app built on Solana devnet. It combines encrypted positions,
+              delegated sessions, and confidential compute from Arcium so trading feels practical without exposing every
+              detail in public.
             </p>
           </div>
 
           <Section id="overview" title="Overview">
             <p>
-              Shadow lets you trade perpetual futures without exposing your position details on-chain.
-              Your trade size, direction, leverage, and margin are encrypted before being sent to the Solana program.
-              The computation (risk checks, PnL settlement) happens inside Arcium's confidential compute cluster.
+              Shadow is built for people who want a more private trading experience on Solana. Trade size, direction,
+              leverage, and margin are encrypted before they reach the program, and the sensitive calculations run
+              through Arcium instead of being exposed in plain view.
             </p>
             <p>
-              Only the minimum necessary public state is written on-chain — no plaintext positions, no public intent disclosure.
+              Only the public state needed for settlement is written on chain. The goal is to avoid turning every
+              position into public intent data.
             </p>
             <Note>
-              Shadow is currently deployed on <strong>Solana Devnet</strong> as an active prototype.
-              All balances and positions are test funds only.
+              Shadow is currently running on <strong>Solana Devnet</strong> as an active prototype. Everything here
+              should be treated as test funds and test state.
             </Note>
           </Section>
 
           <Section id="how-it-works" title="How It Works">
-            <p>Every trade on Shadow goes through a 5-step privacy pipeline:</p>
+            <p>Each trade follows the same core path:</p>
             <ol>
-              <li><strong>Encrypt</strong> — your browser encrypts the trade inputs (size, price, leverage, direction) using the MPC cluster's public key.</li>
-              <li><strong>Queue</strong> — the encrypted payload is submitted to the Solana program, which queues a computation on Arcium.</li>
-              <li><strong>Compute</strong> — Arcium's MPC nodes decrypt and evaluate the trade logic (margin checks, PnL, liquidation) entirely in secret shares — no single node ever sees the plaintext.</li>
-              <li><strong>Callback</strong> — Arcium delivers the verified result back to the Solana program on-chain.</li>
-              <li><strong>Settle</strong> — the program updates your position and margin account based on the verified output.</li>
+              <li>
+                <strong>Encrypt</strong> | Your browser encrypts sensitive trade inputs such as size, price, leverage,
+                direction, and margin.
+              </li>
+              <li>
+                <strong>Queue</strong> | The encrypted payload is submitted to the Solana program, which queues the
+                computation on Arcium.
+              </li>
+              <li>
+                <strong>Compute</strong> | Arcium evaluates the private trade logic, including margin checks, PnL, and
+                liquidation conditions, without exposing the raw inputs to any single node.
+              </li>
+              <li>
+                <strong>Callback</strong> | Arcium returns the verified result to the Solana program.
+              </li>
+              <li>
+                <strong>Settle</strong> | Shadow updates the margin account and position state from that verified output.
+              </li>
             </ol>
             <p>
-              The relay server submits trades on your behalf after your initial session approval —
-              so you only sign once per session, not once per trade.
+              After your session is approved, the relay can submit trades on your behalf. That keeps the flow smooth,
+              because you sign once for the session instead of getting a wallet prompt for every action.
             </p>
           </Section>
 
           <Section id="session-trading" title="Session Trading">
             <p>
-              Shadow uses a <strong>delegated session</strong> model to eliminate per-trade wallet popups.
-              Here's what happens when you first trade:
+              Shadow uses a <strong>delegated session</strong> model so the trading flow stays usable. Here is what
+              happens the first time you start a session:
             </p>
             <ol>
-              <li>You sign a <strong>CreateTradeSession</strong> transaction — this creates an on-chain session PDA linked to your wallet and the relay.</li>
-              <li>You sign a short <strong>authorization message</strong> (not a transaction) — this proves you authorized the relay to open positions on your behalf for the session duration.</li>
-              <li>For every subsequent trade within the session, the relay submits the transaction without requiring a wallet popup.</li>
+              <li>
+                You sign a <strong>CreateTradeSession</strong> transaction. This creates a session PDA tied to your
+                wallet and the relay.
+              </li>
+              <li>
+                You sign a short <strong>authorization message</strong>. This is not a transaction. It simply proves
+                that the relay can act for you during the session window.
+              </li>
+              <li>
+                For the rest of that session, the relay submits trades without opening a wallet popup each time.
+              </li>
             </ol>
             <h3>Session Limits</h3>
             <table className="docs-table">
-              <thead><tr><th>Parameter</th><th>Default</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Parameter</th>
+                  <th>Default</th>
+                </tr>
+              </thead>
               <tbody>
-                <tr><td>Session duration</td><td>7 days</td></tr>
-                <tr><td>Max actions</td><td>200 trades</td></tr>
-                <tr><td>Max margin per action</td><td>$1,000 USDC</td></tr>
-                <tr><td>Revocable</td><td>Yes — anytime on-chain</td></tr>
+                <tr>
+                  <td>Session duration</td>
+                  <td>7 days</td>
+                </tr>
+                <tr>
+                  <td>Max actions</td>
+                  <td>200 trades</td>
+                </tr>
+                <tr>
+                  <td>Max margin per action</td>
+                  <td>$1,000 USDC</td>
+                </tr>
+                <tr>
+                  <td>Revocable</td>
+                  <td>Yes, anytime on chain</td>
+                </tr>
               </tbody>
             </table>
             <Note>
-              The session authorization signature is scoped to a specific session ID, market, and expiry.
-              It cannot be reused across sessions or markets.
+              The session authorization signature is tied to a specific session ID, market, and expiry. It cannot be
+              reused across sessions or markets.
             </Note>
           </Section>
 
           <Section id="privacy" title="Privacy Model">
             <p>
-              Shadow's privacy guarantees come from <a href="https://www.arcium.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa" }}>Arcium</a>'s
-              Multi-Party Computation (MPC) infrastructure. Here's what is and isn't private:
+              Shadow relies on{" "}
+              <a href="https://www.arcium.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa" }}>
+                Arcium
+              </a>
+              {" "}Multi Party Computation infrastructure. Here is the practical split between what stays private and
+              what remains visible:
             </p>
             <h3>What is private</h3>
             <ul>
               <li>Position size</li>
               <li>Entry price</li>
               <li>Leverage</li>
-              <li>Direction (long/short)</li>
+              <li>Direction</li>
               <li>Margin amount</li>
               <li>Unrealized PnL</li>
             </ul>
             <h3>What is public</h3>
             <ul>
-              <li>Your wallet address (used for margin account and session)</li>
-              <li>Collateral deposits and withdrawals (USDC transfers are on-chain)</li>
-              <li>The fact that a trade was queued (not the details)</li>
+              <li>Your wallet address, which is used for the margin account and session</li>
+              <li>Collateral deposits and withdrawals</li>
+              <li>The fact that a trade was queued, but not the details</li>
               <li>Session creation and revocation</li>
             </ul>
             <Note>
-              The reference orderbook shown in the terminal is external depth from Coinbase/Binance —
-              it is not Shadow's own venue liquidity and does not reflect other traders' positions.
+              The reference orderbook in the terminal comes from external market depth, mainly Coinbase and Binance. It
+              is there to help you read the market. It is not Shadow's own venue liquidity and it does not reveal other
+              traders' positions.
             </Note>
           </Section>
 
-          <Section id="margin" title="Margin & Leverage">
-            <p>
-              Shadow supports two margin modes and leverage up to <strong>50x</strong>.
-            </p>
+          <Section id="margin" title="Margin and Leverage">
+            <p>Shadow supports two margin modes and leverage up to <strong>50x</strong>.</p>
             <h3>Cross Margin</h3>
             <p>
-              Your entire margin balance is shared across all cross-margin positions.
-              If one position loses, the remaining balance absorbs it — reducing liquidation risk on individual positions
-              but exposing your full balance to aggregate losses.
+              Your full margin balance is shared across all cross margin positions. If one position loses, the rest of
+              the balance absorbs it, which can reduce liquidation risk on a single position but exposes more of your
+              account to aggregate losses.
             </p>
             <h3>Isolated Margin</h3>
             <p>
-              A fixed margin amount is allocated per position. If the position is liquidated,
-              only that isolated margin is at risk — the rest of your balance is unaffected.
+              A fixed amount of margin is assigned to one position. If that position is liquidated, only that isolated
+              margin is at risk and the rest of your balance stays untouched.
             </p>
             <h3>Leverage</h3>
             <p>
-              Leverage amplifies both gains and losses relative to your margin. Available range: <Code>1x</Code> to <Code>50x</Code>.
+              Leverage increases both upside and downside relative to your margin. Available range: <Code>1x</Code> to{" "}
+              <Code>50x</Code>.
             </p>
             <table className="docs-table">
-              <thead><tr><th>Leverage</th><th>Risk Level</th><th>Liquidation Sensitivity</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Leverage</th>
+                  <th>Risk Level</th>
+                  <th>Liquidation Sensitivity</th>
+                </tr>
+              </thead>
               <tbody>
-                <tr><td>1x – 5x</td><td>Low</td><td>Large move required to liquidate</td></tr>
-                <tr><td>10x – 15x</td><td>Medium</td><td>Moderate move liquidates</td></tr>
-                <tr><td>20x – 30x</td><td>High</td><td>Small adverse move liquidates</td></tr>
-                <tr><td>40x – 50x</td><td>Very High</td><td>Minimal move liquidates</td></tr>
+                <tr>
+                  <td>1x to 5x</td>
+                  <td>Low</td>
+                  <td>Large move required to liquidate</td>
+                </tr>
+                <tr>
+                  <td>10x to 15x</td>
+                  <td>Medium</td>
+                  <td>Moderate move liquidates</td>
+                </tr>
+                <tr>
+                  <td>20x to 30x</td>
+                  <td>High</td>
+                  <td>Small adverse move liquidates</td>
+                </tr>
+                <tr>
+                  <td>40x to 50x</td>
+                  <td>Very High</td>
+                  <td>Minimal move liquidates</td>
+                </tr>
               </tbody>
             </table>
           </Section>
@@ -411,200 +489,232 @@ export default function DocsPage() {
           <Section id="orders" title="Order Types">
             <h3>Market Order</h3>
             <p>
-              Executes immediately at the current oracle price. The position is queued for MPC computation
-              and opened once the Arcium callback is received.
+              A market order executes against the current oracle price. The position is queued for MPC computation and
+              opens once the Arcium callback returns successfully.
             </p>
             <h3>Limit Order</h3>
             <p>
-              Queued client-side and triggered automatically when the market price crosses your specified limit price.
-              Limit orders are stored in your browser and executed via the relay when the condition is met.
+              A limit order is queued in the browser and triggered when the market price crosses your chosen level.
+              When that happens, the relay submits the order for you.
             </p>
             <Note>
-              Limit orders are client-side only in the current prototype — they require the browser tab to be open to trigger.
+              Limit orders currently run in the browser. That means the tab needs to stay open for them to trigger.
             </Note>
           </Section>
 
           <Section id="tp-sl" title="Take Profit / Stop Loss">
-            <p>
-              Each open position supports optional TP and SL rules. These are stored locally and monitored by the client.
-            </p>
+            <p>Each open position can have optional TP and SL rules. These are stored locally and monitored by the client.</p>
             <ul>
-              <li><strong>Take Profit (TP)</strong> — automatically closes the position when price reaches your target.</li>
-              <li><strong>Stop Loss (SL)</strong> — automatically closes the position when price drops to your limit.</li>
+              <li><strong>Take Profit (TP)</strong> | closes the position when price reaches your target.</li>
+              <li><strong>Stop Loss (SL)</strong> | closes the position when price reaches your protection level.</li>
             </ul>
             <p>
-              Set TP/SL directly in the position table or in the trading panel before opening.
-              Use the <Code>Save</Code> button in the position row to persist a rule.
+              You can set TP and SL in the trading panel before opening a position, or edit them later from the
+              position row. Use the <Code>Save</Code> action to keep the rule.
             </p>
             <h3>Validation Rules</h3>
             <ul>
-              <li>For <strong>long</strong> positions: TP must be above entry, SL must be below entry.</li>
-              <li>For <strong>short</strong> positions: TP must be below entry, SL must be above entry.</li>
+              <li>For <strong>long</strong> positions, TP must be above entry and SL must be below entry.</li>
+              <li>For <strong>short</strong> positions, TP must be below entry and SL must be above entry.</li>
               <li>TP and SL must be at least <Code>0.10%</Code> away from entry price.</li>
             </ul>
           </Section>
 
           <Section id="liquidation" title="Liquidation">
             <p>
-              A position is liquidated when its health ratio falls below the maintenance threshold.
-              The health ratio is calculated as:
+              A position is liquidated when its health ratio falls below the maintenance threshold. The health ratio is
+              calculated as:
             </p>
-            <p style={{ fontFamily: "monospace", background: "rgba(255,255,255,0.04)", padding: "12px 16px", borderRadius: "8px", fontSize: "13px" }}>
-              Health = (Equity / Maintenance Margin) × 100%
+            <p
+              style={{
+                fontFamily: "monospace",
+                background: "rgba(255,255,255,0.04)",
+                padding: "12px 16px",
+                borderRadius: "8px",
+                fontSize: "13px",
+              }}
+            >
+              Health = (Equity / Maintenance Margin) x 100%
             </p>
             <ul>
               <li><strong>Maintenance margin</strong>: 5% of position value</li>
-              <li><strong>Liquidation threshold</strong>: 80% health (configurable per market)</li>
-              <li><strong>Liquidation penalty</strong>: 5% to liquidator, remainder returned to trader</li>
+              <li><strong>Liquidation threshold</strong>: 80% health</li>
+              <li><strong>Liquidation penalty</strong>: 5% to the liquidator, with the remainder returned to the trader</li>
             </ul>
             <p>
-              In cross margin mode, your full balance acts as equity. In isolated mode, only the position's
-              allocated margin counts.
+              In cross margin mode, your full balance acts as equity. In isolated mode, only the position's allocated
+              margin counts.
             </p>
             <Note>
-              Liquidation is enforced on-chain via Arcium's confidential compute — the liquidator never
-              sees your plaintext position details.
+              Liquidation is enforced on chain through Arcium's confidential compute, and the liquidator never sees
+              your plaintext position details.
             </Note>
           </Section>
 
           <Section id="faq" title="FAQ">
             <h3>Do I need to keep the browser open?</h3>
             <p>
-              For market orders — no. Once submitted, the relay handles execution.
-              For limit orders and TP/SL automation — yes, these run client-side and require the tab to be open.
+              For market orders, no. Once submitted, the relay handles execution. For limit orders and TP and SL
+              automation, yes. Those flows still run in the browser and need the tab to stay open.
             </p>
 
             <h3>How do I deposit collateral?</h3>
             <p>
-              Click <strong>Manage</strong> in the top bar (or <strong>Deposit</strong> if your balance is zero).
-              You can deposit USDC directly or via a delegated session. Devnet USDC faucet: use the Solana devnet faucet at <Code>spl-token</Code> level.
+              Click <strong>Manage</strong> in the top bar, or <strong>Deposit</strong> if your balance is zero. You
+              can deposit USDC directly or through a delegated session. For devnet testing, use a devnet USDC faucet so
+              the balance matches the configured mint.
             </p>
 
             <h3>Why does my position show "MPC Processing"?</h3>
             <p>
-              The trade was submitted successfully and is waiting for the Arcium MPC cluster to compute and deliver the callback.
-              This typically takes a few seconds on devnet. If it persists, the cluster may be delayed — your collateral remains safe.
+              The trade was submitted successfully and is waiting for the Arcium MPC cluster to compute and return the
+              callback. This usually takes a few seconds on devnet. If it takes longer, the cluster may be delayed, but
+              your collateral remains safe.
             </p>
 
             <h3>Is my data stored anywhere?</h3>
             <p>
-              Position metadata (pair, side, leverage) is stored in your browser's <Code>localStorage</Code> keyed
-              to your wallet address. No personal data is sent to any server other than the relay, which only
+              Position metadata such as pair, side, and leverage is stored in your browser's <Code>localStorage</Code>,
+              keyed to your wallet address. No personal data is sent to any server other than the relay, which only
               receives encrypted trade inputs.
             </p>
 
             <h3>Can I use Shadow on mainnet?</h3>
             <p>
-              Shadow is currently devnet-only. Mainnet launch depends on successful end-to-end validation of
-              the Arcium MPC pipeline and a full audit.
+              Not yet. Shadow is currently devnet only. Mainnet depends on a fully verified open and close flow,
+              stronger operational confidence, and a full audit.
             </p>
           </Section>
 
-          {/* LEGAL */}
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: "24px", paddingTop: "48px" }}>
             <Section id="privacy-policy" title="Privacy Policy">
               <p><em>Effective: March 2026</em></p>
               <h3>Information We Collect</h3>
               <p>
                 Shadow does not require account registration and does not collect personally identifiable information.
-                When you connect a wallet, your public key is used solely to identify your on-chain margin account and
+                When you connect a wallet, your public key is used only to identify your on chain margin account and
                 trading session. We do not store wallet addresses on any server.
               </p>
               <p>
-                The relay server receives encrypted trade inputs (size, price, leverage, direction) and your session
-                authorization signature. These are used only to submit transactions on your behalf and are not logged
-                or retained after the transaction is submitted.
+                The relay server receives encrypted trade inputs and your session authorization signature. These are
+                used only to submit transactions on your behalf and are not retained after submission.
               </p>
-              <h3>Cookies &amp; Local Storage</h3>
+              <h3>Cookies and Local Storage</h3>
               <p>
-                Shadow stores position metadata (pair, side, leverage) and session information in your browser's
-                <Code>localStorage</Code>. This data never leaves your device except as part of relay requests.
-                No third-party tracking cookies are used.
+                Shadow stores position metadata and session information in your browser's <Code>localStorage</Code>.
+                This data stays on your device except when specific relay requests require it. No third party tracking
+                cookies are used.
               </p>
               <h3>Blockchain Data</h3>
               <p>
-                All on-chain transactions are public by nature of the Solana blockchain. Shadow minimizes what is
-                written on-chain — position details are encrypted and only settlement outputs are recorded.
-                Collateral deposits and withdrawals involve public USDC token transfers.
+                Solana transactions are public by nature. Shadow minimizes what is written on chain by keeping position
+                details encrypted and recording only settlement outputs. Collateral deposits and withdrawals still
+                involve public USDC transfers.
               </p>
-              <h3>Third-Party Services</h3>
+              <h3>Third Party Services</h3>
               <p>
-                Shadow uses Coinbase and Binance public APIs for reference price data. No user data is sent to
-                these services. Arcium's MPC infrastructure processes encrypted trade inputs — individual nodes
-                never have access to plaintext data.
+                Shadow uses public APIs such as Coinbase and Binance for reference price data. No user data is sent to
+                these services. Arcium processes encrypted trade inputs, and individual nodes do not get access to the
+                plaintext data.
               </p>
               <h3>Contact</h3>
               <p>
-                Questions about privacy? Reach out via <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa" }}>@emperoar007</a> on X.
+                Questions about privacy can be sent to{" "}
+                <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa" }}>
+                  @emperoar007
+                </a>
+                {" "}on X.
               </p>
             </Section>
 
             <Section id="terms" title="Terms of Use">
               <p><em>Effective: March 2026</em></p>
               <h3>Acceptance</h3>
-              <p>
-                By accessing Shadow you agree to these terms. If you do not agree, do not use the platform.
-              </p>
+              <p>By accessing Shadow, you agree to these terms. If you do not agree, please do not use the platform.</p>
               <h3>Prototype Status</h3>
               <p>
-                Shadow is an experimental prototype deployed on Solana Devnet. All balances are test funds with no
-                real monetary value. Do not send real assets to devnet addresses.
+                Shadow is an experimental prototype deployed on Solana Devnet. All balances are test funds with no real
+                monetary value. Do not send real assets to devnet addresses.
               </p>
               <h3>No Financial Advice</h3>
               <p>
-                Nothing on Shadow constitutes financial, investment, or trading advice. Perpetual futures carry
-                significant risk of loss. You are solely responsible for your trading decisions.
+                Nothing on Shadow is financial, investment, or trading advice. Perpetual futures carry meaningful risk.
+                You are responsible for your own trading decisions.
               </p>
               <h3>Prohibited Use</h3>
               <ul>
-                <li>Using Shadow to launder funds or circumvent financial regulations</li>
-                <li>Attempting to exploit, manipulate, or attack the protocol</li>
+                <li>Using Shadow to launder funds or bypass financial regulation</li>
+                <li>Trying to exploit, manipulate, or attack the protocol</li>
                 <li>Reverse engineering the encrypted computation system</li>
-                <li>Accessing Shadow from jurisdictions where such services are prohibited</li>
+                <li>Accessing Shadow from jurisdictions where this type of service is prohibited</li>
               </ul>
               <h3>Limitation of Liability</h3>
               <p>
-                Shadow is provided "as is" without warranty. The developers are not liable for any loss of funds,
-                data, or opportunity arising from use of the platform, including smart contract bugs, MPC failures,
-                or network disruptions.
+                Shadow is provided "as is" without warranty. The developers are not liable for loss of funds, data, or
+                opportunity arising from use of the platform, including smart contract bugs, MPC failures, or network
+                disruptions.
               </p>
               <h3>Changes</h3>
-              <p>
-                These terms may be updated at any time. Continued use after changes constitutes acceptance.
-              </p>
+              <p>These terms may be updated over time. Continued use after changes means you accept the revised terms.</p>
             </Section>
 
             <Section id="cookies" title="Cookie Policy">
               <p><em>Effective: March 2026</em></p>
               <h3>What We Use</h3>
               <p>Shadow does not use traditional HTTP cookies for tracking or analytics.</p>
-              <p>We use browser <Code>localStorage</Code> for the following functional purposes:</p>
+              <p>We do use browser <Code>localStorage</Code> for a few practical product features:</p>
               <table className="docs-table">
-                <thead><tr><th>Key</th><th>Purpose</th><th>Expires</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Purpose</th>
+                    <th>Expires</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  <tr><td><Code>shadow-theme</Code></td><td>Light/dark mode preference</td><td>Persistent</td></tr>
-                  <tr><td><Code>shadowperp.relay.session.v1</Code></td><td>Active trading session info</td><td>Session expiry</td></tr>
-                  <tr><td><Code>shadowperp:positions:*</Code></td><td>Position metadata (pair, side, leverage)</td><td>Persistent</td></tr>
-                  <tr><td><Code>shadowperp:ui:margin-mode:*</Code></td><td>Margin mode preference per wallet</td><td>Persistent</td></tr>
-                  <tr><td><Code>shadowperp:automation:*</Code></td><td>Limit orders and TP/SL rules</td><td>Persistent</td></tr>
+                  <tr>
+                    <td><Code>shadow-theme</Code></td>
+                    <td>Light or dark mode preference</td>
+                    <td>Persistent</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp.relay.session.v1</Code></td>
+                    <td>Active trading session info</td>
+                    <td>Session expiry</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp:positions:*</Code></td>
+                    <td>Position metadata such as pair, side, and leverage</td>
+                    <td>Persistent</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp:ui:margin-mode:*</Code></td>
+                    <td>Margin mode preference per wallet</td>
+                    <td>Persistent</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp:automation:*</Code></td>
+                    <td>Limit orders and TP or SL rules</td>
+                    <td>Persistent</td>
+                  </tr>
                 </tbody>
               </table>
-              <h3>Third-Party Cookies</h3>
+              <h3>Third Party Cookies</h3>
               <p>
-                No third-party analytics, advertising, or tracking cookies are used.
-                External APIs (Coinbase, Binance) may set their own cookies if accessed directly,
-                but Shadow only uses their public REST endpoints server-side.
+                No third party analytics, advertising, or tracking cookies are used. External APIs may set their own
+                cookies if you visit them directly, but Shadow itself only uses their public endpoints on the server
+                side.
               </p>
               <h3>Clearing Your Data</h3>
               <p>
-                You can clear all Shadow local data by opening your browser's developer tools and clearing
-                <Code>localStorage</Code> for the Shadow domain, or by using your browser's "Clear site data" option.
+                You can clear all Shadow local data through your browser developer tools by clearing{" "}
+                <Code>localStorage</Code> for the Shadow domain, or by using your browser's clear site data option.
               </p>
             </Section>
           </div>
 
           <Link href="/" className="docs-back">
-            ← Back to homepage
+            Back to homepage
           </Link>
         </main>
       </div>

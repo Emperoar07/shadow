@@ -7,6 +7,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import SettingsPanel, { useVisibility, useLayoutLocked } from "../components/layout/SettingsPanel";
 import { useTradingSettings } from "../hooks/useTradingSettings";
+import ShadowLoader from "../components/ShadowLoader";
 import MarketInfo from "../components/MarketInfo";
 import PrivateOrderbook from "../components/PrivateOrderbook";
 import TradingPanel from "../components/TradingPanel";
@@ -25,7 +26,7 @@ const NeuralShadowBackground = dynamic(
 );
 const BottomPositionsPanel = dynamic(
   () => import("../components/BottomPositionsPanel"),
-  { ssr: false }
+  { ssr: false, loading: () => <ShadowLoader size="sm" message="Loading positions..." /> }
 );
 const WalletMultiButton = dynamic(
   () =>
@@ -36,10 +37,11 @@ const WalletMultiButton = dynamic(
 );
 const PriceChart = dynamic(() => import("../components/PriceChart"), {
   ssr: false,
+  loading: () => <ShadowLoader size="sm" message="Loading chart..." />,
 });
 const TerminalGrid = dynamic(
   () => import("../components/layout/TerminalGrid"),
-  { ssr: false }
+  { ssr: false, loading: () => <ShadowLoader size="lg" message="Initializing terminal..." /> }
 );
 
 function FaucetsDropdown() {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
+import ShadowLoader from "../components/ShadowLoader";
 
 function detectLightTheme(): boolean {
   if (typeof window === "undefined") return false;
@@ -19,6 +20,13 @@ export default function LandingPage() {
   const orb4Ref = useRef<HTMLDivElement>(null);
   const decryptRef = useRef<HTMLSpanElement>(null);
   const [isLight, setIsLight] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  // ── Intro loader ─────────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 1800);
+    return () => clearTimeout(t);
+  }, []);
 
   // ── Theme init ────────────────────────────────────────────────
   useEffect(() => {
@@ -200,6 +208,19 @@ export default function LandingPage() {
       });
     };
   }, []);
+
+  if (!ready) {
+    return (
+      <>
+        <Head>
+          <title>Shadow | Private Perpetual Exchange</title>
+          <meta name="description" content="A fully confidential perpetual exchange on Solana, powered by Arcium." />
+          <link rel="icon" href="/favicon.ico" />
+        </Head>
+        <ShadowLoader fullScreen size="lg" message="Initializing Shadow..." />
+      </>
+    );
+  }
 
   return (
     <>

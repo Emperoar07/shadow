@@ -773,12 +773,12 @@ export default function BottomPositionsPanel({
                         <div className="flex items-center justify-end gap-1">
                           <div className="relative">
                             <input type="number" value={draft.takeProfit} onChange={(e) => updateRuleDraft(pos.address, "takeProfit", e.target.value)}
-                              placeholder="TP" className="w-[60px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 pr-5 text-[10px] text-white text-right focus:border-cyan-400/50 focus:outline-none" />
+                              className="w-[60px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 pr-5 text-[10px] text-white text-right focus:border-cyan-400/50 focus:outline-none" />
                             <span className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[9px] font-bold text-cyan-300">TP</span>
                           </div>
                           <div className="relative">
                             <input type="number" value={draft.stopLoss} onChange={(e) => updateRuleDraft(pos.address, "stopLoss", e.target.value)}
-                              placeholder="SL" className="w-[60px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 pr-5 text-[10px] text-white text-right focus:border-accent-red/50 focus:outline-none" />
+                              className="w-[60px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 pr-5 text-[10px] text-white text-right focus:border-accent-red/50 focus:outline-none" />
                             <span className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[9px] font-bold text-accent-red">SL</span>
                           </div>
                           <button onClick={() => saveRule(pos.address)}

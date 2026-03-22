@@ -20,6 +20,20 @@ module.exports = {
           red: '#ef4444',
         }
       },
+      keyframes: {
+        stackReveal1: {
+          '0%, 100%': { opacity: '0', transform: 'translateY(10px)' },
+          '20%, 80%': { opacity: '0.4', transform: 'translateY(0)' },
+        },
+        stackReveal2: {
+          '0%, 15%, 100%': { opacity: '0', transform: 'translateY(10px)' },
+          '35%, 80%': { opacity: '0.65', transform: 'translateY(0)' },
+        },
+        stackReveal3: {
+          '0%, 30%, 100%': { opacity: '0', transform: 'translateY(10px)' },
+          '50%, 80%': { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
     },
   },
   plugins: [],
