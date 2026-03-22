@@ -29,7 +29,7 @@ export default function PriceChart({
   const iframeSrc = useMemo(() => {
     const params = new URLSearchParams({
       symbol: chartSymbol,
-      interval: "15",
+      interval: "1",
       theme: tvTheme,
       style: "1",
       toolbarbg: tvTheme === "light" ? "#f8f9fc" : "#0a0f1f",

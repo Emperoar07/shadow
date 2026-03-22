@@ -355,7 +355,7 @@ async function fetchReferenceDepth(pairLabel: string): Promise<ReferenceDepthSna
   if (!pair) return null;
 
   const providers = getReferenceProviders(pair);
-  for (const provider of providers) {
+  const tasks = providers.map(async (provider) => {
     let snapshot: ReferenceDepthSnapshot | null = null;
     if (provider.provider === "coinbase") snapshot = await fetchCoinbase(pairLabel, provider);
     if (provider.provider === "binance") snapshot = await fetchBinance(pairLabel, provider);
@@ -363,10 +363,17 @@ async function fetchReferenceDepth(pairLabel: string): Promise<ReferenceDepthSna
     if (provider.provider === "mexc") snapshot = await fetchMexc(pairLabel, provider);
     if (provider.provider === "gateio") snapshot = await fetchGateIo(pairLabel, provider);
     if (provider.provider === "kraken") snapshot = await fetchKraken(pairLabel, provider);
-    if (snapshot) return snapshot;
-  }
+    if (!snapshot) {
+      throw new Error(`No depth from ${provider.provider}:${provider.symbol}`);
+    }
+    return snapshot;
+  });
 
-  return null;
+  try {
+    return await Promise.any(tasks);
+  } catch {
+    return null;
+  }
 }
 
 export default async function handler(
@@ -389,6 +396,11 @@ export default async function handler(
 
   const snapshot = await fetchReferenceDepth(pairLabel);
   if (!snapshot) {
+    if (cached) {
+      res.setHeader("Cache-Control", "private, max-age=1, stale-while-revalidate=30");
+      res.status(200).json(cached.payload);
+      return;
+    }
     res.status(502).json({ error: "Reference depth unavailable", fetchedAt: now });
     return;
   }

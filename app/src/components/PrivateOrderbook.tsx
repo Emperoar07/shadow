@@ -43,6 +43,7 @@ export default function PrivateOrderbook({
   const [internalTab, setInternalTab] = useState<"book" | "trades">("book");
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [groupingOpen, setGroupingOpen] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const groupingRef = useRef<HTMLDivElement>(null);
 
   const activePair = pair ?? TRADING_PAIRS[0];
@@ -80,6 +81,11 @@ export default function PrivateOrderbook({
   }, []);
 
   useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
     if (marketSnapshot?.depthSnapshot) {
       setFetchError(null);
       return;
@@ -108,6 +114,9 @@ export default function PrivateOrderbook({
     12
   );
   const trades = snapshot?.trades ?? [];
+  const ageMs = snapshot ? Math.max(0, nowMs - snapshot.fetchedAt) : null;
+  const ageSeconds = ageMs !== null ? Math.floor(ageMs / 1000) : null;
+  const isFresh = ageMs !== null && ageMs < 10_000;
 
   return (
     <div className={`trade-orderbook flex flex-col bg-shadow-900 h-full ${className}`}>
@@ -135,7 +144,20 @@ export default function PrivateOrderbook({
           ))}
         </div>
         <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.08em] text-gray-500">
-          {snapshot ? <span className="text-gray-500">Live</span> : <span>Loading</span>}
+          {snapshot ? (
+            <span className={`inline-flex items-center gap-1 ${isFresh ? "text-emerald-400/90" : "text-yellow-300/90"}`}>
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${isFresh ? "bg-emerald-400" : "bg-yellow-300"}`}
+                style={{
+                  animation: isFresh ? "pulse-dot 2s ease-in-out infinite" : undefined,
+                }}
+              />
+              <span>{isFresh ? "Live" : "Refreshing"}</span>
+              {ageSeconds !== null && <span className="text-gray-500">{ageSeconds}s</span>}
+            </span>
+          ) : (
+            <span>Loading</span>
+          )}
         </div>
       </div>
 

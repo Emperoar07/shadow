@@ -100,11 +100,13 @@ export function useMarketSnapshot(pair: TradingPair, refreshMs = 4_000) {
         if (cancelled) return;
 
         const livePrice = livePrices?.[pair.label];
-        setSnapshot(buildSnapshot(pair, livePrice, depthSnapshot));
+        setSnapshot((prev) =>
+          buildSnapshot(pair, livePrice, depthSnapshot ?? prev.depthSnapshot)
+        );
         setError(null);
       } catch (loadError: any) {
         if (cancelled) return;
-        setSnapshot(buildSnapshot(pair, undefined, null));
+        setSnapshot((prev) => buildSnapshot(pair, undefined, prev.depthSnapshot));
         setError(
           typeof loadError?.message === "string"
             ? loadError.message

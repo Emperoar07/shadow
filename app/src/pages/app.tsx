@@ -130,7 +130,7 @@ export default function TradingAppPage() {
   const [openCollateralModal, setOpenCollateralModal] = useState<(() => void) | null>(null);
   const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book" | "trades">("chart");
   const resetLayoutRef = useRef<(() => void) | null>(null);
-  const { snapshot: marketSnapshot } = useMarketSnapshot(selectedPair);
+  const { snapshot: marketSnapshot } = useMarketSnapshot(selectedPair, 3_000);
   const { visibility: panelVisibility, update: updateVisibility } = useVisibility();
   const { locked: layoutLocked, toggle: toggleLayoutLock } = useLayoutLocked();
   const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
