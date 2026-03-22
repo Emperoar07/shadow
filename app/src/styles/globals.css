@@ -262,10 +262,10 @@ input[type="range"]::-webkit-slider-thumb:active {
 
 /* LIGHT MODE */
 html.light body {
-  background: #f8f9fc;
+  background: #eef2f7;
   color: #0f172a;
   --foreground-rgb: 15, 23, 42;
-  --background-rgb: 248, 249, 252;
+  --background-rgb: 238, 242, 247;
 }
 
 html.light ::-webkit-scrollbar-track {
@@ -277,7 +277,7 @@ html.light ::-webkit-scrollbar-thumb {
 }
 
 html.light .gradient-bg {
-  background: #f8f9fc;
+  background: linear-gradient(180deg, #eef2f7 0%, #e8edf5 100%);
   animation: none;
 }
 
@@ -299,20 +299,53 @@ html.light .trade-trading-panel,
 html.light .trade-orderbook,
 html.light .trade-bottom-panel,
 html.light footer {
-  background-color: #ffffff !important;
+  background-color: #f7f9fc !important;
 }
 
 html.light .trade-market-bar,
 html.light .trade-portfolio-inner {
-  background-color: #f8f9fc !important;
+  background-color: #f1f4fa !important;
 }
 
 html.light .trade-main {
-  background-color: #f8f9fc;
+  background-color: #eef2f7;
 }
 
 html.light .trade-header {
   backdrop-filter: blur(10px);
+}
+
+html.light .trade-header-control {
+  background: rgba(241, 244, 250, 0.96) !important;
+  border-color: rgba(203, 213, 225, 0.9) !important;
+  color: #475569 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+html.light .trade-header-control:hover {
+  background: rgba(233, 237, 245, 0.98) !important;
+  border-color: rgba(148, 163, 184, 0.85) !important;
+  color: #334155 !important;
+}
+
+html.light .trade-header-control svg {
+  color: #64748b !important;
+}
+
+html.light .trade-header-popover {
+  background: #f8fafc !important;
+  border-color: #d8dce8 !important;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12) !important;
+}
+
+html.light .trade-header-popover .border-shadow-600,
+html.light .trade-header-popover .border-shadow-500 {
+  border-color: #d8dce8 !important;
+}
+
+html.light .trade-header-popover .hover\:bg-shadow-700\/60:hover,
+html.light .trade-header-popover .hover\:bg-shadow-700\/50:hover {
+  background-color: #eef2f7 !important;
 }
 
 html.light .trade-terminal-grid {
@@ -320,39 +353,39 @@ html.light .trade-terminal-grid {
 }
 
 html.light .trade-price-chart-toolbar {
-  background: #f8f9fc;
+  background: #eef2f7;
 }
 
 html.light .trade-price-chart .bg-shadow-700 {
-  background-color: #eef1f7 !important;
+  background-color: #e9edf5 !important;
 }
 
 html.light .trade-price-chart .bg-shadow-800 {
-  background-color: #ffffff !important;
+  background-color: #f7f9fc !important;
 }
 
 html.light .bg-shadow-900 {
-  background-color: #f8f9fc !important;
+  background-color: #eef2f7 !important;
 }
 
 html.light .bg-shadow-800 {
-  background-color: #ffffff !important;
+  background-color: #f7f9fc !important;
 }
 
 html.light .bg-shadow-700 {
-  background-color: #f1f3f9 !important;
+  background-color: #e9edf5 !important;
 }
 
 html.light .bg-shadow-600 {
-  background-color: #e8ebf4 !important;
+  background-color: #e1e7f0 !important;
 }
 
 html.light .bg-shadow-600\/50 {
-  background-color: rgba(232, 235, 244, 0.75) !important;
+  background-color: rgba(225, 231, 240, 0.78) !important;
 }
 
 html.light .bg-shadow-800\/90 {
-  background-color: rgba(255, 255, 255, 0.9) !important;
+  background-color: rgba(247, 249, 252, 0.94) !important;
 }
 
 html.light .border-shadow-600,

@@ -207,14 +207,14 @@ export default function SettingsPanel({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center justify-center border border-shadow-500/50 bg-shadow-800/80 w-8 h-8 text-gray-400 transition-all hover:text-gray-200 hover:border-shadow-400/60 hover:bg-shadow-700/80"
+        className="trade-header-control inline-flex items-center justify-center border border-shadow-500/50 bg-shadow-800/80 w-8 h-8 text-gray-400 transition-all hover:text-gray-200 hover:border-shadow-400/60 hover:bg-shadow-700/80"
         title="Settings"
       >
         <Settings className="w-4 h-4" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-72 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400]">
+        <div className="trade-header-popover absolute right-0 top-full mt-2 w-72 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400]">
           {/* Tabs */}
           <div className="flex border-b border-shadow-600">
             {(["trading", "layout", "style"] as const).map((t) => (

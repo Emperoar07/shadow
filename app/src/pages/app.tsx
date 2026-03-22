@@ -59,7 +59,7 @@ function FaucetsDropdown() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1 border border-shadow-500/50 bg-shadow-800/80 px-3 py-1.5 text-[11px] font-medium text-gray-400 transition-all hover:text-gray-200 hover:border-shadow-400/60 hover:bg-shadow-700/80"
+        className="trade-header-control inline-flex items-center gap-1 border border-shadow-500/50 bg-shadow-800/80 px-3 py-1.5 text-[11px] font-medium text-gray-400 transition-all hover:text-gray-200 hover:border-shadow-400/60 hover:bg-shadow-700/80"
       >
         Faucets
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`text-gray-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
@@ -67,7 +67,7 @@ function FaucetsDropdown() {
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-44 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] py-1">
+        <div className="trade-header-popover absolute right-0 top-full mt-2 w-44 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] py-1">
           <a
             href="https://faucet.solana.com/"
             target="_blank"
