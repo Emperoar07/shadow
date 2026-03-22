@@ -385,13 +385,13 @@ export default function CollateralModal({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ${
+      className={`fixed inset-x-0 bottom-0 top-24 sm:top-20 z-[300] flex items-center justify-center overflow-y-auto p-4 transition-all duration-300 ${
         visible ? "bg-black/60 backdrop-blur-sm" : "bg-black/0"
       }`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className={`collateral-modal-panel w-full max-w-sm mx-4 rounded-2xl border border-shadow-500 overflow-hidden transition-all duration-300 ${
+        className={`collateral-modal-panel w-full max-w-sm rounded-2xl border border-shadow-500 overflow-hidden transition-all duration-300 ${
           visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"
         }`}
         style={{ background: "linear-gradient(135deg, #1a1a25 0%, #12121a 100%)" }}
