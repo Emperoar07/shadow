@@ -385,7 +385,7 @@ export default function CollateralModal({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ${
+      className={`fixed inset-0 z-[500] flex items-center justify-center overflow-y-auto p-4 transition-all duration-300 ${
         visible ? "bg-black/60 backdrop-blur-sm" : "bg-black/0"
       }`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
