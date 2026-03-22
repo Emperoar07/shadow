@@ -128,7 +128,7 @@ export default function TradingAppPage() {
   const [selectedPair, setSelectedPair] = useState<TradingPair>(TRADING_PAIRS[0]);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [openCollateralModal, setOpenCollateralModal] = useState<(() => void) | null>(null);
-  const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book" | "trades">("chart");
+  const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book">("chart");
   const resetLayoutRef = useRef<(() => void) | null>(null);
   const { snapshot: marketSnapshot } = useMarketSnapshot(selectedPair, 3_000);
   const { visibility: panelVisibility, update: updateVisibility } = useVisibility();
@@ -270,7 +270,6 @@ export default function TradingAppPage() {
                 {([
                   ["chart", "Chart"],
                   ["book", "Order Book"],
-                  ["trades", "Trades"],
                 ] as const).map(([tab, label]) => (
                   <button
                     key={tab}
@@ -293,19 +292,13 @@ export default function TradingAppPage() {
                     <div className={`min-w-0 min-h-0 ${mobileMarketTab === "chart" ? "block" : "hidden"}`}>
                       <PriceChart selectedPair={selectedPair} chartSymbol={marketSnapshot.chartSymbol} />
                     </div>
-                    <div className={`min-h-0 ${mobileMarketTab === "book" || mobileMarketTab === "trades" ? "block" : "hidden"}`}>
+                    <div className={`min-h-0 ${mobileMarketTab === "book" ? "block" : "hidden"}`}>
                       <PrivateOrderbook
                         pair={selectedPair}
                         marketSnapshot={marketSnapshot}
-                        activeTab={mobileMarketTab === "trades" ? "trades" : "book"}
-                        onTabChange={(tab) => setMobileMarketTab(tab)}
                       />
                     </div>
                   </div>
-                </div>
-
-                <div className="h-full w-full shrink-0 min-h-0 overflow-y-auto border border-shadow-600 bg-shadow-900">
-                  <TradingPanel pair={selectedPair} layout="vertical" />
                 </div>
               </div>
             </div>

@@ -175,6 +175,7 @@ export default function SettingsPanel({
   const ts = tradingSettings ?? TRADING_DEFAULTS;
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"trading" | "layout" | "style">("trading");
+  const [isDesktop, setIsDesktop] = useState(false);
   const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const { visibility, update, isVisible } = useVisibility();
@@ -195,6 +196,19 @@ export default function SettingsPanel({
     return () => setMounted(false);
   }, []);
 
+  useEffect(() => {
+    const updateViewport = () => setIsDesktop(window.innerWidth >= 1024);
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktop && tab === "layout") {
+      setTab("trading");
+    }
+  }, [isDesktop, tab]);
+
   const togglePanel = (key: string) => {
     const next = { ...visibility, [key]: !isVisible(key) };
     update(next);
@@ -210,10 +224,14 @@ export default function SettingsPanel({
     setOpen(false);
   };
 
+  const availableTabs = (["trading", "layout", "style"] as const).filter(
+    (nextTab) => isDesktop || nextTab !== "layout"
+  );
+
   const panelContent = (
     <>
       <div className="flex border-b border-shadow-600">
-        {(["trading", "layout", "style"] as const).map((t) => (
+        {availableTabs.map((t) => (
           <button
             key={t}
             type="button"
@@ -289,7 +307,7 @@ export default function SettingsPanel({
         </div>
       )}
 
-      {tab === "layout" && (
+      {isDesktop && tab === "layout" && (
         <div className="p-3">
           <button
             type="button"
