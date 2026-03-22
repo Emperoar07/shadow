@@ -125,7 +125,7 @@ export default function TradingAppPage() {
         />
       </Head>
 
-      <div className="relative h-screen gradient-bg overflow-hidden trade-shell">
+      <div className="relative min-h-screen gradient-bg overflow-hidden trade-shell">
         <style jsx>{`
           @keyframes header-logo-glow {
             0%, 100% { filter: drop-shadow(0 0 10px rgba(109, 82, 255, 0.32)); }
@@ -135,10 +135,10 @@ export default function TradingAppPage() {
         `}</style>
         <NeuralShadowBackground />
 
-        <div className="relative z-10 flex h-screen flex-col overflow-hidden">
+        <div className="relative z-10 flex min-h-screen flex-col">
 
           {/* ── Header ── */}
-          <header className="trade-header border-b border-shadow-600 shrink-0 bg-shadow-900 relative z-[200]">
+          <header className="trade-header sticky top-0 border-b border-shadow-600 shrink-0 bg-shadow-900 relative z-[200]">
             <div className="max-w-[1600px] mx-auto px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center justify-between gap-3 sm:justify-start">
                 <Link
@@ -174,7 +174,7 @@ export default function TradingAppPage() {
           </header>
 
           {/* ── Terminal body ── */}
-          <main className="trade-main flex-1 max-w-[1600px] w-full mx-auto flex flex-col min-h-0 overflow-y-auto lg:overflow-hidden">
+          <main className="trade-main flex-1 max-w-[1600px] w-full mx-auto flex flex-col min-h-0">
 
             {/* Mobile: market info bar (always visible) */}
             <div className="lg:hidden">
@@ -288,7 +288,7 @@ export default function TradingAppPage() {
           </main>
 
           {/* ── Footer ── */}
-          <footer className="border-t border-shadow-600 shrink-0">
+          <footer className="sticky bottom-0 border-t border-shadow-600 shrink-0 bg-shadow-900 relative z-[190]">
             <div className="max-w-[1600px] mx-auto px-4 py-4 flex flex-col gap-2 text-center text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between sm:text-left">
               <p>
                 Powered by{" "}
