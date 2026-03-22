@@ -24,7 +24,7 @@ export interface MarketFeedConfig {
 }
 
 const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
-  "SOL-PERP": {
+  "SOL-USD": {
     primaryChartSymbol: "BINANCE:SOLUSDT",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "coinbase",
@@ -36,7 +36,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "bybit", symbol: "SOLUSDT", quoteSymbol: "USDT" },
     ],
   },
-  "WIF-PERP": {
+  "WIF-USD": {
     primaryChartSymbol: "BINANCE:WIFUSDT",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "bybit",
@@ -48,7 +48,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "mexc", symbol: "WIFUSDT", quoteSymbol: "USDT" },
     ],
   },
-  "JUP-PERP": {
+  "JUP-USD": {
     primaryChartSymbol: "BYBIT:JUPUSDT",
     primaryDepthProvider: "bybit",
     secondaryDepthProvider: "mexc",
@@ -60,7 +60,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "gateio", symbol: "JUP_USDT", quoteSymbol: "USDT" },
     ],
   },
-  "BTC-PERP": {
+  "BTC-USD": {
     primaryChartSymbol: "BINANCE:BTCUSDT",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "coinbase",
@@ -72,7 +72,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "bybit", symbol: "BTCUSDT", quoteSymbol: "USDT" },
     ],
   },
-  "ETH-PERP": {
+  "ETH-USD": {
     primaryChartSymbol: "BINANCE:ETHUSDT",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "coinbase",
@@ -84,7 +84,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "bybit", symbol: "ETHUSDT", quoteSymbol: "USDT" },
     ],
   },
-  "PYTH-PERP": {
+  "PYTH-USD": {
     primaryChartSymbol: "BYBIT:PYTHUSDT",
     primaryDepthProvider: "bybit",
     secondaryDepthProvider: "mexc",
@@ -96,7 +96,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "gateio", symbol: "PYTH_USDT", quoteSymbol: "USDT" },
     ],
   },
-  "RAY-PERP": {
+  "RAY-USD": {
     primaryChartSymbol: "BINANCE:RAYUSDT",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "gateio",
@@ -108,7 +108,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "mexc", symbol: "RAYUSDT", quoteSymbol: "USDT" },
     ],
   },
-  "ORCA-PERP": {
+  "ORCA-USD": {
     primaryChartSymbol: "MEXC:ORCAUSDT",
     primaryDepthProvider: "mexc",
     secondaryDepthProvider: "gateio",
@@ -119,7 +119,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "gateio", symbol: "ORCA_USDT", quoteSymbol: "USDT" },
     ],
   },
-  "W-PERP": {
+  "W-USD": {
     primaryChartSymbol: "BINANCE:WUSDT",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "bybit",
@@ -131,7 +131,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "mexc", symbol: "WUSDT", quoteSymbol: "USDT" },
     ],
   },
-  "JTO-PERP": {
+  "JTO-USD": {
     primaryChartSymbol: "BYBIT:JTOUSDT",
     primaryDepthProvider: "bybit",
     secondaryDepthProvider: "mexc",
@@ -143,7 +143,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "gateio", symbol: "JTO_USDT", quoteSymbol: "USDT" },
     ],
   },
-  "RENDER-PERP": {
+  "RENDER-USD": {
     primaryChartSymbol: "BINANCE:RENDERUSDT",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "gateio",

@@ -69,7 +69,7 @@ export default function MarketTickerBar({ activePair, onSelect }: MarketTickerBa
                 }`}
               >
                 {pair.base.symbol}
-                <span className="text-gray-500 font-normal">-PERP</span>
+                <span className="text-gray-500 font-normal">-USD</span>
               </span>
 
               {/* Price */}
