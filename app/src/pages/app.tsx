@@ -168,14 +168,14 @@ export default function TradingAppPage() {
         <div className="relative z-10 flex min-h-screen flex-col">
 
           {/* ── Header ── */}
-          <header className="trade-header sticky top-0 border-b border-shadow-600 shrink-0 bg-shadow-900 relative z-[200]">
-            <div className="max-w-[1600px] mx-auto px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <header className="trade-header sticky top-0 border-b border-shadow-600 shrink-0 bg-shadow-900 z-[200]">
+            <div className="max-w-[1600px] mx-auto px-3 py-1.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center justify-between gap-3 sm:justify-start">
                 <Link
                   href="/"
                   className="flex items-center gap-1 text-xl font-bold bg-gradient-to-r from-accent-purple to-accent-blue bg-clip-text text-transparent"
                 >
-                  <ShadowLogo className="h-14 w-14 shrink-0 header-logo-animate" />
+                  <ShadowLogo className="h-11 w-11 shrink-0 header-logo-animate" />
                   <span className="text-lg font-extrabold tracking-wide bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">SHADOW</span>
                 </Link>
                 <NetworkIndicator mode="network" />
