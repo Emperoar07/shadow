@@ -675,6 +675,7 @@ export default function LandingPage() {
             <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">MEV Resistant</div><p className="lp-feat-desc">Encrypted order flow eliminates exploitable signal. No sandwich attacks, no front running, no information leakage from pending orders.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Arcium MPC</div><p className="lp-feat-desc">Every trade is validated through Arcium&apos;s Multi Party Computation network with replay hardened callbacks. No single node sees your inputs. Only the verified outcome reaches the chain.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Pyth Oracle Feeds</div><p className="lp-feat-desc">Price data sourced from Pyth Network with fallback aggregation from Coinbase and Binance. Staleness checks and circuit breakers protect against oracle manipulation.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Shielded Collateral</div><p className="lp-feat-desc">Deposit into a private commitment pool. Internal balances, margin allocation, and the link between deposits and trading activity are hidden behind a nullifier-based Merkle system.</p></div>
           </div>
         </div>
 

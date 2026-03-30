@@ -165,11 +165,13 @@ ShadowPerp is deployed on Solana Devnet as an active prototype.
 - External reference orderbook data (Coinbase primary, Binance fallback)
 - Pyth oracle integration with `update-oracle-pyth.ts`
 - Custom named RPC endpoint manager (up to 5, saved to localStorage)
-- Security hardened program: zombie position prevention, correct rent reclaim targets, computation offset validation
+- Security hardened program: zombie position prevention, correct rent reclaim targets, computation offset validation on all queue handlers
+- Shielded collateral pool: `deposit_to_shielded`, `request_withdraw_private`, `finalize_withdraw` deployed and active on devnet
+- Shielded collateral state: commitment Merkle tree, nullifier set, pending withdrawal with time-delay, shielded margin ref
 
 **In progress:**
 
-- Shielded collateral circuits for private margin lock/release transitions
+- Private margin lock and settle via Arcium MPC (`lock_margin_private`, `settle_private_position` — circuits built, on-chain wiring complete, circuit integration pending)
 - Commitment tree hashing (placeholder XOR fold pending SHA256/Poseidon integration)
 
 ## References

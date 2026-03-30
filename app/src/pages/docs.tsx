@@ -597,8 +597,9 @@ export default function DocsPage() {
               <li>Timestamps of transactions</li>
             </ul>
             <Note>
-              Shielded collateral is currently in development and not yet active on devnet. The public deposit and
-              withdrawal path continues to work as before.
+              Shielded collateral deposit, withdrawal request, and finalization are deployed on devnet. Private margin
+              lock and settle transitions are in progress — the Arcium MPC circuits are built and the on-chain wiring is
+              in place, pending final circuit integration.
             </Note>
           </Section>
 
