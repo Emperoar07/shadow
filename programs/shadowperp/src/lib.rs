@@ -13,6 +13,10 @@ use handlers::init_comp_defs::__client_accounts_init_close_position_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_liquidation_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_open_position_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_seed_open_interest_comp_def;
+#[cfg(feature = "shielded-collateral")]
+use handlers::init_comp_defs::__client_accounts_init_lock_margin_private_comp_def;
+#[cfg(feature = "shielded-collateral")]
+use handlers::init_comp_defs::__client_accounts_init_settle_private_position_comp_def;
 use handlers::initialize::__client_accounts_initialize;
 use handlers::open_position::__client_accounts_open_position;
 use handlers::private_orders::__client_accounts_add_private_order;
@@ -29,6 +33,8 @@ use handlers::settle_liquidation::__client_accounts_settle_liquidation;
 use handlers::sync_comp_defs::__client_accounts_sync_comp_defs;
 use handlers::update_mxe_cluster::__client_accounts_update_mxe_cluster;
 use handlers::update_price::__client_accounts_update_price;
+use handlers::update_price::__client_accounts_update_price_from_pyth;
+use handlers::update_price::__client_accounts_set_pyth_feed_id;
 use handlers::withdraw_collateral::__client_accounts_withdraw_collateral;
 use handlers::callbacks::__client_accounts_check_liquidation_callback;
 use handlers::callbacks::__client_accounts_close_position_v2_callback;
@@ -38,6 +44,22 @@ use handlers::callbacks::__client_accounts_seed_open_interest_state_v3_callback;
 use handlers::shielded_collateral::__client_accounts_set_shielded_collateral_feature;
 #[cfg(feature = "shielded-collateral")]
 use handlers::shielded_collateral::__client_accounts_init_shielded_pool;
+#[cfg(feature = "shielded-collateral")]
+use handlers::shielded_collateral::__client_accounts_deposit_to_shielded;
+#[cfg(feature = "shielded-collateral")]
+use handlers::shielded_collateral::__client_accounts_request_withdraw_private;
+#[cfg(feature = "shielded-collateral")]
+use handlers::shielded_collateral::__client_accounts_finalize_withdraw;
+#[cfg(feature = "shielded-collateral")]
+use handlers::shielded_collateral::__client_accounts_init_shielded_margin_ref;
+#[cfg(feature = "shielded-collateral")]
+use handlers::shielded_collateral::__client_accounts_lock_margin_private;
+#[cfg(feature = "shielded-collateral")]
+use handlers::shielded_collateral::__client_accounts_settle_private_position;
+#[cfg(feature = "shielded-collateral")]
+use handlers::callbacks::__client_accounts_lock_margin_private_callback;
+#[cfg(feature = "shielded-collateral")]
+use handlers::callbacks::__client_accounts_settle_private_position_callback;
 
 declare_id!("ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4");
 
@@ -57,6 +79,8 @@ use handlers::init_comp_defs::{
     InitClosePositionCompDef, InitLiquidationCompDef, InitOpenPositionCompDef,
     InitSeedOpenInterestCompDef,
 };
+#[cfg(feature = "shielded-collateral")]
+use handlers::init_comp_defs::{InitLockMarginPrivateCompDef, InitSettlePrivatePositionCompDef};
 use handlers::initialize::Initialize;
 use handlers::open_position::OpenPosition;
 use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
@@ -66,26 +90,35 @@ use handlers::session_trading::{
     OpenPositionWithSession, RevokeTradeSession, WithdrawCollateralWithSession,
 };
 #[cfg(feature = "shielded-collateral")]
-use handlers::shielded_collateral::{InitShieldedPool, SetShieldedCollateralFeature};
+use handlers::shielded_collateral::{
+    InitShieldedPool, SetShieldedCollateralFeature, DepositToShielded,
+    RequestWithdrawPrivate, FinalizeWithdraw, InitShieldedMarginRef,
+    LockMarginPrivate, SettlePrivatePosition,
+};
+#[cfg(feature = "shielded-collateral")]
+use handlers::callbacks::lock_margin_private_callback::{LockMarginPrivateCallback, LockMarginPrivateOutput};
+#[cfg(feature = "shielded-collateral")]
+use handlers::callbacks::settle_private_position_callback::{SettlePrivatePositionCallback, SettlePrivatePositionOutput};
 use handlers::settle_close_position::SettleClosePosition;
 use handlers::settle_liquidation::SettleLiquidation;
 use handlers::sync_comp_defs::SyncCompDefs;
 use handlers::update_mxe_cluster::UpdateMxeCluster;
-use handlers::update_price::UpdatePrice;
+use handlers::update_price::{SetPythFeedId, UpdatePrice, UpdatePriceFromPyth};
 use handlers::withdraw_collateral::WithdrawCollateral;
 
 #[arcium_program]
 pub mod shadowperp {
     use super::*;
 
-    /// Initialize the protocol with market parameters
+    /// Initialize a market. Each (collateral_mint, base_asset_mint) pair gets its own PDA.
     pub fn initialize(
         ctx: Context<Initialize>,
         max_leverage: u8,
         liquidation_threshold: u16,
         trading_fee: u16,
+        pyth_feed_id_hex: String,
     ) -> Result<()> {
-        handlers::initialize::handler(ctx, max_leverage, liquidation_threshold, trading_fee)
+        handlers::initialize::handler(ctx, max_leverage, liquidation_threshold, trading_fee, pyth_feed_id_hex)
     }
 
     /// Initialize computation definitions for MPC operations
@@ -112,6 +145,20 @@ pub mod shadowperp {
         handlers::init_comp_defs::init_seed_open_interest_handler(ctx)
     }
 
+    #[cfg(feature = "shielded-collateral")]
+    pub fn init_lock_margin_private_comp_def(
+        ctx: Context<InitLockMarginPrivateCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_lock_margin_private_handler(ctx)
+    }
+
+    #[cfg(feature = "shielded-collateral")]
+    pub fn init_settle_private_position_comp_def(
+        ctx: Context<InitSettlePrivatePositionCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_settle_private_position_handler(ctx)
+    }
+
     /// Initialize shielded collateral scaffolding accounts (feature-gated).
     /// This does not alter current public deposit/withdraw flow.
     #[cfg(feature = "shielded-collateral")]
@@ -132,6 +179,72 @@ pub mod shadowperp {
         enabled: bool,
     ) -> Result<()> {
         handlers::shielded_collateral::set_shielded_collateral_feature_handler(ctx, enabled)
+    }
+
+    /// Deposit tokens into the shielded pool with a commitment leaf.
+    #[cfg(feature = "shielded-collateral")]
+    pub fn deposit_to_shielded(
+        ctx: Context<DepositToShielded>,
+        amount: u64,
+        commitment: [u8; 32],
+    ) -> Result<()> {
+        handlers::shielded_collateral::deposit_to_shielded_handler(ctx, amount, commitment)
+    }
+
+    /// Request a private withdrawal by submitting a nullifier.
+    #[cfg(feature = "shielded-collateral")]
+    pub fn request_withdraw_private(
+        ctx: Context<RequestWithdrawPrivate>,
+        nullifier: [u8; 32],
+        amount: u64,
+    ) -> Result<()> {
+        handlers::shielded_collateral::request_withdraw_private_handler(ctx, nullifier, amount)
+    }
+
+    /// Finalize a pending withdrawal after the delay period.
+    #[cfg(feature = "shielded-collateral")]
+    pub fn finalize_withdraw(ctx: Context<FinalizeWithdraw>) -> Result<()> {
+        handlers::shielded_collateral::finalize_withdraw_handler(ctx)
+    }
+
+    /// Create a shielded margin reference for a user.
+    #[cfg(feature = "shielded-collateral")]
+    pub fn init_shielded_margin_ref(ctx: Context<InitShieldedMarginRef>) -> Result<()> {
+        handlers::shielded_collateral::init_shielded_margin_ref_handler(ctx)
+    }
+
+    /// Lock margin privately via Arcium MPC.
+    #[cfg(feature = "shielded-collateral")]
+    pub fn lock_margin_private(
+        ctx: Context<LockMarginPrivate>,
+        commitment_ref: [u8; 32],
+        encrypted_payload: Vec<u8>,
+        client_pubkey: [u8; 32],
+        nonce: u128,
+        requested_margin: u64,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::shielded_collateral::lock_margin_private_handler(
+            ctx, commitment_ref, encrypted_payload, client_pubkey, nonce, requested_margin, computation_offset,
+        )
+    }
+
+    /// Settle a private position via Arcium MPC.
+    #[cfg(feature = "shielded-collateral")]
+    pub fn settle_private_position(
+        ctx: Context<SettlePrivatePosition>,
+        encrypted_payload: Vec<u8>,
+        client_pubkey: [u8; 32],
+        nonce: u128,
+        balance_client_pubkey: [u8; 32],
+        balance_nonce: u128,
+        exit_price: u64,
+        trading_fee_bps: u16,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::shielded_collateral::settle_private_position_handler(
+            ctx, encrypted_payload, client_pubkey, nonce, balance_client_pubkey, balance_nonce, exit_price, trading_fee_bps, computation_offset,
+        )
     }
 
     /// Sync market comp-def pointers to already-initialized Arcium accounts.
@@ -290,6 +403,26 @@ pub mod shadowperp {
         handlers::callbacks::liquidation_callback::check_liquidation_callback_handler(ctx, output)
     }
 
+    /// Callback after lock_margin_private MPC computation.
+    #[cfg(feature = "shielded-collateral")]
+    #[arcium_callback(encrypted_ix = "lock_margin_private")]
+    pub fn lock_margin_private_callback(
+        ctx: Context<LockMarginPrivateCallback>,
+        output: SignedComputationOutputs<LockMarginPrivateOutput>,
+    ) -> Result<()> {
+        handlers::callbacks::lock_margin_private_callback::lock_margin_private_callback_handler(ctx, output)
+    }
+
+    /// Callback after settle_private_position MPC computation.
+    #[cfg(feature = "shielded-collateral")]
+    #[arcium_callback(encrypted_ix = "settle_private_position")]
+    pub fn settle_private_position_callback(
+        ctx: Context<SettlePrivatePositionCallback>,
+        output: SignedComputationOutputs<SettlePrivatePositionOutput>,
+    ) -> Result<()> {
+        handlers::callbacks::settle_private_position_callback::settle_private_position_callback_handler(ctx, output)
+    }
+
     /// Settle a closed position — transfers tokens from vault to owner.
     /// Called after the close_position callback sets status to ClosedPendingSettlement.
     pub fn settle_close_position(ctx: Context<SettleClosePosition>) -> Result<()> {
@@ -359,4 +492,15 @@ pub mod shadowperp {
     pub fn update_price(ctx: Context<UpdatePrice>, price: u64) -> Result<()> {
         handlers::update_price::handler(ctx, price)
     }
+
+    /// Update oracle price from Pyth (permissionless). Feed ID is stored per-market.
+    pub fn update_price_from_pyth(ctx: Context<UpdatePriceFromPyth>) -> Result<()> {
+        handlers::update_price::update_price_from_pyth_handler(ctx)
+    }
+
+    /// Authority-only: update the Pyth feed ID stored on a market.
+    pub fn set_pyth_feed_id(ctx: Context<SetPythFeedId>, pyth_feed_id_hex: String) -> Result<()> {
+        handlers::update_price::set_pyth_feed_id_handler(ctx, pyth_feed_id_hex)
+    }
+
 }

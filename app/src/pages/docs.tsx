@@ -13,6 +13,7 @@ const NAV = [
       { id: "orders", label: "Order Types" },
       { id: "tp-sl", label: "TP / SL" },
       { id: "liquidation", label: "Liquidation" },
+      { id: "shielded-collateral", label: "Shielded Collateral" },
       { id: "faq", label: "FAQ" },
     ],
   },
@@ -47,16 +48,19 @@ export default function DocsPage() {
   return (
     <>
       <Head>
-        <title>Documentation | Shadow</title>
+        <title>Documentation | ShadowPerp</title>
         <meta
           name="description"
-          content="Shadow docs covering privacy, session trading, margin, leverage, order flow, and the current devnet prototype."
+          content="ShadowPerp documentation covering privacy, session trading, margin, leverage, order flow, and the Arcium MPC integration on Solana devnet."
         />
       </Head>
 
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #0a0a0f; color: #e2e8f0; font-family: 'Inter', -apple-system, sans-serif; }
+        html.light body { background: #0a0a0f; color: #e2e8f0; }
+        html.light .gradient-bg { background: none; }
+        .theme-toggle-floating { display: none !important; }
 
         .docs-layout {
           display: flex;
@@ -300,27 +304,29 @@ export default function DocsPage() {
 
         <main className="docs-main">
           <div className="docs-header">
-            <h1>Shadow Documentation</h1>
+            <h1>ShadowPerp Documentation</h1>
             <p>
-              Shadow is a private perpetuals trading app built on Solana devnet. It combines encrypted positions,
-              delegated sessions, and confidential compute from Arcium so trading feels practical without exposing every
-              detail in public.
+              ShadowPerp is a private perpetual futures DEX built on Solana. It combines encrypted positions,
+              delegated session trading, and Arcium Multi Party Computation so traders can operate without exposing
+              order details on chain.
             </p>
           </div>
 
           <Section id="overview" title="Overview">
             <p>
-              Shadow is built for people who want a more private trading experience on Solana. Trade size, direction,
-              leverage, and margin are encrypted before they reach the program, and the sensitive calculations run
-              through Arcium instead of being exposed in plain view.
+              ShadowPerp enables private perpetual futures trading on Solana. Trade size, direction,
+              leverage, and margin are encrypted before they reach the on chain program. Sensitive calculations
+              run through Arcium's MPC network rather than being exposed in plaintext on the ledger.
             </p>
             <p>
-              Only the public state needed for settlement is written on chain. The goal is to avoid turning every
-              position into public intent data.
+              Only the minimum public state required for settlement is written on chain. The protocol is designed
+              to prevent position data from becoming exploitable public information.
+            </p>
+            <p>
+              ShadowPerp currently supports the <strong>SOL/USD</strong> trading pair with price data from Pyth Network.
             </p>
             <Note>
-              Shadow is currently running on <strong>Solana Devnet</strong> as an active prototype. Everything here
-              should be treated as test funds and test state.
+              ShadowPerp is currently deployed on <strong>Solana Devnet</strong> at program ID <Code>ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4</Code>. All balances are test funds.
             </Note>
           </Section>
 
@@ -328,34 +334,34 @@ export default function DocsPage() {
             <p>Each trade follows the same core path:</p>
             <ol>
               <li>
-                <strong>Encrypt</strong> | Your browser encrypts sensitive trade inputs such as size, price, leverage,
-                direction, and margin.
+                <strong>Encrypt</strong> | Your browser encrypts sensitive trade inputs including size, price, leverage,
+                direction, and margin before submission.
               </li>
               <li>
-                <strong>Queue</strong> | The encrypted payload is submitted to the Solana program, which queues the
-                computation on Arcium.
+                <strong>Queue</strong> | The encrypted payload is submitted to the Solana program, which queues an
+                Arcium MPC computation.
               </li>
               <li>
-                <strong>Compute</strong> | Arcium evaluates the private trade logic, including margin checks, PnL, and
-                liquidation conditions, without exposing the raw inputs to any single node.
+                <strong>Compute</strong> | Arcium's MPC network evaluates trade logic, margin checks, PnL, and
+                liquidation conditions without exposing raw inputs to any single node.
               </li>
               <li>
-                <strong>Callback</strong> | Arcium returns the verified result to the Solana program.
+                <strong>Callback</strong> | Arcium returns a verified, replay hardened result to the Solana program.
               </li>
               <li>
-                <strong>Settle</strong> | Shadow updates the margin account and position state from that verified output.
+                <strong>Settle</strong> | ShadowPerp updates the margin account and position state from the verified output.
               </li>
             </ol>
             <p>
-              After your session is approved, the relay can submit trades on your behalf. That keeps the flow smooth,
-              because you sign once for the session instead of getting a wallet prompt for every action.
+              After your session is approved, the relay submits trades on your behalf. You sign once for the session
+              instead of approving a wallet prompt for every action.
             </p>
           </Section>
 
           <Section id="session-trading" title="Session Trading">
             <p>
-              Shadow uses a <strong>delegated session</strong> model so the trading flow stays usable. Here is what
-              happens the first time you start a session:
+              ShadowPerp uses a <strong>delegated session</strong> model to keep the trading experience seamless. Here is what
+              happens when you start a session:
             </p>
             <ol>
               <li>
@@ -405,11 +411,11 @@ export default function DocsPage() {
 
           <Section id="privacy" title="Privacy Model">
             <p>
-              Shadow relies on{" "}
+              ShadowPerp relies on{" "}
               <a href="https://www.arcium.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa" }}>
                 Arcium
               </a>
-              {" "}Multi Party Computation infrastructure. Here is the practical split between what stays private and
+              {" "}Multi Party Computation infrastructure for trade privacy. Here is the practical boundary between what stays private and
               what remains visible:
             </p>
             <h3>What is private</h3>
@@ -424,19 +430,25 @@ export default function DocsPage() {
             <h3>What is public</h3>
             <ul>
               <li>Your wallet address, which is used for the margin account and session</li>
-              <li>Collateral deposits and withdrawals</li>
+              <li>Token transfers to and from the vault (Solana constraint)</li>
               <li>The fact that a trade was queued, but not the details</li>
               <li>Session creation and revocation</li>
             </ul>
+            <h3>What is becoming private (shielded collateral)</h3>
+            <ul>
+              <li>Internal collateral ownership and allocation</li>
+              <li>Margin lock and release transitions</li>
+              <li>Per-user balance within the protocol</li>
+            </ul>
             <Note>
-              The reference orderbook in the terminal comes from external market depth, mainly Coinbase and Binance. It
-              is there to help you read the market. It is not Shadow's own venue liquidity and it does not reveal other
+              The reference orderbook in the terminal uses external market depth from Coinbase and Binance. It provides
+              market context for traders. It does not represent ShadowPerp's own venue liquidity and does not reveal other
               traders' positions.
             </Note>
           </Section>
 
           <Section id="margin" title="Margin and Leverage">
-            <p>Shadow supports two margin modes and leverage up to <strong>50x</strong>.</p>
+            <p>ShadowPerp supports two margin modes and leverage up to <strong>50x</strong>.</p>
             <h3>Cross Margin</h3>
             <p>
               Your full margin balance is shared across all cross margin positions. If one position loses, the rest of
@@ -546,8 +558,47 @@ export default function DocsPage() {
               margin counts.
             </p>
             <Note>
-              Liquidation is enforced on chain through Arcium's confidential compute, and the liquidator never sees
+              Liquidation is enforced on chain through Arcium's MPC network. The liquidator never sees
               your plaintext position details.
+            </Note>
+          </Section>
+
+          <Section id="shielded-collateral" title="Shielded Collateral">
+            <p>
+              ShadowPerp is building a shielded collateral system that hides internal balance ownership and margin
+              transitions from public view. The design follows a "public edge, private core" model.
+            </p>
+            <h3>How it works</h3>
+            <ol>
+              <li>
+                <strong>Deposit</strong> | You deposit USDC to the vault. The token transfer is public (Solana
+                constraint), but the protocol creates a private commitment in a Merkle tree instead of updating
+                a plaintext balance.
+              </li>
+              <li>
+                <strong>Trade</strong> | Margin lock and release transitions happen through Arcium MPC, consuming
+                and producing commitments without revealing your internal balance.
+              </li>
+              <li>
+                <strong>Withdraw</strong> | You submit a nullifier to prove ownership of a commitment. After a short
+                delay, the protocol releases USDC from the vault to your wallet.
+              </li>
+            </ol>
+            <h3>What stays private</h3>
+            <ul>
+              <li>Your internal balance within the protocol</li>
+              <li>How much margin is allocated to each position</li>
+              <li>The connection between deposits and trading activity</li>
+            </ul>
+            <h3>What remains public</h3>
+            <ul>
+              <li>USDC transfers to and from the vault (Solana L1 constraint)</li>
+              <li>The fact that a deposit or withdrawal happened</li>
+              <li>Timestamps of transactions</li>
+            </ul>
+            <Note>
+              Shielded collateral is currently in development and not yet active on devnet. The public deposit and
+              withdrawal path continues to work as before.
             </Note>
           </Section>
 
@@ -579,10 +630,10 @@ export default function DocsPage() {
               receives encrypted trade inputs.
             </p>
 
-            <h3>Can I use Shadow on mainnet?</h3>
+            <h3>Can I use ShadowPerp on mainnet?</h3>
             <p>
-              Not yet. Shadow is currently devnet only. Mainnet depends on a fully verified open and close flow,
-              stronger operational confidence, and a full audit.
+              Not yet. ShadowPerp is currently devnet only. Mainnet deployment depends on a fully verified open and close flow,
+              production operational confidence, and a comprehensive audit.
             </p>
           </Section>
 
@@ -591,7 +642,7 @@ export default function DocsPage() {
               <p><em>Effective: March 2026</em></p>
               <h3>Information We Collect</h3>
               <p>
-                Shadow does not require account registration and does not collect personally identifiable information.
+                ShadowPerp does not require account registration and does not collect personally identifiable information.
                 When you connect a wallet, your public key is used only to identify your on chain margin account and
                 trading session. We do not store wallet addresses on any server.
               </p>
@@ -601,21 +652,21 @@ export default function DocsPage() {
               </p>
               <h3>Cookies and Local Storage</h3>
               <p>
-                Shadow stores position metadata and session information in your browser's <Code>localStorage</Code>.
+                ShadowPerp stores position metadata and session information in your browser's <Code>localStorage</Code>.
                 This data stays on your device except when specific relay requests require it. No third party tracking
                 cookies are used.
               </p>
               <h3>Blockchain Data</h3>
               <p>
-                Solana transactions are public by nature. Shadow minimizes what is written on chain by keeping position
+                Solana transactions are public by nature. ShadowPerp minimizes what is written on chain by keeping position
                 details encrypted and recording only settlement outputs. Collateral deposits and withdrawals still
                 involve public USDC transfers.
               </p>
               <h3>Third Party Services</h3>
               <p>
-                Shadow uses public APIs such as Coinbase and Binance for reference price data. No user data is sent to
-                these services. Arcium processes encrypted trade inputs, and individual nodes do not get access to the
-                plaintext data.
+                ShadowPerp uses Pyth Network for primary oracle price feeds, with public APIs from Coinbase and Binance for
+                reference data. No user data is sent to these services. Arcium processes encrypted trade inputs, and
+                individual MPC nodes do not get access to the plaintext data.
               </p>
               <h3>Contact</h3>
               <p>
@@ -630,27 +681,27 @@ export default function DocsPage() {
             <Section id="terms" title="Terms of Use">
               <p><em>Effective: March 2026</em></p>
               <h3>Acceptance</h3>
-              <p>By accessing Shadow, you agree to these terms. If you do not agree, please do not use the platform.</p>
+              <p>By accessing ShadowPerp, you agree to these terms. If you do not agree, please do not use the platform.</p>
               <h3>Prototype Status</h3>
               <p>
-                Shadow is an experimental prototype deployed on Solana Devnet. All balances are test funds with no real
+                ShadowPerp is an experimental prototype deployed on Solana Devnet. All balances are test funds with no real
                 monetary value. Do not send real assets to devnet addresses.
               </p>
               <h3>No Financial Advice</h3>
               <p>
-                Nothing on Shadow is financial, investment, or trading advice. Perpetual futures carry meaningful risk.
+                Nothing on ShadowPerp is financial, investment, or trading advice. Perpetual futures carry meaningful risk.
                 You are responsible for your own trading decisions.
               </p>
               <h3>Prohibited Use</h3>
               <ul>
-                <li>Using Shadow to launder funds or bypass financial regulation</li>
-                <li>Trying to exploit, manipulate, or attack the protocol</li>
+                <li>Using ShadowPerp to launder funds or bypass financial regulation</li>
+                <li>Attempting to exploit, manipulate, or attack the protocol</li>
                 <li>Reverse engineering the encrypted computation system</li>
-                <li>Accessing Shadow from jurisdictions where this type of service is prohibited</li>
+                <li>Accessing ShadowPerp from jurisdictions where this type of service is prohibited</li>
               </ul>
               <h3>Limitation of Liability</h3>
               <p>
-                Shadow is provided "as is" without warranty. The developers are not liable for loss of funds, data, or
+                ShadowPerp is provided "as is" without warranty. The developers are not liable for loss of funds, data, or
                 opportunity arising from use of the platform, including smart contract bugs, MPC failures, or network
                 disruptions.
               </p>
@@ -661,7 +712,7 @@ export default function DocsPage() {
             <Section id="cookies" title="Cookie Policy">
               <p><em>Effective: March 2026</em></p>
               <h3>What We Use</h3>
-              <p>Shadow does not use traditional HTTP cookies for tracking or analytics.</p>
+              <p>ShadowPerp does not use traditional HTTP cookies for tracking or analytics.</p>
               <p>We do use browser <Code>localStorage</Code> for a few practical product features:</p>
               <table className="docs-table">
                 <thead>
@@ -702,13 +753,13 @@ export default function DocsPage() {
               <h3>Third Party Cookies</h3>
               <p>
                 No third party analytics, advertising, or tracking cookies are used. External APIs may set their own
-                cookies if you visit them directly, but Shadow itself only uses their public endpoints on the server
+                cookies if you visit them directly, but ShadowPerp only uses their public endpoints on the server
                 side.
               </p>
               <h3>Clearing Your Data</h3>
               <p>
-                You can clear all Shadow local data through your browser developer tools by clearing{" "}
-                <Code>localStorage</Code> for the Shadow domain, or by using your browser's clear site data option.
+                You can clear all ShadowPerp local data through your browser developer tools by clearing{" "}
+                <Code>localStorage</Code> for the ShadowPerp domain, or by using your browser's clear site data option.
               </p>
             </Section>
           </div>

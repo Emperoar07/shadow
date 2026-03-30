@@ -18,7 +18,7 @@
  *
  * Environment variables (all optional, read from app/.env.local if not set):
  *   SOLANA_WALLET          Path to deployer keypair (default: ~/.config/solana/id.json)
- *   SOLANA_RPC_URL         RPC endpoint (default: https://api.devnet.solana.com)
+ *   SOLANA_RPC_URL         RPC endpoint (default: https://cool-boldest-yard.solana-devnet.quiknode.pro/3513dd000b0bf11aae344e55c52d9281969d0808)
  *   SHADOWPERP_PROGRAM_ID  Program ID (default: from .env.local)
  *   SHADOWPERP_MARKET      Market PDA (default: from .env.local)
  */

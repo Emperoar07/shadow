@@ -46,7 +46,7 @@ import { resolveRpcEndpoint } from "./rpc";
 // ---------------------------------------------------------------------------
 
 const PROGRAM_ID = new PublicKey("ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4");
-const MARKET_ACCOUNT = new PublicKey("2NjpdDpP5Qt4ErvEoP787VPvgVMR6Hh1DD2HdjzjLkTb");
+const MARKET_ACCOUNT = new PublicKey("crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T");
 const ARCIUM_PROGRAM_ID = new PublicKey("Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ");
 const CLUSTER_OFFSET = 456;
 

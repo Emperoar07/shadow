@@ -18,7 +18,7 @@ import * as os from "os";
 import { resolveRpcEndpoint } from "./rpc";
 
 const PROGRAM_ID = new PublicKey("ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4");
-const MARKET = new PublicKey("2NjpdDpP5Qt4ErvEoP787VPvgVMR6Hh1DD2HdjzjLkTb");
+const MARKET = new PublicKey("crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T");
 
 function readArg(name: string): string | undefined {
   const args = process.argv.slice(2);

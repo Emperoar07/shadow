@@ -15,7 +15,7 @@ if (!existsSync(walletPath)) {
 const env = {
   ...process.env,
   ANCHOR_PROVIDER_URL:
-    process.env.ANCHOR_PROVIDER_URL || "https://api.devnet.solana.com",
+    process.env.ANCHOR_PROVIDER_URL || "https://cool-boldest-yard.solana-devnet.quiknode.pro/3513dd000b0bf11aae344e55c52d9281969d0808",
   ANCHOR_WALLET: walletPath,
 };
 

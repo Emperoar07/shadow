@@ -125,15 +125,29 @@ export default function App({ Component, pageProps }: AppProps) {
   const loadStartRef = useRef(0);
 
   useEffect(() => {
-    const MIN_DISPLAY_MS = 1200;
+    const MIN_DISPLAY_MS = 600;
+    const MAX_LOADER_MS = 10000;
+    let safetyTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearSafety = () => {
+      if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null; }
+    };
 
     const handleStart = (url: string) => {
-      if (url !== router.asPath) {
-        loadStartRef.current = Date.now();
-        setPageLoading(true);
-      }
+      // Strip hash/query to compare base paths only
+      const targetPath = url.split("?")[0].split("#")[0];
+      const currentPath = router.asPath.split("?")[0].split("#")[0];
+      if (targetPath === currentPath) return;
+
+      loadStartRef.current = Date.now();
+      setPageLoading(true);
+
+      // Safety: never let loader stay more than MAX_LOADER_MS
+      clearSafety();
+      safetyTimer = setTimeout(() => setPageLoading(false), MAX_LOADER_MS);
     };
     const handleDone = () => {
+      clearSafety();
       const elapsed = Date.now() - loadStartRef.current;
       const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
       setTimeout(() => setPageLoading(false), remaining);
@@ -143,6 +157,7 @@ export default function App({ Component, pageProps }: AppProps) {
     router.events.on("routeChangeComplete", handleDone);
     router.events.on("routeChangeError", handleDone);
     return () => {
+      clearSafety();
       router.events.off("routeChangeStart", handleStart);
       router.events.off("routeChangeComplete", handleDone);
       router.events.off("routeChangeError", handleDone);

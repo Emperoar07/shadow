@@ -30,7 +30,7 @@ function hasFlag(name: string): boolean {
 }
 
 async function main() {
-  const rpcUrl = readArg("rpc") || "https://api.devnet.solana.com";
+  const rpcUrl = readArg("rpc") || "https://cool-boldest-yard.solana-devnet.quiknode.pro/3513dd000b0bf11aae344e55c52d9281969d0808";
   const walletPath = path.join(os.homedir(), ".config", "solana", "id.json");
   const wallet = Keypair.fromSecretKey(
     new Uint8Array(JSON.parse(fs.readFileSync(walletPath, "utf8")))

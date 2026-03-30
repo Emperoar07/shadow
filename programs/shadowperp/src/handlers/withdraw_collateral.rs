@@ -10,7 +10,7 @@ pub struct WithdrawCollateral<'info> {
     pub owner: Signer<'info>,
 
     #[account(
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Account<'info, Market>,
@@ -57,7 +57,7 @@ pub fn handler(ctx: Context<WithdrawCollateral>, amount: u64) -> Result<()> {
     require!(available >= amount, ShadowPerpError::InsufficientBalance);
 
     // Transfer tokens from vault to user using PDA signer
-    let seeds = &[b"market", market.collateral_mint.as_ref(), &[market.bump]];
+    let seeds = &[b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref(), &[market.bump]];
     let signer_seeds = &[&seeds[..]];
 
     let transfer_ctx = CpiContext::new_with_signer(

@@ -5,7 +5,9 @@ import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
 import { fetchPrices, getLastPriceMeta } from "../lib/prices";
+import type { ReferenceDepthSnapshot } from "../lib/reference-depth";
 import TradeConfirmationModal, { TradeStep } from "./TradeConfirmationModal";
+import OrderConfirmModal from "./OrderConfirmModal";
 import CollateralModal from "./CollateralModal";
 import LeverageModal from "./LeverageModal";
 import {
@@ -43,6 +45,7 @@ interface TradingPanelProps {
   layout?: "vertical" | "horizontal";
   confirmOpen?: boolean;
   showNotifications?: boolean;
+  depthSnapshot?: ReferenceDepthSnapshot | null;
 }
 
 function parseOptionalPositive(value: string): number | null {
@@ -119,7 +122,7 @@ function validateTpSl(
   return null;
 }
 
-export default function TradingPanel({ pair, layout = "vertical", confirmOpen = true, showNotifications = true }: TradingPanelProps) {
+export default function TradingPanel({ pair, layout = "vertical", confirmOpen = true, showNotifications = true, depthSnapshot = null }: TradingPanelProps) {
   const activePair = pair ?? TRADING_PAIRS[0];
   const isHorizontal = layout === "horizontal";
   const toastSuccess: typeof toast.success = useCallback((...args: Parameters<typeof toast.success>) => {
@@ -148,6 +151,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [availableMarginBalance, setAvailableMarginBalance] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [openConfirmPending, setOpenConfirmPending] = useState(false);
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
   const [liqThreshold, setLiqThreshold] = useState(80);
   const [tradeStep, setTradeStep] = useState<TradeStep>("signing");
@@ -450,6 +454,84 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     [submitPrivateOrder]
   );
 
+  const executeOpen = useCallback(async () => {
+    if (!entryPrice || !Number.isFinite(entryPrice) || entryPrice <= 0) return;
+    const tp = parseOptionalPositive(takeProfit);
+    const sl = parseOptionalPositive(stopLoss);
+
+    setIsSubmitting(true);
+    setTradeStep("signing");
+    setTradeTxSig(undefined);
+    setTradeError(undefined);
+    resetPrivacyStatus();
+    setModalOpen(true);
+
+    try {
+      const ctx = getClient();
+      if (!ctx) {
+        setModalOpen(false);
+        toast.error(clientInitError || "Trading client unavailable. Check runtime config.", { id: "trade" });
+        return;
+      }
+
+      setTradeStep("encrypting");
+      await new Promise((r) => setTimeout(r, 800));
+      setTradeStep("submitting");
+
+      const { txSignature } = await submitEncryptedOrder({
+        side: direction,
+        marginMode,
+        sizeBase: sizeInBase,
+        leverage,
+        entryPrice,
+        pairLabel: activePair.label,
+        takeProfit: tp,
+        stopLoss: sl,
+        onQueued: (update) => {
+          setTradeTxSig(update.txSignature);
+          setTradeStep("verifying");
+        },
+      });
+
+      setTradeTxSig(txSignature);
+      setTradeStep("confirmed");
+      setSize("");
+      setTakeProfit("");
+      setStopLoss("");
+      void refreshMarketData();
+    } catch (error: any) {
+      const classified = error?.classified ?? classifyArciumError(error);
+      const msg = classified.message || "Failed to open position";
+      if (typeof error?.txSignature === "string" && error.txSignature.length > 0) {
+        setTradeTxSig(error.txSignature);
+      }
+      setPrivacyError(msg);
+      if (msg.includes("env var")) {
+        setModalOpen(false);
+      } else {
+        setTradeError(msg);
+        setTradeStep("error");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    entryPrice,
+    takeProfit,
+    stopLoss,
+    direction,
+    marginMode,
+    sizeInBase,
+    leverage,
+    activePair.label,
+    getClient,
+    clientInitError,
+    submitEncryptedOrder,
+    refreshMarketData,
+    setPrivacyError,
+    resetPrivacyStatus,
+  ]);
+
   const handleSubmit = useCallback(async () => {
     if (TRADING_DISABLED) {
       toast.error("Trading is temporarily disabled while Arcium devnet is being patched.");
@@ -545,62 +627,13 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       return;
     }
 
-    setIsSubmitting(true);
-    setTradeStep("signing");
-    setTradeTxSig(undefined);
-    setTradeError(undefined);
-    resetPrivacyStatus();
-    if (confirmOpen) setModalOpen(true);
-
-    try {
-      const ctx = getClient();
-      if (!ctx) {
-        setModalOpen(false);
-        toast.error(clientInitError || "Trading client unavailable. Check runtime config.", { id: "trade" });
-        return;
-      }
-
-      setTradeStep("encrypting");
-      await new Promise((r) => setTimeout(r, 800));
-      setTradeStep("submitting");
-
-      const { txSignature } = await submitEncryptedOrder({
-        side: direction,
-        marginMode,
-        sizeBase: sizeInBase,
-        leverage,
-        entryPrice,
-        pairLabel: activePair.label,
-        takeProfit: tp,
-        stopLoss: sl,
-        onQueued: (update) => {
-          setTradeTxSig(update.txSignature);
-          setTradeStep("verifying");
-        },
-      });
-
-      setTradeTxSig(txSignature);
-      setTradeStep("confirmed");
-      setSize("");
-      setTakeProfit("");
-      setStopLoss("");
-      void refreshMarketData();
-    } catch (error: any) {
-      const classified = error?.classified ?? classifyArciumError(error);
-      const msg = classified.message || "Failed to open position";
-      if (typeof error?.txSignature === "string" && error.txSignature.length > 0) {
-        setTradeTxSig(error.txSignature);
-      }
-      setPrivacyError(msg);
-      if (msg.includes("env var")) {
-        setModalOpen(false);
-      } else {
-        setTradeError(msg);
-        setTradeStep("error");
-      }
-    } finally {
-      setIsSubmitting(false);
+    // Market order: show pre-confirm modal if setting is enabled
+    if (confirmOpen) {
+      setOpenConfirmPending(true);
+      return;
     }
+
+    void executeOpen();
   }, [
     size,
     sizeInBase,
@@ -610,26 +643,22 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     leverage,
     publicKey,
     anchorWallet,
-    getClient,
-    clientInitError,
     entryPrice,
     activePair.label,
-    marginMode,
     activePair.base.decimals,
     activePair.base.symbol,
     activePair.quote.decimals,
+    marginMode,
     marginBalance,
     availableMarginBalance,
     margin,
-    isRelaySessionActive,
     positionValue,
     takeProfit,
     stopLoss,
-    refreshMarketData,
-    submitEncryptedOrder,
+    confirmOpen,
+    executeOpen,
     ensureAutomationPersistenceUnlocked,
-    setPrivacyError,
-    resetPrivacyStatus,
+    toastSuccess,
   ]);
 
   useEffect(() => {
@@ -775,6 +804,8 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
               Short
             </button>
           </div>
+
+
 
 
           {/* Hotkeys */}
@@ -1110,6 +1141,29 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
         ensureRelaySession={ensureRelaySession}
         invalidateRelaySession={invalidateRelaySession}
         refreshRelaySession={refreshRelaySession}
+      />
+
+      <OrderConfirmModal
+        isOpen={openConfirmPending}
+        title={`Open ${direction.charAt(0).toUpperCase() + direction.slice(1)} Position`}
+        description="Review your order details before submitting to Arcium MPC."
+        variant="default"
+        confirmLabel={`Open ${direction.charAt(0).toUpperCase() + direction.slice(1)}`}
+        details={[
+          { label: "Pair", value: activePair.label },
+          { label: "Side", value: direction.charAt(0).toUpperCase() + direction.slice(1) },
+          { label: "Size", value: sizeInBase > 0 ? `${sizeInBase.toFixed(4)} ${activePair.base.symbol}` : "--" },
+          { label: "Entry Price", value: formatPrice(entryPrice) },
+          { label: "Leverage", value: `${leverage}x` },
+          { label: "Margin Mode", value: marginMode.charAt(0).toUpperCase() + marginMode.slice(1) },
+          { label: "Margin Required", value: margin > 0 ? `$${margin.toFixed(2)}` : "--" },
+          { label: "Liq. Price", value: estimatedLiqPrice ? formatPrice(estimatedLiqPrice) : "N/A" },
+        ]}
+        onConfirm={() => {
+          setOpenConfirmPending(false);
+          void executeOpen();
+        }}
+        onCancel={() => setOpenConfirmPending(false)}
       />
 
     </div>

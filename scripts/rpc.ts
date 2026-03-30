@@ -1,4 +1,4 @@
-import { clusterApiUrl, Commitment, Connection } from "@solana/web3.js";
+import { Commitment, Connection } from "@solana/web3.js";
 
 type RpcResolveOptions = {
   preferred?: string;
@@ -19,7 +19,7 @@ export type RpcResolveResult = {
   attempts: RpcAttempt[];
 };
 
-const DEFAULT_RPC = clusterApiUrl("devnet");
+const DEFAULT_RPC = "https://api.devnet.solana.com";
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {

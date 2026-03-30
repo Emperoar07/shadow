@@ -5,20 +5,26 @@ use arcium_anchor::prelude::*;
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
+const COMP_DEF_OFFSET_CLOSE_POSITION_V2: u32 = comp_def_offset("close_position_v2");
+
 /// Callback account for receiving PnL result from MPC.
 /// Token transfer is deferred to a separate `settle_close_position` instruction
 /// so that this callback only needs 3 custom accounts (within Arcium's comp-account budget).
 #[callback_accounts("close_position_v2")]
 #[derive(Accounts)]
 pub struct ClosePositionV2Callback<'info> {
-    // Standard Arcium callback accounts
+    // Standard Arcium callback accounts — address constraints required by #[callback_accounts] macro
     pub arcium_program: Program<'info, Arcium>,
-    pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
-    pub mxe_account: Box<Account<'info, MXEAccount>>,
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_CLOSE_POSITION_V2))]
+    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
+    #[account(address = derive_mxe_pda!())]
+    pub mxe_account: Account<'info, MXEAccount>,
     /// CHECK: Validated by Arcium
     pub computation_account: UncheckedAccount<'info>,
-    pub cluster_account: Box<Account<'info, Cluster>>,
+    #[account(address = derive_cluster_pda!(mxe_account, ErrorCode::ClusterNotSet))]
+    pub cluster_account: Account<'info, Cluster>,
     /// CHECK: Instructions sysvar
+    #[account(address = ::anchor_lang::solana_program::sysvar::instructions::ID)]
     pub instructions_sysvar: AccountInfo<'info>,
 
     // Custom callback accounts (3 only — reduced from 5)
@@ -32,7 +38,7 @@ pub struct ClosePositionV2Callback<'info> {
 
     #[account(
         mut,
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -51,32 +57,15 @@ pub fn close_position_callback_handler(
     ctx: Context<ClosePositionV2Callback>,
     output: SignedComputationOutputs<ClosePositionV2Output>,
 ) -> Result<()> {
-    // Split verification into raw-signature verification and typed deserialization
-    // so we can tell whether failures are caused by BLS/signature checks or by
-    // output-shape drift between the finalized comp-def and the Rust output type.
-    let raw_output = match output.verify_output_raw(
+    let verified_output = match output.verify_output(
         &ctx.accounts.cluster_account,
         &ctx.accounts.computation_account,
     ) {
-        Ok(bytes) => bytes,
+        Ok(o) => o,
         Err(error) => {
             msg!(
-                "MPC raw verify failed for position {}: {}",
+                "MPC verify failed for position {}: {}",
                 ctx.accounts.position.key(),
-                error
-            );
-            return Err(ShadowPerpError::InvalidComputationResult.into());
-        }
-    };
-
-    let verified_output = match ClosePositionV2Output::try_from_slice(&raw_output) {
-        Ok(output) => output,
-        Err(error) => {
-            msg!(
-                "MPC output deserialize failed for position {}: raw_len={}, expected_size={}, error={}",
-                ctx.accounts.position.key(),
-                raw_output.len(),
-                <ClosePositionV2Output as HasSize>::SIZE,
                 error
             );
             return Err(ShadowPerpError::InvalidComputationResult.into());

@@ -1,100 +1,69 @@
 # ShadowPerp
 
-ShadowPerp is a private perpetuals trading app on Solana devnet, built with Arcium confidential compute.
+Private perpetual futures trading on Solana, powered by Arcium confidential compute.
 
-The goal is straightforward: make trading feel usable without turning every position into public intent. Sensitive trade inputs are encrypted before submission, Arcium handles the private computation, and only the minimum public state needed for settlement is written on chain.
+ShadowPerp encrypts order sizes, entry prices, leverage, and collateral before submission. Arcium's Multi Party Computation (MPC) network handles the private computation, and only the minimum public state required for settlement is written on chain.
 
-## What ShadowPerp Includes
+**Program ID (Devnet):** `ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4`
 
-Today the repo covers:
+## Features
 
-- encrypted open, close, and liquidation flows
-- delegated trading sessions so a relayer can handle multiple actions after one approval
-- settlement paths for deferred close and liquidation handling
-- an oracle feeder and a practical devnet preflight runbook
-- a terminal style frontend with live reference market depth
+- **Encrypted Positions** — Trade size, direction, leverage, entry price, and liquidation price are encrypted end to end. No plaintext position data is published on chain.
+- **Private Orderbook** — Order flow is shielded from MEV bots and front runners. Orders cannot be extracted or front run because they are never visible.
+- **Session Trading** — Approve a delegated trading session once and trade without repeated wallet prompts. The relay submits encrypted orders on your behalf within configurable limits.
+- **Cross and Isolated Margin** — Choose between shared margin across positions or isolated margin per position. Leverage from 1x to 50x.
+- **Confidential Liquidations** — Liquidation prices are encrypted. No external party can target a position based on its liquidation threshold.
+- **Pyth Oracle Integration** — Price feeds sourced from Pyth Network with fallback to aggregated external sources (Coinbase, Binance). Circuit breakers and staleness checks protect against manipulation.
+- **Custom RPC Endpoints** — Save up to 5 named RPC endpoints in the settings panel. Endpoints persist in browser localStorage; no env var changes required. Falls back to public Solana devnet.
+- **Shielded Collateral** (in progress) — Commitment tree based collateral pool with nullifier withdrawals, hiding internal balance ownership and margin transitions from public view.
 
-## How Arcium Fits In
+## Architecture
 
-Arcium is the confidential compute layer behind ShadowPerp.
+ShadowPerp follows an encrypt, compute, settle model:
 
-The intended flow looks like this:
+1. **Encrypt** — The client encrypts sensitive trade inputs (size, price, leverage, direction, margin) in the browser.
+2. **Queue** — The Solana program receives the encrypted payload and queues an Arcium computation.
+3. **Compute** — Arcium's MPC network evaluates trade logic, margin checks, PnL, and liquidation conditions without exposing raw inputs to any single node.
+4. **Callback** — Arcium returns a verified result to the Solana program via a replay hardened callback.
+5. **Settle** — The program updates position and margin state from the verified output.
 
-1. The client encrypts sensitive trade inputs such as size, entry price, leverage, direction, and margin.
-2. The Solana program queues an Arcium computation with those encrypted values.
-3. Arcium processes the encrypted inputs inside its confidential compute network.
-4. The callback verifies the result on chain before ShadowPerp updates trade state.
+### Privacy Boundary
 
-In practice, that means:
-
-- position details are not published in plain text
-- sensitive risk checks do not need to reveal trader intent
-- liquidation related data stays out of the public state path as much as possible
-
-## Current Status
-
-This repository is an active devnet prototype, not a production exchange.
-
-What is working today:
-
-- Solana program deploy and upgrade on devnet with Arcium SDK `0.9.2`
-- delegated session trading with a relay, so users do not sign every action
-- automatic oracle refresh before trades on the relay path
-- encrypted open, close, and liquidation computation flows
-- private position metadata stored in the browser for UI continuity
-- cross and isolated margin modes
-- leverage selection from `1x` to `50x`
-- limit orders with browser based automation
-- take profit and stop loss rules
-- external reference orderbook data
-- collateral deposit and withdrawal, both direct and session delegated
-
-What is still in progress:
-
-- Arcium MPC callbacks from cluster `456` are still failing with `InstructionDidNotDeserialize` (`Anchor` error `102`)
-- the current leading cause is a mismatch between the deployed callback handler and the active computation definition output shape
-- the private open flow should still be treated as experimental until we complete a successful open and close cycle from start to finish
-
-## Market Data Model
-
-The orderbook in the terminal is external reference depth. It is there to make the product useful and readable. It is not presenting ShadowPerp as if it already has public venue liquidity of its own.
-
-Current reference sources:
-
-- Coinbase first
-- Binance as fallback
+| Data | Visibility |
+|------|-----------|
+| Position size, entry price, leverage, direction | Encrypted on chain |
+| Liquidation price, unrealized PnL | Encrypted on chain |
+| Wallet address, margin account | Public (Solana constraint) |
+| Token transfers to/from vault | Public (Solana constraint) |
+| Trade queued event (no details) | Public |
+| Session creation/revocation | Public |
 
 ## Repository Layout
 
-- `programs/shadowperp/`
-  Anchor program code
-- `encrypted-ixs/`
-  Arcium and Arcis circuit sources
-- `app/`
-  Next.js frontend and relay routes
-- `scripts/`
-  deploy, oracle, computation definition, smoke, and devnet utility scripts
-- `build/`
-  compiled circuit artifacts
+```
+programs/shadowperp/     Anchor program (Solana)
+encrypted-ixs/           Arcium circuit sources (Arcis)
+app/                     Next.js frontend and relay API routes
+scripts/                 Deploy, oracle, computation, and devnet utilities
+build/                   Compiled circuit artifacts
+```
 
-## Quick Start
+## Getting Started
 
 ### Prerequisites
 
-- Node.js `20+`
-- `pnpm`
-- Rust
+- Node.js 20+
+- pnpm
+- Rust and Cargo
 - Solana CLI
-- Anchor
+- Anchor CLI
 - Arcium CLI and build environment
 
 ### Install
 
 ```bash
 npm install
-cd app
-pnpm install
-cd ..
+cd app && pnpm install && cd ..
 ```
 
 ### Environment
@@ -103,38 +72,110 @@ cd ..
 cp app/.env.example app/.env.local
 ```
 
-Then fill in the devnet values you want to use for:
+Configure the following in `app/.env.local`:
 
-- program id
-- market account
-- RPC URLs
-- Arcium program id and cluster offset
+- Program ID and market account
+- RPC endpoint (QuickNode recommended; falls back to public devnet)
+- Arcium program ID and cluster offset
 
-## Safe Validation Commands
-
-These are the normal repo checks we use on devnet:
-
-```bash
-npm run check:oracle
-npm run check:preflight
-```
-
-If the oracle is stale:
-
-```bash
-npm run oracle:once
-```
-
-For the frontend:
+### Run the Frontend
 
 ```bash
 cd app
 pnpm dev
 ```
 
+## Scripts
+
+### Oracle
+
+```bash
+# Check oracle health
+npm run check:oracle
+
+# Run oracle price update (single pass)
+npm run oracle:once
+
+# Manual price override when external sources are unavailable
+npx ts-node scripts/price-oracle.ts --once --manual-price 130.50
+
+# Update oracle via Pyth network feed
+npx ts-node scripts/update-oracle-pyth.ts
+```
+
+### Deploy and Initialize
+
+```bash
+# Deploy program to devnet
+npx ts-node scripts/deploy-devnet.ts
+
+# Create devnet token mints
+npx ts-node scripts/create-devnet-mints.ts
+
+# Initialize markets
+npx ts-node scripts/init-markets.ts
+
+# Initialize computation definitions
+npx ts-node scripts/init-comp-defs.ts
+
+# Initialize shielded collateral computation definitions
+npx ts-node scripts/init-shielded-comp-defs.ts
+
+# Set Pyth feed ID on market
+npx ts-node scripts/set-pyth-feed-id.ts
+```
+
+### Preflight and Validation
+
+```bash
+# Run preflight checks
+npm run check:preflight
+
+# Smoke test devnet
+npx ts-node scripts/smoke-test-devnet.ts
+```
+
+### Build with Shielded Collateral
+
+```bash
+anchor build -- --features shielded-collateral
+```
+
+Or with Cargo directly:
+
+```bash
+cargo build --features shielded-collateral -p shadowperp
+```
+
+## Current Status
+
+ShadowPerp is deployed on Solana Devnet as an active prototype.
+
+**Working today:**
+
+- Program deployment and upgrade on devnet with Arcium SDK 0.9.2
+- Delegated session trading with relay (sign once, trade freely)
+- Encrypted open, close, and liquidation computation flows
+- Automatic oracle refresh before trades on the relay path
+- Cross and isolated margin modes with 1x to 50x leverage
+- Limit orders with browser based automation
+- Take profit and stop loss rules
+- Collateral deposit and withdrawal (direct and session delegated)
+- Private position metadata stored in the browser for UI continuity
+- External reference orderbook data (Coinbase primary, Binance fallback)
+- Pyth oracle integration with `update-oracle-pyth.ts`
+- Custom named RPC endpoint manager (up to 5, saved to localStorage)
+- Security hardened program: zombie position prevention, correct rent reclaim targets, computation offset validation
+
+**In progress:**
+
+- Shielded collateral circuits for private margin lock/release transitions
+- Commitment tree hashing (placeholder XOR fold pending SHA256/Poseidon integration)
+
 ## References
 
-- Arcium: https://www.arcium.com/
-- Arcium Docs: https://docs.arcium.com/
-- Solana: https://solana.com/docs
-- Anchor: https://www.anchor-lang.com/
+- [Arcium](https://www.arcium.com/)
+- [Arcium Documentation](https://docs.arcium.com/)
+- [Solana](https://solana.com/docs)
+- [Anchor](https://www.anchor-lang.com/)
+- [Pyth Network](https://pyth.network/)

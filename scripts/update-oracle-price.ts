@@ -9,7 +9,7 @@ import * as path from "path";
 import * as os from "os";
 
 const PROGRAM_ID = new PublicKey("ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4");
-const MARKET = new PublicKey("2NjpdDpP5Qt4ErvEoP787VPvgVMR6Hh1DD2HdjzjLkTb");
+const MARKET = new PublicKey("crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T");
 
 function readArg(name: string): string | undefined {
   const args = process.argv.slice(2);
@@ -18,8 +18,21 @@ function readArg(name: string): string | undefined {
   return args[idx + 1];
 }
 
+async function pollConfirmation(connection: Connection, sig: string, maxRetries = 30): Promise<void> {
+  for (let i = 0; i < maxRetries; i++) {
+    const status = await connection.getSignatureStatus(sig);
+    const value = status?.value;
+    if (value?.confirmationStatus === "confirmed" || value?.confirmationStatus === "finalized") {
+      if (value.err) throw new Error(`Transaction failed: ${JSON.stringify(value.err)}`);
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error(`Transaction not confirmed after ${maxRetries * 2}s`);
+}
+
 async function main() {
-  const rpcUrl = readArg("rpc") || "https://api.devnet.solana.com";
+  const rpcUrl = readArg("rpc") || "https://cool-boldest-yard.solana-devnet.quiknode.pro/3513dd000b0bf11aae344e55c52d9281969d0808";
   const priceUsd = parseFloat(readArg("price") || "86.00");
   const priceLamports = new anchor.BN(Math.round(priceUsd * 1_000_000));
 
@@ -44,15 +57,29 @@ async function main() {
   );
 
   console.log(`Updating oracle price to $${priceUsd.toFixed(2)}...`);
-  const tx = await program.methods
+
+  // Build tx and send raw to avoid WebSocket signatureSubscribe
+  const ix = await program.methods
     .updatePrice(priceLamports)
     .accounts({
       priceFeeder: wallet.publicKey,
       market: MARKET,
     })
-    .rpc();
+    .instruction();
 
-  console.log(`Oracle price updated! Tx: ${tx}`);
+  const tx = new anchor.web3.Transaction().add(ix);
+  tx.feePayer = wallet.publicKey;
+  tx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+  tx.sign(wallet);
+
+  const sig = await connection.sendRawTransaction(tx.serialize(), {
+    skipPreflight: false,
+    preflightCommitment: "confirmed",
+  });
+  console.log(`Tx sent: ${sig}`);
+
+  await pollConfirmation(connection, sig);
+  console.log(`Tx confirmed!`);
 
   const market = await (program.account as any).market.fetch(MARKET);
   console.log(`New price: $${(Number(market.oraclePrice) / 1e6).toFixed(2)}`);

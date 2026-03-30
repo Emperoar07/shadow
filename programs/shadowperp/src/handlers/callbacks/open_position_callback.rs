@@ -5,18 +5,24 @@ use arcium_anchor::prelude::*;
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionOpened, PositionStatus};
 
+const COMP_DEF_OFFSET_OPEN_POSITION_PROBE_B: u32 = comp_def_offset("open_position_probe_b");
+
 /// Callback account for storing validated position data from MPC
 #[callback_accounts("open_position_probe_b")]
 #[derive(Accounts)]
 pub struct OpenPositionProbeBCallback<'info> {
-    // Standard Arcium callback accounts
+    // Standard Arcium callback accounts — address constraints required by #[callback_accounts] macro
     pub arcium_program: Program<'info, Arcium>,
-    pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
-    pub mxe_account: Box<Account<'info, MXEAccount>>,
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_OPEN_POSITION_PROBE_B))]
+    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
+    #[account(address = derive_mxe_pda!())]
+    pub mxe_account: Account<'info, MXEAccount>,
     /// CHECK: Validated by Arcium
     pub computation_account: UncheckedAccount<'info>,
-    pub cluster_account: Box<Account<'info, Cluster>>,
+    #[account(address = derive_cluster_pda!(mxe_account, ErrorCode::ClusterNotSet))]
+    pub cluster_account: Account<'info, Cluster>,
     /// CHECK: Instructions sysvar
+    #[account(address = ::anchor_lang::solana_program::sysvar::instructions::ID)]
     pub instructions_sysvar: AccountInfo<'info>,
 
     // Custom callback accounts - order must match CallbackAccount vec
@@ -29,7 +35,7 @@ pub struct OpenPositionProbeBCallback<'info> {
 
     #[account(
         mut,
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -47,34 +53,23 @@ pub fn open_position_callback_handler(
     ctx: Context<OpenPositionProbeBCallback>,
     output: SignedComputationOutputs<OpenPositionProbeBOutput>,
 ) -> Result<()> {
-    // Split verification into raw-signature verification and typed deserialization
-    // so we can tell whether failures are caused by BLS/signature checks or by
-    // output-shape drift between the finalized comp-def and the Rust output type.
-    let raw_output = match output.verify_output_raw(
+    let verified_output = match output.verify_output(
         &ctx.accounts.cluster_account,
         &ctx.accounts.computation_account,
     ) {
-        Ok(bytes) => bytes,
+        Ok(o) => o,
         Err(error) => {
             msg!(
-                "MPC raw verify failed for position {}: {}",
+                "MPC verify failed for position {}: {}",
                 ctx.accounts.position.key(),
                 error
             );
-            return Err(ShadowPerpError::InvalidComputationResult.into());
-        }
-    };
-
-    let verified_output = match OpenPositionProbeBOutput::try_from_slice(&raw_output) {
-        Ok(output) => output,
-        Err(error) => {
-            msg!(
-                "MPC output deserialize failed for position {}: raw_len={}, expected_size={}, error={}",
-                ctx.accounts.position.key(),
-                raw_output.len(),
-                <OpenPositionProbeBOutput as HasSize>::SIZE,
-                error
-            );
+            // Mark position as Closed so it doesn't remain stuck in Pending.
+            // Requested margin was never locked, so margin account is unaffected.
+            ctx.accounts.position.status = PositionStatus::Closed;
+            ctx.accounts.position.consume_pending_computation(
+                ctx.accounts.computation_account.key(),
+            )?;
             return Err(ShadowPerpError::InvalidComputationResult.into());
         }
     };
@@ -127,7 +122,12 @@ pub fn open_position_callback_handler(
     position.consume_pending_computation(ctx.accounts.computation_account.key())?;
 
     // Enforce MPC validation outcome.
-    require!(verified_output.field_0, ShadowPerpError::InvalidComputationResult);
+    if !verified_output.field_0 {
+        // MPC rejected the position (e.g. insufficient margin, invalid params).
+        // Mark as Closed so the account is not stuck in Pending.
+        position.status = PositionStatus::Closed;
+        return Err(ShadowPerpError::InvalidComputationResult.into());
+    }
 
     // Update position with MPC-validated encrypted data
     // The MPC has verified margin sufficiency and parameter validity.

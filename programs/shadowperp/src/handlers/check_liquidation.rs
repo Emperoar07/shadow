@@ -21,7 +21,7 @@ pub struct CheckLiquidation<'info> {
     pub liquidator: Signer<'info>,
 
     #[account(
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -97,6 +97,8 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
     // Required by Arcium queue flow when this account is initialized on demand.
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
 
+    require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
+
     let market = &ctx.accounts.market;
     let position = &mut ctx.accounts.position;
     let liquidation_settlement = &mut ctx.accounts.liquidation_settlement;
@@ -108,7 +110,7 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
         ShadowPerpError::PositionNotOpen
     );
     // Validate price is not stale (within 300 seconds)
-    let price_age = clock.unix_timestamp - market.last_price_update;
+    let price_age = clock.unix_timestamp.saturating_sub(market.last_price_update);
     require!(price_age < 300, ShadowPerpError::StalePrice);
 
     let mark_price = market.oracle_price;

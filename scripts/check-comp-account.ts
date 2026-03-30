@@ -6,7 +6,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 
 const rpcIdx = process.argv.indexOf("--rpc");
 const addrIdx = process.argv.indexOf("--addr");
-const rpcUrl = rpcIdx !== -1 ? process.argv[rpcIdx + 1] : "https://api.devnet.solana.com";
+const rpcUrl = rpcIdx !== -1 ? process.argv[rpcIdx + 1] : "https://cool-boldest-yard.solana-devnet.quiknode.pro/3513dd000b0bf11aae344e55c52d9281969d0808";
 const addr = addrIdx !== -1 ? process.argv[addrIdx + 1] : undefined;
 
 if (!addr) {

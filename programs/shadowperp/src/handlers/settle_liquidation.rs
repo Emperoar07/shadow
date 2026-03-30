@@ -22,7 +22,7 @@ pub struct SettleLiquidation<'info> {
     pub position: Box<Account<'info, Position>>,
 
     #[account(
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -33,7 +33,7 @@ pub struct SettleLiquidation<'info> {
         bump = liquidation_settlement.bump,
         constraint = liquidation_settlement.position == position.key() @ ShadowPerpError::InvalidAccountData,
         constraint = liquidation_settlement.liquidator == liquidator.key() @ ShadowPerpError::Unauthorized,
-        close = payer,
+        close = liquidator,
     )]
     pub liquidation_settlement: Box<Account<'info, LiquidationSettlement>>,
 
@@ -70,7 +70,7 @@ pub fn handler(ctx: Context<SettleLiquidation>) -> Result<()> {
 
     // Pay liquidation reward from vault to liquidator
     if liquidation_penalty > 0 {
-        let seeds = &[b"market", market.collateral_mint.as_ref(), &[market.bump]];
+        let seeds = &[b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref(), &[market.bump]];
         let signer_seeds = &[&seeds[..]];
 
         let transfer_ctx = CpiContext::new_with_signer(

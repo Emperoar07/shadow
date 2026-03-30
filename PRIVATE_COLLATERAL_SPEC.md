@@ -1,8 +1,8 @@
 # ShadowPerp Private Collateral Spec (Devnet First)
 
-Status: design proposal for implementation
+Status: Phase A (dual-path) partially implemented
 Owner: ShadowPerp core team
-Last updated: 2026-02-23
+Last updated: 2026-03-25
 
 ## 1. Goal
 
@@ -255,16 +255,27 @@ Do not claim "fully private collateral live" until all are true:
 4. no plaintext internal collateral leakage in events/state beyond accepted boundary
 5. docs and runbooks updated
 
-## 14. Immediate Next Implementation Steps
+## 14. Implementation Progress
 
-1. Add state structs and versioning fields for `ShieldedPool` and `NullifierSet`.
-2. Implement `init_shielded_pool` and `deposit_to_shielded`.
-3. Add callback binding nonce/reference checks to current callbacks (before full migration).
-4. Introduce feature flag `SHIELDED_COLLATERAL_ENABLED` in runtime and program config.
-5. Build localnet integration test for:
-   - deposit_to_shielded
-   - lock_margin_private
-   - settle_private_position
-   - request/finalize withdraw
+### Completed (2026-03-25)
+
+1. State structs: `ShieldedPool` (v2), `CommitmentTree`, `NullifierSet`, `PendingWithdrawal`, `ShieldedMarginRef`
+2. `init_shielded_pool` — creates pool, commitment tree, and nullifier set together
+3. `deposit_to_shielded` — SPL transfer + commitment append + rolling root update
+4. `request_withdraw_private` — nullifier-keyed PDA with time delay
+5. `finalize_withdraw` — nullifier spend + vault transfer after delay
+6. Feature flag `shielded-collateral` in Cargo.toml, gating all new code
+7. Error codes: `ShieldedNotEnabled`, `NullifierAlreadySpent`, `InvalidCommitmentProof`, `WithdrawalNotReady`, `CommitmentTreeFull`
+8. Compiles cleanly with and without feature flag
+
+### Remaining
+
+1. Replace XOR-fold root placeholder with SHA256 or Poseidon hashing (add `solana-program` direct dep)
+2. Build Arcium circuits for `lock_margin_private` and `settle_private_position` in `encrypted-ixs/`
+3. Wire circuit callbacks with full replay protection (computation binding pattern from Position)
+4. Client SDK methods: `depositToShielded()`, `requestWithdrawPrivate()`, `finalizeWithdraw()`
+5. Deploy with feature flag to devnet, initialize shielded pool for active market
+6. End-to-end smoke test: deposit → lock margin → open → close → withdraw through shielded path
+7. Runtime feature flag (`SHIELDED_COLLATERAL_ENABLED`) in frontend config
 
 This order gives immediate security improvement (replay resistance) while enabling incremental migration without breaking current devnet operations.

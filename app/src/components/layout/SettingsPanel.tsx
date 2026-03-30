@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Settings, RotateCcw, Lock, Unlock, Sun, Moon } from "lucide-react";
+import { Settings, RotateCcw, Lock, Unlock, Sun, Moon, Plus, Trash2 } from "lucide-react";
 import type { TradingSettings } from "../../hooks/useTradingSettings";
+import {
+  getUserRpcConfig,
+  setUserRpcConfig,
+  getSavedRpcEndpoints,
+  setSavedRpcEndpoints,
+  type SavedRpcEndpoint,
+  type UserRpcConfig,
+  MAX_CUSTOM_ENDPOINTS,
+} from "../../lib/runtime";
 
 const PANEL_OPTIONS = [
   { key: "marketinfo", label: "Market Info" },
@@ -174,7 +183,7 @@ export default function SettingsPanel({
 }: SettingsPanelProps) {
   const ts = tradingSettings ?? TRADING_DEFAULTS;
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"trading" | "layout" | "style">("trading");
+  const [tab, setTab] = useState<"trading" | "layout" | "network">("trading");
   const [isDesktop, setIsDesktop] = useState(false);
   const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -209,6 +218,46 @@ export default function SettingsPanel({
     }
   }, [isDesktop, tab]);
 
+  // RPC settings state
+  const [activeId, setActiveId] = useState<string>("devnet");
+  const [savedEndpoints, setSaved] = useState<SavedRpcEndpoint[]>([]);
+  const [newName, setNewName] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+  const [justConnected, setJustConnected] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSaved(getSavedRpcEndpoints());
+    const config = getUserRpcConfig();
+    if (config) setActiveId(config.activeId);
+  }, []);
+
+  const handleConnect = (id: string) => {
+    setUserRpcConfig({ activeId: id });
+    setActiveId(id);
+    setJustConnected(id);
+    setTimeout(() => setJustConnected(null), 1500);
+  };
+
+  const handleAddEndpoint = () => {
+    const name = newName.trim();
+    const url = newUrl.trim();
+    if (!name || !url) return;
+    if (savedEndpoints.length >= MAX_CUSTOM_ENDPOINTS) return;
+    const id = `custom_${Date.now()}`;
+    const next = [...savedEndpoints, { id, name, url }];
+    setSaved(next);
+    setSavedRpcEndpoints(next);
+    setNewName("");
+    setNewUrl("");
+  };
+
+  const handleDelete = (id: string) => {
+    const next = savedEndpoints.filter((e) => e.id !== id);
+    setSaved(next);
+    setSavedRpcEndpoints(next);
+    if (activeId === id) handleConnect("devnet");
+  };
+
   const togglePanel = (key: string) => {
     const next = { ...visibility, [key]: !isVisible(key) };
     update(next);
@@ -224,7 +273,7 @@ export default function SettingsPanel({
     setOpen(false);
   };
 
-  const availableTabs = (["trading", "layout", "style"] as const).filter(
+  const availableTabs = (["trading", "layout", "network"] as const).filter(
     (nextTab) => isDesktop || nextTab !== "layout"
   );
 
@@ -348,14 +397,85 @@ export default function SettingsPanel({
         </div>
       )}
 
-      {tab === "style" && (
+      {tab === "network" && (
         <div className="p-3">
-          <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-2 font-semibold">
-            Coming Soon
-          </p>
-          <p className="text-[11px] text-gray-500">
-            Theme, colors, and font customization.
-          </p>
+          <p className="text-[11px] font-semibold text-gray-200 mb-2">RPC Endpoint</p>
+          <div className="flex flex-col gap-1.5">
+            {/* Default public devnet */}
+            {[{ id: "devnet", name: "Solana Devnet", url: "https://api.devnet.solana.com" }, ...savedEndpoints].map(({ id, name }) => {
+              const isActive = activeId === id;
+              return (
+                <div
+                  key={id}
+                  className={`flex items-center justify-between px-2.5 py-2 rounded text-[12px] border transition-colors ${
+                    isActive ? "border-accent-purple/50 bg-accent-purple/10" : "border-shadow-600 bg-shadow-800/40"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-accent-green shrink-0" />}
+                    <span className={`truncate ${isActive ? "text-white font-medium" : "text-gray-400"}`}>{name}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    {isActive ? (
+                      <span className="text-[10px] text-accent-green font-medium">
+                        {justConnected === id ? "Connected" : "Active"}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleConnect(id)}
+                        className="text-[10px] font-medium text-accent-purple hover:text-white px-2 py-0.5 rounded border border-accent-purple/30 bg-accent-purple/10 hover:bg-accent-purple/20 transition-colors"
+                      >
+                        Connect
+                      </button>
+                    )}
+                    {id !== "devnet" && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(id)}
+                        className="text-gray-600 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Add new endpoint */}
+            {savedEndpoints.length < MAX_CUSTOM_ENDPOINTS && (
+              <div className="rounded border border-shadow-600 bg-shadow-800/40 px-2.5 py-2 flex flex-col gap-1.5 mt-1">
+                <p className="text-[10px] text-gray-500 font-medium">Add Endpoint</p>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Name (e.g. QuickNode)"
+                  className="w-full px-2 py-1.5 bg-shadow-800 border border-shadow-600 text-[11px] text-gray-200 placeholder-gray-600 focus:outline-none focus:border-accent-purple/50 rounded"
+                />
+                <input
+                  type="text"
+                  value={newUrl}
+                  onChange={(e) => setNewUrl(e.target.value)}
+                  placeholder="https://your-rpc-endpoint.com"
+                  className="w-full px-2 py-1.5 bg-shadow-800 border border-shadow-600 text-[11px] text-gray-200 placeholder-gray-600 focus:outline-none focus:border-accent-purple/50 rounded"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddEndpoint}
+                  disabled={!newName.trim() || !newUrl.trim()}
+                  className="flex items-center justify-center gap-1 w-full py-1 text-[10px] font-medium text-accent-purple border border-accent-purple/30 bg-accent-purple/10 hover:bg-accent-purple/20 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Plus className="w-3 h-3" />
+                  Save & Connect
+                </button>
+              </div>
+            )}
+            {savedEndpoints.length >= MAX_CUSTOM_ENDPOINTS && (
+              <p className="text-[10px] text-gray-500 text-center py-1">Max {MAX_CUSTOM_ENDPOINTS} endpoints saved</p>
+            )}
+          </div>
         </div>
       )}
 

@@ -177,8 +177,10 @@ function buildRelayConfig(programId: PublicKey): ShadowPerpConfig {
     "NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT",
     DEFAULT_COLLATERAL_MINT
   );
+  // SOL mint — base asset seed for the SOL-USD market PDA
+  const SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
   const [derivedMarketAddress] = PublicKey.findProgramAddressSync(
-    [Buffer.from("market"), collateralMint.toBuffer()],
+    [Buffer.from("market"), collateralMint.toBuffer(), SOL_MINT.toBuffer()],
     programId
   );
   const clusterOffsetRaw = normalize(process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET);

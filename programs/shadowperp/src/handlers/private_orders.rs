@@ -12,7 +12,7 @@ pub struct InitPrivateOrderBook<'info> {
     pub owner: Signer<'info>,
 
     #[account(
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Account<'info, Market>,
@@ -52,7 +52,7 @@ pub struct AddPrivateOrder<'info> {
     pub owner: Signer<'info>,
 
     #[account(
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Account<'info, Market>,

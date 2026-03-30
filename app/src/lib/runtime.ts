@@ -13,7 +13,65 @@ const DEFAULT_CLUSTER_OFFSET = 456;
 const DEFAULT_RPC_ENDPOINT = "https://api.devnet.solana.com";
 const DEFAULT_COLLATERAL_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; // canonical devnet USDC
 const RPC_PREF_STORAGE_KEY = "shadowperp.rpc.index";
+const USER_RPC_OVERRIDE_KEY = "shadowperp.rpc.override";
+const USER_RPC_ENDPOINTS_KEY = "shadowperp.rpc.endpoints";
 export const RPC_CHANGED_EVENT = "shadowperp:rpc-changed";
+export const MAX_CUSTOM_ENDPOINTS = 5;
+
+export interface SavedRpcEndpoint {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export interface UserRpcConfig {
+  /** "devnet" = public default, otherwise an id from SavedRpcEndpoint */
+  activeId: string;
+}
+
+export function getSavedRpcEndpoints(): SavedRpcEndpoint[] {
+  try {
+    if (typeof window === "undefined") return [];
+    const raw = window.localStorage.getItem(USER_RPC_ENDPOINTS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as SavedRpcEndpoint[];
+  } catch {
+    return [];
+  }
+}
+
+export function setSavedRpcEndpoints(endpoints: SavedRpcEndpoint[]): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(USER_RPC_ENDPOINTS_KEY, JSON.stringify(endpoints));
+}
+
+export function getUserRpcConfig(): UserRpcConfig | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(USER_RPC_OVERRIDE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as UserRpcConfig;
+  } catch {
+    return null;
+  }
+}
+
+export function setUserRpcConfig(config: UserRpcConfig | null): void {
+  if (typeof window === "undefined") return;
+  if (config === null) {
+    window.localStorage.removeItem(USER_RPC_OVERRIDE_KEY);
+  } else {
+    window.localStorage.setItem(USER_RPC_OVERRIDE_KEY, JSON.stringify(config));
+  }
+  window.dispatchEvent(new CustomEvent(RPC_CHANGED_EVENT));
+}
+
+export function resolveUserRpcUrl(config: UserRpcConfig): string | null {
+  if (config.activeId === "devnet") return DEFAULT_RPC_ENDPOINT;
+  const endpoints = getSavedRpcEndpoints();
+  const found = endpoints.find((e) => e.id === config.activeId);
+  return found?.url.trim() || null;
+}
 export type RpcTransport = { rpc: string; ws: string };
 const DEFAULT_IDL_PROGRAM_ID =
   typeof shadowperpIdl.address === "string" && shadowperpIdl.address.length > 0
@@ -97,8 +155,10 @@ export function getRuntimeConfig(): ShadowPerpConfig {
     "NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT",
     DEFAULT_COLLATERAL_MINT
   );
+  // SOL mint — base asset seed for the SOL-USD market PDA
+  const SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
   const [derivedMarketAddress] = PublicKey.findProgramAddressSync(
-    [Buffer.from("market"), collateralMint.toBuffer()],
+    [Buffer.from("market"), collateralMint.toBuffer(), SOL_MINT.toBuffer()],
     programId
   );
 
@@ -215,6 +275,11 @@ export function getWsEndpoint(): string {
 }
 
 export function getRpcTransport(): RpcTransport {
+  const userConfig = getUserRpcConfig();
+  if (userConfig) {
+    const url = resolveUserRpcUrl(userConfig);
+    if (url) return { rpc: url, ws: deriveWsEndpoint(url) };
+  }
   const transports = getRpcTransports();
   const index = getPreferredRpcIndex() % transports.length;
   return transports[index];

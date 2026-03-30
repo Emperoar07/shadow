@@ -75,6 +75,13 @@ function readFlag(name: string): boolean {
   return process.argv.includes(`--${name}`);
 }
 
+function readArg(name: string): string | undefined {
+  const args = process.argv.slice(2);
+  const idx = args.indexOf(`--${name}`);
+  if (idx === -1 || idx + 1 >= args.length) return undefined;
+  return args[idx + 1];
+}
+
 function toNumber(value: unknown): number {
   if (typeof value === "number") return value;
   if (typeof value === "bigint") return Number(value);
@@ -340,6 +347,11 @@ async function fetchCompositePrice(
 async function main(): Promise<void> {
   const onceMode = readFlag("once");
   const forceMode = readFlag("force");
+  const manualPriceArg = readArg("manual-price");
+  const manualPriceUsd = manualPriceArg ? parseFloat(manualPriceArg) : null;
+  if (manualPriceUsd !== null && (!Number.isFinite(manualPriceUsd) || manualPriceUsd <= 0)) {
+    throw new Error(`Invalid --manual-price value: ${manualPriceArg}`);
+  }
   loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"));
 
   const rpcSelection = await resolveRpcEndpoint({
@@ -566,50 +578,67 @@ async function main(): Promise<void> {
   console.log(`  Stale alert:        ${staleAlertSeconds}s`);
   console.log(`  Alert cooldown:     ${alertCooldownSeconds}s`);
   console.log(`  Alert webhook:      ${alertWebhookUrl ? "configured" : "not configured (console alerts only)"}`);
-  console.log(`  Last on-chain:      ${lastAcceptedPriceUi ? `$${fmt(lastAcceptedPriceUi)}` : "unset"}\n`);
+  console.log(`  Last on-chain:      ${lastAcceptedPriceUi ? `$${fmt(lastAcceptedPriceUi)}` : "unset"}`);
+  if (manualPriceUsd !== null) {
+    console.log(`  MANUAL OVERRIDE:    $${fmt(manualPriceUsd)} (bypassing all source fetching)`);
+  }
+  console.log("");
 
   const runTick = async (): Promise<void> => {
-    const { medianPrice, quotes, warnings } = await fetchCompositePrice(minSourcesRequired);
+    let effectiveMedianPrice: number;
+    let quotes: SourceQuote[];
+    let warnings: string[];
+    let reducedSourceMode = false;
     const nowSec = Math.floor(Date.now() / 1000);
     const ageSeconds =
       lastAcceptedUpdateSec > 0
         ? Math.max(0, nowSec - lastAcceptedUpdateSec)
         : Number.POSITIVE_INFINITY;
-    let effectiveMedianPrice = medianPrice;
-    let reducedSourceMode = false;
 
-    if (quotes.length < minSourcesRequired) {
-      const note = `Insufficient oracle sources (${quotes.length}/${minSourcesRequired})`;
-      const moveFromLast =
-        lastAcceptedPriceUi !== null
-          ? deviationBps(medianPrice, lastAcceptedPriceUi)
-          : Number.POSITIVE_INFINITY;
-      const canUseFailsafe =
-        failsafeAllowSingleSource &&
-        quotes.length >= 1 &&
-        ageSeconds >= heartbeatSeconds &&
-        (lastAcceptedPriceUi === null || moveFromLast <= failsafeMaxMoveBps);
+    if (manualPriceUsd !== null) {
+      // Manual override — skip all external source fetching and safety checks
+      effectiveMedianPrice = manualPriceUsd;
+      quotes = [{ source: "manual", price: manualPriceUsd }];
+      warnings = [];
+      console.log(`[${ts()}] Using manual price override: $${fmt(manualPriceUsd)}`);
+    } else {
+      const composite = await fetchCompositePrice(minSourcesRequired);
+      effectiveMedianPrice = composite.medianPrice;
+      quotes = composite.quotes;
+      warnings = composite.warnings;
 
-      if (!canUseFailsafe) {
-        throw new Error(`${note}. ${warnings.join(" | ")}`);
+      if (quotes.length < minSourcesRequired) {
+        const note = `Insufficient oracle sources (${quotes.length}/${minSourcesRequired})`;
+        const moveFromLast =
+          lastAcceptedPriceUi !== null
+            ? deviationBps(effectiveMedianPrice, lastAcceptedPriceUi)
+            : Number.POSITIVE_INFINITY;
+        const canUseFailsafe =
+          failsafeAllowSingleSource &&
+          quotes.length >= 1 &&
+          ageSeconds >= heartbeatSeconds &&
+          (lastAcceptedPriceUi === null || moveFromLast <= failsafeMaxMoveBps);
+
+        if (!canUseFailsafe) {
+          throw new Error(`${note}. ${warnings.join(" | ")}`);
+        }
+
+        reducedSourceMode = true;
+        await emitAlert("oracle-failsafe-single-source", `${note}; using guarded failsafe`, {
+          quotes: quotes.map((q) => q.source),
+          ageSeconds,
+          medianPrice: effectiveMedianPrice,
+          moveBps: Number.isFinite(moveFromLast) ? moveFromLast : null,
+          failsafeMaxMoveBps,
+        });
       }
-
-      reducedSourceMode = true;
-      effectiveMedianPrice = medianPrice;
-      await emitAlert("oracle-failsafe-single-source", `${note}; using guarded failsafe`, {
-        quotes: quotes.map((q) => q.source),
-        ageSeconds,
-        medianPrice: effectiveMedianPrice,
-        moveBps: Number.isFinite(moveFromLast) ? moveFromLast : null,
-        failsafeMaxMoveBps,
-      });
     }
 
     const moveBps =
       lastAcceptedPriceUi !== null
         ? deviationBps(effectiveMedianPrice, lastAcceptedPriceUi)
         : Number.POSITIVE_INFINITY;
-    const disagreeBps = sourceDisagreementBps(quotes, effectiveMedianPrice);
+    const disagreeBps = manualPriceUsd !== null ? 0 : sourceDisagreementBps(quotes, effectiveMedianPrice);
     const sourcePrices = Object.fromEntries(quotes.map((q) => [q.source, Number(q.price.toFixed(8))]));
 
     if (ageSeconds >= staleAlertSeconds) {
@@ -621,7 +650,7 @@ async function main(): Promise<void> {
       });
     }
 
-    if (safetyModeEnabled && disagreeBps > sourceDisagreeLimitBps) {
+    if (manualPriceUsd === null && safetyModeEnabled && disagreeBps > sourceDisagreeLimitBps) {
       const note = `Safety freeze: source disagreement ${fmt(disagreeBps, 2)} bps > ${sourceDisagreeLimitBps} bps`;
       consecutiveFailures += 1;
       await emitAlert("oracle-source-disagreement", note, {
@@ -647,7 +676,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    if (lastAcceptedPriceUi !== null && maxDeviationBps > 0 && moveBps > maxDeviationBps) {
+    if (manualPriceUsd === null && lastAcceptedPriceUi !== null && maxDeviationBps > 0 && moveBps > maxDeviationBps) {
       const note = `Circuit breaker: move ${fmt(moveBps, 2)} bps > ${maxDeviationBps} bps`;
       consecutiveFailures += 1;
       await emitAlert("oracle-circuit-breaker", note, {
@@ -674,6 +703,7 @@ async function main(): Promise<void> {
     }
 
     const shouldPublish =
+      manualPriceUsd !== null ||
       forceMode ||
       lastAcceptedPriceUi === null ||
       ageSeconds >= heartbeatSeconds ||

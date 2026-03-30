@@ -81,6 +81,12 @@ export function useMarketSnapshot(pair: TradingPair, refreshMs = 4_000) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset snapshot immediately when pair changes so stale data from previous pair is cleared
+  const pairLabel = pair.label;
+  useEffect(() => {
+    setSnapshot(buildSnapshot(pair, undefined, null));
+  }, [pairLabel]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -101,12 +107,12 @@ export function useMarketSnapshot(pair: TradingPair, refreshMs = 4_000) {
 
         const livePrice = livePrices?.[pair.label];
         setSnapshot((prev) =>
-          buildSnapshot(pair, livePrice, depthSnapshot ?? prev.depthSnapshot)
+          buildSnapshot(pair, livePrice, depthSnapshot ?? (prev.pairLabel === pair.label ? prev.depthSnapshot : null))
         );
         setError(null);
       } catch (loadError: any) {
         if (cancelled) return;
-        setSnapshot((prev) => buildSnapshot(pair, undefined, prev.depthSnapshot));
+        setSnapshot((prev) => buildSnapshot(pair, undefined, prev.pairLabel === pair.label ? prev.depthSnapshot : null));
         setError(
           typeof loadError?.message === "string"
             ? loadError.message

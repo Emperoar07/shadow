@@ -41,6 +41,7 @@ export default function PrivateOrderbook({
   animate = true,
 }: PrivateOrderbookProps) {
   const [internalTab, setInternalTab] = useState<"book" | "trades">("book");
+  const [bookLayout, setBookLayout] = useState<"both" | "bids" | "asks">("both");
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [groupingOpen, setGroupingOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -97,23 +98,30 @@ export default function PrivateOrderbook({
 
   const quoteSymbol = snapshot?.quoteSymbol ?? activePair.quote.symbol;
   const baseSymbol = activePair.base.symbol;
+  const singleSide = bookLayout !== "both";
+  const maxLevels = singleSide ? 48 : 24;
+  const minLevels = singleSide ? 24 : 12;
   const groupedAsks = groupLevelsAdaptive(
     snapshot?.asks ?? [],
     groupingOptions,
     grouping,
     "asks",
-    24,
-    12
+    maxLevels,
+    minLevels
   );
   const groupedBids = groupLevelsAdaptive(
     snapshot?.bids ?? [],
     groupingOptions,
     grouping,
     "bids",
-    24,
-    12
+    maxLevels,
+    minLevels
   );
   const trades = snapshot?.trades ?? [];
+
+  const bidTotal = groupedBids.length > 0 ? groupedBids[groupedBids.length - 1].total : 0;
+  const askTotal = groupedAsks.length > 0 ? groupedAsks[groupedAsks.length - 1].total : 0;
+  const bidPct = bidTotal + askTotal > 0 ? (bidTotal / (bidTotal + askTotal)) * 100 : 50;
   const ageMs = snapshot ? Math.max(0, nowMs - snapshot.fetchedAt) : null;
   const ageSeconds = ageMs !== null ? Math.floor(ageMs / 1000) : null;
   const isFresh = ageMs !== null && ageMs < 10_000;
@@ -143,23 +151,70 @@ export default function PrivateOrderbook({
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.08em] text-gray-500">
-          {snapshot ? (
-            <span className={`inline-flex items-center gap-1 ${isFresh ? "text-emerald-400/90" : "text-yellow-300/90"}`}>
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${isFresh ? "bg-emerald-400" : "bg-yellow-300"}`}
-                style={{
-                  animation: isFresh ? "pulse-dot 2s ease-in-out infinite" : undefined,
-                }}
-              />
-              <span>{isFresh ? "Live" : "Refreshing"}</span>
-              {ageSeconds !== null && <span className="text-gray-500">{ageSeconds}s</span>}
-            </span>
-          ) : (
-            <span>Loading</span>
+        <div className="flex items-center gap-2">
+          {/* Layout toggle — always visible in header */}
+          {tab === "book" && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setBookLayout("both")}
+                title="Both"
+                className={`flex flex-col gap-[2px] p-1 rounded transition-opacity ${bookLayout === "both" ? "opacity-100" : "opacity-30 hover:opacity-60"}`}
+              >
+                <span className="block w-[14px] h-[5px] rounded-[1px] bg-accent-red/80" />
+                <span className="block w-[14px] h-[5px] rounded-[1px] bg-accent-green/80" />
+              </button>
+              <button
+                onClick={() => setBookLayout("bids")}
+                title="Bids only"
+                className={`flex flex-col gap-[2px] p-1 rounded transition-opacity ${bookLayout === "bids" ? "opacity-100" : "opacity-30 hover:opacity-60"}`}
+              >
+                <span className="block w-[14px] h-[5px] rounded-[1px] bg-shadow-600" />
+                <span className="block w-[14px] h-[5px] rounded-[1px] bg-accent-green/80" />
+              </button>
+              <button
+                onClick={() => setBookLayout("asks")}
+                title="Asks only"
+                className={`flex flex-col gap-[2px] p-1 rounded transition-opacity ${bookLayout === "asks" ? "opacity-100" : "opacity-30 hover:opacity-60"}`}
+              >
+                <span className="block w-[14px] h-[5px] rounded-[1px] bg-accent-red/80" />
+                <span className="block w-[14px] h-[5px] rounded-[1px] bg-shadow-600" />
+              </button>
+            </div>
+          )}
+          {snapshot && (
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${isFresh ? "bg-emerald-400" : "bg-yellow-300"}`}
+              style={{ animation: isFresh ? "pulse-dot 2s ease-in-out infinite" : undefined }}
+            />
           )}
         </div>
       </div>
+
+      {/* Buy / Sell pressure bar */}
+      {tab === "book" && (
+        <BuySellBar
+          leftPct={bidPct}
+          leftLabel="Bid"
+          rightLabel="Ask"
+          leftColor="green"
+          rightColor="red"
+        />
+      )}
+      {tab === "trades" && trades.length > 0 && (() => {
+        const recent = trades.slice(0, 30);
+        const buyVol = recent.filter((t) => t.side !== "sell").reduce((s, t) => s + t.size, 0);
+        const totalVol = recent.reduce((s, t) => s + t.size, 0);
+        const buyPctTrades = totalVol > 0 ? (buyVol / totalVol) * 100 : 50;
+        return (
+          <BuySellBar
+            leftPct={buyPctTrades}
+            leftLabel="Buy"
+            rightLabel="Sell"
+            leftColor="green"
+            rightColor="red"
+          />
+        );
+      })()}
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <div className="flex flex-col min-h-0 w-full">
@@ -197,7 +252,7 @@ export default function PrivateOrderbook({
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-3 flex-1 text-[8px] uppercase tracking-[0.08em] text-gray-500">
+<div className="grid grid-cols-3 flex-1 text-[8px] uppercase tracking-[0.08em] text-gray-500">
                   <span>Price ({quoteSymbol})</span>
                   <span className="text-right">Size ({baseSymbol})</span>
                   <span className="text-right">Total ({baseSymbol})</span>
@@ -210,9 +265,9 @@ export default function PrivateOrderbook({
                 </div>
               ) : (
                 <>
-                  <BookSide levels={groupedAsks} tone="ask" animate={animate} />
-                  <SpreadRow snapshot={snapshot} referencePrice={referencePrice} />
-                  <BookSide levels={groupedBids} tone="bid" animate={animate} />
+                  {bookLayout !== "bids" && <BookSide levels={groupedAsks} tone="ask" animate={animate} fullHeight={bookLayout === "asks"} />}
+                  {bookLayout === "both" && <SpreadRow snapshot={snapshot} referencePrice={referencePrice} />}
+                  {bookLayout !== "asks" && <BookSide levels={groupedBids} tone="bid" animate={animate} fullHeight={bookLayout === "bids"} />}
                 </>
               )}
             </>
@@ -246,15 +301,18 @@ function BookSide({
   levels,
   tone,
   animate = true,
+  fullHeight = false,
 }: {
   levels: GroupedReferenceLevel[];
   tone: "bid" | "ask";
   animate?: boolean;
+  fullHeight?: boolean;
 }) {
   const maxTotal = levels.length > 0 ? levels[levels.length - 1].total : 0;
   const toneClass = tone === "ask" ? "text-accent-red" : "text-accent-green";
   const barClass = tone === "ask" ? "bg-red-500/10" : "bg-emerald-500/10";
-  const alignmentClass = tone === "ask" ? "justify-end" : "justify-start";
+  // In single-side mode, always start from top; in dual mode, asks push to bottom
+  const alignmentClass = fullHeight ? "justify-start" : tone === "ask" ? "justify-end" : "justify-start";
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
@@ -326,6 +384,44 @@ function TradeRow({ trade }: { trade: ReferenceTrade }) {
       <span className={toneClass}>{formatPrice(trade.price)}</span>
       <span className="text-right text-gray-300">{formatSize(trade.size)}</span>
       <span className="text-right text-gray-500">{formatTime(trade.timestamp)}</span>
+    </div>
+  );
+}
+
+function BuySellBar({
+  leftPct,
+  leftLabel,
+  rightLabel,
+  leftColor,
+  rightColor,
+}: {
+  leftPct: number;
+  leftLabel: string;
+  rightLabel: string;
+  leftColor: "green" | "red";
+  rightColor: "green" | "red";
+}) {
+  const left = Math.min(100, Math.max(0, leftPct));
+  const right = 100 - left;
+  const leftBg = leftColor === "green" ? "rgba(20,241,149,0.18)" : "rgba(255,80,80,0.18)";
+  const rightBg = rightColor === "red" ? "rgba(255,80,80,0.18)" : "rgba(20,241,149,0.18)";
+  const leftText = leftColor === "green" ? "text-accent-green" : "text-accent-red";
+  const rightText = rightColor === "red" ? "text-accent-red" : "text-accent-green";
+
+  return (
+    <div className="flex h-[22px] w-full shrink-0 overflow-hidden border-t border-shadow-700/60 text-[10px] font-semibold tabular-nums">
+      <div
+        className={`flex items-center pl-2 ${leftText} transition-all duration-500`}
+        style={{ width: `${left}%`, background: leftBg }}
+      >
+        {left.toFixed(1)}% {leftLabel}
+      </div>
+      <div
+        className={`flex flex-1 items-center justify-end pr-2 ${rightText} transition-all duration-500`}
+        style={{ background: rightBg }}
+      >
+        {rightLabel} {right.toFixed(1)}%
+      </div>
     </div>
   );
 }

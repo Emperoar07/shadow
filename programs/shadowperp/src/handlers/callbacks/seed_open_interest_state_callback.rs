@@ -5,22 +5,28 @@ use arcium_anchor::prelude::*;
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::Market;
 
+const COMP_DEF_OFFSET_SEED_OPEN_INTEREST_STATE_V3: u32 = comp_def_offset("seed_open_interest_state_v3");
+
 /// Callback account for bootstrapping a valid MXE-owned zero OI state.
 #[callback_accounts("seed_open_interest_state_v3")]
 #[derive(Accounts)]
 pub struct SeedOpenInterestStateV3Callback<'info> {
     pub arcium_program: Program<'info, Arcium>,
-    pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
-    pub mxe_account: Box<Account<'info, MXEAccount>>,
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_SEED_OPEN_INTEREST_STATE_V3))]
+    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
+    #[account(address = derive_mxe_pda!())]
+    pub mxe_account: Account<'info, MXEAccount>,
     /// CHECK: Validated by Arcium
     pub computation_account: UncheckedAccount<'info>,
-    pub cluster_account: Box<Account<'info, Cluster>>,
+    #[account(address = derive_cluster_pda!(mxe_account, ErrorCode::ClusterNotSet))]
+    pub cluster_account: Account<'info, Cluster>,
     /// CHECK: Instructions sysvar
+    #[account(address = ::anchor_lang::solana_program::sysvar::instructions::ID)]
     pub instructions_sysvar: AccountInfo<'info>,
 
     #[account(
         mut,
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,

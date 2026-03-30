@@ -1,0 +1,83 @@
+//! Settle Private Position Circuit
+//!
+//! Applies PnL, fees, and funding to a shielded position settlement.
+//! The circuit computes the net settlement amount and new shielded balance
+//! after closing a position through the private collateral path.
+//!
+//! Privacy: Position details remain encrypted. Only the settlement outputs
+//! needed for on-chain state updates are revealed.
+
+use arcis_imports::*;
+
+#[encrypted]
+mod settle_private_position_circuit {
+    use arcis_imports::*;
+
+    /// Settle a closed position against the shielded collateral pool.
+    ///
+    /// Inputs:
+    ///   - position: (size, entry_price, leverage, is_long, locked_margin) encrypted
+    ///   - exit_price: plaintext current price
+    ///   - trading_fee_bps: plaintext fee rate
+    ///   - remaining_balance: user's remaining shielded balance (encrypted)
+    ///
+    /// Returns:
+    ///   - realized_pnl: net PnL for the position
+    ///   - settlement_amount: tokens to credit back to shielded balance
+    ///   - fee: trading fee deducted
+    ///   - new_balance: updated shielded balance after settlement
+    #[instruction]
+    pub fn settle_private_position(
+        position: Enc<Shared, (u64, u64, u8, bool, u64)>,
+        exit_price: u64,
+        trading_fee_bps: u16,
+        remaining_balance: Enc<Shared, u64>,
+    ) -> (i64, u64, u64, u64) {
+        let pos = position.to_arcis();
+        let rem_balance = remaining_balance.to_arcis();
+
+        // Calculate price delta
+        let entry = pos.1 as i64;
+        let exit = exit_price as i64;
+        let price_delta = exit - entry;
+
+        // Calculate raw PnL based on direction
+        let raw_pnl = if pos.3 {
+            price_delta * (pos.0 as i64)
+        } else {
+            -price_delta * (pos.0 as i64)
+        };
+
+        // Apply leverage to PnL
+        let leveraged_pnl = raw_pnl * (pos.2 as i64);
+
+        // Normalize PnL (divide by entry price to get actual dollar value)
+        let realized_pnl = leveraged_pnl / entry;
+
+        // Trading fee on position value
+        let position_value = pos.0 * exit_price;
+        let fee = (position_value * trading_fee_bps as u64) / 10000;
+
+        // Settlement = margin + pnl - fees
+        let margin_i64 = pos.4 as i64;
+        let fee_i64 = fee as i64;
+        let settlement_i64 = margin_i64 + realized_pnl - fee_i64;
+
+        // Clamp to zero (can't have negative settlement)
+        let settlement_amount = if settlement_i64 > 0 {
+            settlement_i64 as u64
+        } else {
+            0
+        };
+
+        // New shielded balance = remaining + settlement
+        let new_balance = rem_balance + settlement_amount;
+
+        (
+            realized_pnl.reveal(),
+            settlement_amount.reveal(),
+            fee.reveal(),
+            new_balance.reveal(),
+        )
+    }
+}

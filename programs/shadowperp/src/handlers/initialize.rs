@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 
+use crate::errors::ShadowPerpError;
 use crate::state::{Market, MarketInitialized};
 
 #[derive(Accounts)]
@@ -12,13 +14,17 @@ pub struct Initialize<'info> {
         init,
         payer = authority,
         space = Market::LEN,
-        seeds = [b"market", collateral_mint.key().as_ref()],
+        seeds = [b"market", collateral_mint.key().as_ref(), base_asset_mint.key().as_ref()],
         bump
     )]
     pub market: Account<'info, Market>,
 
     /// Collateral token mint (e.g., USDC)
     pub collateral_mint: Account<'info, Mint>,
+
+    /// Base asset mint for this market (e.g., SOL mint for SOL-USD).
+    /// Used as part of the PDA seed so multiple markets can share the same collateral.
+    pub base_asset_mint: Account<'info, Mint>,
 
     /// Protocol vault for holding collateral
     #[account(
@@ -49,12 +55,24 @@ pub fn handler(
     max_leverage: u8,
     liquidation_threshold: u16,
     trading_fee: u16,
+    pyth_feed_id_hex: String,
 ) -> Result<()> {
+    require!(max_leverage >= 1 && max_leverage <= 100, ShadowPerpError::InvalidLeverage);
+    require!(
+        liquidation_threshold > 0 && liquidation_threshold <= 5000,
+        ShadowPerpError::InvalidLiquidationThreshold
+    );
+    require!(trading_fee <= 500, ShadowPerpError::InvalidTradingFee);
+
+    let feed_id = get_feed_id_from_hex(&pyth_feed_id_hex)
+        .map_err(|_| error!(ShadowPerpError::InvalidPrice))?;
+
     let market = &mut ctx.accounts.market;
     let bump = ctx.bumps.market;
 
     market.authority = ctx.accounts.authority.key();
     market.collateral_mint = ctx.accounts.collateral_mint.key();
+    market.base_asset_mint = ctx.accounts.base_asset_mint.key();
     market.vault = ctx.accounts.vault.key();
     market.oracle_price = 0;
     market.last_price_update = 0;
@@ -68,6 +86,7 @@ pub fn handler(
     market.price_feeder = ctx.accounts.price_feeder.key();
     market.mxe_cluster = ctx.accounts.mxe_cluster.key();
     market.seed_open_interest_comp_def = Pubkey::default();
+    market.pyth_feed_id = feed_id;
     market.bump = bump;
 
     emit!(MarketInitialized {

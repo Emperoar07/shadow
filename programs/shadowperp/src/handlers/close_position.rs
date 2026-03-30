@@ -20,7 +20,7 @@ pub struct ClosePosition<'info> {
 
     #[account(
         mut,
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -89,6 +89,8 @@ pub struct ClosePosition<'info> {
 pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<()> {
     // Required by Arcium queue flow when this account is initialized on demand.
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+
+    require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
     let market = &ctx.accounts.market;
     let position = &mut ctx.accounts.position;

@@ -78,11 +78,36 @@ This document describes the live request/response flow across UI, Solana, and Ar
 - program enforces available margin checks
 - SPL transfer from vault to user token account
 
+### Shielded Deposit (feature-gated)
+
+1. User calls `deposit_to_shielded` with amount and client-computed commitment
+2. SPL transfer from user ATA to vault (public)
+3. Commitment appended to `CommitmentTree` at next leaf index
+4. Rolling root updated in tree and pool
+5. Pool accounting incremented (`total_public_in`, `commitment_count`)
+6. `ShieldedDeposit` event emitted (pool, depositor, commitment, leaf index — no plaintext amount)
+
+### Shielded Withdraw (feature-gated)
+
+1. User calls `request_withdraw_private` with nullifier and amount
+2. Program creates `PendingWithdrawal` PDA (keyed by pool + nullifier — PDA uniqueness prevents double-spend)
+3. Expiry set to `current_slot + WITHDRAWAL_DELAY_SLOTS`
+4. After delay, user calls `finalize_withdraw`
+5. Program verifies delay passed, marks nullifier spent in `NullifierSet`
+6. SPL transfer from vault to recipient (public)
+7. Pool accounting incremented (`total_public_out`)
+
+### Private Margin Lock/Release (stubs — awaiting Arcium circuits)
+
+- `lock_margin_private` will queue Arcium MPC computation with commitment reference and encrypted balance
+- Callback will verify output and update shielded commitment root
+- `settle_private_position` will apply PnL/funding/fees privately through MPC callback
+
 Note:
 
-- Current collateral transfer path is public at L1.
-- Planned shielded internal collateral accounting is specified in `PRIVATE_COLLATERAL_SPEC.md`.
-- Scaffold accounts (`ShieldedPool`, `NullifierSet`) are now feature-gated and isolated from live deposit/withdraw flow until explicitly enabled.
+- L1 token transfers remain public (Solana constraint).
+- Privacy target is internal collateral ownership, allocation, and margin transitions.
+- Full design in `PRIVATE_COLLATERAL_SPEC.md`.
 
 ## 4.1 Session Lifecycle Flow
 
@@ -100,7 +125,10 @@ Operational scripts:
 
 - one-shot: `npm run oracle:once`
 - daemon: `npm run oracle:daemon`
+- manual override: `npx ts-node scripts/price-oracle.ts --once --manual-price <USD>`
 - check: `npm run check:oracle`
+
+The manual override bypasses external source fetching (Coinbase, Binance, CoinGecko) and submits the given price directly. The on-chain 10x circuit breaker still applies as a safety net.
 
 ## 6. Network/RPC Flow
 

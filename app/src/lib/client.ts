@@ -235,9 +235,9 @@ export class ShadowPerpClient {
     return getMXEAccAddress(this.config.mxeProgramId);
   }
 
-  getMarketAddress(collateralMint: PublicKey): PublicKey {
+  getMarketAddress(collateralMint: PublicKey, baseAssetMint: PublicKey): PublicKey {
     const [marketPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("market"), collateralMint.toBuffer()],
+      [Buffer.from("market"), collateralMint.toBuffer(), baseAssetMint.toBuffer()],
       this.config.programId
     );
     return marketPda;

@@ -16,6 +16,12 @@ pub enum ShadowPerpError {
     #[msg("Invalid leverage - must be between 1 and max leverage")]
     InvalidLeverage,
 
+    #[msg("Invalid liquidation threshold - must be between 1 and 5000 bps (0.01%–50%)")]
+    InvalidLiquidationThreshold,
+
+    #[msg("Invalid trading fee - must be at most 500 bps (5%)")]
+    InvalidTradingFee,
+
     #[msg("Insufficient margin for position")]
     InsufficientMargin,
 
@@ -69,4 +75,22 @@ pub enum ShadowPerpError {
 
     #[msg("Trade session per-action margin limit exceeded")]
     SessionMarginLimitExceeded,
+
+    #[msg("Shielded collateral feature not enabled")]
+    ShieldedNotEnabled,
+
+    #[msg("Nullifier already spent")]
+    NullifierAlreadySpent,
+
+    #[msg("Invalid commitment proof")]
+    InvalidCommitmentProof,
+
+    #[msg("Withdrawal delay not yet passed")]
+    WithdrawalNotReady,
+
+    #[msg("Commitment tree is full")]
+    CommitmentTreeFull,
+
+    #[msg("Pending computation has timed out")]
+    PendingComputationTimeout,
 }

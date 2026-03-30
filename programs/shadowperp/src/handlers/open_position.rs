@@ -31,7 +31,7 @@ pub struct OpenPosition<'info> {
 
     #[account(
         mut,
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -114,6 +114,8 @@ pub fn handler(
 ) -> Result<()> {
     // Required by Arcium queue flow when this account is initialized on demand.
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+
+    require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
     let market = &mut ctx.accounts.market;
     let margin_account = &mut ctx.accounts.margin_account;

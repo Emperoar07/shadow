@@ -23,7 +23,7 @@ pub struct CreateTradeSession<'info> {
     pub owner: Signer<'info>,
 
     #[account(
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -85,7 +85,7 @@ pub struct RevokeTradeSession<'info> {
     pub owner: Signer<'info>,
 
     #[account(
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -135,7 +135,7 @@ pub struct OpenPositionWithSession<'info> {
 
     #[account(
         mut,
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -223,6 +223,8 @@ pub fn open_position_with_session_handler(
     computation_offset: u64,
 ) -> Result<()> {
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+
+    require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
     let clock = Clock::get()?;
     let market = &mut ctx.accounts.market;
@@ -335,7 +337,7 @@ pub struct ClosePositionWithSession<'info> {
 
     #[account(
         mut,
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -415,6 +417,8 @@ pub fn close_position_with_session_handler(
 ) -> Result<()> {
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
 
+    require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
+
     let clock = Clock::get()?;
     let market = &ctx.accounts.market;
     let session = &mut ctx.accounts.session;
@@ -422,6 +426,11 @@ pub fn close_position_with_session_handler(
 
     session.assert_active(ctx.accounts.relayer.key(), market.key(), clock.unix_timestamp)?;
     session.consume_action()?;
+
+    // Validate oracle price freshness
+    let price_age = clock.unix_timestamp.saturating_sub(market.last_price_update);
+    require!(price_age < 300, ShadowPerpError::StalePrice);
+    require!(market.oracle_price > 0, ShadowPerpError::InvalidPrice);
 
     require!(
         position.status == PositionStatus::Open,
@@ -507,7 +516,7 @@ pub struct DepositCollateralWithSession<'info> {
     pub owner: SystemAccount<'info>,
 
     #[account(
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -628,7 +637,7 @@ pub struct WithdrawCollateralWithSession<'info> {
     pub owner: SystemAccount<'info>,
 
     #[account(
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -682,10 +691,6 @@ pub fn withdraw_collateral_with_session_handler(
     let session = &mut ctx.accounts.session;
 
     session.assert_active(relayer, market.key(), clock.unix_timestamp)?;
-    require!(
-        amount <= session.max_margin_per_action,
-        ShadowPerpError::SessionMarginLimitExceeded
-    );
     session.consume_action()?;
 
     let available = margin_account
@@ -694,7 +699,7 @@ pub fn withdraw_collateral_with_session_handler(
         .ok_or(ShadowPerpError::InsufficientBalance)?;
     require!(available >= amount, ShadowPerpError::InsufficientBalance);
 
-    let seeds = &[b"market", market.collateral_mint.as_ref(), &[market.bump]];
+    let seeds = &[b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref(), &[market.bump]];
     let signer_seeds = &[&seeds[..]];
     let transfer_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),

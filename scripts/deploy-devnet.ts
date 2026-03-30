@@ -464,9 +464,15 @@ async function main() {
     console.log("Using canonical devnet USDC:", collateralMint.toBase58());
   }
 
-  // 5. Derive market PDA
+  // SOL mint — base asset for the SOL-USD market
+  const SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
+  // Pyth SOL/USD feed ID (devnet + mainnet)
+  const SOL_USD_PYTH_FEED_ID =
+    "0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+
+  // 5. Derive market PDA (includes base_asset_mint in seed since multi-market refactor)
   const [marketPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("market"), collateralMint.toBuffer()],
+    [Buffer.from("market"), collateralMint.toBuffer(), SOL_MINT.toBuffer()],
     PROGRAM_ID
   );
   console.log("Market PDA:", marketPda.toBase58());
@@ -491,10 +497,11 @@ async function main() {
 
   try {
     await program.methods
-      .initialize(50, 500, 10) // 50x max leverage, 5% liq threshold, 0.1% fee
+      .initialize(50, 500, 10, SOL_USD_PYTH_FEED_ID) // 50x max leverage, 5% liq threshold, 0.1% fee
       .accounts({
         authority: walletKeypair.publicKey,
         collateralMint,
+        baseAssetMint: SOL_MINT,
         priceFeeder: priceFeeder.publicKey,
         mxeCluster: ARCIUM_CLUSTER_ACCOUNT,
       })

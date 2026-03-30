@@ -18,7 +18,7 @@ pub struct SettleClosePosition<'info> {
     pub position: Box<Account<'info, Position>>,
 
     #[account(
-        seeds = [b"market", market.collateral_mint.as_ref()],
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, Market>>,
@@ -56,7 +56,7 @@ pub fn handler(ctx: Context<SettleClosePosition>) -> Result<()> {
 
     // Transfer settlement amount to user
     if settlement_amount > 0 {
-        let seeds = &[b"market", market.collateral_mint.as_ref(), &[market.bump]];
+        let seeds = &[b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref(), &[market.bump]];
         let signer_seeds = &[&seeds[..]];
 
         let transfer_ctx = CpiContext::new_with_signer(

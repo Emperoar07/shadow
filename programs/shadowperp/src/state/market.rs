@@ -65,8 +65,16 @@ pub struct Market {
     /// Stored after legacy fields so live market accounts keep the original bump/nonce layout.
     pub seed_open_interest_comp_def: Pubkey,
 
-    /// Reserved space for future upgrades (112 legacy reserved bytes - 32 new pubkey = 80)
-    pub _reserved: [u8; 80],
+    /// The base asset mint this market trades (e.g. SOL mint for SOL-USD).
+    /// Part of the PDA seed: ["market", collateral_mint, base_asset_mint].
+    pub base_asset_mint: Pubkey,
+
+    /// Pyth price feed ID for this market's base asset (32-byte feed hash).
+    /// Used by `update_price_from_pyth` to read the correct Pyth feed.
+    pub pyth_feed_id: [u8; 32],
+
+    /// Reserved space for future upgrades (includes slots for shielded comp defs)
+    pub _reserved: [u8; 16],
 }
 
 impl Default for Market {
@@ -92,7 +100,9 @@ impl Default for Market {
             bump: 0,
             oi_nonce: 0,
             seed_open_interest_comp_def: Pubkey::default(),
-            _reserved: [0u8; 80],
+            base_asset_mint: Pubkey::default(),
+            pyth_feed_id: [0u8; 32],
+            _reserved: [0u8; 16],
         }
     }
 }
@@ -119,7 +129,10 @@ impl Market {
         1 +  // bump
         16 + // oi_nonce
         32 + // seed_open_interest_comp_def
-        80; // reserved space preserved after adding seed_open_interest_comp_def
+        32 + // base_asset_mint
+        32 + // pyth_feed_id
+        16; // reserved (includes future shielded comp def slots)
+
 }
 
 /// Event emitted when market is initialized

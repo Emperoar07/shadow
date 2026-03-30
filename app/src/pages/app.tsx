@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
@@ -164,6 +165,10 @@ export default function TradingAppPage() {
             50%       { filter: drop-shadow(0 0 18px rgba(56, 189, 248, 0.3)); }
           }
           .header-logo-animate { animation: header-logo-glow 4s infinite ease-in-out; }
+          @keyframes protocol-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.85); }
+          }
         `}</style>
         <NeuralShadowBackground />
 
@@ -250,6 +255,7 @@ export default function TradingAppPage() {
                     layout="vertical"
                     confirmOpen={tradingSettings.confirmOpenOrder}
                     showNotifications={tradingSettings.showNotifications}
+                    depthSnapshot={marketSnapshot.depthSnapshot}
                   />
                 }
                 positionsComponent={
@@ -309,6 +315,7 @@ export default function TradingAppPage() {
                     layout="vertical"
                     confirmOpen={tradingSettings.confirmOpenOrder}
                     showNotifications={tradingSettings.showNotifications}
+                    depthSnapshot={marketSnapshot.depthSnapshot}
                   />
                 </div>
               </div>
@@ -323,29 +330,27 @@ export default function TradingAppPage() {
 
           {/* ── Footer ── */}
           <footer className="sticky bottom-0 border-t border-shadow-600 shrink-0 bg-shadow-900 relative z-[190]">
-            <div className="max-w-[1600px] mx-auto px-4 py-4 flex flex-col gap-2 text-center text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between sm:text-left">
-              <p>
-                Powered by{" "}
-                <a
-                  href="https://arcium.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent-purple hover:underline"
-                >
-                  Arcium MPC
-                </a>{" "}
-                | Built on Solana
-              </p>
+            <div className="max-w-[1600px] mx-auto px-4 py-2.5 flex flex-col gap-2 text-center text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between sm:text-left">
+              {/* Status indicator */}
+              <div className="flex items-center justify-center gap-4 sm:justify-start">
+                <ProtocolStatusDot />
+                <span className="hidden sm:inline text-[10px] text-gray-600">
+                  Powered by{" "}
+                  <a href="https://arcium.com" target="_blank" rel="noopener noreferrer" className="text-accent-purple/70 hover:text-accent-purple">
+                    Arcium MPC
+                  </a>
+                </span>
+              </div>
               <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-4">
                 <a
                   href="https://x.com/emperoar007"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-gray-200 transition-colors"
+                  className="text-gray-500 hover:text-gray-300 transition-colors text-[10px]"
                 >
                   Built with love by 0xb for the decentralized world.
                 </a>
-                <Link href="/docs#privacy-policy" className="text-gray-400 hover:text-gray-200 transition-colors">
+                <Link href="/docs#privacy-policy" className="text-gray-500 hover:text-gray-300 transition-colors text-[10px]">
                   Privacy Policy
                 </Link>
               </div>
@@ -363,6 +368,77 @@ function ConnectWalletButton() {
   return publicKey
     ? <WalletMultiButton />
     : <WalletMultiButton>Connect Wallet</WalletMultiButton>;
+}
+
+function ProtocolStatusDot() {
+  const { connection } = useConnection();
+  const [status, setStatus] = useState<"live" | "degraded" | "offline">("live");
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const probe = async () => {
+      const start = Date.now();
+      try {
+        await Promise.race([
+          connection.getSlot("processed"),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5_000)),
+        ]);
+        if (cancelled) return;
+        const ms = Date.now() - start;
+        setLatencyMs(ms);
+        setStatus(ms > 3_000 ? "degraded" : "live");
+      } catch {
+        if (cancelled) return;
+        setLatencyMs(null);
+        setStatus("offline");
+      }
+    };
+
+    void probe();
+    const id = window.setInterval(probe, 15_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [connection]);
+
+  const cfg = {
+    live: {
+      dot: "bg-emerald-400",
+      glow: "shadow-[0_0_6px_rgba(20,241,149,0.6),0_0_12px_rgba(20,241,149,0.25)]",
+      text: "text-emerald-400",
+      label: "Operational",
+      pulse: true,
+    },
+    degraded: {
+      dot: "bg-amber-400",
+      glow: "shadow-[0_0_6px_rgba(245,158,11,0.6),0_0_12px_rgba(245,158,11,0.25)]",
+      text: "text-amber-400",
+      label: "Degraded",
+      pulse: true,
+    },
+    offline: {
+      dot: "bg-red-500",
+      glow: "shadow-[0_0_6px_rgba(239,68,68,0.6),0_0_12px_rgba(239,68,68,0.25)]",
+      text: "text-red-400",
+      label: "Offline",
+      pulse: false,
+    },
+  }[status];
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot} ${cfg.glow}`}
+        style={cfg.pulse ? { animation: "protocol-pulse 2s ease-in-out infinite" } : undefined}
+      />
+      <span className={`text-[10px] font-semibold ${cfg.text}`}>
+        {cfg.label}
+      </span>
+      {latencyMs !== null && (
+        <span className="text-[9px] text-gray-500 tabular-nums">{latencyMs}ms</span>
+      )}
+    </div>
+  );
 }
 
 const SESSION_DURATION_OPTIONS = [

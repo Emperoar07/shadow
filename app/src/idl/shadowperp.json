@@ -1501,6 +1501,304 @@
       ]
     },
     {
+      "name": "deposit_to_shielded",
+      "docs": [
+        "Deposit tokens into the shielded pool with a commitment leaf."
+      ],
+      "discriminator": [
+        156,
+        132,
+        111,
+        153,
+        211,
+        136,
+        39,
+        56
+      ],
+      "accounts": [
+        {
+          "name": "depositor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "commitment_tree",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  109,
+                  105,
+                  116,
+                  109,
+                  101,
+                  110,
+                  116,
+                  95,
+                  116,
+                  114,
+                  101,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "finalize_withdraw",
+      "docs": [
+        "Finalize a pending withdrawal after the delay period."
+      ],
+      "discriminator": [
+        17,
+        72,
+        11,
+        172,
+        214,
+        42,
+        12,
+        23
+      ],
+      "accounts": [
+        {
+          "name": "recipient",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "nullifier_set",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  117,
+                  108,
+                  108,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114,
+                  95,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_withdrawal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool"
+              },
+              {
+                "kind": "account",
+                "path": "pending_withdrawal.nullifier",
+                "account": "PendingWithdrawal"
+              }
+            ]
+          }
+        },
+        {
+          "name": "recipient_token_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "init_arcium_signer",
       "docs": [
         "Initialize computation definitions for MPC operations"
@@ -1684,6 +1982,59 @@
           "relations": [
             "market"
           ]
+        },
+        {
+          "name": "mxe_account",
+          "writable": true
+        },
+        {
+          "name": "comp_def_account",
+          "writable": true
+        },
+        {
+          "name": "address_lookup_table",
+          "writable": true
+        },
+        {
+          "name": "lut_program",
+          "address": "AddressLookupTab1e1111111111111111111111111"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_lock_margin_private_comp_def",
+      "discriminator": [
+        13,
+        40,
+        175,
+        224,
+        148,
+        5,
+        201,
+        82
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
         },
         {
           "name": "mxe_account",
@@ -1957,9 +2308,331 @@
       "args": []
     },
     {
+      "name": "init_settle_private_position_comp_def",
+      "discriminator": [
+        4,
+        17,
+        77,
+        22,
+        5,
+        5,
+        213,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "mxe_account",
+          "writable": true
+        },
+        {
+          "name": "comp_def_account",
+          "writable": true
+        },
+        {
+          "name": "address_lookup_table",
+          "writable": true
+        },
+        {
+          "name": "lut_program",
+          "address": "AddressLookupTab1e1111111111111111111111111"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_shielded_margin_ref",
+      "docs": [
+        "Create a shielded margin reference for a user."
+      ],
+      "discriminator": [
+        1,
+        192,
+        68,
+        127,
+        183,
+        235,
+        142,
+        151
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_margin_ref",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_shielded_pool",
+      "docs": [
+        "Initialize shielded collateral scaffolding accounts (feature-gated).",
+        "This does not alter current public deposit/withdraw flow."
+      ],
+      "discriminator": [
+        65,
+        96,
+        213,
+        102,
+        122,
+        13,
+        118,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "nullifier_set",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  117,
+                  108,
+                  108,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114,
+                  95,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "commitment_tree",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  109,
+                  105,
+                  116,
+                  109,
+                  101,
+                  110,
+                  116,
+                  95,
+                  116,
+                  114,
+                  101,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "enable_private_collateral",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "initialize",
       "docs": [
-        "Initialize the protocol with market parameters"
+        "Initialize a market. Each (collateral_mint, base_asset_mint) pair gets its own PDA."
       ],
       "discriminator": [
         175,
@@ -1996,6 +2669,10 @@
               {
                 "kind": "account",
                 "path": "collateral_mint"
+              },
+              {
+                "kind": "account",
+                "path": "base_asset_mint"
               }
             ]
           }
@@ -2004,6 +2681,12 @@
           "name": "collateral_mint",
           "docs": [
             "Collateral token mint (e.g., USDC)"
+          ]
+        },
+        {
+          "name": "base_asset_mint",
+          "docs": [
+            "Base asset mint for this market (e.g., SOL mint for SOL-USD)."
           ]
         },
         {
@@ -2068,6 +2751,299 @@
         {
           "name": "trading_fee",
           "type": "u16"
+        },
+        {
+          "name": "pyth_feed_id_hex",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "lock_margin_private",
+      "docs": [
+        "Lock margin privately via Arcium MPC."
+      ],
+      "discriminator": [
+        195,
+        35,
+        34,
+        1,
+        150,
+        161,
+        14,
+        78
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_margin_ref",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "commitment_ref",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "encrypted_payload",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "lock_margin_private_callback",
+      "docs": [
+        "Callback after lock_margin_private MPC computation."
+      ],
+      "discriminator": [
+        117,
+        200,
+        246,
+        224,
+        239,
+        227,
+        132,
+        158
+      ],
+      "accounts": [
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "computation_account"
+        },
+        {
+          "name": "cluster_account"
+        },
+        {
+          "name": "instructions_sysvar"
+        },
+        {
+          "name": "shielded_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool.market",
+                "account": "ShieldedPool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "commitment_tree",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  109,
+                  105,
+                  116,
+                  109,
+                  101,
+                  110,
+                  116,
+                  95,
+                  116,
+                  114,
+                  101,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool.market",
+                "account": "ShieldedPool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_margin_ref",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool"
+              },
+              {
+                "kind": "account",
+                "path": "shielded_margin_ref.owner",
+                "account": "ShieldedMarginRef"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "output",
+          "type": {
+            "defined": {
+              "name": "SignedComputationOutputs",
+              "generics": [
+                {
+                  "kind": "type",
+                  "type": {
+                    "defined": {
+                      "name": "LockMarginPrivateOutput"
+                    }
+                  }
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -2784,6 +3760,170 @@
       ]
     },
     {
+      "name": "request_withdraw_private",
+      "docs": [
+        "Request a private withdrawal by submitting a nullifier."
+      ],
+      "discriminator": [
+        71,
+        157,
+        175,
+        2,
+        20,
+        196,
+        224,
+        132
+      ],
+      "accounts": [
+        {
+          "name": "requester",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "nullifier_set",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  117,
+                  108,
+                  108,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114,
+                  95,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_withdrawal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool"
+              },
+              {
+                "kind": "arg",
+                "path": "nullifier"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "revoke_trade_session",
       "docs": [
         "Owner can revoke a delegated trading session at any time."
@@ -3083,9 +4223,94 @@
       ]
     },
     {
+      "name": "set_shielded_collateral_feature",
+      "docs": [
+        "Toggle shielded collateral activation bit on an initialized pool."
+      ],
+      "discriminator": [
+        239,
+        84,
+        126,
+        166,
+        27,
+        101,
+        121,
+        71
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "enabled",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "settle_close_position",
       "docs": [
-        "Settle a closed position — transfers tokens from vault to owner.",
+        "Settle a closed position \u00e2\u20ac\u201d transfers tokens from vault to owner.",
         "Called after the close_position callback sets status to ClosedPendingSettlement."
       ],
       "discriminator": [
@@ -3204,7 +4429,7 @@
     {
       "name": "settle_liquidation",
       "docs": [
-        "Settle a liquidated position — transfers penalty from vault to liquidator.",
+        "Settle a liquidated position \u00e2\u20ac\u201d transfers penalty from vault to liquidator.",
         "Called after the check_liquidation callback sets status to LiquidatedPendingSettlement."
       ],
       "discriminator": [
@@ -3362,6 +4587,278 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "settle_private_position",
+      "docs": [
+        "Settle a private position via Arcium MPC callback (stub \u00e2\u20ac\u201d awaiting circuit integration)."
+      ],
+      "discriminator": [
+        90,
+        21,
+        168,
+        48,
+        244,
+        191,
+        189,
+        188
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "encrypted_payload",
+          "type": "bytes"
+        },
+        {
+          "name": "client_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nonce",
+          "type": "u128"
+        },
+        {
+          "name": "balance_client_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "balance_nonce",
+          "type": "u128"
+        },
+        {
+          "name": "exit_price",
+          "type": "u64"
+        },
+        {
+          "name": "trading_fee_bps",
+          "type": "u16"
+        },
+        {
+          "name": "computation_offset",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "settle_private_position_callback",
+      "docs": [
+        "Callback after settle_private_position MPC computation."
+      ],
+      "discriminator": [
+        61,
+        166,
+        229,
+        38,
+        91,
+        49,
+        230,
+        62
+      ],
+      "accounts": [
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "computation_account"
+        },
+        {
+          "name": "cluster_account"
+        },
+        {
+          "name": "instructions_sysvar"
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_margin_ref",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool"
+              },
+              {
+                "kind": "account",
+                "path": "shielded_margin_ref.owner",
+                "account": "ShieldedMarginRef"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "output",
+          "type": {
+            "defined": {
+              "name": "SignedComputationOutputs",
+              "generics": [
+                {
+                  "kind": "type",
+                  "type": {
+                    "defined": {
+                      "name": "SettlePrivatePositionOutput"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
     },
     {
       "name": "sync_comp_defs",
@@ -3814,6 +5311,114 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "set_pyth_feed_id",
+      "docs": [
+        "Authority-only: update the Pyth feed ID stored on a market."
+      ],
+      "discriminator": [
+        165,
+        17,
+        146,
+        205,
+        200,
+        222,
+        70,
+        4
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "pyth_feed_id_hex",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "update_price_from_pyth",
+      "docs": [
+        "Anyone can call this to sync the market oracle price from Pyth.",
+        "No price_feeder signer required."
+      ],
+      "discriminator": [
+        84,
+        58,
+        243,
+        161,
+        33,
+        66,
+        221,
+        101
+      ],
+      "accounts": [
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "The Pyth PriceUpdateV2 account for this markets base asset."
+          ]
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -3854,6 +5459,19 @@
         106,
         18,
         60
+      ]
+    },
+    {
+      "name": "CommitmentTree",
+      "discriminator": [
+        211,
+        14,
+        252,
+        98,
+        153,
+        65,
+        10,
+        92
       ]
     },
     {
@@ -3948,6 +5566,32 @@
       ]
     },
     {
+      "name": "NullifierSet",
+      "discriminator": [
+        251,
+        219,
+        17,
+        100,
+        208,
+        102,
+        127,
+        25
+      ]
+    },
+    {
+      "name": "PendingWithdrawal",
+      "discriminator": [
+        61,
+        103,
+        179,
+        177,
+        148,
+        199,
+        63,
+        171
+      ]
+    },
+    {
       "name": "Position",
       "discriminator": [
         170,
@@ -3958,6 +5602,32 @@
         64,
         247,
         208
+      ]
+    },
+    {
+      "name": "ShieldedMarginRef",
+      "discriminator": [
+        196,
+        233,
+        81,
+        5,
+        41,
+        38,
+        233,
+        95
+      ]
+    },
+    {
+      "name": "ShieldedPool",
+      "discriminator": [
+        104,
+        47,
+        208,
+        0,
+        63,
+        250,
+        170,
+        103
       ]
     },
     {
@@ -4332,6 +6002,65 @@
       }
     },
     {
+      "name": "CommitmentTree",
+      "docs": [
+        "Append-only commitment tree with a rolling ring buffer of recent roots.",
+        "Allows recent inclusion proofs to remain valid even after new deposits."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "depth",
+            "type": "u8"
+          },
+          {
+            "name": "next_index",
+            "type": "u64"
+          },
+          {
+            "name": "roots",
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u8",
+                    32
+                  ]
+                },
+                16
+              ]
+            }
+          },
+          {
+            "name": "root_index",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "ComputationDefinitionAccount",
       "docs": [
         "An account representing a [ComputationDefinition] in a MXE."
@@ -4629,6 +6358,46 @@
           },
           {
             "name": "MxeKeyRecoveryFinalize"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LockMarginPrivateOutput",
+      "docs": [
+        "The output of the callback instruction. Provided as a struct with ordered fields",
+        "as anchor does not support tuples and tuple structs yet."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "field_0",
+            "type": {
+              "defined": {
+                "name": "LockMarginPrivateOutputStruct0"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "LockMarginPrivateOutputStruct0",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "field_0",
+            "type": "bool"
+          },
+          {
+            "name": "field_1",
+            "type": "u64"
+          },
+          {
+            "name": "field_2",
+            "type": "u64"
           }
         ]
       }
@@ -5116,6 +6885,51 @@
       }
     },
     {
+      "name": "NullifierSet",
+      "docs": [
+        "Nullifier bookkeeping for shielded collateral proofs.",
+        "Tracks spent nullifiers to prevent double-spend/replay."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "nullifier_count",
+            "type": "u64"
+          },
+          {
+            "name": "last_rotation_slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "OffChainCircuitSource",
       "type": {
         "kind": "struct",
@@ -5285,6 +7099,60 @@
           },
           {
             "name": "PlaintextPoint"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PendingWithdrawal",
+      "docs": [
+        "Withdrawal intent tied to a nullifier. Created by request_withdraw_private,",
+        "finalized after the delay period by finalize_withdraw."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "expiry_slot",
+            "type": "u64"
+          },
+          {
+            "name": "finalized",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -5464,7 +7332,7 @@
     {
       "docs": [
         "Event emitted when a position is liquidated.",
-        "liquidation_price is intentionally omitted — revealing it would let observers",
+        "liquidation_price is intentionally omitted \u00e2\u20ac\u201d revealing it would let observers",
         "reconstruct leverage/direction from margin + price. Only the fact of liquidation",
         "is public, matching the MPC circuit's boolean-only output guarantee."
       ],
@@ -5657,6 +7525,50 @@
       }
     },
     {
+      "name": "SettlePrivatePositionOutput",
+      "docs": [
+        "The output of the callback instruction. Provided as a struct with ordered fields",
+        "as anchor does not support tuples and tuple structs yet."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "field_0",
+            "type": {
+              "defined": {
+                "name": "SettlePrivatePositionOutputStruct0"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SettlePrivatePositionOutputStruct0",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "field_0",
+            "type": "i64"
+          },
+          {
+            "name": "field_1",
+            "type": "u64"
+          },
+          {
+            "name": "field_2",
+            "type": "u64"
+          },
+          {
+            "name": "field_3",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "SetUnset",
       "docs": [
         "Utility struct to store a value that needs to be set by a certain number of participants (keys",
@@ -5692,6 +7604,224 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "name": "ShieldedCollateralFeatureSet",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "ShieldedDeposit",
+      "type": {
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "depositor",
+            "type": "pubkey"
+          },
+          {
+            "name": "commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "leaf_index",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "ShieldedMarginRef",
+      "docs": [
+        "Links a user to their shielded collateral commitment context.",
+        "Tracks the latest commitment hash and pending computation binding",
+        "for MPC-based margin operations."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "pending_computation_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ShieldedMarginRefCreated",
+      "type": {
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool",
+            "type": "pubkey"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "ShieldedPool",
+      "docs": [
+        "Feature-gated shielded collateral pool bound to a market.",
+        "Holds the current Merkle root, vault reference, and cumulative accounting."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "collateral_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "tree_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "total_public_in",
+            "type": "u64"
+          },
+          {
+            "name": "total_public_out",
+            "type": "u64"
+          },
+          {
+            "name": "commitment_count",
+            "type": "u64"
+          },
+          {
+            "name": "feature_flags",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "updated_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ShieldedPoolInitialized",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "kind": "struct"
       }
     },
     {
@@ -5941,6 +8071,64 @@
           }
         ]
       }
+    },
+    {
+      "name": "WithdrawalFinalized",
+      "type": {
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "WithdrawalRequested",
+      "type": {
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "expiry_slot",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
     }
   ],
   "constants": [],
@@ -6064,6 +8252,58 @@
     },
     {
       "discriminator": [
+        6,
+        237,
+        75,
+        164,
+        140,
+        187,
+        215,
+        255
+      ],
+      "name": "ShieldedCollateralFeatureSet"
+    },
+    {
+      "discriminator": [
+        4,
+        39,
+        118,
+        240,
+        205,
+        156,
+        70,
+        243
+      ],
+      "name": "ShieldedDeposit"
+    },
+    {
+      "discriminator": [
+        54,
+        204,
+        40,
+        154,
+        134,
+        41,
+        170,
+        229
+      ],
+      "name": "ShieldedMarginRefCreated"
+    },
+    {
+      "discriminator": [
+        247,
+        233,
+        248,
+        44,
+        61,
+        30,
+        244,
+        108
+      ],
+      "name": "ShieldedPoolInitialized"
+    },
+    {
+      "discriminator": [
         58,
         231,
         172,
@@ -6087,6 +8327,32 @@
         189
       ],
       "name": "TradeSessionRevoked"
+    },
+    {
+      "discriminator": [
+        180,
+        63,
+        101,
+        47,
+        242,
+        164,
+        179,
+        166
+      ],
+      "name": "WithdrawalFinalized"
+    },
+    {
+      "discriminator": [
+        75,
+        207,
+        21,
+        12,
+        160,
+        102,
+        150,
+        55
+      ],
+      "name": "WithdrawalRequested"
     }
   ],
   "errors": [
@@ -6189,6 +8455,31 @@
       "code": 6019,
       "name": "SessionMarginLimitExceeded",
       "msg": "Trade session per-action margin limit exceeded"
+    },
+    {
+      "code": 6020,
+      "name": "ShieldedNotEnabled",
+      "msg": "Shielded collateral feature not enabled"
+    },
+    {
+      "code": 6021,
+      "name": "NullifierAlreadySpent",
+      "msg": "Nullifier already spent"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidCommitmentProof",
+      "msg": "Invalid commitment proof"
+    },
+    {
+      "code": 6023,
+      "name": "WithdrawalNotReady",
+      "msg": "Withdrawal delay not yet passed"
+    },
+    {
+      "code": 6024,
+      "name": "CommitmentTreeFull",
+      "msg": "Commitment tree is full"
     }
   ]
 }

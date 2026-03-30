@@ -6,7 +6,7 @@ import { Connection } from "@solana/web3.js";
 
 const rpcIdx = process.argv.indexOf("--rpc");
 const sigIdx = process.argv.indexOf("--sig");
-const rpcUrl = rpcIdx !== -1 ? process.argv[rpcIdx + 1] : "https://api.devnet.solana.com";
+const rpcUrl = rpcIdx !== -1 ? process.argv[rpcIdx + 1] : "https://cool-boldest-yard.solana-devnet.quiknode.pro/3513dd000b0bf11aae344e55c52d9281969d0808";
 const sig = sigIdx !== -1 ? process.argv[sigIdx + 1] : process.argv[2];
 
 if (!sig) {

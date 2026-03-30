@@ -7,6 +7,7 @@ import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
+import OrderConfirmModal from "./OrderConfirmModal";
 import {
   PendingLimitOrder,
   OwnerPositionView,
@@ -168,6 +169,7 @@ export default function BottomPositionsPanel({
   );
   const [ruleDrafts, setRuleDrafts] = useState<Record<string, RuleDraft>>({});
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [closeConfirmPos, setCloseConfirmPos] = useState<UiPosition | null>(null);
   const [oraclePrice, setOraclePrice] = useState<number | null>(null);
   const [liqThreshold, setLiqThreshold] = useState(5);
   const autoCloseInFlightRef = useRef<Set<string>>(new Set());
@@ -275,13 +277,8 @@ export default function BottomPositionsPanel({
     });
   }, [ownerPositionViews, positionRules, positions]);
 
-  const handleClose = useCallback(
+  const executeClose = useCallback(
     async (pos: UiPosition) => {
-      if (TRADING_DISABLED) {
-        toast.error("Trading is temporarily disabled while Arcium devnet is being patched.");
-        return;
-      }
-      if (confirmClose && !window.confirm("Are you sure you want to close this position?")) return;
       if (!publicKey || !anchorWallet) return;
       setClosingAddress(pos.address);
       try {
@@ -338,7 +335,22 @@ export default function BottomPositionsPanel({
         setClosingAddress(null);
       }
     },
-    [publicKey, anchorWallet, connection, loadPositions, confirmClose, toastSuccess, toastLoading]
+    [publicKey, anchorWallet, connection, loadPositions, toastSuccess, toastLoading]
+  );
+
+  const handleClose = useCallback(
+    (pos: UiPosition) => {
+      if (TRADING_DISABLED) {
+        toast.error("Trading is temporarily disabled while Arcium devnet is being patched.");
+        return;
+      }
+      if (confirmClose) {
+        setCloseConfirmPos(pos);
+        return;
+      }
+      void executeClose(pos);
+    },
+    [confirmClose, executeClose]
   );
 
   const updateRuleDraft = useCallback(
@@ -496,11 +508,11 @@ export default function BottomPositionsPanel({
         { id: `tp-sl-${pos.address}` }
       );
 
-      void handleClose(pos).finally(() => {
+      void executeClose(pos).finally(() => {
         autoCloseInFlightRef.current.delete(pos.address);
       });
     }
-  }, [activeTab, handleClose, openPositions, oraclePrice, positionRules]);
+  }, [activeTab, executeClose, openPositions, oraclePrice, positionRules]);
 
   const updateOrderField = useCallback(
     (orderId: string, field: "limitPrice" | "takeProfit" | "stopLoss", raw: string) => {
@@ -533,9 +545,9 @@ export default function BottomPositionsPanel({
   }, []);
 
   return (
-    <div className="trade-bottom-panel position-card">
-      {/* Tab bar */}
-      <div className="flex items-center justify-between border-b border-shadow-600 pl-1 pr-3">
+    <div className="trade-bottom-panel position-card flex flex-col h-full">
+      {/* Tab bar — sticky within the panel */}
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-shadow-600 pl-1 pr-3 bg-shadow-900 shrink-0">
         <div className="flex">
           <TabBtn active={activeTab === "position"} onClick={() => setActiveTab("position")}>
             Position
@@ -550,7 +562,7 @@ export default function BottomPositionsPanel({
             </span>
           </TabBtn>
           <TabBtn active={activeTab === "history"} onClick={() => setActiveTab("history")}>
-            History
+            Trade History
             <span className="ml-1.5 px-1.5 py-0.5 rounded bg-shadow-600 text-[10px] text-gray-300">
               {historyPositions.length}
             </span>
@@ -567,14 +579,15 @@ export default function BottomPositionsPanel({
       </div>
 
       {/* Content */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto flex-1 min-h-0">
+      <div className="overflow-y-auto h-full">
         {/* ── ORDERS TAB ── */}
         {activeTab === "orders" ? (
           openOrders.length === 0 ? (
             <div className="py-6 text-center text-xs text-gray-500">No active orders.</div>
           ) : (
             <table className="w-full min-w-[700px] text-[11px]" style={{ borderCollapse: "separate", borderSpacing: "0 6px" }}>
-              <thead>
+              <thead className="sticky top-0 z-10 bg-shadow-900">
                 <tr className="text-[10px] uppercase tracking-wider text-gray-500">
                   <th className="px-3 py-1.5 text-left font-medium">Pair</th>
                   <th className="px-2 py-1.5 text-left font-medium">Side</th>
@@ -686,7 +699,7 @@ export default function BottomPositionsPanel({
           </div>
         ) : (
           <table className="w-full min-w-[800px] text-[11px]" style={{ borderCollapse: "separate", borderSpacing: "0 6px" }}>
-            <thead>
+            <thead className="sticky top-0 z-10 bg-shadow-900">
               <tr className="text-[10px] uppercase tracking-wider text-gray-500">
                 <th className="px-3 py-1.5 text-left font-medium">Pair</th>
                 <th className="px-2 py-1.5 text-left font-medium">Side</th>
@@ -818,7 +831,26 @@ export default function BottomPositionsPanel({
           </table>
         )}
       </div>
+      </div>
 
+      <OrderConfirmModal
+        isOpen={closeConfirmPos !== null}
+        title="Close Position"
+        description="This will queue a close via Arcium MPC and settle on-chain."
+        variant="danger"
+        confirmLabel="Close Position"
+        details={closeConfirmPos ? [
+          { label: "Status", value: closeConfirmPos.status.charAt(0).toUpperCase() + closeConfirmPos.status.slice(1) },
+          { label: "Margin", value: `$${closeConfirmPos.margin.toFixed(2)}` },
+          { label: "Opened", value: closeConfirmPos.openedAt.toLocaleDateString() },
+          { label: "Position", value: closeConfirmPos.address.slice(0, 8) + "..." },
+        ] : []}
+        onConfirm={() => {
+          if (closeConfirmPos) void executeClose(closeConfirmPos);
+          setCloseConfirmPos(null);
+        }}
+        onCancel={() => setCloseConfirmPos(null)}
+      />
     </div>
   );
 }
