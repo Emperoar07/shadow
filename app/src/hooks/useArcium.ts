@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useRef, useState } from "react";
 import BN from "bn.js";
 import { PublicKey } from "@solana/web3.js";
+import type { Connection } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { createShadowPerpClient } from "../lib/create-client";
 import { PositionDirection } from "../types";
@@ -120,6 +121,7 @@ const SCALE_MARGIN = 1_000_000;
 const U64_MAX_BN = new BN("18446744073709551615");
 const OPEN_POSITION_CALLBACK_TIMEOUT_MS = 45_000;
 const OPEN_POSITION_CALLBACK_POLL_MS = 2_000;
+const OPEN_POSITION_CALLBACK_DIAG_POLL_MS = 6_000;
 
 type PrivateOrderProgress = {
   stage: "queued";
@@ -334,12 +336,15 @@ function wasLikelyJustCreated(session: SessionRelayInfo, nowSeconds: number): bo
 }
 
 async function waitForOpenPositionCallback(
+  connection: Connection,
   client: ReturnType<typeof createShadowPerpClient>["client"],
   positionAddress: PublicKey,
   clusterOffset: number
 ): Promise<void> {
   const deadline = Date.now() + OPEN_POSITION_CALLBACK_TIMEOUT_MS;
   let lastStatus: PositionStatus | null = null;
+  let lastPendingComputationAddress: PublicKey | null = null;
+  let nextCallbackDiagnosisAt = 0;
 
   while (Date.now() < deadline) {
     try {
@@ -352,7 +357,23 @@ async function waitForOpenPositionCallback(
       }
 
       if (status === PositionStatus.Pending) {
-        // Callback has not landed yet.
+        const pendingComputation = parsePendingComputationAccount(position);
+        if (pendingComputation) {
+          lastPendingComputationAddress = pendingComputation;
+        }
+
+        if (Date.now() >= nextCallbackDiagnosisAt) {
+          nextCallbackDiagnosisAt = Date.now() + OPEN_POSITION_CALLBACK_DIAG_POLL_MS;
+          const callbackFailure = await diagnoseOpenCallbackFailure(
+            connection,
+            positionAddress,
+            lastPendingComputationAddress,
+            clusterOffset
+          );
+          if (callbackFailure) {
+            throw new Error(callbackFailure);
+          }
+        }
       } else {
         throw new Error(
           `Queued on Arcium cluster ${clusterOffset}, but the position entered unexpected status ${PositionStatus[status] ?? status}.`
@@ -376,11 +397,100 @@ async function waitForOpenPositionCallback(
     );
   }
 
+  const callbackFailure = await diagnoseOpenCallbackFailure(
+    connection,
+    positionAddress,
+    lastPendingComputationAddress,
+    clusterOffset
+  );
+  if (callbackFailure) {
+    throw new Error(callbackFailure);
+  }
+
   const statusLabel =
     lastStatus === null ? "no position state observed yet" : PositionStatus[lastStatus];
   throw new Error(
     `Queued on Arcium cluster ${clusterOffset}, but no MPC callback finalized the position within ${OPEN_POSITION_CALLBACK_TIMEOUT_MS / 1000}s (${statusLabel}).`
   );
+}
+
+function parsePendingComputationAccount(position: unknown): PublicKey | null {
+  const raw = (position as { pendingComputationAccount?: unknown } | null)?.pendingComputationAccount;
+  if (!raw) return null;
+
+  try {
+    const pubkey = raw instanceof PublicKey ? raw : new PublicKey(raw as string);
+    return pubkey.equals(PublicKey.default) ? null : pubkey;
+  } catch {
+    return null;
+  }
+}
+
+function extractOpenCallbackFailureMessage(logs: string[], clusterOffset: number): string | null {
+  if (!logs.some((line) => line.includes("Instruction: OpenPositionProbeBCallback"))) {
+    return null;
+  }
+
+  const aborted = logs.find((line) => line.includes("AbortedComputation"));
+  const invalidResult = logs.find((line) => line.includes("InvalidComputationResult"));
+
+  if (aborted || invalidResult) {
+    const stages = [
+      aborted ? "AbortedComputation (6000)" : null,
+      invalidResult ? "InvalidComputationResult (6010)" : null,
+    ].filter(Boolean);
+    return `Queued on Arcium cluster ${clusterOffset}, but the MPC callback already failed on-chain: ${stages.join(" -> ")}.`;
+  }
+
+  return `Queued on Arcium cluster ${clusterOffset}, but the MPC callback already failed on-chain.`;
+}
+
+async function diagnoseOpenCallbackFailure(
+  connection: Connection,
+  positionAddress: PublicKey,
+  pendingComputationAddress: PublicKey | null,
+  clusterOffset: number
+): Promise<string | null> {
+  const addresses = [pendingComputationAddress, positionAddress].filter(
+    (address): address is PublicKey => !!address
+  );
+  const seen = new Set<string>();
+  const signatures: { signature: string; blockTime: number }[] = [];
+
+  for (const address of addresses) {
+    try {
+      const recent = await connection.getSignaturesForAddress(address, { limit: 8 }, "confirmed");
+      for (const entry of recent) {
+        if (seen.has(entry.signature)) continue;
+        seen.add(entry.signature);
+        signatures.push({
+          signature: entry.signature,
+          blockTime: entry.blockTime ?? 0,
+        });
+      }
+    } catch {
+      // Best-effort only. If RPC history lookup fails, fall back to the generic pending message.
+    }
+  }
+
+  signatures.sort((a, b) => b.blockTime - a.blockTime);
+
+  for (const { signature } of signatures.slice(0, 12)) {
+    try {
+      const tx = await connection.getTransaction(signature, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+      });
+      const logs = tx?.meta?.logMessages ?? [];
+      if (!logs.length || !tx?.meta?.err) continue;
+      const message = extractOpenCallbackFailureMessage(logs, clusterOffset);
+      if (message) return message;
+    } catch {
+      // Ignore individual RPC misses and keep scanning.
+    }
+  }
+
+  return null;
 }
 
 function attachTxContext(error: Error, txSignature: string, positionAddress: string): Error & {
@@ -1371,6 +1481,7 @@ export const useArciumPrivacy = () => {
       setStatusMessage("Awaiting MPC callback finalization...");
       try {
         await waitForOpenPositionCallback(
+          connection,
           client,
           new PublicKey(positionAddress),
           runtime.clusterOffset
@@ -1395,7 +1506,7 @@ export const useArciumPrivacy = () => {
         usedPrivatePath: true,
       };
     },
-    [getClient, relaySession, anchorWallet, ensureRelaySession, invalidateRelaySession]
+    [getClient, relaySession, anchorWallet, ensureRelaySession, invalidateRelaySession, connection]
   );
 
   const setError = useCallback((message: string) => {
