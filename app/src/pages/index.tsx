@@ -678,7 +678,7 @@ export default function LandingPage() {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                 Session Trading
               </p>
-              <h3 className="lp-session-title">One approval.<br />Unlimited trades.</h3>
+              <h3 className="lp-session-title">One approval.<br />Fast repeated trades.</h3>
               <p className="lp-session-desc">
                 Create a delegated trading session and sign once. The relay executes your encrypted orders on chain without a wallet popup interrupting every position. Configure per trade margin caps and revoke at any time.
               </p>
@@ -689,7 +689,7 @@ export default function LandingPage() {
                 <div className="lp-session-stat-lbl">Wallet sign</div>
               </div>
               <div className="lp-session-stat">
-                <div className="lp-session-stat-val">&infin;</div>
+                <div className="lp-session-stat-val">200</div>
                 <div className="lp-session-stat-lbl">Trades max</div>
               </div>
               <div className="lp-session-stat">
