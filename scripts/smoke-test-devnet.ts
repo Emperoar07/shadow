@@ -426,7 +426,7 @@ async function main() {
         )[0];
 
         info("Sending openPosition tx...");
-        const txSig = await program.methods
+        const openTx = await program.methods
           .openPosition(
             Array.from(eSize),
             Array.from(eEntry),
@@ -456,7 +456,29 @@ async function main() {
             systemProgram: SystemProgram.programId,
             clockAccount: getClockAccAddress(),
           })
-          .rpc();
+          .transaction();
+
+        // Use polling-based confirmation (works with Alchemy which lacks signatureSubscribe)
+        const latestBlockhash = await connection.getLatestBlockhash("confirmed");
+        openTx.recentBlockhash = latestBlockhash.blockhash;
+        openTx.feePayer = wallet.publicKey;
+        openTx.sign(wallet);
+        const txSig = await connection.sendRawTransaction(openTx.serialize(), { skipPreflight: false });
+
+        // Poll for confirmation via getSignatureStatuses instead of WebSocket
+        const confirmStart = Date.now();
+        let confirmed = false;
+        while (Date.now() - confirmStart < 30_000) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const statuses = await connection.getSignatureStatuses([txSig]);
+          const status = statuses?.value?.[0];
+          if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") {
+            confirmed = true;
+            break;
+          }
+          if (status?.err) throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
+        }
+        if (!confirmed) throw new Error(`Transaction was not confirmed in 30s. Sig: ${txSig}`);
 
         ok(`openPosition tx: ${txSig.slice(0, 20)}...`);
         passed++;

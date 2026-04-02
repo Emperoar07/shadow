@@ -323,7 +323,7 @@ export default function DocsPage() {
               to prevent position data from becoming exploitable public information.
             </p>
             <p>
-              ShadowPerp currently supports the <strong>SOL/USD</strong> trading pair with price data from Pyth Network.
+              ShadowPerp supports <strong>11 trading pairs</strong> including SOL, BTC, ETH, WIF, JUP, PYTH, RAY, ORCA, W, JTO, and RENDER against USD. The selected pair persists across page refreshes. On chain settlement and oracle data currently use the SOL/USD market on devnet.
             </p>
             <Note>
               ShadowPerp is currently deployed on <strong>Solana Devnet</strong> at program ID <Code>ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4</Code>. All balances are test funds.
@@ -407,6 +407,10 @@ export default function DocsPage() {
               The session authorization signature is tied to a specific session ID, market, and expiry. It cannot be
               reused across sessions or markets.
             </Note>
+            <h3>Revoking a Session</h3>
+            <p>
+              You can revoke your active session at any time from the Settings panel. Open Settings, go to the Trading tab, and click Revoke Session. This submits a transaction that invalidates the session on chain immediately. The relay will reject all further requests from that session the moment the transaction confirms.
+            </p>
           </Section>
 
           <Section id="privacy" title="Privacy Model">
@@ -441,9 +445,7 @@ export default function DocsPage() {
               <li>Per-user balance within the protocol</li>
             </ul>
             <Note>
-              The reference orderbook in the terminal uses external market depth from Coinbase and Binance. It provides
-              market context for traders. It does not represent ShadowPerp's own venue liquidity and does not reveal other
-              traders' positions.
+              The reference orderbook pulls live market depth from external venues including Binance, Coinbase, Bybit, and Gate.io depending on the selected pair. Gate.io is fetched directly from the browser as a fallback when other providers are unreachable. The orderbook provides market context only and does not represent ShadowPerp's own venue liquidity. It does not reveal other traders' positions.
             </Note>
           </Section>
 

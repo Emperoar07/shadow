@@ -191,6 +191,13 @@ export default async function handler(
       throw new Error("Margin exceeds delegated session limit");
     }
 
+    // Verify margin account exists — it is created by the first deposit, not by open_position
+    const marginAddress = relay.client.getMarginAccountAddress(relay.config.marketAddress, owner);
+    const marginExists = await relay.client.getMarginAccount(marginAddress).then(() => true).catch(() => false);
+    if (!marginExists) {
+      throw new Error("No collateral deposited. Deposit collateral before opening a position.");
+    }
+
     // Auto-refresh oracle price if stale (contract requires < 300s freshness)
     await ensureOracleFresh(relay);
 

@@ -16,8 +16,8 @@ module.exports = {
         'accent': {
           purple: '#8b5cf6',
           blue: '#3b82f6',
-          green: '#10b981',
-          red: '#ef4444',
+          green: '#00e676',
+          red: '#ff1744',
         }
       },
       keyframes: {

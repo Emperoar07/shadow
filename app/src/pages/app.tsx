@@ -188,7 +188,7 @@ export default function TradingAppPage() {
         `}</style>
         <NeuralShadowBackground />
 
-        <div className="relative z-10 flex min-h-screen flex-col">
+        <div className="relative z-10 flex h-screen flex-col overflow-hidden">
 
           {/* ── Header ── */}
           <header className="trade-header sticky top-0 border-b border-shadow-600 shrink-0 bg-shadow-900 z-[200]">
@@ -230,7 +230,7 @@ export default function TradingAppPage() {
           </header>
 
           {/* ── Terminal body ── */}
-          <main className="trade-main flex-1 max-w-[1600px] w-full mx-auto flex flex-col min-h-0">
+          <main className="trade-main flex-1 max-w-[1600px] w-full mx-auto flex flex-col min-h-0 overflow-y-auto">
 
             {/* Mobile: market info bar (always visible) */}
             <div className="lg:hidden">

@@ -10,10 +10,12 @@ ShadowPerp encrypts order sizes, entry prices, leverage, and collateral before s
 
 - **Encrypted Positions** — Trade size, direction, leverage, entry price, and liquidation price are encrypted end to end. No plaintext position data is published on chain.
 - **Private Orderbook** — Order flow is shielded from MEV bots and front runners. Orders cannot be extracted or front run because they are never visible.
-- **Session Trading** — Approve a delegated trading session once and trade without repeated wallet prompts. The relay submits encrypted orders on your behalf within configurable limits.
+- **Session Trading** — Approve a delegated trading session once and trade without repeated wallet prompts. The relay submits encrypted orders on your behalf within configurable limits. Revoke the session instantly from the Settings panel.
+- **11 Trading Pairs** — SOL, BTC, ETH, WIF, JUP, PYTH, RAY, ORCA, W, JTO, and RENDER against USD. Selected pair persists across page refreshes.
+- **Live Orderbook** — Real time market depth from Binance, Coinbase, Bybit, and Gate.io. Gate.io is fetched directly in the browser as a fallback when other providers are unreachable.
 - **Cross and Isolated Margin** — Choose between shared margin across positions or isolated margin per position. Leverage from 1x to 50x.
 - **Confidential Liquidations** — Liquidation prices are encrypted. No external party can target a position based on its liquidation threshold.
-- **Pyth Oracle Integration** — Price feeds sourced from Pyth Network with fallback to aggregated external sources (Coinbase, Binance). Circuit breakers and staleness checks protect against manipulation.
+- **Pyth Oracle Integration** — Price feeds sourced from Pyth Network with fallback to aggregated external sources. Circuit breakers and staleness checks protect against manipulation.
 - **Custom RPC Endpoints** — Save up to 5 named RPC endpoints in the settings panel. Endpoints persist in browser localStorage; no env var changes required. Falls back to public Solana devnet.
 - **Shielded Collateral** (in progress) — Commitment tree based collateral pool with nullifier withdrawals, hiding internal balance ownership and margin transitions from public view.
 
@@ -162,9 +164,11 @@ ShadowPerp is deployed on Solana Devnet as an active prototype.
 - Take profit and stop loss rules
 - Collateral deposit and withdrawal (direct and session delegated)
 - Private position metadata stored in the browser for UI continuity
-- External reference orderbook data (Coinbase primary, Binance fallback)
+- Live reference orderbook for all 11 pairs via Binance, Coinbase, Bybit, and Gate.io with client side fallback
 - Pyth oracle integration with `update-oracle-pyth.ts`
 - Custom named RPC endpoint manager (up to 5, saved to localStorage)
+- Session revoke UI in the Settings panel
+- Selected trading pair persists across page refreshes
 - Security hardened program: zombie position prevention, correct rent reclaim targets, computation offset validation on all queue handlers
 - Shielded collateral pool: `deposit_to_shielded`, `request_withdraw_private`, `finalize_withdraw` deployed and active on devnet
 - Shielded collateral state: commitment Merkle tree, nullifier set, pending withdrawal with time-delay, shielded margin ref
