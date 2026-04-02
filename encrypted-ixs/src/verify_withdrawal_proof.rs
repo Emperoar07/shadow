@@ -52,21 +52,19 @@ mod verify_withdrawal_proof_circuit {
         // Check 1: the encrypted amount matches what the caller claims
         let amount_matches = amount == claimed_amount;
 
-        // Check 2: derive the commitment from amount and secret using the same
-        // XOR fold as CommitmentTree::compute_next_root on-chain.
-        // commitment_lo = amount XOR secret
-        let commitment_lo = amount ^ secret;
+        // Check 2: derive the commitment from amount and secret using additive binding.
+        // commitment = amount + secret (mod 2^64)
+        let commitment_lo = amount.wrapping_add(secret);
 
         // Check 3: derive the nullifier from the commitment and the nullifier preimage.
-        // nullifier_lo = commitment_lo XOR nullifier_lo_preimage
-        let derived_nullifier_lo = commitment_lo ^ nullifier_lo;
+        // nullifier = commitment + nullifier_preimage (mod 2^64)
+        let derived_nullifier_lo = commitment_lo.wrapping_add(nullifier_lo);
 
         // Check 4: the derived nullifier must match the on-chain expected nullifier lo.
-        // (hi bits are zero-padded from the 64-bit field — protocol constraint)
         let nullifier_lo_matches = derived_nullifier_lo == expected_nullifier_lo;
 
         // expected_nullifier_hi must be zero for this 64-bit scheme
-        let nullifier_hi_zero = expected_nullifier_hi == 0;
+        let nullifier_hi_zero = expected_nullifier_hi == 0u64;
 
         let valid = amount_matches && nullifier_lo_matches && nullifier_hi_zero;
 

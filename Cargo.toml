@@ -1,10 +1,8 @@
 [workspace]
 members = [
     "programs/shadowperp",
+    "encrypted-ixs",
 ]
-# encrypted-ixs (MPC circuits) is NOT a workspace member — it uses arcis/arcis-compiler
-# which pulls quinn/ring, incompatible with the SBF target. Build it separately with:
-#   arcium build --manifest-path encrypted-ixs/Cargo.toml
 resolver = "2"
 
 [workspace.metadata.solana]
