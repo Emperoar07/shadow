@@ -17,6 +17,12 @@ use handlers::init_comp_defs::__client_accounts_init_seed_open_interest_comp_def
 use handlers::init_comp_defs::__client_accounts_init_lock_margin_private_comp_def;
 #[cfg(feature = "shielded-collateral")]
 use handlers::init_comp_defs::__client_accounts_init_settle_private_position_comp_def;
+#[cfg(feature = "shielded-collateral")]
+use handlers::init_comp_defs::__client_accounts_init_verify_withdrawal_proof_comp_def;
+use handlers::init_comp_defs::__client_accounts_init_execute_private_order_comp_def;
+#[cfg(feature = "shielded-collateral")]
+use handlers::shielded_collateral::__client_accounts_verify_withdrawal_proof_request;
+use handlers::private_orders::__client_accounts_execute_private_order;
 use handlers::initialize::__client_accounts_initialize;
 use handlers::open_position::__client_accounts_open_position;
 use handlers::private_orders::__client_accounts_add_private_order;
@@ -38,8 +44,11 @@ use handlers::update_price::__client_accounts_set_pyth_feed_id;
 use handlers::withdraw_collateral::__client_accounts_withdraw_collateral;
 use handlers::callbacks::__client_accounts_check_liquidation_callback;
 use handlers::callbacks::__client_accounts_close_position_v2_callback;
+use handlers::callbacks::__client_accounts_execute_private_order_callback;
 use handlers::callbacks::__client_accounts_open_position_probe_b_callback;
 use handlers::callbacks::__client_accounts_seed_open_interest_state_v3_callback;
+#[cfg(feature = "shielded-collateral")]
+use handlers::callbacks::__client_accounts_verify_withdrawal_proof_callback;
 #[cfg(feature = "shielded-collateral")]
 use handlers::shielded_collateral::__client_accounts_set_shielded_collateral_feature;
 #[cfg(feature = "shielded-collateral")]
@@ -80,10 +89,14 @@ use handlers::init_comp_defs::{
     InitSeedOpenInterestCompDef,
 };
 #[cfg(feature = "shielded-collateral")]
-use handlers::init_comp_defs::{InitLockMarginPrivateCompDef, InitSettlePrivatePositionCompDef};
+use handlers::init_comp_defs::{
+    InitLockMarginPrivateCompDef, InitSettlePrivatePositionCompDef,
+    InitVerifyWithdrawalProofCompDef,
+};
+use handlers::init_comp_defs::InitExecutePrivateOrderCompDef;
 use handlers::initialize::Initialize;
 use handlers::open_position::OpenPosition;
-use handlers::private_orders::{AddPrivateOrder, InitPrivateOrderBook};
+use handlers::private_orders::{AddPrivateOrder, ExecutePrivateOrder, InitPrivateOrderBook};
 use handlers::seed_open_interest_state::SeedOpenInterestState;
 use handlers::session_trading::{
     ClosePositionWithSession, CreateTradeSession, DepositCollateralWithSession,
@@ -92,13 +105,16 @@ use handlers::session_trading::{
 #[cfg(feature = "shielded-collateral")]
 use handlers::shielded_collateral::{
     InitShieldedPool, SetShieldedCollateralFeature, DepositToShielded,
-    RequestWithdrawPrivate, FinalizeWithdraw, InitShieldedMarginRef,
-    LockMarginPrivate, SettlePrivatePosition,
+    RequestWithdrawPrivate, VerifyWithdrawalProofRequest, FinalizeWithdraw,
+    InitShieldedMarginRef, LockMarginPrivate, SettlePrivatePosition,
 };
 #[cfg(feature = "shielded-collateral")]
 use handlers::callbacks::lock_margin_private_callback::{LockMarginPrivateCallback, LockMarginPrivateOutput};
 #[cfg(feature = "shielded-collateral")]
 use handlers::callbacks::settle_private_position_callback::{SettlePrivatePositionCallback, SettlePrivatePositionOutput};
+#[cfg(feature = "shielded-collateral")]
+use handlers::callbacks::verify_withdrawal_proof_callback::{VerifyWithdrawalProofCallback, VerifyWithdrawalProofOutput};
+use handlers::callbacks::execute_private_order_callback::{ExecutePrivateOrderCallback, ExecutePrivateOrderOutput};
 use handlers::settle_close_position::SettleClosePosition;
 use handlers::settle_liquidation::SettleLiquidation;
 use handlers::sync_comp_defs::SyncCompDefs;
@@ -159,6 +175,19 @@ pub mod shadowperp {
         handlers::init_comp_defs::init_settle_private_position_handler(ctx)
     }
 
+    #[cfg(feature = "shielded-collateral")]
+    pub fn init_verify_withdrawal_proof_comp_def(
+        ctx: Context<InitVerifyWithdrawalProofCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_verify_withdrawal_proof_handler(ctx)
+    }
+
+    pub fn init_execute_private_order_comp_def(
+        ctx: Context<InitExecutePrivateOrderCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_execute_private_order_handler(ctx)
+    }
+
     /// Initialize shielded collateral scaffolding accounts (feature-gated).
     /// This does not alter current public deposit/withdraw flow.
     #[cfg(feature = "shielded-collateral")]
@@ -201,7 +230,27 @@ pub mod shadowperp {
         handlers::shielded_collateral::request_withdraw_private_handler(ctx, nullifier, amount)
     }
 
+    /// Queue Arcium MPC proof verification for a pending withdrawal.
+    /// Must be called after request_withdraw_private and before finalize_withdraw.
+    #[cfg(feature = "shielded-collateral")]
+    pub fn verify_withdrawal_proof_request(
+        ctx: Context<VerifyWithdrawalProofRequest>,
+        encrypted_payload: Vec<u8>,
+        client_pubkey: [u8; 32],
+        nonce: u128,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::shielded_collateral::verify_withdrawal_proof_request_handler(
+            ctx,
+            encrypted_payload,
+            client_pubkey,
+            nonce,
+            computation_offset,
+        )
+    }
+
     /// Finalize a pending withdrawal after the delay period.
+    /// Requires proof_verified = true (set by verify_withdrawal_proof_request callback).
     #[cfg(feature = "shielded-collateral")]
     pub fn finalize_withdraw(ctx: Context<FinalizeWithdraw>) -> Result<()> {
         handlers::shielded_collateral::finalize_withdraw_handler(ctx)
@@ -423,6 +472,25 @@ pub mod shadowperp {
         handlers::callbacks::settle_private_position_callback::settle_private_position_callback_handler(ctx, output)
     }
 
+    /// Callback after verify_withdrawal_proof MPC computation.
+    #[cfg(feature = "shielded-collateral")]
+    #[arcium_callback(encrypted_ix = "verify_withdrawal_proof")]
+    pub fn verify_withdrawal_proof_callback(
+        ctx: Context<VerifyWithdrawalProofCallback>,
+        output: SignedComputationOutputs<VerifyWithdrawalProofOutput>,
+    ) -> Result<()> {
+        handlers::callbacks::verify_withdrawal_proof_callback::verify_withdrawal_proof_callback_handler(ctx, output)
+    }
+
+    /// Callback after execute_private_order MPC computation.
+    #[arcium_callback(encrypted_ix = "execute_private_order")]
+    pub fn execute_private_order_callback(
+        ctx: Context<ExecutePrivateOrderCallback>,
+        output: SignedComputationOutputs<ExecutePrivateOrderOutput>,
+    ) -> Result<()> {
+        handlers::callbacks::execute_private_order_callback::execute_private_order_callback_handler(ctx, output)
+    }
+
     /// Settle a closed position — transfers tokens from vault to owner.
     /// Called after the close_position callback sets status to ClosedPendingSettlement.
     pub fn settle_close_position(ctx: Context<SettleClosePosition>) -> Result<()> {
@@ -480,6 +548,26 @@ pub mod shadowperp {
             encrypted_owner_lo,
             encrypted_owner_hi,
             nonce,
+        )
+    }
+
+    /// Evaluate a stored private limit order against the current market price via Arcium MPC.
+    /// Queues compute for the order at the given index; callback reveals params only if triggered.
+    pub fn execute_private_order(
+        ctx: Context<ExecutePrivateOrder>,
+        order_index: u32,
+        is_bid: bool,
+        client_pubkey: [u8; 32],
+        nonce: u128,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::private_orders::execute_private_order_handler(
+            ctx,
+            order_index,
+            is_bid,
+            client_pubkey,
+            nonce,
+            computation_offset,
         )
     }
 

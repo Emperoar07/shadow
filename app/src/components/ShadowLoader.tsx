@@ -9,18 +9,12 @@ export default function ShadowLoader({
   size = "md",
   fullScreen = false,
 }: ShadowLoaderProps) {
-  const dims = size === "sm" ? "w-12 h-12" : size === "lg" ? "w-20 h-20" : "w-16 h-16";
-  // Animation durations: staggered but unhurried so each layer is visible long enough
-  const dur1 = "3.2s";
-  const dur2 = "3.2s";
-  const dur3 = "3.2s";
+  const dims = size === "sm" ? "w-12 h-12" : size === "lg" ? "w-24 h-24" : "w-16 h-16";
 
   return (
     <div
-      className={`flex flex-col items-center justify-center gap-5 ${
-        fullScreen
-          ? "fixed inset-0 z-[9999] bg-shadow-900"
-          : "absolute inset-0 flex items-center justify-center bg-shadow-900/80"
+      className={`flex flex-col items-center justify-center gap-4 ${
+        fullScreen ? "fixed inset-0 z-[9999] bg-shadow-900" : "w-full h-full min-h-[200px]"
       }`}
     >
       <svg viewBox="0 0 100 100" className={dims} aria-hidden="true">
@@ -31,17 +25,17 @@ export default function ShadowLoader({
           </linearGradient>
         </defs>
         <path
-          style={{ animation: `stackReveal1 ${dur1} ease-in-out infinite` }}
+          className="animate-[stackReveal1_2.4s_ease-in-out_infinite]"
           d="M50 15 L85 35 L50 55 L15 35 Z"
           fill="url(#loader-grad)"
         />
         <path
-          style={{ animation: `stackReveal2 ${dur2} ease-in-out infinite` }}
+          className="animate-[stackReveal2_2.4s_ease-in-out_infinite]"
           d="M50 25 L85 45 L50 65 L15 45 Z"
           fill="url(#loader-grad)"
         />
         <path
-          style={{ animation: `stackReveal3 ${dur3} ease-in-out infinite` }}
+          className="animate-[stackReveal3_2.4s_ease-in-out_infinite]"
           d="M50 35 L85 55 L50 75 L15 55 Z"
           fill="url(#loader-grad)"
         />

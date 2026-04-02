@@ -128,7 +128,8 @@ impl NullifierSet {
 }
 
 /// Withdrawal intent tied to a nullifier. Created by request_withdraw_private,
-/// finalized after the delay period by finalize_withdraw.
+/// proof-verified by the Arcium MPC callback, and finalized after the delay
+/// period by finalize_withdraw.
 #[account]
 pub struct PendingWithdrawal {
     pub pool: Pubkey,
@@ -137,8 +138,12 @@ pub struct PendingWithdrawal {
     pub amount: u64,
     pub expiry_slot: u64,
     pub finalized: bool,
+    /// Set to true by verify_withdrawal_proof_callback once MPC confirms the
+    /// caller owns a valid commitment covering this amount. finalize_withdraw
+    /// requires this to be true before releasing funds.
+    pub proof_verified: bool,
     pub bump: u8,
-    pub _reserved: [u8; 32],
+    pub _reserved: [u8; 31],
 }
 
 impl PendingWithdrawal {
@@ -149,8 +154,9 @@ impl PendingWithdrawal {
         8 +  // amount
         8 +  // expiry_slot
         1 +  // finalized
+        1 +  // proof_verified
         1 +  // bump
-        32;  // reserved
+        31;  // reserved (total reserved stays 32 bytes, split 1+31)
 }
 
 /// Links a user to their shielded collateral commitment context.

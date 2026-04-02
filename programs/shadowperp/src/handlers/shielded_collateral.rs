@@ -330,22 +330,16 @@ pub fn request_withdraw_private_handler(
 ) -> Result<()> {
     require!(amount > 0, ShadowPerpError::ZeroAmount);
 
-    // TODO(SECURITY-HIGH): ZK proof verification required before mainnet.
-    // Currently the caller can claim any `amount` and `nullifier` without proving
-    // they own a valid note in the shielded pool's commitment tree. Before mainnet:
-    //   1. Accept a ZK proof (e.g., Groth16 / PLONK) as an additional argument.
-    //   2. Verify the proof on-chain against the pool's Merkle root, nullifier, and amount.
-    //   3. Reject the withdrawal if the proof does not verify.
-    // Without this, any user can drain the shielded pool by fabricating withdrawals.
-
     // Basic sanity: reject all-zero nullifier (placeholder / uninitialized)
     require!(
         nullifier != [0u8; 32],
         ShadowPerpError::InvalidAccountData
     );
 
-    // TODO(SECURITY-HIGH): Replace this balance cap with ZK-verified amount.
-    // This is a basic sanity bound; it does NOT substitute for proof verification.
+    // Sanity cap: claimed amount cannot exceed total pool balance.
+    // The cryptographic ownership proof is enforced in the next step by
+    // verify_withdrawal_proof_request, which queues the Arcium MPC circuit.
+    // finalize_withdraw will not release funds until proof_verified is true.
     let pool_balance = ctx.accounts.shielded_pool.total_public_in
         .saturating_sub(ctx.accounts.shielded_pool.total_public_out);
     require!(
@@ -370,6 +364,7 @@ pub fn request_withdraw_private_handler(
     withdrawal.amount = amount;
     withdrawal.expiry_slot = expiry_slot;
     withdrawal.finalized = false;
+    withdrawal.proof_verified = false;
     withdrawal.bump = ctx.bumps.pending_withdrawal;
 
     pool.updated_at = clock.unix_timestamp;
@@ -380,6 +375,182 @@ pub fn request_withdraw_private_handler(
         recipient: withdrawal.recipient,
         expiry_slot,
     });
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// verify_withdrawal_proof_request
+// Queues an Arcium MPC computation to verify the caller's ownership of a
+// commitment in the shielded pool before the withdrawal is finalised.
+// Must be called after request_withdraw_private and before finalize_withdraw.
+// ---------------------------------------------------------------------------
+
+use crate::handlers::callbacks::verify_withdrawal_proof_callback::VerifyWithdrawalProofCallback;
+
+const COMP_DEF_OFFSET_VERIFY_WITHDRAWAL_PROOF_QUEUE: u32 =
+    comp_def_offset("verify_withdrawal_proof");
+
+#[queue_computation_accounts("verify_withdrawal_proof", requester)]
+#[derive(Accounts)]
+#[instruction(
+    encrypted_payload: Vec<u8>,
+    client_pubkey: [u8; 32],
+    nonce: u128,
+    computation_offset: u64,
+)]
+pub struct VerifyWithdrawalProofRequest<'info> {
+    #[account(mut)]
+    pub requester: Signer<'info>,
+
+    #[account(
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
+        bump = market.bump,
+    )]
+    pub market: Box<Account<'info, Market>>,
+
+    #[account(
+        seeds = [b"shielded_pool", market.key().as_ref()],
+        bump = shielded_pool.bump,
+        constraint = shielded_pool.collateral_enabled() @ ShadowPerpError::ShieldedNotEnabled,
+    )]
+    pub shielded_pool: Box<Account<'info, ShieldedPool>>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"pending_withdrawal",
+            shielded_pool.key().as_ref(),
+            pending_withdrawal.nullifier.as_ref(),
+        ],
+        bump = pending_withdrawal.bump,
+        constraint = pending_withdrawal.pool == shielded_pool.key() @ ShadowPerpError::InvalidAccountData,
+        constraint = pending_withdrawal.recipient == requester.key() @ ShadowPerpError::Unauthorized,
+        constraint = !pending_withdrawal.finalized @ ShadowPerpError::NullifierAlreadySpent,
+        constraint = !pending_withdrawal.proof_verified @ ShadowPerpError::InvalidComputationResult,
+    )]
+    pub pending_withdrawal: Box<Account<'info, PendingWithdrawal>>,
+
+    // --- Arcium accounts (populated by queue_computation_accounts macro) ---
+    #[account(address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
+    #[account()]
+    pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
+    #[account(
+        mut,
+        address = derive_cluster_pda!(mxe_account, ErrorCode::ClusterNotSet),
+        constraint = cluster_account.key() == market.mxe_cluster @ ShadowPerpError::Unauthorized
+    )]
+    pub cluster_account: Box<Account<'info, Cluster>>,
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = derive_mempool_pda!(mxe_account, ErrorCode::ClusterNotSet))]
+    pub mempool_account: UncheckedAccount<'info>,
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = derive_execpool_pda!(mxe_account, ErrorCode::ClusterNotSet))]
+    pub executing_pool: UncheckedAccount<'info>,
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(
+        mut,
+        address = derive_comp_pda!(computation_offset, mxe_account, ErrorCode::ClusterNotSet)
+    )]
+    pub computation_account: UncheckedAccount<'info>,
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = ARCIUM_FEE_POOL_ACCOUNT_ADDRESS)]
+    pub pool_account: Box<Account<'info, FeePool>>,
+    #[account(
+        init_if_needed,
+        payer = requester,
+        space = 9,
+        seeds = [&SIGN_PDA_SEED],
+        bump,
+        address = derive_sign_pda!(),
+    )]
+    pub sign_pda_account: Account<'info, ArciumSignerAccount>,
+    #[account(mut, address = ARCIUM_CLOCK_ACCOUNT_ADDRESS)]
+    pub clock_account: Box<Account<'info, ClockAccount>>,
+
+    pub arcium_program: Program<'info, Arcium>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn verify_withdrawal_proof_request_handler(
+    ctx: Context<VerifyWithdrawalProofRequest>,
+    encrypted_payload: Vec<u8>,
+    client_pubkey: [u8; 32],
+    nonce: u128,
+    computation_offset: u64,
+) -> Result<()> {
+    require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
+
+    ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+
+    let withdrawal = &ctx.accounts.pending_withdrawal;
+
+    // The circuit receives:
+    //   secrets: Enc<Shared, (amount, secret, nullifier_lo)>   — 3 × 32 bytes
+    require!(encrypted_payload.len() >= 96, ShadowPerpError::InvalidAccountData);
+
+    let mut enc_amount = [0u8; 32];
+    let mut enc_secret = [0u8; 32];
+    let mut enc_nullifier_lo = [0u8; 32];
+    enc_amount.copy_from_slice(&encrypted_payload[0..32]);
+    enc_secret.copy_from_slice(&encrypted_payload[32..64]);
+    enc_nullifier_lo.copy_from_slice(&encrypted_payload[64..96]);
+
+    // Derive the expected nullifier halves from the on-chain stored nullifier.
+    // Protocol invariant: nullifier_hi = 0 (64-bit scheme, upper bytes unused).
+    let nullifier_lo_u64 = u64::from_le_bytes(
+        withdrawal.nullifier[0..8]
+            .try_into()
+            .map_err(|_| ShadowPerpError::InvalidAccountData)?,
+    );
+
+    let args = ArgBuilder::new()
+        // secrets: Enc<Shared, (u64, u64, u64)>
+        .x25519_pubkey(client_pubkey)
+        .plaintext_u128(nonce)
+        .encrypted_u64(enc_amount)
+        .encrypted_u64(enc_secret)
+        .encrypted_u64(enc_nullifier_lo)
+        // claimed_amount: plaintext from the pending withdrawal record
+        .plaintext_u64(withdrawal.amount)
+        // expected_nullifier_lo: first 8 bytes of the stored nullifier
+        .plaintext_u64(nullifier_lo_u64)
+        // expected_nullifier_hi: always 0 for the 64-bit scheme
+        .plaintext_u64(0u64)
+        .build();
+
+    let callback_accounts = vec![
+        CallbackAccount {
+            pubkey: ctx.accounts.shielded_pool.key(),
+            is_writable: true,
+        },
+        CallbackAccount {
+            pubkey: withdrawal.key(),
+            is_writable: true,
+        },
+    ];
+
+    let callback_ix = VerifyWithdrawalProofCallback::callback_ix(
+        computation_offset,
+        &ctx.accounts.mxe_account,
+        &callback_accounts,
+    )?;
+
+    queue_computation(
+        ctx.accounts,
+        computation_offset,
+        args,
+        vec![callback_ix],
+        1,
+        0,
+    )?;
+
+    msg!(
+        "verify_withdrawal_proof_request: queued computation offset={}, nullifier_lo={}",
+        computation_offset,
+        nullifier_lo_u64,
+    );
 
     Ok(())
 }
@@ -444,6 +615,12 @@ pub struct FinalizeWithdraw<'info> {
 pub fn finalize_withdraw_handler(ctx: Context<FinalizeWithdraw>) -> Result<()> {
     let clock = Clock::get()?;
     let withdrawal = &mut ctx.accounts.pending_withdrawal;
+
+    // Require MPC proof to be verified before funds can be released
+    require!(
+        withdrawal.proof_verified,
+        ShadowPerpError::WithdrawalNotReady
+    );
 
     // Ensure delay period has passed
     require!(

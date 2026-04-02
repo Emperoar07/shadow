@@ -25,7 +25,7 @@ export interface MarketFeedConfig {
 
 const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
   "SOL-USD": {
-    primaryChartSymbol: "BINANCE:SOLUSDT",
+    primaryChartSymbol: "BINANCE:SOLUSDT.P",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "coinbase",
     minVisibleLevels: 16,
@@ -38,7 +38,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "WIF-USD": {
-    primaryChartSymbol: "BINANCE:WIFUSDT",
+    primaryChartSymbol: "BINANCE:WIFUSDT.P",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "bybit",
     minVisibleLevels: 14,
@@ -51,7 +51,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "JUP-USD": {
-    primaryChartSymbol: "BYBIT:JUPUSDT",
+    primaryChartSymbol: "BINANCE:JUPUSDT.P",
     primaryDepthProvider: "bybit",
     secondaryDepthProvider: "mexc",
     minVisibleLevels: 14,
@@ -63,7 +63,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "BTC-USD": {
-    primaryChartSymbol: "BINANCE:BTCUSDT",
+    primaryChartSymbol: "BINANCE:BTCUSDT.P",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "coinbase",
     minVisibleLevels: 16,
@@ -76,7 +76,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "ETH-USD": {
-    primaryChartSymbol: "BINANCE:ETHUSDT",
+    primaryChartSymbol: "BINANCE:ETHUSDT.P",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "coinbase",
     minVisibleLevels: 16,
@@ -89,7 +89,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "PYTH-USD": {
-    primaryChartSymbol: "BYBIT:PYTHUSDT",
+    primaryChartSymbol: "BINANCE:PYTHUSDT.P",
     primaryDepthProvider: "bybit",
     secondaryDepthProvider: "mexc",
     minVisibleLevels: 14,
@@ -101,7 +101,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "RAY-USD": {
-    primaryChartSymbol: "BINANCE:RAYUSDT",
+    primaryChartSymbol: "BINANCE:RAYUSDT.P",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "gateio",
     minVisibleLevels: 14,
@@ -113,7 +113,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "ORCA-USD": {
-    primaryChartSymbol: "MEXC:ORCAUSDT",
+    primaryChartSymbol: "BYBIT:ORCAUSDT.P",
     primaryDepthProvider: "mexc",
     secondaryDepthProvider: "gateio",
     minVisibleLevels: 14,
@@ -124,7 +124,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "W-USD": {
-    primaryChartSymbol: "BINANCE:WUSDT",
+    primaryChartSymbol: "BINANCE:WUSDT.P",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "bybit",
     minVisibleLevels: 14,
@@ -137,7 +137,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "JTO-USD": {
-    primaryChartSymbol: "BYBIT:JTOUSDT",
+    primaryChartSymbol: "BINANCE:JTOUSDT.P",
     primaryDepthProvider: "bybit",
     secondaryDepthProvider: "mexc",
     minVisibleLevels: 14,
@@ -149,7 +149,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     ],
   },
   "RENDER-USD": {
-    primaryChartSymbol: "BINANCE:RENDERUSDT",
+    primaryChartSymbol: "BINANCE:RENDERUSDT.P",
     primaryDepthProvider: "binance",
     secondaryDepthProvider: "gateio",
     minVisibleLevels: 14,
@@ -165,7 +165,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
 export function getMarketFeed(pair: TradingPair): MarketFeedConfig {
   return (
     MARKET_FEEDS[pair.label] ?? {
-      primaryChartSymbol: `BINANCE:${pair.base.symbol}USDT`,
+      primaryChartSymbol: `BINANCE:${pair.base.symbol}USDT.P`,
       primaryDepthProvider: "binance",
       secondaryDepthProvider: undefined,
       minVisibleLevels: 12,

@@ -1,10 +1,17 @@
 use anchor_lang::prelude::*;
+use arcium_anchor::prelude::*;
+use arcium_anchor::traits::CallbackCompAccs;
+use arcium_client::idl::arcium::types::CallbackAccount;
 
-use crate::errors::ShadowPerpError;
+use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{
     EncryptedOrder, Market, PrivateOrderBook, PrivateOrderBookInitialized, PrivateOrderQueued,
     MAX_PRIVATE_ORDERS,
 };
+use crate::ArciumSignerAccount;
+use crate::ID;
+use crate::ID_CONST;
+use crate::handlers::callbacks::execute_private_order_callback::ExecutePrivateOrderCallback;
 
 #[derive(Accounts)]
 pub struct InitPrivateOrderBook<'info> {
@@ -102,13 +109,176 @@ pub fn add_private_order_handler(
         .checked_add(1)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
-    // TODO: Wire queue_computation to Arcium MXE callback flow once comp-def is finalized.
     emit!(PrivateOrderQueued {
         owner: order_book.owner,
         market: order_book.market,
         order_index: order_book.order_count - 1,
         timestamp: now,
     });
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// execute_private_order
+// Called by a keeper when the market price may have crossed a limit trigger.
+// Queues an Arcium MPC computation that evaluates the trigger condition on
+// the encrypted order and reveals the order parameters only if triggered.
+// ---------------------------------------------------------------------------
+
+#[queue_computation_accounts("execute_private_order", owner)]
+#[derive(Accounts)]
+#[instruction(
+    order_index: u32,
+    is_bid: bool,
+    client_pubkey: [u8; 32],
+    nonce: u128,
+    computation_offset: u64,
+)]
+pub struct ExecutePrivateOrder<'info> {
+    /// The order owner (must sign to authorize execution).
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    #[account(
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
+        bump = market.bump,
+    )]
+    pub market: Account<'info, Market>,
+
+    #[account(
+        mut,
+        has_one = owner @ ShadowPerpError::Unauthorized,
+        has_one = market @ ShadowPerpError::InvalidAccountData,
+        seeds = [b"private-orderbook", market.key().as_ref(), owner.key().as_ref()],
+        bump = private_order_book.bump,
+    )]
+    pub private_order_book: Account<'info, PrivateOrderBook>,
+
+    // --- Arcium accounts (populated by queue_computation_accounts macro) ---
+    #[account(address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
+    #[account()]
+    pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
+    #[account(
+        mut,
+        address = derive_cluster_pda!(mxe_account, ErrorCode::ClusterNotSet),
+        constraint = cluster_account.key() == market.mxe_cluster @ ShadowPerpError::Unauthorized
+    )]
+    pub cluster_account: Box<Account<'info, Cluster>>,
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = derive_mempool_pda!(mxe_account, ErrorCode::ClusterNotSet))]
+    pub mempool_account: UncheckedAccount<'info>,
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = derive_execpool_pda!(mxe_account, ErrorCode::ClusterNotSet))]
+    pub executing_pool: UncheckedAccount<'info>,
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(
+        mut,
+        address = derive_comp_pda!(computation_offset, mxe_account, ErrorCode::ClusterNotSet)
+    )]
+    pub computation_account: UncheckedAccount<'info>,
+    /// CHECK: Validated by address constraint + Arcium.
+    #[account(mut, address = ARCIUM_FEE_POOL_ACCOUNT_ADDRESS)]
+    pub pool_account: Box<Account<'info, FeePool>>,
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 9,
+        seeds = [&SIGN_PDA_SEED],
+        bump,
+        address = derive_sign_pda!(),
+    )]
+    pub sign_pda_account: Account<'info, ArciumSignerAccount>,
+    #[account(mut, address = ARCIUM_CLOCK_ACCOUNT_ADDRESS)]
+    pub clock_account: Box<Account<'info, ClockAccount>>,
+
+    pub arcium_program: Program<'info, Arcium>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn execute_private_order_handler(
+    ctx: Context<ExecutePrivateOrder>,
+    order_index: u32,
+    is_bid: bool,
+    client_pubkey: [u8; 32],
+    nonce: u128,
+    computation_offset: u64,
+) -> Result<()> {
+    require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
+
+    ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+
+    let order_book = &ctx.accounts.private_order_book;
+    let market = &ctx.accounts.market;
+
+    // Validate oracle freshness before evaluating trigger
+    let clock = Clock::get()?;
+    let price_age = clock.unix_timestamp.saturating_sub(market.last_price_update);
+    require!(price_age < 300, ShadowPerpError::StalePrice);
+    require!(market.oracle_price > 0, ShadowPerpError::InvalidPrice);
+
+    // Retrieve the specified order from the book
+    let orders = if is_bid { &order_book.bids } else { &order_book.asks };
+    let order_idx = order_index as usize;
+    require!(order_idx < orders.len(), ShadowPerpError::InvalidAccountData);
+    let order = &orders[order_idx];
+
+    // Circuit: execute_private_order(order: Enc<Shared,(u64,u64,bool)>, mark_price: u64)
+    // The encrypted order was stored as:
+    //   encrypted_size  → enc_size
+    //   encrypted_price → enc_trigger_price
+    //   encrypted_owner_lo (first 32 bytes) reused as encrypted direction (bool)
+    //
+    // ArgBuilder layout:
+    //   order: Enc<Shared, (u64, u64, bool)>
+    //     1. x25519_pubkey
+    //     2. plaintext_u128 nonce
+    //     3. encrypted_u64  size
+    //     4. encrypted_u64  trigger_price
+    //     5. encrypted_bool is_long
+    //   mark_price: u64 (plaintext)
+    let args = ArgBuilder::new()
+        .x25519_pubkey(client_pubkey)
+        .plaintext_u128(nonce)
+        .encrypted_u64(order.encrypted_size)
+        .encrypted_u64(order.encrypted_price)
+        .encrypted_bool(order.encrypted_owner_lo) // direction encoded here by client
+        .plaintext_u64(market.oracle_price)
+        .build();
+
+    let callback_accounts = vec![
+        CallbackAccount {
+            pubkey: market.key(),
+            is_writable: false,
+        },
+        CallbackAccount {
+            pubkey: order_book.key(),
+            is_writable: true,
+        },
+    ];
+
+    let callback_ix = ExecutePrivateOrderCallback::callback_ix(
+        computation_offset,
+        &ctx.accounts.mxe_account,
+        &callback_accounts,
+    )?;
+
+    queue_computation(
+        ctx.accounts,
+        computation_offset,
+        args,
+        vec![callback_ix],
+        1,
+        0,
+    )?;
+
+    msg!(
+        "execute_private_order: queued order_index={}, is_bid={}, mark_price={}",
+        order_index,
+        is_bid,
+        market.oracle_price,
+    );
 
     Ok(())
 }

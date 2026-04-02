@@ -12,16 +12,20 @@
 //! - Realized PnL: Revealed ONLY at position close
 
 pub mod close_position;
+pub mod execute_private_order;
 pub mod liquidation_check;
 pub mod lock_margin_private;
 pub mod open_position;
 pub mod seed_open_interest_state;
 pub mod settle_private_position;
 pub mod types;
+pub mod verify_withdrawal_proof;
 
 pub use close_position::*;
+pub use execute_private_order::*;
 pub use liquidation_check::*;
 pub use lock_margin_private::*;
 pub use open_position::*;
 pub use seed_open_interest_state::*;
 pub use settle_private_position::*;
+pub use verify_withdrawal_proof::*;

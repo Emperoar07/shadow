@@ -286,3 +286,94 @@ pub fn init_settle_private_position_handler(
 
     Ok(())
 }
+
+// ============ VERIFY WITHDRAWAL PROOF COMP DEF ============
+
+#[init_computation_definition_accounts("verify_withdrawal_proof", payer)]
+#[derive(Accounts)]
+pub struct InitVerifyWithdrawalProofCompDef<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = authority @ crate::errors::ShadowPerpError::Unauthorized,
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Account<'info, Market>,
+
+    pub authority: Signer<'info>,
+
+    #[account(mut, address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
+
+    /// CHECK: Created and validated by the Arcium program during init_comp_def CPI.
+    #[account(mut)]
+    pub comp_def_account: UncheckedAccount<'info>,
+
+    /// CHECK: Derived LUT PDA checked by address constraint above.
+    #[account(mut, address = derive_mxe_lut_pda!(mxe_account.lut_offset_slot))]
+    pub address_lookup_table: UncheckedAccount<'info>,
+
+    /// CHECK: Must match LUT program id via address constraint above.
+    #[account(address = LUT_PROGRAM_ID)]
+    pub lut_program: UncheckedAccount<'info>,
+
+    pub arcium_program: Program<'info, Arcium>,
+    pub system_program: Program<'info, System>,
+}
+
+#[cfg(feature = "shielded-collateral")]
+pub fn init_verify_withdrawal_proof_handler(
+    ctx: Context<InitVerifyWithdrawalProofCompDef>,
+) -> Result<()> {
+    init_comp_def(ctx.accounts, None, None)?;
+    msg!("verify_withdrawal_proof comp def: {}", ctx.accounts.comp_def_account.key());
+    Ok(())
+}
+
+// ============ EXECUTE PRIVATE ORDER COMP DEF ============
+
+#[init_computation_definition_accounts("execute_private_order", payer)]
+#[derive(Accounts)]
+pub struct InitExecutePrivateOrderCompDef<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = authority @ crate::errors::ShadowPerpError::Unauthorized,
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Account<'info, Market>,
+
+    pub authority: Signer<'info>,
+
+    #[account(mut, address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
+
+    /// CHECK: Created and validated by the Arcium program during init_comp_def CPI.
+    #[account(mut)]
+    pub comp_def_account: UncheckedAccount<'info>,
+
+    /// CHECK: Derived LUT PDA checked by address constraint above.
+    #[account(mut, address = derive_mxe_lut_pda!(mxe_account.lut_offset_slot))]
+    pub address_lookup_table: UncheckedAccount<'info>,
+
+    /// CHECK: Must match LUT program id via address constraint above.
+    #[account(address = LUT_PROGRAM_ID)]
+    pub lut_program: UncheckedAccount<'info>,
+
+    pub arcium_program: Program<'info, Arcium>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn init_execute_private_order_handler(
+    ctx: Context<InitExecutePrivateOrderCompDef>,
+) -> Result<()> {
+    init_comp_def(ctx.accounts, None, None)?;
+    msg!("execute_private_order comp def: {}", ctx.accounts.comp_def_account.key());
+    Ok(())
+}

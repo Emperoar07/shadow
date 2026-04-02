@@ -395,17 +395,24 @@ export default function LandingPage() {
           .lp-feat-card {
             background:${dark ? "rgba(255,255,255,.02)" : "#ffffff"};
             border:1px solid ${dark ? "rgba(255,255,255,.06)" : "#dde2ee"};
-            border-radius:14px;padding:28px 24px;transition:border-color .25s,box-shadow .25s;
+            border-radius:16px;padding:28px 24px;transition:border-color .25s,box-shadow .25s,transform .2s;
             cursor:default;position:relative;overflow:hidden;
-            transform-style:preserve-3d;will-change:transform;
+            transform-style:preserve-3d;will-change:transform;display:flex;flex-direction:column;gap:0;
           }
           .lp-feat-card::before {
-            content:'';position:absolute;inset:0;border-radius:14px;
-            background:linear-gradient(135deg,rgba(139,92,246,.06),transparent);opacity:0;transition:opacity .25s;
+            content:'';position:absolute;inset:0;border-radius:16px;
+            background:linear-gradient(135deg,rgba(139,92,246,.07),transparent);opacity:0;transition:opacity .25s;
           }
-          .lp-feat-card:hover { border-color:rgba(139,92,246,.3);box-shadow:0 4px 20px rgba(139,92,246,.08) }
+          .lp-feat-card:hover { border-color:rgba(139,92,246,.35);box-shadow:0 8px 32px rgba(139,92,246,.12);transform:translateY(-2px) }
           .lp-feat-card:hover::before { opacity:1 }
-          .lp-feat-title { font-size:16px;font-weight:700;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:8px }
+          .lp-feat-icon {
+            width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+            background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);margin-bottom:16px;flex-shrink:0;
+            transition:background .25s,border-color .25s;
+          }
+          .lp-feat-card:hover .lp-feat-icon { background:rgba(139,92,246,.18);border-color:rgba(139,92,246,.4) }
+          .lp-feat-icon svg { width:20px;height:20px;stroke:#a78bfa;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round }
+          .lp-feat-title { font-size:15px;font-weight:700;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:8px }
           .lp-feat-desc { font-size:13px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.7 }
           /* PRIVACY */
           .lp-privacy-section {
@@ -434,17 +441,32 @@ export default function LandingPage() {
           /* SESSION CALLOUT */
           .lp-session-callout { max-width:1100px;margin:0 auto 80px;position:relative;z-index:1;padding:0 24px }
           .lp-session-card {
-            background:${dark ? "rgba(139,92,246,.04)" : "linear-gradient(135deg,rgba(124,58,237,.05),rgba(37,99,235,.04))"};
-            border:1px solid ${dark ? "rgba(139,92,246,.18)" : "rgba(124,58,237,.2)"};
-            border-radius:16px;padding:36px 40px;display:grid;grid-template-columns:1fr auto;gap:32px;align-items:center;
+            background:${dark ? "linear-gradient(135deg,rgba(109,40,217,.08),rgba(37,99,235,.06))" : "linear-gradient(135deg,rgba(124,58,237,.06),rgba(37,99,235,.04))"};
+            border:1px solid ${dark ? "rgba(139,92,246,.25)" : "rgba(124,58,237,.22)"};
+            border-radius:20px;padding:44px 48px;display:grid;grid-template-columns:1fr auto;gap:48px;align-items:center;
+            position:relative;overflow:hidden;
           }
-          .lp-session-label { font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8b5cf6;margin-bottom:8px }
-          .lp-session-title { font-size:22px;font-weight:800;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:10px;letter-spacing:-.02em }
-          .lp-session-desc { font-size:14px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.7;max-width:520px }
-          .lp-session-stats { display:flex;gap:24px }
-          .lp-session-stat { text-align:center;padding:16px 24px;background:${dark ? "rgba(255,255,255,.03)" : "#ffffff"};border:1px solid ${dark ? "rgba(255,255,255,.06)" : "#dde2ee"};border-radius:12px }
-          .lp-session-stat-val { font-size:22px;font-weight:800;color:#a78bfa;letter-spacing:-.02em }
-          .lp-session-stat-lbl { font-size:10px;color:${dark ? "#6b7280" : "#64748b"};font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-top:4px }
+          .lp-session-card::after {
+            content:'';position:absolute;top:-60px;right:-60px;width:280px;height:280px;border-radius:50%;
+            background:radial-gradient(circle,rgba(139,92,246,${dark ? ".12" : ".07"}) 0%,transparent 70%);pointer-events:none;
+          }
+          .lp-session-label {
+            display:inline-flex;align-items:center;gap:6px;
+            font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#a78bfa;
+            background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);
+            padding:4px 10px;border-radius:6px;margin-bottom:14px;
+          }
+          .lp-session-title { font-size:26px;font-weight:900;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:12px;letter-spacing:-.025em;line-height:1.2 }
+          .lp-session-desc { font-size:14px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.75;max-width:500px }
+          .lp-session-stats { display:flex;gap:16px;flex-shrink:0 }
+          .lp-session-stat {
+            text-align:center;padding:20px 28px;
+            background:${dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.9)"};
+            border:1px solid ${dark ? "rgba(255,255,255,.08)" : "#dde2ee"};
+            border-radius:14px;backdrop-filter:blur(8px);min-width:100px;
+          }
+          .lp-session-stat-val { font-size:28px;font-weight:900;color:#a78bfa;letter-spacing:-.03em;line-height:1 }
+          .lp-session-stat-lbl { font-size:10px;color:${dark ? "#6b7280" : "#64748b"};font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:6px }
           /* CTA */
           .lp-cta-section {
             position:relative;z-index:1;padding:120px 24px;text-align:center;overflow:hidden;
@@ -504,8 +526,9 @@ export default function LandingPage() {
             .lp-footer-inner{grid-template-columns:1fr;gap:24px;text-align:center}
             .lp-footer-brand-desc{margin:0 auto}
             .lp-footer-bottom{flex-direction:column;gap:12px;text-align:center}
-            .lp-session-card{grid-template-columns:1fr}
-            .lp-session-stats{flex-wrap:wrap}
+            .lp-session-card{grid-template-columns:1fr;padding:28px 24px}
+            .lp-session-stats{flex-wrap:wrap;justify-content:flex-start}
+            .lp-session-stat{min-width:80px;padding:14px 20px}
             .lp-theme-toggle-btn { width: 44px; height: 22px; right: 0.75rem; bottom: 0.75rem; }
           }
         `}</style>
@@ -645,10 +668,13 @@ export default function LandingPage() {
         <div id="session" className="lp-session-callout lp-reveal" style={{ paddingTop: "80px" }}>
           <div className="lp-session-card">
             <div>
-              <p className="lp-session-label">Session Trading</p>
-              <h3 className="lp-session-title">One approval. Unlimited trades.</h3>
+              <p className="lp-session-label">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                Session Trading
+              </p>
+              <h3 className="lp-session-title">One approval.<br />Unlimited trades.</h3>
               <p className="lp-session-desc">
-                Create a delegated trading session and sign once. The relay executes your encrypted orders on chain without a wallet popup interrupting every position. Configure per trade margin caps and revoke the session at any time.
+                Create a delegated trading session and sign once. The relay executes your encrypted orders on chain without a wallet popup interrupting every position. Configure per trade margin caps and revoke at any time.
               </p>
             </div>
             <div className="lp-session-stats">
@@ -660,6 +686,10 @@ export default function LandingPage() {
                 <div className="lp-session-stat-val">&infin;</div>
                 <div className="lp-session-stat-lbl">Trades max</div>
               </div>
+              <div className="lp-session-stat">
+                <div className="lp-session-stat-val">5h</div>
+                <div className="lp-session-stat-lbl">Session max</div>
+              </div>
             </div>
           </div>
         </div>
@@ -669,13 +699,55 @@ export default function LandingPage() {
           <p className="lp-section-tag">Features</p>
           <div className="lp-section-title">Built for serious traders</div>
           <div className="lp-features-grid">
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Encrypted Order Flow</div><p className="lp-feat-desc">Place orders without telegraphing intent. No MEV bot can front run an order it cannot see. Size, direction, and leverage stay private.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Confidential Liquidations</div><p className="lp-feat-desc">Your liquidation price is known only to the protocol. No hunter can target your position because the threshold is encrypted on chain.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Session Trading</div><p className="lp-feat-desc">Approve once, trade freely. A delegated session lets the relay execute on your behalf with zero wallet popups between trades. Set per trade caps and revoke anytime.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">MEV Resistant</div><p className="lp-feat-desc">Encrypted order flow eliminates exploitable signal. No sandwich attacks, no front running, no information leakage from pending orders.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Arcium MPC</div><p className="lp-feat-desc">Every trade is validated through Arcium&apos;s Multi Party Computation network with replay hardened callbacks. No single node sees your inputs. Only the verified outcome reaches the chain.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Pyth Oracle Feeds</div><p className="lp-feat-desc">Price data sourced from Pyth Network with fallback aggregation from Coinbase and Binance. Staleness checks and circuit breakers protect against oracle manipulation.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Shielded Collateral</div><p className="lp-feat-desc">Deposit into a private commitment pool. Internal balances, margin allocation, and the link between deposits and trading activity are hidden behind a nullifier-based Merkle system.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt">
+              <div className="lp-feat-icon">
+                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div className="lp-feat-title">Encrypted Order Flow</div>
+              <p className="lp-feat-desc">Place orders without telegraphing intent. No MEV bot can front run an order it cannot see. Size, direction, and leverage stay private.</p>
+            </div>
+            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt">
+              <div className="lp-feat-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
+              <div className="lp-feat-title">Confidential Liquidations</div>
+              <p className="lp-feat-desc">Your liquidation price is known only to the protocol. No hunter can target your position because the threshold is encrypted on chain.</p>
+            </div>
+            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt">
+              <div className="lp-feat-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              </div>
+              <div className="lp-feat-title">Session Trading</div>
+              <p className="lp-feat-desc">Approve once, trade freely. A delegated session lets the relay execute on your behalf with zero wallet popups between trades. Set per trade caps and revoke anytime.</p>
+            </div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt">
+              <div className="lp-feat-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M4.93 4.93l14.14 14.14"/></svg>
+              </div>
+              <div className="lp-feat-title">MEV Resistant</div>
+              <p className="lp-feat-desc">Encrypted order flow eliminates exploitable signal. No sandwich attacks, no front running, no information leakage from pending orders.</p>
+            </div>
+            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt">
+              <div className="lp-feat-icon">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+              </div>
+              <div className="lp-feat-title">Arcium MPC</div>
+              <p className="lp-feat-desc">Every trade is validated through Arcium&apos;s Multi Party Computation network with replay hardened callbacks. No single node sees your inputs. Only the verified outcome reaches the chain.</p>
+            </div>
+            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt">
+              <div className="lp-feat-icon">
+                <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </div>
+              <div className="lp-feat-title">Pyth Oracle Feeds</div>
+              <p className="lp-feat-desc">Price data sourced from Pyth Network with fallback aggregation from Coinbase and Binance. Staleness checks and circuit breakers protect against oracle manipulation.</p>
+            </div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt">
+              <div className="lp-feat-icon">
+                <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4.03 3-9 3S3 13.66 3 12"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>
+              </div>
+              <div className="lp-feat-title">Shielded Collateral</div>
+              <p className="lp-feat-desc">Deposit into a private commitment pool. Internal balances, margin allocation, and the link between deposits and trading activity are hidden behind a nullifier-based Merkle system.</p>
+            </div>
           </div>
         </div>
 
