@@ -387,7 +387,7 @@ export default function DocsPage() {
               <tbody>
                 <tr>
                   <td>Session duration</td>
-                  <td>7 days</td>
+                  <td>5 hours</td>
                 </tr>
                 <tr>
                   <td>Max actions</td>
@@ -395,7 +395,7 @@ export default function DocsPage() {
                 </tr>
                 <tr>
                   <td>Max margin per action</td>
-                  <td>$1,000 USDC</td>
+                  <td>1,000 USDC</td>
                 </tr>
                 <tr>
                   <td>Revocable</td>
@@ -551,8 +551,7 @@ export default function DocsPage() {
               Health = (Equity / Maintenance Margin) x 100%
             </p>
             <ul>
-              <li><strong>Maintenance margin</strong>: 5% of position value</li>
-              <li><strong>Liquidation threshold</strong>: 80% health</li>
+              <li><strong>Liquidation threshold</strong>: set per market in basis points, enforced by the on-chain program</li>
               <li><strong>Liquidation penalty</strong>: 5% to the liquidator, with the remainder returned to the trader</li>
             </ul>
             <p>
@@ -614,23 +613,17 @@ export default function DocsPage() {
 
             <h3>How do I deposit collateral?</h3>
             <p>
-              Click <strong>Manage</strong> in the top bar, or <strong>Deposit</strong> if your balance is zero. You
-              can deposit USDC directly or through a delegated session. For devnet testing, use a devnet USDC faucet so
-              the balance matches the configured mint.
+              Click <strong>Collateral</strong> in the trading panel, or use the deposit button in the portfolio summary. You must deposit USDC before you can open a position. For devnet testing, use a devnet USDC faucet to fund your wallet with the correct test mint.
             </p>
 
             <h3>Why does my position show "MPC Processing"?</h3>
             <p>
-              The trade was submitted successfully and is waiting for the Arcium MPC cluster to compute and return the
-              callback. This usually takes a few seconds on devnet. If it takes longer, the cluster may be delayed, but
-              your collateral remains safe.
+              The trade was submitted successfully and is waiting for the Arcium MPC cluster to compute and return the callback. On devnet this typically takes 30 to 120 seconds depending on cluster load. If it takes longer, the cluster may be temporarily delayed, but your collateral remains safe and the position will resolve once the callback arrives.
             </p>
 
             <h3>Is my data stored anywhere?</h3>
             <p>
-              Position metadata such as pair, side, and leverage is stored in your browser's <Code>localStorage</Code>,
-              keyed to your wallet address. No personal data is sent to any server other than the relay, which only
-              receives encrypted trade inputs.
+              Trading preferences, session info, and automation rules (limit orders, TP/SL) are stored in your browser's <Code>localStorage</Code>. Actual position data is read directly from the Solana blockchain. No personal data is sent to any server other than the relay, which only receives encrypted trade inputs.
             </p>
 
             <h3>Can I use ShadowPerp on mainnet?</h3>
@@ -732,23 +725,28 @@ export default function DocsPage() {
                     <td>Persistent</td>
                   </tr>
                   <tr>
-                    <td><Code>shadowperp.relay.session.v1</Code></td>
-                    <td>Active trading session info</td>
+                    <td><Code>shadowperp.relay.session.v1:*</Code></td>
+                    <td>Active trading session info per wallet and market</td>
                     <td>Session expiry</td>
                   </tr>
                   <tr>
-                    <td><Code>shadowperp:positions:*</Code></td>
-                    <td>Position metadata such as pair, side, and leverage</td>
-                    <td>Persistent</td>
-                  </tr>
-                  <tr>
-                    <td><Code>shadowperp:ui:margin-mode:*</Code></td>
+                    <td><Code>shadowperp:ui:margin-mode:v1:*</Code></td>
                     <td>Margin mode preference per wallet</td>
                     <td>Persistent</td>
                   </tr>
                   <tr>
-                    <td><Code>shadowperp:automation:*</Code></td>
-                    <td>Limit orders and TP or SL rules</td>
+                    <td><Code>shadowperp:automation:v1:*</Code></td>
+                    <td>Limit orders and TP or SL rules per wallet</td>
+                    <td>Persistent</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp-trading-settings</Code></td>
+                    <td>Trading settings such as slippage and default leverage</td>
+                    <td>Persistent</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp-selected-pair</Code></td>
+                    <td>Last selected trading pair</td>
                     <td>Persistent</td>
                   </tr>
                 </tbody>

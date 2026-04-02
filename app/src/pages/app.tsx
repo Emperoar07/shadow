@@ -243,7 +243,7 @@ export default function TradingAppPage() {
             </div>
 
             {/* Desktop: modular drag-and-drop grid layout */}
-            <div className="hidden lg:flex flex-1 min-h-0">
+            <div className="hidden lg:flex flex-1 min-h-0 relative">
               <TerminalGrid
                 selectedPair={selectedPair}
                 marketSnapshot={marketSnapshot}

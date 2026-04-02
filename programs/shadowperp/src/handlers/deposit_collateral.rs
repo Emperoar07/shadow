@@ -51,11 +51,17 @@ pub fn handler(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
     let margin_account = &mut ctx.accounts.margin_account;
     let market = &ctx.accounts.market;
 
-    // Initialize margin account if new
+    // Initialize margin account if new — belt-and-suspenders guard alongside the
+    // init_if_needed constraint, ensuring no caller can overwrite an existing account.
     if margin_account.owner == Pubkey::default() {
         margin_account.owner = ctx.accounts.owner.key();
         margin_account.market = market.key();
         margin_account.bump = ctx.bumps.margin_account;
+    } else {
+        require!(
+            margin_account.owner == ctx.accounts.owner.key(),
+            ShadowPerpError::Unauthorized
+        );
     }
 
     // Transfer tokens from user to vault
