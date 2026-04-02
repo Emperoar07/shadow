@@ -12,6 +12,7 @@ export default function PriceChart({
 }: PriceChartProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [tvTheme, setTvTheme] = useState<"dark" | "light">("dark");
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const readTheme = () =>
@@ -26,21 +27,29 @@ export default function PriceChart({
     setIsLoading(true);
   }, [chartSymbol]);
 
+  useEffect(() => {
+    const syncViewport = () => setIsMobile(window.innerWidth < 640);
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
+
   const iframeSrc = useMemo(() => {
     const params = new URLSearchParams({
       symbol: chartSymbol,
-      interval: "15",
+      interval: isMobile ? "1" : "15",
       theme: tvTheme,
       style: "1",
       toolbarbg: tvTheme === "light" ? "#f8f9fc" : "#0a0f1f",
       timezone: "Etc/UTC",
-      withdateranges: "1",
+      withdateranges: isMobile ? "0" : "1",
       allow_symbol_change: "0",
-      hide_side_toolbar: "0",
+      hide_top_toolbar: isMobile ? "1" : "0",
+      hide_side_toolbar: isMobile ? "1" : "0",
       saveimage: "0",
     });
     return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
-  }, [chartSymbol, tvTheme]);
+  }, [chartSymbol, tvTheme, isMobile]);
 
   return (
     <div className="trade-price-chart flex flex-col h-full min-h-0">

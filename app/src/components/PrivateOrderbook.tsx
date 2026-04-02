@@ -45,6 +45,7 @@ export default function PrivateOrderbook({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [groupingOpen, setGroupingOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [isMobile, setIsMobile] = useState(false);
   const groupingRef = useRef<HTMLDivElement>(null);
 
   const activePair = pair ?? TRADING_PAIRS[0];
@@ -87,6 +88,13 @@ export default function PrivateOrderbook({
   }, []);
 
   useEffect(() => {
+    const syncViewport = () => setIsMobile(window.innerWidth < 640);
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
+
+  useEffect(() => {
     if (marketSnapshot?.depthSnapshot) {
       setFetchError(null);
       return;
@@ -99,8 +107,8 @@ export default function PrivateOrderbook({
   const quoteSymbol = snapshot?.quoteSymbol ?? activePair.quote.symbol;
   const baseSymbol = activePair.base.symbol;
   const singleSide = bookLayout !== "both";
-  const maxLevels = singleSide ? 48 : 24;
-  const minLevels = singleSide ? 24 : 12;
+  const maxLevels = isMobile ? (singleSide ? 28 : 16) : singleSide ? 48 : 24;
+  const minLevels = isMobile ? (singleSide ? 14 : 8) : singleSide ? 24 : 12;
   const groupedAsks = groupLevelsAdaptive(
     snapshot?.asks ?? [],
     groupingOptions,

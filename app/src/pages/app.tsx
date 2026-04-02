@@ -292,8 +292,8 @@ export default function TradingAppPage() {
             </div>
 
             {/* Mobile: stacked tab layout */}
-            <div className="lg:hidden min-h-[560px] shrink-0 border-b border-shadow-600 p-2">
-              <div className="mb-2 flex border border-shadow-600 bg-shadow-900 p-1">
+            <div className="lg:hidden shrink-0 border-b border-shadow-600 p-2">
+              <div className="mb-2 flex rounded-xl border border-shadow-600 bg-shadow-900 p-1">
                 {([
                   ["chart", "Chart"],
                   ["book", "Order Book"],
@@ -313,9 +313,9 @@ export default function TradingAppPage() {
                 ))}
               </div>
 
-              <div className="flex h-full min-h-0 flex-col gap-0">
-                <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden border border-shadow-600">
-                  <div className="trade-terminal-grid h-[420px] min-w-0 min-h-0 flex-1 grid grid-cols-1">
+              <div className="flex min-h-0 flex-col gap-2">
+                <div className="flex min-h-0 min-w-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900">
+                  <div className="trade-terminal-grid h-[340px] min-w-0 min-h-0 flex-1 grid grid-cols-1 sm:h-[420px]">
                     <div className={`min-w-0 min-h-0 ${mobileMarketTab === "chart" ? "block" : "hidden"}`}>
                       <PriceChart selectedPair={selectedPair} chartSymbol={marketSnapshot.chartSymbol} />
                     </div>
@@ -328,7 +328,7 @@ export default function TradingAppPage() {
                   </div>
                 </div>
 
-                <div className="h-full w-full shrink-0 min-h-0 overflow-y-auto border border-shadow-600 bg-shadow-900">
+                <div className="w-full shrink-0 min-h-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900">
                   <TradingPanel
                     pair={selectedPair}
                     layout="vertical"
@@ -473,11 +473,17 @@ function SessionTimerChip() {
   const [isTimerHovered, setIsTimerHovered] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [durationMenuOpen, setDurationMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const id = setInterval(() => setNowTs(Math.floor(Date.now() / 1000)), 1_000);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
   }, []);
 
   useEffect(() => {
@@ -645,20 +651,53 @@ function SessionTimerChip() {
       </div>
 
       {durationMenuOpen && relayAvailable && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 rounded-lg border border-shadow-600 bg-shadow-800 shadow-xl z-[300] py-1.5 sm:left-auto sm:right-0 sm:w-36">
-          <p className="px-3 pb-1 text-[9px] uppercase tracking-widest text-gray-500">Session Duration</p>
-          {SESSION_DURATION_OPTIONS.map((opt) => (
-            <button
-              key={opt.label}
-              type="button"
-              onClick={() => handleStartSession(opt.seconds)}
-              disabled={isCreatingSession}
-              className="w-full text-left px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:text-white hover:bg-shadow-700/60 transition-colors disabled:opacity-40"
+        <>
+          <div className="absolute left-0 right-0 top-full mt-1.5 hidden rounded-lg border border-shadow-600 bg-shadow-800 shadow-xl z-[300] py-1.5 sm:left-auto sm:right-0 sm:block sm:w-36">
+            <p className="px-3 pb-1 text-[9px] uppercase tracking-widest text-gray-500">Session Duration</p>
+            {SESSION_DURATION_OPTIONS.map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => handleStartSession(opt.seconds)}
+                disabled={isCreatingSession}
+                className="w-full text-left px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:text-white hover:bg-shadow-700/60 transition-colors disabled:opacity-40"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {mounted && createPortal(
+            <div
+              className="fixed inset-0 z-[450] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:hidden"
+              onClick={() => setDurationMenuOpen(false)}
             >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+              <div
+                className="w-full max-w-xs overflow-hidden rounded-2xl border border-shadow-500 bg-shadow-900 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="border-b border-shadow-600 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-gray-500">Session Duration</p>
+                  <p className="mt-1 text-sm font-semibold text-white">Choose how long delegated trading should stay active.</p>
+                </div>
+                <div className="p-2">
+                  {SESSION_DURATION_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => handleStartSession(opt.seconds)}
+                      disabled={isCreatingSession}
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-gray-200 transition-colors hover:bg-shadow-800 disabled:opacity-40"
+                    >
+                      <span>{opt.label}</span>
+                      <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-gray-500">Session</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
       )}
     </div>
   );
