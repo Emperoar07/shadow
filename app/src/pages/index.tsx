@@ -405,14 +405,7 @@ export default function LandingPage() {
           }
           .lp-feat-card:hover { border-color:rgba(139,92,246,.35);box-shadow:0 8px 32px rgba(139,92,246,.12);transform:translateY(-2px) }
           .lp-feat-card:hover::before { opacity:1 }
-          .lp-feat-icon {
-            width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;
-            background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);margin-bottom:16px;flex-shrink:0;
-            transition:background .25s,border-color .25s;
-          }
-          .lp-feat-card:hover .lp-feat-icon { background:rgba(139,92,246,.18);border-color:rgba(139,92,246,.4) }
-          .lp-feat-icon svg { width:20px;height:20px;stroke:#a78bfa;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round }
-          .lp-feat-title { font-size:15px;font-weight:700;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:8px }
+.lp-feat-title { font-size:15px;font-weight:700;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:8px }
           .lp-feat-desc { font-size:13px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.7 }
           /* PRIVACY */
           .lp-privacy-section {
@@ -699,55 +692,13 @@ export default function LandingPage() {
           <p className="lp-section-tag">Features</p>
           <div className="lp-section-title">Built for serious traders</div>
           <div className="lp-features-grid">
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt">
-              <div className="lp-feat-icon">
-                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              </div>
-              <div className="lp-feat-title">Encrypted Order Flow</div>
-              <p className="lp-feat-desc">Place orders without telegraphing intent. No MEV bot can front run an order it cannot see. Size, direction, and leverage stay private.</p>
-            </div>
-            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt">
-              <div className="lp-feat-icon">
-                <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              </div>
-              <div className="lp-feat-title">Confidential Liquidations</div>
-              <p className="lp-feat-desc">Your liquidation price is known only to the protocol. No hunter can target your position because the threshold is encrypted on chain.</p>
-            </div>
-            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt">
-              <div className="lp-feat-icon">
-                <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-              </div>
-              <div className="lp-feat-title">Session Trading</div>
-              <p className="lp-feat-desc">Approve once, trade freely. A delegated session lets the relay execute on your behalf with zero wallet popups between trades. Set per trade caps and revoke anytime.</p>
-            </div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt">
-              <div className="lp-feat-icon">
-                <svg viewBox="0 0 24 24"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M4.93 4.93l14.14 14.14"/></svg>
-              </div>
-              <div className="lp-feat-title">MEV Resistant</div>
-              <p className="lp-feat-desc">Encrypted order flow eliminates exploitable signal. No sandwich attacks, no front running, no information leakage from pending orders.</p>
-            </div>
-            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt">
-              <div className="lp-feat-icon">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-              </div>
-              <div className="lp-feat-title">Arcium MPC</div>
-              <p className="lp-feat-desc">Every trade is validated through Arcium&apos;s Multi Party Computation network with replay hardened callbacks. No single node sees your inputs. Only the verified outcome reaches the chain.</p>
-            </div>
-            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt">
-              <div className="lp-feat-icon">
-                <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              </div>
-              <div className="lp-feat-title">Pyth Oracle Feeds</div>
-              <p className="lp-feat-desc">Price data sourced from Pyth Network with fallback aggregation from Coinbase and Binance. Staleness checks and circuit breakers protect against oracle manipulation.</p>
-            </div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt">
-              <div className="lp-feat-icon">
-                <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4.03 3-9 3S3 13.66 3 12"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>
-              </div>
-              <div className="lp-feat-title">Shielded Collateral</div>
-              <p className="lp-feat-desc">Deposit into a private commitment pool. Internal balances, margin allocation, and the link between deposits and trading activity are hidden behind a nullifier-based Merkle system.</p>
-            </div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Encrypted Order Flow</div><p className="lp-feat-desc">Place orders without telegraphing intent. No MEV bot can front run an order it cannot see. Size, direction, and leverage stay private.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Confidential Liquidations</div><p className="lp-feat-desc">Your liquidation price is known only to the protocol. No hunter can target your position because the threshold is encrypted on chain.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Session Trading</div><p className="lp-feat-desc">Approve once, trade freely. A delegated session lets the relay execute on your behalf with zero wallet popups between trades. Set per trade caps and revoke anytime.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">MEV Resistant</div><p className="lp-feat-desc">Encrypted order flow eliminates exploitable signal. No sandwich attacks, no front running, no information leakage from pending orders.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Arcium MPC</div><p className="lp-feat-desc">Every trade is validated through Arcium&apos;s Multi Party Computation network with replay hardened callbacks. No single node sees your inputs. Only the verified outcome reaches the chain.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Pyth Oracle Feeds</div><p className="lp-feat-desc">Price data sourced from Pyth Network with fallback aggregation from Coinbase and Binance. Staleness checks and circuit breakers protect against oracle manipulation.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Shielded Collateral</div><p className="lp-feat-desc">Deposit into a private commitment pool. Internal balances, margin allocation, and the link between deposits and trading activity are hidden behind a nullifier-based Merkle system.</p></div>
           </div>
         </div>
 
