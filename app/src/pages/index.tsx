@@ -693,7 +693,7 @@ export default function LandingPage() {
                 <div className="lp-session-stat-lbl">Trades max</div>
               </div>
               <div className="lp-session-stat">
-                <div className="lp-session-stat-val">5h</div>
+                <div className="lp-session-stat-val">48h</div>
                 <div className="lp-session-stat-lbl">Session max</div>
               </div>
             </div>

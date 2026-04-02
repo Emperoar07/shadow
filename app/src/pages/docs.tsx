@@ -387,7 +387,7 @@ export default function DocsPage() {
               <tbody>
                 <tr>
                   <td>Session duration</td>
-                  <td>5 hours</td>
+                  <td>Default 5 hours, up to 48 hours</td>
                 </tr>
                 <tr>
                   <td>Max actions</td>
