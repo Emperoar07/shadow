@@ -419,6 +419,7 @@ export default function BottomPositionsPanel({
       const entryPrice = view?.entryPrice ?? null;
       const pairLabel = view?.pairLabel ?? rule?.pairLabel ?? "SOL-USD";
       const sizeBase = view?.sizeBase ?? null;
+      const baseSymbol = pairLabel.split("-")[0] ?? "USD";
 
       let liqPrice: number | null = null;
       if (entryPrice !== null && leverage !== null && leverage > 0) {
@@ -474,9 +475,11 @@ export default function BottomPositionsPanel({
 
       return {
         pairLabel,
+        baseSymbol,
         side,
         marginMode,
         leverage,
+        sizeBase,
         localMargin,
         entryPrice,
         liqPrice,
@@ -739,11 +742,33 @@ export default function BottomPositionsPanel({
                     : health >= 70 ? "bg-accent-green"
                     : health >= 40 ? "bg-yellow-400"
                     : "bg-accent-red";
+                const historyActionLabel = pos.status === "liquidated" ? "Liquidated" : "Closed";
+                const historySideLabel = displaySide
+                  ? `${historyActionLabel} ${displaySide}`
+                  : historyActionLabel;
+                const historySizeLabel =
+                  card.sizeBase !== null
+                    ? `${card.sizeBase.toFixed(4)} ${card.baseSymbol}`
+                    : null;
+                const historyTimeLabel = pos.openedAt.toLocaleString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
 
                 return (
                   <tr key={pos.address} className="position-row group">
                     {/* Pair */}
-                    <td className="px-3 py-2.5 font-medium text-white whitespace-nowrap">{card.pairLabel}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <div className="font-medium text-white">{card.pairLabel}</div>
+                      {activeTab === "history" && (
+                        <div className="mt-0.5 text-[10px] text-gray-500">
+                          {historySideLabel}
+                          {historySizeLabel ? ` • ${historySizeLabel}` : ""}
+                        </div>
+                      )}
+                    </td>
                     {/* Side */}
                     <td className="px-2 py-2.5">
                       {displaySide ? (
@@ -817,15 +842,22 @@ export default function BottomPositionsPanel({
                     </td>
                     {/* Action */}
                     <td className="px-3 py-2.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <StatusBadge status={pos.status} isClosing={isClosing} />
-                        {!isPending && !isSettling && !isFinal ? (
+                      {activeTab === "history" ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <StatusBadge status={pos.status} isClosing={isClosing} />
+                          <span className="text-[10px] text-gray-500">{historyTimeLabel}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <StatusBadge status={pos.status} isClosing={isClosing} />
+                          {!isPending && !isSettling && !isFinal ? (
                           <button onClick={() => void handleClose(pos)} disabled={TRADING_DISABLED || isClosing}
                             className="rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-40">
                             {TRADING_DISABLED ? "Off" : isClosing ? "Closing..." : "Close"}
                           </button>
-                        ) : null}
-                      </div>
+                          ) : null}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );

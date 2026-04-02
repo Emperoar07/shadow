@@ -365,9 +365,11 @@ export class ShadowPerpClient {
         session: sessionAddress,
         systemProgram: SystemProgram.programId,
       })
-      .rpc();
+      .transaction();
 
-    return { txSignature: tx, sessionAddress };
+    const txSignature = await this.sendTransactionWithPolling(tx);
+
+    return { txSignature, sessionAddress };
   }
 
   async revokeTradeSession(market: PublicKey, sessionId: BN | number): Promise<string> {
@@ -382,8 +384,9 @@ export class ShadowPerpClient {
         market,
         session: sessionAddress,
       })
-      .rpc();
-    return tx;
+      .transaction();
+
+    return this.sendTransactionWithPolling(tx);
   }
 
   /**
@@ -432,8 +435,8 @@ export class ShadowPerpClient {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
-      .rpc();
-    return tx;
+      .transaction();
+    return this.sendTransactionWithPolling(tx);
   }
 
   /**
@@ -479,8 +482,8 @@ export class ShadowPerpClient {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
-      .rpc();
-    return tx;
+      .transaction();
+    return this.sendTransactionWithPolling(tx);
   }
 
   async withdrawCollateral(market: PublicKey, amount: BN): Promise<string> {
@@ -500,8 +503,8 @@ export class ShadowPerpClient {
         owner, market, marginAccount, userTokenAccount, vault,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .rpc();
-    return tx;
+      .transaction();
+    return this.sendTransactionWithPolling(tx);
   }
 
   /**
@@ -538,8 +541,8 @@ export class ShadowPerpClient {
         vault: marketAccount.vault,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .rpc();
-    return tx;
+      .transaction();
+    return this.sendTransactionWithPolling(tx);
   }
 
   // ============ POSITION OPERATIONS ============

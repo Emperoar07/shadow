@@ -4,7 +4,7 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Wallet, Clock, ExternalLink, ChevronDown, ArrowDownToLine, ArrowUpFromLine, Zap, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
-import { WALLET_DISPLAY_TOKENS } from "../lib/tokens";
+import { DEVNET_TOKENS, WALLET_DISPLAY_TOKENS } from "../lib/tokens";
 
 const EXPLORER_BASE = "https://explorer.solana.com/tx";
 const INITIAL_TX_COUNT = 5;
@@ -27,6 +27,7 @@ interface TxType {
   icon: "down" | "up" | "open" | "close" | "ref" | "generic";
   amount?: number;
   symbol?: string;
+  detail?: string;
 }
 
 interface TokenBalance {
@@ -64,6 +65,72 @@ function formatAmount(amount: number): string {
   return amount.toFixed(4);
 }
 
+const MINT_SYMBOLS = new Map<string, string>(
+  Object.values(DEVNET_TOKENS).map((token) => [token.mint.toBase58(), token.symbol])
+);
+
+const INSTRUCTION_TYPE_MAP: Record<string, TxType> = {
+  depositcollateral: { label: "Deposit Collateral", color: "text-accent-green", icon: "down" },
+  depositcollateralwithsession: { label: "Deposit Collateral", color: "text-accent-green", icon: "down" },
+  withdrawcollateral: { label: "Withdraw Collateral", color: "text-accent-red", icon: "up" },
+  withdrawcollateralwithsession: { label: "Withdraw Collateral", color: "text-accent-red", icon: "up" },
+  createtradesession: { label: "Start Session", color: "text-cyan-300", icon: "ref", detail: "Delegated trading session" },
+  revoketradesession: { label: "Revoke Session", color: "text-yellow-300", icon: "ref", detail: "Delegated trading session" },
+  openposition: { label: "Open Position", color: "text-accent-purple", icon: "open" },
+  openpositionwithsession: { label: "Open Position", color: "text-accent-purple", icon: "open" },
+  closeposition: { label: "Close Position", color: "text-yellow-400", icon: "close" },
+  closepositionwithsession: { label: "Close Position", color: "text-yellow-400", icon: "close" },
+  addprivateorder: { label: "Private Order", color: "text-accent-purple", icon: "ref", detail: "Encrypted order queued" },
+  settleprivateposition: { label: "Settle Position", color: "text-yellow-300", icon: "close" },
+  liquidateposition: { label: "Liquidation", color: "text-accent-red", icon: "close" },
+};
+
+function extractInstructionName(
+  ptx: import("@solana/web3.js").ParsedTransactionWithMeta
+): string | null {
+  const logs = ptx.meta?.logMessages ?? [];
+  for (const line of logs) {
+    const match = line.match(/Instruction:\s+([A-Za-z0-9_]+)/);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
+
+function getWalletTokenDelta(
+  ptx: import("@solana/web3.js").ParsedTransactionWithMeta,
+  walletPk: PublicKey
+): { amount: number; symbol: string } | null {
+  const wallet = walletPk.toBase58();
+  const deltas = new Map<string, number>();
+
+  const addBalance = (
+    entry: any,
+    direction: -1 | 1
+  ) => {
+    const owner = (entry as any)?.owner;
+    if (owner !== wallet) return;
+    const uiAmount = entry.uiTokenAmount.uiAmount ?? 0;
+    deltas.set(entry.mint, (deltas.get(entry.mint) ?? 0) + uiAmount * direction);
+  };
+
+  (ptx.meta?.preTokenBalances ?? []).forEach((entry) => addBalance(entry, -1));
+  (ptx.meta?.postTokenBalances ?? []).forEach((entry) => addBalance(entry, 1));
+
+  let bestMint: string | null = null;
+  let bestAmount = 0;
+  for (const [mint, amount] of deltas.entries()) {
+    if (Math.abs(amount) <= Math.abs(bestAmount)) continue;
+    bestMint = mint;
+    bestAmount = amount;
+  }
+
+  if (!bestMint || Math.abs(bestAmount) < 0.000001) return null;
+  return {
+    amount: Math.abs(bestAmount),
+    symbol: MINT_SYMBOLS.get(bestMint) ?? "tokens",
+  };
+}
+
 async function enrichTxTypes(
   connection: import("@solana/web3.js").Connection,
   txs: RecentTx[],
@@ -89,77 +156,16 @@ async function enrichTxTypes(
     const ptx = parsed[i];
     if (!ptx) continue;
 
-    const allIxs = [
-      ...(ptx.transaction.message.instructions ?? []),
-      ...(ptx.meta?.innerInstructions?.flatMap((ii) => ii.instructions) ?? []),
-    ] as any[];
-
-    // Check if any ix targets the ShadowPerp program
-    const shadowIxs = allIxs.filter((ix) => ix.programId?.toString() === SHADOWPERP_PROGRAM_ID);
-
     let txType: TxType | null = null;
+    const instructionName = extractInstructionName(ptx);
+    const normalizedInstruction = instructionName?.replace(/_/g, "").toLowerCase() ?? "";
+    const walletDelta = getWalletTokenDelta(ptx, walletPk);
 
-    // Look for deposit/withdraw via SPL token transfers involving wallet
-    const splTransfers = allIxs.filter(
-      (ix) => ix.program === "spl-token" && ix.parsed?.type === "transfer" || ix.parsed?.type === "transferChecked"
-    );
-
-    // Detect by ShadowPerp ix data prefix (first few bytes after discriminator hint)
-    // We check parsed instruction data or fall back to memo/SPL transfer direction
-    for (const ix of shadowIxs) {
-      const data: string = ix.data ?? "";
-      // Discriminators are base58-encoded; we match by known ix names in accounts or data length heuristics
-      // Instead, check SPL token flow direction relative to wallet to classify deposit vs withdraw
-      const preBalances = ptx.meta?.preTokenBalances ?? [];
-      const postBalances = ptx.meta?.postTokenBalances ?? [];
-
-      for (const post of postBalances) {
-        const pre = preBalances.find((p) => p.accountIndex === post.accountIndex && p.mint === post.mint);
-        if (!pre) continue;
-        const delta = (post.uiTokenAmount.uiAmount ?? 0) - (pre.uiTokenAmount.uiAmount ?? 0);
-        if (Math.abs(delta) < 0.0001) continue;
-
-        const acctKey = ptx.transaction.message.accountKeys[post.accountIndex];
-        const acctPk = (acctKey as any)?.pubkey?.toString() ?? "";
-        const isWalletAcct = acctPk === walletPk.toString();
-
-        if (Math.abs(delta) > 0 && shadowIxs.length > 0) {
-          const symbol = post.mint === "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" ? "USDC"
-            : post.mint === "So11111111111111111111111111111111111111112" ? "SOL"
-            : "tokens";
-
-          if (delta > 0 && !isWalletAcct) {
-            // vault received tokens = deposit
-            txType = { label: "Deposit", color: "text-accent-green", icon: "down", amount: Math.abs(delta), symbol };
-            break;
-          } else if (delta < 0 && !isWalletAcct) {
-            // vault lost tokens = withdraw
-            txType = { label: "Withdrawal", color: "text-accent-red", icon: "up", amount: Math.abs(delta), symbol };
-            break;
-          } else if (delta > 0 && isWalletAcct) {
-            // wallet received tokens from program = withdrawal
-            txType = { label: "Withdrawal", color: "text-accent-red", icon: "up", amount: Math.abs(delta), symbol };
-            break;
-          } else if (delta < 0 && isWalletAcct) {
-            // wallet sent tokens to program = deposit
-            txType = { label: "Deposit", color: "text-accent-green", icon: "down", amount: Math.abs(delta), symbol };
-            break;
-          }
-        }
-      }
-
-      if (txType) break;
-
-      // If no token flow but shadow ix exists, classify by data length / account count
-      if (!txType && shadowIxs.length > 0) {
-        const accountCount = ix.accounts?.length ?? 0;
-        if (accountCount >= 8) {
-          txType = { label: "Open Position", color: "text-accent-purple", icon: "open" };
-        } else if (accountCount >= 5) {
-          txType = { label: "Close Position", color: "text-yellow-400", icon: "close" };
-        } else {
-          txType = { label: "Program Call", color: "text-gray-400", icon: "ref" };
-        }
+    if (normalizedInstruction && INSTRUCTION_TYPE_MAP[normalizedInstruction]) {
+      txType = { ...INSTRUCTION_TYPE_MAP[normalizedInstruction] };
+      if ((txType.icon === "down" || txType.icon === "up") && walletDelta) {
+        txType.amount = walletDelta.amount;
+        txType.symbol = walletDelta.symbol;
       }
     }
 
@@ -167,9 +173,27 @@ async function enrichTxTypes(
     if (!txType) {
       const lower = (tx.memo ?? "").toLowerCase();
       if (lower.includes("deposit") || lower.includes("collateral")) {
-        txType = { label: "Deposit", color: "text-accent-green", icon: "down" };
+        txType = {
+          label: "Deposit Collateral",
+          color: "text-accent-green",
+          icon: "down",
+          amount: walletDelta?.amount,
+          symbol: walletDelta?.symbol,
+        };
       } else if (lower.includes("withdraw")) {
-        txType = { label: "Withdrawal", color: "text-accent-red", icon: "up" };
+        txType = {
+          label: "Withdraw Collateral",
+          color: "text-accent-red",
+          icon: "up",
+          amount: walletDelta?.amount,
+          symbol: walletDelta?.symbol,
+        };
+      } else if (instructionName) {
+        txType = {
+          label: instructionName.replace(/([A-Z])/g, " $1").trim(),
+          color: "text-gray-400",
+          icon: "ref",
+        };
       } else {
         txType = { label: "Transaction", color: "text-gray-500", icon: "generic" };
       }
@@ -453,8 +477,8 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
                       {/* Label + sig */}
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className={`text-[11px] font-semibold ${txType.color}`}>{txType.label}</span>
-                        <span className="text-[9px] text-gray-600 font-mono truncate">
-                          {tx.sig.slice(0, 10)}…{tx.sig.slice(-6)}
+                        <span className="text-[9px] text-gray-600 truncate">
+                          {txType.detail ?? `${tx.sig.slice(0, 10)}...${tx.sig.slice(-6)}`}
                         </span>
                       </div>
                       {/* Amount (for deposit/withdraw) + date + status */}

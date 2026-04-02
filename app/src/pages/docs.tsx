@@ -581,8 +581,8 @@ export default function DocsPage() {
                 and producing commitments without revealing your internal balance.
               </li>
               <li>
-                <strong>Withdraw</strong> | You submit a nullifier to prove ownership of a commitment. After a short
-                delay, the protocol releases USDC from the vault to your wallet.
+                <strong>Withdraw</strong> | You first create a pending withdrawal, then queue an Arcium MPC proof check,
+                and only finalize after the callback marks that withdrawal as verified and the delay window has passed.
               </li>
             </ol>
             <h3>What stays private</h3>
@@ -598,9 +598,10 @@ export default function DocsPage() {
               <li>Timestamps of transactions</li>
             </ul>
             <Note>
-              Shielded collateral deposit, withdrawal request, and finalization are deployed on devnet. Private margin
-              lock and settle transitions are in progress — the Arcium MPC circuits are built and the on-chain wiring is
-              in place, pending final circuit integration.
+              Shielded collateral deposit, withdrawal request, proof verification callback, and finalization are deployed
+              on devnet. The current withdrawal proof is a simplified additive-binding MPC check over the claimed amount,
+              commitment secret, and nullifier preimage. It is not yet a full private Merkle-membership proof of note
+              ownership. Private margin lock and settle transitions are still in progress.
             </Note>
           </Section>
 

@@ -1,5 +1,4 @@
 ﻿import { useState, useCallback, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import BN from "bn.js";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
@@ -40,12 +39,6 @@ const TP_SL_MIN_GAP_BPS = 10; // 0.10%
 const MAX_POSITION_SIZE_BASE = 1_000_000;
 const MAX_POSITION_NOTIONAL_USDC = 5_000_000;
 const MARGIN_MODE_STORAGE_PREFIX = "shadowperp:ui:margin-mode:v1";
-const SESSION_DURATION_OPTIONS = [
-  { label: "12h", seconds: 12 * 60 * 60 },
-  { label: "24h", seconds: 24 * 60 * 60 },
-  { label: "48h", seconds: 48 * 60 * 60 },
-] as const;
-
 interface TradingPanelProps {
   pair?: TradingPair;
   layout?: "vertical" | "horizontal";
@@ -164,9 +157,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   const [tradeTxSig, setTradeTxSig] = useState<string | undefined>();
   const [tradeError, setTradeError] = useState<string | undefined>();
   const [clientInitError, setClientInitError] = useState<string | null>(null);
-  const [mobileSessionMenuOpen, setMobileSessionMenuOpen] = useState(false);
-  const [isStartingMobileSession, setIsStartingMobileSession] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
   const refreshSeqRef = useRef(0);
   const handleSubmitRef = useRef<() => void>(() => undefined);
@@ -244,11 +234,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     clientRef.current = null;
     refreshSeqRef.current += 1;
   }, [anchorWallet, publicKey]);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
 
   useEffect(() => {
     setSize("");
@@ -560,34 +545,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     setPrivacyError,
     resetPrivacyStatus,
   ]);
-
-  const handleStartMobileSession = useCallback(
-    async (durationSeconds: number) => {
-      if (isStartingMobileSession) return;
-      setIsStartingMobileSession(true);
-      setMobileSessionMenuOpen(false);
-      try {
-        const session = await ensureRelaySession({
-          reason: "trade",
-          userInitiated: true,
-          durationSeconds,
-        });
-        if (!session) {
-          throw new Error("Session creation failed.");
-        }
-        toastSuccess("Delegated session active.");
-      } catch (error: any) {
-        const message =
-          typeof error?.message === "string" && error.message.trim().length > 0
-            ? error.message
-            : "Failed to start delegated session.";
-        toast.error(message);
-      } finally {
-        setIsStartingMobileSession(false);
-      }
-    },
-    [ensureRelaySession, isStartingMobileSession, toastSuccess]
-  );
 
   const handleSubmit = useCallback(async () => {
     if (TRADING_DISABLED) {
@@ -1085,36 +1042,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
             </div>
           )}
 
-          {!isRelaySessionActive && publicKey && (
-            <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/6 p-3 sm:hidden">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">
-                    Delegated Session
-                  </p>
-                  <p className="text-sm font-semibold text-white">
-                    Start a session before opening positions
-                  </p>
-                  <p className="text-[11px] leading-relaxed text-cyan-100/75">
-                    One approval unlocks repeated encrypted trades for up to 48 hours on mobile.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMobileSessionMenuOpen(true)}
-                  disabled={!relayAvailable || isStartingMobileSession}
-                  className="shrink-0 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition-colors hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isStartingMobileSession
-                    ? "Starting..."
-                    : relayAvailable
-                    ? "Start"
-                    : "Unavailable"}
-                </button>
-              </div>
-            </div>
-          )}
-
           <button
             onClick={handleSubmit}
             disabled={
@@ -1252,47 +1179,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
         }}
         onCancel={() => setOpenConfirmPending(false)}
       />
-
-      {mounted &&
-        mobileSessionMenuOpen &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[460] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm sm:hidden"
-            onClick={() => setMobileSessionMenuOpen(false)}
-          >
-            <div
-              className="w-full max-w-xs overflow-hidden rounded-2xl border border-shadow-500 bg-shadow-900 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="border-b border-shadow-600 px-4 py-3">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-gray-500">
-                  Delegated Session
-                </p>
-                <p className="mt-1 text-sm font-semibold text-white">
-                  Choose how long mobile trading should stay active.
-                </p>
-              </div>
-              <div className="p-2">
-                {SESSION_DURATION_OPTIONS.map((option) => (
-                  <button
-                    key={option.label}
-                    type="button"
-                    onClick={() => void handleStartMobileSession(option.seconds)}
-                    disabled={isStartingMobileSession}
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-gray-200 transition-colors hover:bg-shadow-800 disabled:opacity-40"
-                  >
-                    <span>{option.label}</span>
-                    <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-gray-500">
-                      Session
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
-
     </div>
   );
 }
