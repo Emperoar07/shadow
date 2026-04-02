@@ -18,6 +18,14 @@ const DEFAULT_CLUSTER_OFFSET = 456;
 const DEFAULT_RPC_ENDPOINT = "https://api.devnet.solana.com";
 const DEFAULT_COLLATERAL_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 type RpcTransport = { rpcUrl: string; wsUrl: string };
+export type RelayRuntimeSummary = {
+  programId: string;
+  marketAddress: string;
+  clusterOffset: number;
+  rpcHost: string;
+  wsHost: string;
+  rpcCandidates: string[];
+};
 
 function normalize(value?: string): string | undefined {
   if (!value) return undefined;
@@ -62,6 +70,14 @@ function deriveWsEndpoint(rpcEndpoint: string): string {
     return url.toString();
   } catch {
     return rpcEndpoint.replace(/^https:/i, "wss:").replace(/^http:/i, "ws:");
+  }
+}
+
+function summarizeEndpointHost(endpoint: string): string {
+  try {
+    return new URL(endpoint).host;
+  } catch {
+    return endpoint;
   }
 }
 
@@ -229,6 +245,17 @@ export type RelayRuntimeContext = {
   rpcUrl: string;
   wsUrl: string;
 };
+
+export function summarizeRelayRuntime(context: RelayRuntimeContext): RelayRuntimeSummary {
+  return {
+    programId: context.config.programId.toBase58(),
+    marketAddress: context.config.marketAddress.toBase58(),
+    clusterOffset: context.config.clusterOffset,
+    rpcHost: summarizeEndpointHost(context.rpcUrl),
+    wsHost: summarizeEndpointHost(context.wsUrl),
+    rpcCandidates: collectRpcUrls().map(summarizeEndpointHost),
+  };
+}
 
 export async function createRelayRuntimeContext(): Promise<RelayRuntimeContext> {
   const programId = parsePublicKey(

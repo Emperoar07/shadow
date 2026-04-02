@@ -296,6 +296,9 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   }, [publicKey, signMessage]);
 
   const refreshMarketData = useCallback(async () => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
     const requestSeq = ++refreshSeqRef.current;
     const fallbackWarning = "Live price feed unavailable. Showing cached market data.";
     const setWarning = (message: string | null) => {
@@ -387,14 +390,19 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
 
   useEffect(() => {
     void refreshMarketData();
-    const interval = setInterval(() => void refreshMarketData(), 15_000);
+    const interval = setInterval(() => void refreshMarketData(), 30_000);
     return () => clearInterval(interval);
   }, [refreshMarketData]);
 
   useEffect(() => {
     if (!publicKey) return;
     void refreshRelaySession();
-    const interval = setInterval(() => void refreshRelaySession(), 30_000);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
+      void refreshRelaySession();
+    }, 45_000);
     return () => clearInterval(interval);
   }, [publicKey, refreshRelaySession]);
 
@@ -503,12 +511,16 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       setStopLoss("");
       void refreshMarketData();
     } catch (error: any) {
+      const rawRelayMessage =
+        typeof error?.relayMessage === "string" && error.relayMessage.trim().length > 0
+          ? error.relayMessage.trim()
+          : null;
       const classified = error?.classified ?? classifyArciumError(error);
-      const msg = classified.message || "Failed to open position";
+      const msg = rawRelayMessage || classified.message || "Failed to open position";
       if (typeof error?.txSignature === "string" && error.txSignature.length > 0) {
         setTradeTxSig(error.txSignature);
       }
-      setPrivacyError(msg);
+      setPrivacyError(classified.message || msg);
       if (msg.includes("env var")) {
         setModalOpen(false);
       } else {

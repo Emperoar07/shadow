@@ -1,7 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import BN from "bn.js";
 import { PublicKey } from "@solana/web3.js";
-import { createRelayRuntimeContext } from "../../../lib/server/relay-client";
+import {
+  createRelayRuntimeContext,
+  RelayRuntimeSummary,
+  summarizeRelayRuntime,
+} from "../../../lib/server/relay-client";
 
 type SessionResponse =
   | {
@@ -9,6 +13,7 @@ type SessionResponse =
       available: true;
       relayer: string;
       market: string;
+      runtime?: RelayRuntimeSummary;
       exists?: boolean;
       session?: {
         owner: string;
@@ -115,6 +120,8 @@ export default async function handler(
     return;
   }
 
+  const runtimeSummary = summarizeRelayRuntime(relay);
+
   const ownerRaw = first(req.query.owner);
   const sessionIdRaw = first(req.query.sessionId);
 
@@ -124,6 +131,7 @@ export default async function handler(
       available: true,
       relayer: relay.relayer.publicKey.toBase58(),
       market: relay.config.marketAddress.toBase58(),
+      runtime: runtimeSummary,
     });
     return;
   }
@@ -184,6 +192,7 @@ export default async function handler(
           available: true,
           relayer: relay.relayer.publicKey.toBase58(),
           market: relay.config.marketAddress.toBase58(),
+          runtime: runtimeSummary,
           exists: false,
         });
         return;
@@ -194,6 +203,7 @@ export default async function handler(
         available: true,
         relayer: relay.relayer.publicKey.toBase58(),
         market: relay.config.marketAddress.toBase58(),
+        runtime: runtimeSummary,
         exists: true,
         session: latest,
       });
@@ -201,6 +211,17 @@ export default async function handler(
     } catch (error: any) {
       const message =
         typeof error?.message === "string" ? error.message : "Session lookup failed";
+      if (message.includes("getProgramAccounts is not available")) {
+        res.status(200).json({
+          ok: true,
+          available: true,
+          relayer: relay.relayer.publicKey.toBase58(),
+          market: relay.config.marketAddress.toBase58(),
+          runtime: runtimeSummary,
+          exists: false,
+        });
+        return;
+      }
       res.status(400).json({
         ok: false,
         available: false,
@@ -225,6 +246,7 @@ export default async function handler(
       available: true,
       relayer: relay.relayer.publicKey.toBase58(),
       market: relay.config.marketAddress.toBase58(),
+      runtime: runtimeSummary,
       exists: true,
       session: {
         owner: session.owner.toBase58(),
@@ -245,6 +267,7 @@ export default async function handler(
         available: true,
         relayer: relay.relayer.publicKey.toBase58(),
         market: relay.config.marketAddress.toBase58(),
+        runtime: runtimeSummary,
         exists: false,
       });
       return;

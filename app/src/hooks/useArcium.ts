@@ -396,6 +396,29 @@ function attachTxContext(error: Error, txSignature: string, positionAddress: str
   return withContext;
 }
 
+function attachRelayOpenContext(
+  error: Error,
+  meta: {
+    relayMessage?: string;
+    debugId?: string;
+    relayRuntime?: unknown;
+  }
+): Error & {
+  relayMessage?: string;
+  debugId?: string;
+  relayRuntime?: unknown;
+} {
+  const withContext = error as Error & {
+    relayMessage?: string;
+    debugId?: string;
+    relayRuntime?: unknown;
+  };
+  withContext.relayMessage = meta.relayMessage;
+  withContext.debugId = meta.debugId;
+  withContext.relayRuntime = meta.relayRuntime;
+  return withContext;
+}
+
 export const useArciumPrivacy = () => {
   const { connection } = useConnection();
   const anchorWallet = useAnchorWalletCompat();
@@ -1298,6 +1321,14 @@ export const useArciumPrivacy = () => {
       if (!response.ok || !payload?.ok) {
         const message =
           payload?.error || `Delegated session submit failed (${response.status}).`;
+        if (payload?.runtime || payload?.debugId) {
+          console.warn("[relay/open:client]", {
+            status: response.status,
+            error: message,
+            debugId: payload?.debugId,
+            runtime: payload?.runtime ?? null,
+          });
+        }
         if (
           typeof message === "string" &&
           (message.includes("Invalid session authorization signature") ||
@@ -1310,7 +1341,11 @@ export const useArciumPrivacy = () => {
             "Delegated session expired or invalid. Please sign a new session."
           );
         }
-        throw new Error(message);
+        throw attachRelayOpenContext(new Error(message), {
+          relayMessage: message,
+          debugId: typeof payload?.debugId === "string" ? payload.debugId : undefined,
+          relayRuntime: payload?.runtime,
+        });
       }
 
       const txSignature = payload.txSignature as string;

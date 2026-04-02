@@ -215,7 +215,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
 
   // Fetch SOL + SPL token balances
   useEffect(() => {
-    if (!publicKey || !connected) {
+    if (!publicKey || !connected || !open) {
       setSolBalance(null);
       setTokenBalances([]);
       return;
@@ -251,12 +251,17 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
     };
 
     void fetchBalances();
-    const interval = setInterval(() => void fetchBalances(), 15_000);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
+      void fetchBalances();
+    }, 30_000);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [publicKey, connected, connection]);
+  }, [publicKey, connected, connection, open]);
 
   // Fetch recent transactions when activity tab is opened
   useEffect(() => {

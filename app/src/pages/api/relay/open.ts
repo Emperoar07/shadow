@@ -6,7 +6,12 @@ import {
   base64ToUint8,
   buildRelaySessionAuthMessage,
 } from "../../../lib/relay-session-auth";
-import { createRelayRuntimeContext, RelayRuntimeContext } from "../../../lib/server/relay-client";
+import {
+  createRelayRuntimeContext,
+  RelayRuntimeContext,
+  RelayRuntimeSummary,
+  summarizeRelayRuntime,
+} from "../../../lib/server/relay-client";
 import { checkRateLimit } from "../../../lib/server/rate-limit";
 
 const OPEN_RATE_LIMIT = 10;   // max 10 open requests per owner per minute
@@ -78,6 +83,8 @@ type OpenResponse =
   | {
       ok: false;
       error: string;
+      debugId?: string;
+      runtime?: RelayRuntimeSummary;
     };
 
 function parseU64Bn(name: string, value?: string): BN {
@@ -89,10 +96,15 @@ function parseU64Bn(name: string, value?: string): BN {
   return bn;
 }
 
+function buildDebugId(): string {
+  return `relay-open-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<OpenResponse>
 ): Promise<void> {
+  const debugId = buildDebugId();
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -103,12 +115,19 @@ export default async function handler(
   try {
     relay = await createRelayRuntimeContext();
   } catch (error: any) {
+    console.error("[relay/open:init]", {
+      debugId,
+      error: typeof error?.message === "string" ? error.message : String(error),
+    });
     res.status(503).json({
       ok: false,
       error: typeof error?.message === "string" ? error.message : "Relay unavailable",
+      debugId,
     });
     return;
   }
+
+  const runtimeSummary = summarizeRelayRuntime(relay);
 
   try {
     const body = (req.body || {}) as OpenRequestBody;
@@ -222,9 +241,28 @@ export default async function handler(
       relayMode: "session",
     });
   } catch (error: any) {
+    const owner = typeof req.body?.owner === "string" ? req.body.owner : null;
+    const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId : null;
+    const side = req.body?.side === "long" || req.body?.side === "short" ? req.body.side : null;
+    const marginMode =
+      req.body?.marginMode === "cross" || req.body?.marginMode === "isolated"
+        ? req.body.marginMode
+        : null;
+    console.error("[relay/open:reject]", {
+      debugId,
+      owner,
+      sessionId,
+      side,
+      marginMode,
+      relayer: relay.relayer.publicKey.toBase58(),
+      runtime: runtimeSummary,
+      error: typeof error?.message === "string" ? error.message : "Relay open failed",
+    });
     res.status(400).json({
       ok: false,
       error: typeof error?.message === "string" ? error.message : "Relay open failed",
+      debugId,
+      runtime: runtimeSummary,
     });
   }
 }

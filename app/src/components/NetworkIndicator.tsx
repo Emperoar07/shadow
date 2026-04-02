@@ -48,6 +48,11 @@ export default function NetworkIndicator({ mode = "all" }: { mode?: "all" | "net
 
   // Fetch SOL + SPL token balances
   useEffect(() => {
+    if (mode === "network") {
+      setSolBalance(null);
+      setTokenBalances([]);
+      return;
+    }
     if (!publicKey || !connected) {
       setSolBalance(null);
       setTokenBalances([]);
@@ -57,6 +62,9 @@ export default function NetworkIndicator({ mode = "all" }: { mode?: "all" | "net
     let cancelled = false;
 
     const fetchBalances = async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
       try {
         const sol = await connection.getBalance(publicKey);
         if (!cancelled) setSolBalance(sol / LAMPORTS_PER_SOL);
@@ -84,18 +92,22 @@ export default function NetworkIndicator({ mode = "all" }: { mode?: "all" | "net
     };
 
     void fetchBalances();
-    const interval = setInterval(() => void fetchBalances(), 15_000);
+    const interval = setInterval(() => void fetchBalances(), 30_000);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [publicKey, connected, connection]);
+  }, [publicKey, connected, connection, mode]);
 
   // Check network health
   useEffect(() => {
+    if (mode === "wallet") return;
     let cancelled = false;
 
     const checkNetwork = async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
       try {
         await connection.getSlot();
         if (!cancelled) setNetworkStatus("connected");
@@ -105,12 +117,12 @@ export default function NetworkIndicator({ mode = "all" }: { mode?: "all" | "net
     };
 
     void checkNetwork();
-    const interval = setInterval(() => void checkNetwork(), 15_000);
+    const interval = setInterval(() => void checkNetwork(), 30_000);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [connection]);
+  }, [connection, mode]);
 
   function formatBalance(bal: number, symbol: string): string {
     if (bal < 0.001) return "<0.001";

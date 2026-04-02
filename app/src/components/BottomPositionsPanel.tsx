@@ -182,6 +182,9 @@ export default function BottomPositionsPanel({
 
   const loadPositions = useCallback(async () => {
     if (!publicKey || !anchorWallet) return;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
     setLoading(true);
     try {
       if (!clientRef.current) {
@@ -234,7 +237,7 @@ export default function BottomPositionsPanel({
 
   useEffect(() => {
     void loadPositions();
-    const id = setInterval(() => void loadPositions(), 15_000);
+    const id = setInterval(() => void loadPositions(), 30_000);
     return () => clearInterval(id);
   }, [loadPositions]);
 
