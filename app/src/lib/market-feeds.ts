@@ -34,6 +34,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "binance", symbol: "SOLUSDT", quoteSymbol: "USDT" },
       { provider: "coinbase", symbol: "SOL-USD", quoteSymbol: "USD" },
       { provider: "bybit", symbol: "SOLUSDT", quoteSymbol: "USDT" },
+      { provider: "gateio", symbol: "SOL_USDT", quoteSymbol: "USDT" },
     ],
   },
   "WIF-USD": {
@@ -46,6 +47,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "binance", symbol: "WIFUSDT", quoteSymbol: "USDT" },
       { provider: "bybit", symbol: "WIFUSDT", quoteSymbol: "USDT" },
       { provider: "mexc", symbol: "WIFUSDT", quoteSymbol: "USDT" },
+      { provider: "gateio", symbol: "WIF_USDT", quoteSymbol: "USDT" },
     ],
   },
   "JUP-USD": {
@@ -70,6 +72,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "binance", symbol: "BTCUSDT", quoteSymbol: "USDT" },
       { provider: "coinbase", symbol: "BTC-USD", quoteSymbol: "USD" },
       { provider: "bybit", symbol: "BTCUSDT", quoteSymbol: "USDT" },
+      { provider: "gateio", symbol: "BTC_USDT", quoteSymbol: "USDT" },
     ],
   },
   "ETH-USD": {
@@ -82,6 +85,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "binance", symbol: "ETHUSDT", quoteSymbol: "USDT" },
       { provider: "coinbase", symbol: "ETH-USD", quoteSymbol: "USD" },
       { provider: "bybit", symbol: "ETHUSDT", quoteSymbol: "USDT" },
+      { provider: "gateio", symbol: "ETH_USDT", quoteSymbol: "USDT" },
     ],
   },
   "PYTH-USD": {
@@ -129,6 +133,7 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "binance", symbol: "WUSDT", quoteSymbol: "USDT" },
       { provider: "bybit", symbol: "WUSDT", quoteSymbol: "USDT" },
       { provider: "mexc", symbol: "WUSDT", quoteSymbol: "USDT" },
+      { provider: "gateio", symbol: "W_USDT", quoteSymbol: "USDT" },
     ],
   },
   "JTO-USD": {

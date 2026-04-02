@@ -519,6 +519,7 @@ export default function CollateralModal({
               Get USDC Faucet
             </a>
           </div>
+
         </div>
       </div>
     </div>,

@@ -347,7 +347,10 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       if (marketResult.status === "fulfilled") {
         const oraclePrice =
           new BN(marketResult.value.oraclePrice.toString()).toNumber() / 1_000_000;
-        if (Number.isFinite(oraclePrice) && oraclePrice > 0) {
+        // On-chain market is SOL-USD only. Use oraclePrice only for SOL-USD;
+        // for all other pairs use the live price feed to avoid showing SOL price.
+        const isOnChainPair = activePair.label === "SOL-USD";
+        if (isOnChainPair && Number.isFinite(oraclePrice) && oraclePrice > 0) {
           setMarketPrice(oraclePrice);
           usedFallbackPrice = false;
         } else {

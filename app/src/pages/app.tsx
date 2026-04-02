@@ -129,6 +129,14 @@ function FaucetsDropdown() {
 
 export default function TradingAppPage() {
   const [selectedPair, setSelectedPair] = useState<TradingPair>(TRADING_PAIRS[0]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("shadowperp-selected-pair");
+      const found = TRADING_PAIRS.find((p) => p.label === saved);
+      if (found) setSelectedPair(found);
+    } catch {}
+  }, []);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [openCollateralModal, setOpenCollateralModal] = useState<(() => void) | null>(null);
   const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book">("chart");
@@ -137,6 +145,13 @@ export default function TradingAppPage() {
   const { visibility: panelVisibility, update: updateVisibility } = useVisibility();
   const { locked: layoutLocked, toggle: toggleLayoutLock } = useLayoutLocked();
   const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
+  const { publicKey } = useWallet();
+  const { relaySession, revokeRelaySession } = useArciumPrivacy();
+  const isRelaySessionActive =
+    !!relaySession &&
+    relaySession.owner === (publicKey?.toBase58() ?? "") &&
+    relaySession.usedActions < relaySession.maxActions &&
+    relaySession.expiresAt - Math.floor(Date.now() / 1000) > RELAY_SESSION_RENEW_BEFORE_SECONDS;
 
   const handleMarginReady = useCallback((balance: number | null, openModal: () => void) => {
     setMarginBalance(balance);
@@ -146,6 +161,7 @@ export default function TradingAppPage() {
   const handlePairChange = useCallback((pair: TradingPair) => {
     setSelectedPair(pair);
     setMobileMarketTab("chart");
+    try { localStorage.setItem("shadowperp-selected-pair", pair.label); } catch {}
   }, []);
 
   return (
@@ -204,6 +220,9 @@ export default function TradingAppPage() {
                   onResetTradingSettings={resetTradingSettings}
                   layoutLocked={layoutLocked}
                   onToggleLayoutLock={toggleLayoutLock}
+                  relaySession={relaySession}
+                  isRelaySessionActive={isRelaySessionActive}
+                  revokeRelaySession={revokeRelaySession}
                 />
                 <ConnectWalletButton />
               </div>

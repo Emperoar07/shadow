@@ -78,10 +78,10 @@ function positiveFiniteOrNull(value: unknown): number | null {
     : null;
 }
 
-async function fetchJson(url: string): Promise<any | null> {
+async function fetchJson(url: string, timeoutMs = 4_000): Promise<any | null> {
   try {
     const response = await fetch(url, {
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(timeoutMs),
       headers: {
         Accept: "application/json",
         "User-Agent": "shadowperp-reference-depth",

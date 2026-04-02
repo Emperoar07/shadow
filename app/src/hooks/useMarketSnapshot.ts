@@ -1,8 +1,74 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchPrices, type PriceData } from "../lib/prices";
 import { getMarketFeed } from "../lib/market-feeds";
-import type { ReferenceDepthSnapshot } from "../lib/reference-depth";
+import type { ReferenceDepthSnapshot, ReferenceLevel, ReferenceTrade } from "../lib/reference-depth";
 import type { TradingPair } from "../lib/tokens";
+
+// Client-side Gate.io fallback — runs in the browser, bypasses server-side DNS blocks.
+async function fetchGateIoDirect(pair: TradingPair): Promise<ReferenceDepthSnapshot | null> {
+  const feed = getMarketFeed(pair);
+  const gateio = feed.referenceProviders.find((p) => p.provider === "gateio");
+  if (!gateio) return null;
+
+  const sym = encodeURIComponent(gateio.symbol);
+  try {
+    const [book, trades, ticker] = await Promise.all([
+      fetch(`https://api.gateio.ws/api/v4/spot/order_book?currency_pair=${sym}&limit=50&with_id=false`, { signal: AbortSignal.timeout(6000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`https://api.gateio.ws/api/v4/spot/trades?currency_pair=${sym}&limit=30`, { signal: AbortSignal.timeout(6000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${sym}`, { signal: AbortSignal.timeout(6000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]);
+
+    if (!book || !Array.isArray(book.bids) || !Array.isArray(book.asks)) return null;
+
+    const parseLevel = (row: unknown): ReferenceLevel | null => {
+      if (!Array.isArray(row) || row.length < 2) return null;
+      const price = parseFloat(String(row[0]));
+      const size = parseFloat(String(row[1]));
+      return Number.isFinite(price) && Number.isFinite(size) && price > 0 && size > 0 ? { price, size } : null;
+    };
+
+    const bids = (book.bids as unknown[]).map(parseLevel).filter((x): x is ReferenceLevel => x !== null);
+    const asks = (book.asks as unknown[]).map(parseLevel).filter((x): x is ReferenceLevel => x !== null);
+    if (bids.length === 0 && asks.length === 0) return null;
+
+    const normalizedTrades: ReferenceTrade[] = Array.isArray(trades) ? trades.map((t: any) => {
+      const price = parseFloat(String(t?.price ?? ""));
+      const size = parseFloat(String(t?.amount ?? ""));
+      const side: ReferenceTrade["side"] = t?.side === "sell" ? "sell" : "buy";
+      const timestamp = Number(t?.create_time_ms ?? t?.create_time) * (String(t?.create_time_ms ?? "").length > 10 ? 1 : 1000);
+      return Number.isFinite(price) && Number.isFinite(size) ? { price, size, side, timestamp } : null;
+    }).filter((x): x is ReferenceTrade => x !== null) : [];
+
+    const tickerRow = Array.isArray(ticker) ? ticker[0] : null;
+    const bestBid = bids[0]?.price ?? null;
+    const bestAsk = asks[0]?.price ?? null;
+    const spread = bestBid !== null && bestAsk !== null ? bestAsk - bestBid : null;
+    const mid = bestBid !== null && bestAsk !== null ? (bestBid + bestAsk) / 2 : null;
+
+    return {
+      pairLabel: pair.label,
+      provider: "gateio",
+      symbol: gateio.symbol,
+      quoteSymbol: gateio.quoteSymbol,
+      bids,
+      asks,
+      trades: normalizedTrades,
+      lastTrade: normalizedTrades[0] ?? null,
+      spread,
+      spreadBps: spread !== null && mid && mid > 0 ? (spread / mid) * 10_000 : null,
+      stats24h: tickerRow ? {
+        changePct: parseFloat(String(tickerRow?.change_percentage ?? "")) || null,
+        volume: parseFloat(String(tickerRow?.quote_volume ?? "")) || null,
+        high: parseFloat(String(tickerRow?.high_24h ?? "")) || null,
+        low: parseFloat(String(tickerRow?.low_24h ?? "")) || null,
+      } : null,
+      fetchedAt: Date.now(),
+      external: true,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export interface MarketSnapshot {
   pairLabel: string;
@@ -92,7 +158,7 @@ export function useMarketSnapshot(pair: TradingPair, refreshMs = 4_000) {
 
     const load = async () => {
       try {
-        const [livePrices, depthSnapshot] = await Promise.all([
+        const [livePrices, serverDepth] = await Promise.all([
           fetchPrices().catch(() => null),
           fetch(`/api/reference-depth?pair=${encodeURIComponent(pair.label)}`, {
             signal: AbortSignal.timeout(6_000),
@@ -102,6 +168,9 @@ export function useMarketSnapshot(pair: TradingPair, refreshMs = 4_000) {
             )
             .catch(() => null),
         ]);
+
+        // If server-side fetch failed, try Gate.io directly from the browser.
+        const depthSnapshot = serverDepth ?? await fetchGateIoDirect(pair).catch(() => null);
 
         if (cancelled) return;
 

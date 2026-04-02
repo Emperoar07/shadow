@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Settings, RotateCcw, Lock, Unlock, Sun, Moon, Plus, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 import type { TradingSettings } from "../../hooks/useTradingSettings";
+import type { SessionRelayInfo } from "../../hooks/useArcium";
 import {
   getUserRpcConfig,
   setUserRpcConfig,
@@ -57,6 +59,9 @@ interface SettingsPanelProps {
   onResetTradingSettings: () => void;
   layoutLocked?: boolean;
   onToggleLayoutLock?: () => void;
+  relaySession?: SessionRelayInfo | null;
+  isRelaySessionActive?: boolean;
+  revokeRelaySession?: (revokeOnChain?: boolean) => Promise<void>;
 }
 
 export function useVisibility() {
@@ -180,12 +185,16 @@ export default function SettingsPanel({
   onResetTradingSettings,
   layoutLocked = false,
   onToggleLayoutLock,
+  relaySession,
+  isRelaySessionActive,
+  revokeRelaySession,
 }: SettingsPanelProps) {
   const ts = tradingSettings ?? TRADING_DEFAULTS;
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"trading" | "layout" | "network">("trading");
   const [isDesktop, setIsDesktop] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const { visibility, update, isVisible } = useVisibility();
 
@@ -273,6 +282,19 @@ export default function SettingsPanel({
     setOpen(false);
   };
 
+  const handleRevoke = useCallback(async () => {
+    if (!revokeRelaySession) return;
+    setIsRevoking(true);
+    try {
+      await revokeRelaySession(true);
+      toast.success("Session revoked");
+    } catch (error: any) {
+      toast.error(typeof error?.message === "string" ? error.message : "Revoke failed");
+    } finally {
+      setIsRevoking(false);
+    }
+  }, [revokeRelaySession]);
+
   const availableTabs = (["trading", "layout", "network"] as const).filter(
     (nextTab) => isDesktop || nextTab !== "layout"
   );
@@ -353,6 +375,40 @@ export default function SettingsPanel({
             Theme
           </p>
           <ThemeSwitch />
+
+          {relaySession && (
+            <>
+              <div className="border-t border-shadow-600 my-2" />
+              <p className="text-[11px] font-semibold text-gray-200 mb-2">Trading Session</p>
+              <div className="rounded border border-shadow-600 bg-shadow-800/50 px-2.5 py-2 mb-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-gray-400">Status</span>
+                  <span className={`flex items-center gap-1 text-[11px] font-medium ${isRelaySessionActive ? "text-green-400" : "text-gray-500"}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isRelaySessionActive ? "bg-green-400" : "bg-gray-600"}`} />
+                    {isRelaySessionActive ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] text-gray-500">
+                    {relaySession.usedActions} / {relaySession.maxActions} actions used
+                  </span>
+                  <span className="text-[11px] text-gray-500">
+                    {relaySession.expiresAt > Math.floor(Date.now() / 1000)
+                      ? `Expires in ${Math.max(0, Math.floor((relaySession.expiresAt - Date.now() / 1000) / 60))}m`
+                      : "Expired"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRevoke}
+                  disabled={isRevoking}
+                  className="w-full py-1 rounded text-[11px] font-medium text-red-400 border border-red-500/30 bg-red-500/5 hover:bg-red-500/15 hover:border-red-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRevoking ? "Revoking..." : "Revoke Session"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
