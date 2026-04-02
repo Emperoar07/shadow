@@ -40,6 +40,7 @@ import {
   PositionStatus,
   TradeSession,
 } from "../types";
+import { confirmWithPolling } from "./arcium-errors";
 
 export const DEFAULT_TRADE_SESSION_DURATION_SECONDS = 5 * 60 * 60;
 const DEFAULT_POSITION_STATUS_TIMEOUT_MS = 60_000;
@@ -309,6 +310,30 @@ export class ShadowPerpClient {
   private defaultSessionExpiryBn(): BN {
     const nowSeconds = Math.floor(Date.now() / 1000);
     return new BN(nowSeconds + DEFAULT_TRADE_SESSION_DURATION_SECONDS);
+  }
+
+  private async sendTransactionWithPolling(tx: Transaction): Promise<string> {
+    const connection = this.provider.connection;
+    const feePayer = this.provider.wallet.publicKey;
+    const { blockhash } = await connection.getLatestBlockhash("confirmed");
+
+    tx.feePayer = feePayer;
+    tx.recentBlockhash = blockhash;
+
+    const signed = await this.provider.wallet.signTransaction(tx);
+    let signature = await connection.sendRawTransaction(signed.serialize(), {
+      preflightCommitment: "confirmed",
+      skipPreflight: false,
+      maxRetries: 3,
+    });
+
+    await confirmWithPolling(connection, signature, {
+      timeoutMs: 90_000,
+      pollMs: 2_000,
+      maxSendAttempts: 0,
+    });
+
+    return signature;
   }
 
   // ============ DELEGATED SESSION ============
@@ -607,9 +632,11 @@ export class ShadowPerpClient {
         systemProgram: SystemProgram.programId,
         clockAccount: getClockAccAddress(),
       })
-      .rpc();
+      .transaction();
 
-    return { txSignature: tx, positionAddress };
+    const signature = await this.sendTransactionWithPolling(tx);
+
+    return { txSignature: signature, positionAddress };
   }
 
   /**
@@ -687,9 +714,11 @@ export class ShadowPerpClient {
         systemProgram: SystemProgram.programId,
         clockAccount: getClockAccAddress(),
       })
-      .rpc();
+      .transaction();
 
-    return { txSignature: tx, positionAddress };
+    const signature = await this.sendTransactionWithPolling(tx);
+
+    return { txSignature: signature, positionAddress };
   }
 
   /**

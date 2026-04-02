@@ -23,6 +23,8 @@ pub struct DepositCollateral<'info> {
         bump,
         constraint = margin_account.owner == Pubkey::default()
             || margin_account.owner == owner.key(),
+        constraint = margin_account.market == Pubkey::default()
+            || margin_account.market == market.key(),
     )]
     pub margin_account: Account<'info, MarginAccount>,
 
