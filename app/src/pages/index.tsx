@@ -436,30 +436,35 @@ export default function LandingPage() {
           .lp-session-card {
             background:${dark ? "linear-gradient(135deg,rgba(109,40,217,.08),rgba(37,99,235,.06))" : "linear-gradient(135deg,rgba(124,58,237,.06),rgba(37,99,235,.04))"};
             border:1px solid ${dark ? "rgba(139,92,246,.25)" : "rgba(124,58,237,.22)"};
-            border-radius:20px;padding:44px 48px;display:grid;grid-template-columns:1fr auto;gap:48px;align-items:center;
+            border-radius:20px;padding:44px 48px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(360px,420px);gap:32px;align-items:center;
             position:relative;overflow:hidden;
           }
           .lp-session-card::after {
             content:'';position:absolute;top:-60px;right:-60px;width:280px;height:280px;border-radius:50%;
             background:radial-gradient(circle,rgba(139,92,246,${dark ? ".12" : ".07"}) 0%,transparent 70%);pointer-events:none;
           }
+          .lp-session-copy { max-width:560px }
           .lp-session-label {
             display:inline-flex;align-items:center;gap:6px;
             font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#a78bfa;
             background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);
             padding:4px 10px;border-radius:6px;margin-bottom:14px;
           }
-          .lp-session-title { font-size:26px;font-weight:900;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:12px;letter-spacing:-.025em;line-height:1.2 }
-          .lp-session-desc { font-size:14px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.75;max-width:500px }
-          .lp-session-stats { display:flex;gap:16px;flex-shrink:0 }
-          .lp-session-stat {
-            text-align:center;padding:20px 28px;
-            background:${dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.9)"};
-            border:1px solid ${dark ? "rgba(255,255,255,.08)" : "#dde2ee"};
-            border-radius:14px;backdrop-filter:blur(8px);min-width:100px;
+          .lp-session-title { font-size:28px;font-weight:900;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:14px;letter-spacing:-.03em;line-height:1.15 }
+          .lp-session-desc { font-size:15px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.8;max-width:520px }
+          .lp-session-stats {
+            display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;flex-shrink:0;
+            width:100%;max-width:420px;justify-self:end;
           }
-          .lp-session-stat-val { font-size:28px;font-weight:900;color:#a78bfa;letter-spacing:-.03em;line-height:1 }
-          .lp-session-stat-lbl { font-size:10px;color:${dark ? "#6b7280" : "#64748b"};font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:6px }
+          .lp-session-stat {
+            text-align:center;padding:26px 18px;
+            background:${dark ? "linear-gradient(180deg,rgba(24,24,48,.88),rgba(20,20,40,.72))" : "linear-gradient(180deg,rgba(255,255,255,.96),rgba(245,247,255,.88))"};
+            border:1px solid ${dark ? "rgba(255,255,255,.08)" : "#dde2ee"};
+            box-shadow:${dark ? "0 20px 44px rgba(10,10,18,.26)" : "0 18px 36px rgba(99,102,241,.08)"};
+            border-radius:18px;backdrop-filter:blur(10px);min-width:0;
+          }
+          .lp-session-stat-val { font-size:34px;font-weight:900;color:#a78bfa;letter-spacing:-.04em;line-height:1 }
+          .lp-session-stat-lbl { font-size:11px;color:${dark ? "#6b7280" : "#64748b"};font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-top:8px }
           /* CTA */
           .lp-cta-section {
             position:relative;z-index:1;padding:120px 24px;text-align:center;overflow:hidden;
@@ -520,9 +525,17 @@ export default function LandingPage() {
             .lp-footer-brand-desc{margin:0 auto}
             .lp-footer-bottom{flex-direction:column;gap:12px;text-align:center}
             .lp-session-card{grid-template-columns:1fr;padding:28px 24px}
-            .lp-session-stats{flex-wrap:wrap;justify-content:flex-start}
-            .lp-session-stat{min-width:80px;padding:14px 20px}
+            .lp-session-copy{max-width:none}
+            .lp-session-title{font-size:24px}
+            .lp-session-desc{font-size:14px;line-height:1.7}
+            .lp-session-stats{grid-template-columns:repeat(3,minmax(0,1fr));justify-self:stretch;max-width:none}
+            .lp-session-stat{padding:18px 14px}
+            .lp-session-stat-val{font-size:28px}
+            .lp-session-stat-lbl{font-size:10px}
             .lp-theme-toggle-btn { width: 44px; height: 22px; right: 0.75rem; bottom: 0.75rem; }
+          }
+          @media(max-width:560px){
+            .lp-session-stats{grid-template-columns:1fr}
           }
         `}</style>
 
@@ -660,7 +673,7 @@ export default function LandingPage() {
         {/* SESSION TRADING CALLOUT */}
         <div id="session" className="lp-session-callout lp-reveal" style={{ paddingTop: "80px" }}>
           <div className="lp-session-card">
-            <div>
+            <div className="lp-session-copy">
               <p className="lp-session-label">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                 Session Trading
