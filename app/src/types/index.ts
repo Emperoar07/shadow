@@ -64,7 +64,7 @@ export interface Market {
 // Margin account state
 export interface MarginAccount {
   owner: PublicKey;
-  market: PublicKey;
+  market: PublicKey; // Legacy compatibility field; shared-collateral migration uses owner-scoped PDAs.
   balance: BN;
   lockedBalance: BN;
   totalDeposited: BN;

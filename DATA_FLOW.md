@@ -89,14 +89,16 @@ This document describes the live request/response flow across UI, Solana, and Ar
 ### Deposit
 
 - UI sends deposit instruction
-- SPL transfer into program vault
-- margin account balance increases
+- SPL transfer into market-linked vault
+- on adopted markets, that vault is the shared collateral vault for the collateral mint
+- owner-scoped margin account balance increases
 
 ### Withdraw
 
 - UI sends withdraw instruction
 - program enforces available margin checks
-- SPL transfer from vault to user token account
+- SPL transfer from the market-linked vault to the user token account
+- on adopted markets, this resolves to the shared collateral vault
 
 ### Shielded Deposit (feature-gated)
 
@@ -122,6 +124,20 @@ This document describes the live request/response flow across UI, Solana, and Ar
 - `lock_margin_private` will queue Arcium MPC computation with commitment reference and encrypted balance
 - Callback will verify output and update shielded commitment root
 - `settle_private_position` will apply PnL/funding/fees privately through MPC callback
+
+### Shared Collateral Migration Flow
+
+1. Legacy markets begin with per-market vault custody and per-market margin PDAs.
+2. Admin runs `adopt_shared_collateral_vault` to move each market onto the shared collateral vault for the collateral mint.
+3. Each owner runs `migrate_legacy_margin_account` after legacy positions are flat (`locked_balance == 0`).
+4. After migration:
+   - one owner-scoped margin account can fund multiple adopted markets
+   - closing or liquidating any adopted market settles back into the shared collateral pool
+
+Important:
+
+- This is a migration-backed architecture change, not a silent in-place flip.
+- Do not assume shared collateral is live for an existing devnet deployment until the adoption + owner migration steps have run.
 
 Note:
 

@@ -36,7 +36,7 @@ pub struct CheckLiquidation<'info> {
 
     #[account(
         mut,
-        seeds = [b"margin", market.key().as_ref(), position.owner.as_ref()],
+        seeds = [b"margin", position.owner.as_ref()],
         bump = margin_account.bump,
     )]
     pub margin_account: Box<Account<'info, MarginAccount>>,

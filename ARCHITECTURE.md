@@ -85,6 +85,11 @@ State accounts:
 - `LiquidationSettlement` (authorized liquidator binding for deferred liquidation settlement)
 - `TradeSession` (market-scoped owner-approved relayer window with action/margin caps + expiry)
 - `TradeSessionV2` (wallet-scoped owner-approved relayer window reusable across supported markets; deployed and smoke-verified for delegated collateral across multiple markets on devnet)
+- `SharedCollateral` migration lane (implemented in source, migration required before live use):
+  - shared vault PDA per collateral mint
+  - owner-scoped `MarginAccount` PDA (`[b"margin", owner]`)
+  - adoption instruction for existing market vaults
+  - legacy margin migration instruction for existing per-market balances
 - optional private orderbook state
 - feature-gated shielded collateral state (`shielded-collateral` feature only):
   - `ShieldedPool` (per-market pool with commitment tree root, vault, accounting)
@@ -132,6 +137,24 @@ Arcium-related account pointers are stored in market state and validated in call
 - `max_margin_per_action` applies to open/deposit actions only, not withdrawals.
 - Collateral transfer path remains public; only position internals remain on Arcium encrypted flow.
 
+### Shared Collateral Boundary
+
+- New source model:
+  - shared collateral vault PDA per collateral mint
+  - owner-scoped margin account across adopted markets
+- This changes the money model from:
+  - one margin bucket per market
+  - one vault per market
+  to:
+  - one owner-scoped margin ledger
+  - one shared vault per collateral mint
+- Safety requirement:
+  - do not treat this as live on existing markets until the migration runbook is executed
+  - legacy open positions should be closed or settled before margin migration because migration requires `locked_balance == 0`
+- Migration tooling:
+  - `scripts/adopt-shared-collateral.ts`
+  - `scripts/migrate-shared-margin.ts`
+
 ### Shielded Collateral Boundary
 
 - SPL token transfers to/from vault are public (Solana constraint).
@@ -158,17 +181,22 @@ Canonical order:
 3. Deploy program binary
 4. Create devnet token mints (`create-devnet-mints.ts`)
 5. Initialize markets (`init-markets.ts`)
-6. Initialize/sync comp-defs (`init-comp-defs.ts`, `sync-market-comp-defs.ts`)
-7. Set Pyth feed ID (`set-pyth-feed-id.ts`)
-8. Update env files and UI runtime config
-9. Start oracle daemon (`price-oracle.ts` or `update-oracle-pyth.ts`)
-10. Run preflight and smoke tests
+6. If upgrading from legacy per-market collateral:
+   - adopt markets into shared vault (`adopt-shared-collateral.ts`)
+   - migrate owner balances (`migrate-shared-margin.ts`)
+7. Initialize/sync comp-defs (`init-comp-defs.ts`, `sync-market-comp-defs.ts`)
+8. Set Pyth feed ID (`set-pyth-feed-id.ts`)
+9. Update env files and UI runtime config
+10. Start oracle daemon (`price-oracle.ts` or `update-oracle-pyth.ts`)
+11. Run preflight and smoke tests
 
 See scripts:
 
 - `scripts/deploy-devnet.ts`
 - `scripts/create-devnet-mints.ts`
 - `scripts/init-markets.ts`
+- `scripts/adopt-shared-collateral.ts`
+- `scripts/migrate-shared-margin.ts`
 - `scripts/init-comp-defs.ts`
 - `scripts/init-shielded-comp-defs.ts`
 - `scripts/set-pyth-feed-id.ts`

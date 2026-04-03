@@ -10,6 +10,7 @@ pub mod open_position;
 pub mod private_orders;
 pub mod seed_open_interest_state;
 pub mod session_trading;
+pub mod shared_collateral;
 pub mod settle_close_position;
 pub mod settle_liquidation;
 #[cfg(feature = "shielded-collateral")]

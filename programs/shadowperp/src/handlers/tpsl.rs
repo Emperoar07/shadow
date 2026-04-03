@@ -210,9 +210,8 @@ pub struct TriggerTpSl<'info> {
 
     #[account(
         mut,
-        seeds = [b"margin", market.key().as_ref(), position.owner.as_ref()],
+        seeds = [b"margin", position.owner.as_ref()],
         bump = margin_account.bump,
-        has_one = market,
     )]
     pub margin_account: Box<Account<'info, MarginAccount>>,
 

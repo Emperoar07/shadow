@@ -121,7 +121,11 @@ async function initMarket(
   }
 
   const [vaultPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("vault"), marketPda.toBuffer()],
+    [Buffer.from("shared_vault"), COLLATERAL_MINT.toBuffer()],
+    PROGRAM_ID
+  );
+  const [sharedVaultAuthorityPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("shared_vault_authority"), COLLATERAL_MINT.toBuffer()],
     PROGRAM_ID
   );
 
@@ -134,6 +138,7 @@ async function initMarket(
         collateralMint: COLLATERAL_MINT,
         baseAssetMint,
         vault: vaultPda,
+        sharedVaultAuthority: sharedVaultAuthorityPda,
         priceFeeder: walletKeypair.publicKey,
         mxeCluster: MXE_CLUSTER,
         tokenProgram: TOKEN_PROGRAM_ID,

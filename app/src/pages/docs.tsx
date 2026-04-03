@@ -453,6 +453,11 @@ export default function DocsPage() {
 
           <Section id="margin" title="Margin and Leverage">
             <p>ShadowPerp supports two margin modes and leverage up to <strong>50x</strong>.</p>
+            <p>
+              The source now includes a <strong>shared collateral migration lane</strong>. Once markets are adopted into the
+              shared vault model and legacy balances are migrated, one collateral pool can back positions across supported
+              pairs instead of requiring a separate funding bucket per market.
+            </p>
             <h3>Cross Margin</h3>
             <p>
               Your full margin balance is shared across all cross margin positions. If one position loses, the rest of
@@ -469,6 +474,10 @@ export default function DocsPage() {
               Leverage increases both upside and downside relative to your margin. Available range: <Code>1x</Code> to{" "}
               <Code>50x</Code>.
             </p>
+            <Note>
+              Shared collateral across pairs is a migration-backed change. Existing legacy per-market balances and positions
+              must be migrated carefully before the shared model should be treated as active on devnet.
+            </Note>
             <table className="docs-table">
               <thead>
                 <tr>

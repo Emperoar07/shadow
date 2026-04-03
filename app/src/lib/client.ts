@@ -250,12 +250,29 @@ export class ShadowPerpClient {
     return account as unknown as Market;
   }
 
-  getMarginAccountAddress(market: PublicKey, owner: PublicKey): PublicKey {
+  getMarginAccountAddress(marketOrOwner: PublicKey, ownerArg?: PublicKey): PublicKey {
+    const owner = ownerArg ?? marketOrOwner;
     const [marginPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("margin"), market.toBuffer(), owner.toBuffer()],
+      [Buffer.from("margin"), owner.toBuffer()],
       this.config.programId
     );
     return marginPda;
+  }
+
+  getSharedVaultAddress(collateralMint: PublicKey): PublicKey {
+    const [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("shared_vault"), collateralMint.toBuffer()],
+      this.config.programId
+    );
+    return vaultPda;
+  }
+
+  getSharedVaultAuthorityAddress(collateralMint: PublicKey): PublicKey {
+    const [authorityPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("shared_vault_authority"), collateralMint.toBuffer()],
+      this.config.programId
+    );
+    return authorityPda;
   }
 
   async getMarginAccount(marginAddress: PublicKey): Promise<MarginAccount> {
@@ -498,18 +515,14 @@ export class ShadowPerpClient {
   async depositCollateral(market: PublicKey, amount: BN): Promise<string> {
     const owner = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const userTokenAccount = await getAssociatedTokenAddress(
       marketAccount.collateralMint, owner
     );
-    const [vault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), market.toBuffer()], this.config.programId
-    );
-
     const tx = await this.program.methods
       .depositCollateral(amount)
       .accounts({
-        owner, market, marginAccount, userTokenAccount, vault,
+        owner, market, marginAccount, userTokenAccount, vault: marketAccount.vault,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -529,7 +542,7 @@ export class ShadowPerpClient {
   ): Promise<string> {
     const relayer = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const ownerTokenAccount = await getAssociatedTokenAddress(
       marketAccount.collateralMint,
       owner
@@ -572,7 +585,7 @@ export class ShadowPerpClient {
   ): Promise<string> {
     const relayer = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const ownerTokenAccount = await getAssociatedTokenAddress(
       marketAccount.collateralMint,
       owner
@@ -606,18 +619,15 @@ export class ShadowPerpClient {
   async withdrawCollateral(market: PublicKey, amount: BN): Promise<string> {
     const owner = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const userTokenAccount = await getAssociatedTokenAddress(
       marketAccount.collateralMint, owner
     );
-    const [vault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), market.toBuffer()], this.config.programId
-    );
-
     const tx = await this.program.methods
       .withdrawCollateral(amount)
       .accounts({
-        owner, market, marginAccount, userTokenAccount, vault,
+        owner, market, marginAccount, userTokenAccount, vault: marketAccount.vault,
+        sharedVaultAuthority: this.getSharedVaultAuthorityAddress(marketAccount.collateralMint),
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .transaction();
@@ -635,7 +645,7 @@ export class ShadowPerpClient {
   ): Promise<string> {
     const relayer = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const ownerTokenAccount = await getAssociatedTokenAddress(
       marketAccount.collateralMint,
       owner
@@ -656,6 +666,7 @@ export class ShadowPerpClient {
         marginAccount,
         ownerTokenAccount,
         vault: marketAccount.vault,
+        sharedVaultAuthority: this.getSharedVaultAuthorityAddress(marketAccount.collateralMint),
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .transaction();
@@ -670,7 +681,7 @@ export class ShadowPerpClient {
   ): Promise<string> {
     const relayer = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const ownerTokenAccount = await getAssociatedTokenAddress(
       marketAccount.collateralMint,
       owner
@@ -694,6 +705,7 @@ export class ShadowPerpClient {
         marginAccount,
         ownerTokenAccount,
         vault: marketAccount.vault,
+        sharedVaultAuthority: this.getSharedVaultAuthorityAddress(marketAccount.collateralMint),
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .transaction();
@@ -722,7 +734,7 @@ export class ShadowPerpClient {
 
     const owner = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     let marginSnapshot: MarginAccount;
     try {
       marginSnapshot = await this.getMarginAccount(marginAccount);
@@ -813,7 +825,7 @@ export class ShadowPerpClient {
 
     const relayer = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const marginSnapshot = await this.getMarginAccount(marginAccount);
     const sessionAddress = this.getTradeSessionAddress(market, owner, this.toU64Bn(sessionId));
 
@@ -891,7 +903,7 @@ export class ShadowPerpClient {
 
     const relayer = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const marginSnapshot = await this.getMarginAccount(marginAccount);
     const sessionAddress = this.getTradeSessionV2Address(owner, this.toU64Bn(sessionId));
 
@@ -971,7 +983,7 @@ export class ShadowPerpClient {
   ): Promise<string> {
     const owner = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const positionAddress = this.getPositionAddress(market, owner, positionIndex);
     const computationOffset = await this.nextComputationOffset();
     const computationAccount = getComputationAccAddress(
@@ -1013,7 +1025,7 @@ export class ShadowPerpClient {
   ): Promise<string> {
     const relayer = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const positionAddress = this.getPositionAddress(market, owner, positionIndex);
     const sessionAddress = this.getTradeSessionAddress(market, owner, this.toU64Bn(sessionId));
     const computationOffset = await this.nextComputationOffset();
@@ -1056,7 +1068,7 @@ export class ShadowPerpClient {
   ): Promise<string> {
     const relayer = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(market, owner);
+    const marginAccount = this.getMarginAccountAddress(owner);
     const positionAddress = this.getPositionAddress(market, owner, positionIndex);
     const sessionAddress = this.getTradeSessionV2Address(owner, this.toU64Bn(sessionId));
     const computationOffset = await this.nextComputationOffset();
@@ -1121,7 +1133,7 @@ export class ShadowPerpClient {
         liquidator: this.provider.wallet.publicKey,
         market,
         position: positionAddress,
-        marginAccount: this.getMarginAccountAddress(market, positionOwner),
+        marginAccount: this.getMarginAccountAddress(positionOwner),
         liquidationSettlement: this.getLiquidationSettlementAddress(positionAddress),
         mxeAccount: this.getMXEPda(),
         compDefAccount: marketAccount.liquidationCompDef,
@@ -1163,6 +1175,7 @@ export class ShadowPerpClient {
         market,
         ownerTokenAccount,
         vault: marketAccount.vault,
+        sharedVaultAuthority: this.getSharedVaultAuthorityAddress(marketAccount.collateralMint),
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .rpc();
@@ -1195,6 +1208,7 @@ export class ShadowPerpClient {
         liquidationSettlement: this.getLiquidationSettlementAddress(positionAddress),
         liquidatorTokenAccount,
         vault: marketAccount.vault,
+        sharedVaultAuthority: this.getSharedVaultAuthorityAddress(marketAccount.collateralMint),
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .rpc();

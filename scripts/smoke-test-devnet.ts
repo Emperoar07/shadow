@@ -301,7 +301,7 @@ async function main() {
   if (market) {
     try {
       const [marginPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("margin"), MARKET_ACCOUNT.toBuffer(), wallet.publicKey.toBuffer()],
+        [Buffer.from("margin"), wallet.publicKey.toBuffer()],
         PROGRAM_ID
       );
       const marginAcc = await (program.account as any).marginAccount.fetch(marginPda);
@@ -321,7 +321,7 @@ async function main() {
     console.log("\n7. Open position smoke test");
     try {
       const [marginPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("margin"), MARKET_ACCOUNT.toBuffer(), wallet.publicKey.toBuffer()],
+        [Buffer.from("margin"), wallet.publicKey.toBuffer()],
         PROGRAM_ID
       );
 
@@ -344,11 +344,6 @@ async function main() {
           market.collateralMint,
           wallet.publicKey
         );
-        const [vault] = PublicKey.findProgramAddressSync(
-          [Buffer.from("vault"), MARKET_ACCOUNT.toBuffer()],
-          PROGRAM_ID
-        );
-
         const depositTx = await program.methods
           .depositCollateral(depositAmount)
           .accounts({
@@ -356,7 +351,7 @@ async function main() {
             market: MARKET_ACCOUNT,
             marginAccount: marginPda,
             userTokenAccount,
-            vault,
+            vault: market.vault,
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })

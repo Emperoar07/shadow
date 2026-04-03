@@ -609,6 +609,13 @@ pub struct FinalizeWithdraw<'info> {
     )]
     pub vault: Box<Account<'info, TokenAccount>>,
 
+    /// CHECK: PDA authority for the shared collateral vault.
+    #[account(
+        seeds = [b"shared_vault_authority", market.collateral_mint.as_ref()],
+        bump
+    )]
+    pub shared_vault_authority: UncheckedAccount<'info>,
+
     pub token_program: Program<'info, Token>,
 }
 
@@ -639,8 +646,16 @@ pub fn finalize_withdraw_handler(ctx: Context<FinalizeWithdraw>) -> Result<()> {
         .checked_add(1)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
-    // Transfer from vault to recipient using market PDA signer
-    let seeds = &[b"market" as &[u8], market.collateral_mint.as_ref(), market.base_asset_mint.as_ref(), &[market.bump]];
+    // Transfer from the shared collateral vault to the recipient.
+    let (_shared_vault_authority, shared_vault_authority_bump) = Pubkey::find_program_address(
+        &[b"shared_vault_authority", market.collateral_mint.as_ref()],
+        ctx.program_id,
+    );
+    let seeds = &[
+        b"shared_vault_authority" as &[u8],
+        market.collateral_mint.as_ref(),
+        &[shared_vault_authority_bump],
+    ];
     let signer_seeds = &[&seeds[..]];
 
     let transfer_ctx = CpiContext::new_with_signer(
@@ -648,7 +663,7 @@ pub fn finalize_withdraw_handler(ctx: Context<FinalizeWithdraw>) -> Result<()> {
         Transfer {
             from: ctx.accounts.vault.to_account_info(),
             to: ctx.accounts.recipient_token_account.to_account_info(),
-            authority: market.to_account_info(),
+            authority: ctx.accounts.shared_vault_authority.to_account_info(),
         },
         signer_seeds,
     );

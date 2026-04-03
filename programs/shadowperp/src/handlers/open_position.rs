@@ -38,10 +38,9 @@ pub struct OpenPosition<'info> {
 
     #[account(
         mut,
-        seeds = [b"margin", market.key().as_ref(), owner.key().as_ref()],
+        seeds = [b"margin", owner.key().as_ref()],
         bump = margin_account.bump,
         has_one = owner,
-        has_one = market,
     )]
     pub margin_account: Box<Account<'info, MarginAccount>>,
 

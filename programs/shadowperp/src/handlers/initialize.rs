@@ -28,14 +28,21 @@ pub struct Initialize<'info> {
 
     /// Protocol vault for holding collateral
     #[account(
-        init,
+        init_if_needed,
         payer = authority,
         token::mint = collateral_mint,
-        token::authority = market,
-        seeds = [b"vault", market.key().as_ref()],
+        token::authority = shared_vault_authority,
+        seeds = [b"shared_vault", collateral_mint.key().as_ref()],
         bump
     )]
     pub vault: Account<'info, TokenAccount>,
+
+    /// CHECK: PDA authority for the shared collateral vault.
+    #[account(
+        seeds = [b"shared_vault_authority", collateral_mint.key().as_ref()],
+        bump
+    )]
+    pub shared_vault_authority: UncheckedAccount<'info>,
 
     /// Authorized oracle price feeder
     /// CHECK: This is just a pubkey for authorization

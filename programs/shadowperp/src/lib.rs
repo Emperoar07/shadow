@@ -28,6 +28,8 @@ use handlers::open_position::__client_accounts_open_position;
 use handlers::private_orders::__client_accounts_add_private_order;
 use handlers::private_orders::__client_accounts_init_private_order_book;
 use handlers::seed_open_interest_state::__client_accounts_seed_open_interest_state;
+use handlers::shared_collateral::__client_accounts_adopt_shared_collateral_vault;
+use handlers::shared_collateral::__client_accounts_migrate_legacy_margin_account;
 use handlers::session_trading::__client_accounts_close_position_with_session;
 use handlers::session_trading::__client_accounts_close_position_with_session_v2;
 use handlers::session_trading::__client_accounts_create_trade_session;
@@ -112,6 +114,7 @@ use handlers::initialize::Initialize;
 use handlers::open_position::OpenPosition;
 use handlers::private_orders::{AddPrivateOrder, ExecutePrivateOrder, InitPrivateOrderBook};
 use handlers::seed_open_interest_state::SeedOpenInterestState;
+use handlers::shared_collateral::{AdoptSharedCollateralVault, MigrateLegacyMarginAccount};
 use handlers::session_trading::{
     ClosePositionWithSession, CreateTradeSession, DepositCollateralWithSession,
     OpenPositionWithSession, RevokeTradeSession, WithdrawCollateralWithSession,
@@ -317,6 +320,18 @@ pub mod shadowperp {
     /// Sync market comp-def pointers to already-initialized Arcium accounts.
     pub fn sync_comp_defs(ctx: Context<SyncCompDefs>) -> Result<()> {
         handlers::sync_comp_defs::handler(ctx)
+    }
+
+    pub fn adopt_shared_collateral_vault(
+        ctx: Context<AdoptSharedCollateralVault>,
+    ) -> Result<()> {
+        handlers::shared_collateral::adopt_shared_collateral_vault_handler(ctx)
+    }
+
+    pub fn migrate_legacy_margin_account(
+        ctx: Context<MigrateLegacyMarginAccount>,
+    ) -> Result<()> {
+        handlers::shared_collateral::migrate_legacy_margin_account_handler(ctx)
     }
 
     /// Update the MXE cluster address stored in the market (admin only).

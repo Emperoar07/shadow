@@ -19,12 +19,10 @@ pub struct DepositCollateral<'info> {
         init_if_needed,
         payer = owner,
         space = MarginAccount::LEN,
-        seeds = [b"margin", market.key().as_ref(), owner.key().as_ref()],
+        seeds = [b"margin", owner.key().as_ref()],
         bump,
         constraint = margin_account.owner == Pubkey::default()
             || margin_account.owner == owner.key(),
-        constraint = margin_account.market == Pubkey::default()
-            || margin_account.market == market.key(),
     )]
     pub margin_account: Account<'info, MarginAccount>,
 
@@ -37,8 +35,6 @@ pub struct DepositCollateral<'info> {
 
     #[account(
         mut,
-        seeds = [b"vault", market.key().as_ref()],
-        bump,
         constraint = vault.key() == market.vault
     )]
     pub vault: Account<'info, TokenAccount>,
@@ -57,7 +53,7 @@ pub fn handler(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
     // init_if_needed constraint, ensuring no caller can overwrite an existing account.
     if margin_account.owner == Pubkey::default() {
         margin_account.owner = ctx.accounts.owner.key();
-        margin_account.market = market.key();
+        margin_account.market = Pubkey::default();
         margin_account.bump = ctx.bumps.margin_account;
     } else {
         require!(

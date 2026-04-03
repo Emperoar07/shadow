@@ -32,7 +32,7 @@ const STEPS: { key: TradeStep; label: string; sub: string }[] = [
 
 const PROGRESS_AUTO_MINIMIZE_MS = 1200;
 const TERMINAL_AUTO_MINIMIZE_MS = 1200;
-const TERMINAL_AUTO_DISMISS_MS = 15_000;
+const TERMINAL_AUTO_DISMISS_MS = 10_000;
 
 function stepIndex(step: TradeStep): number {
   if (step === "error") return -1;
