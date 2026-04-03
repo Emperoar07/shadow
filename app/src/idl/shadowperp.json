@@ -50,6 +50,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           },
@@ -149,6 +154,118 @@
       ]
     },
     {
+      "name": "cancel_tpsl",
+      "docs": [
+        "Owner: deactivate a TP/SL order."
+      ],
+      "discriminator": [
+        19,
+        207,
+        10,
+        199,
+        75,
+        112,
+        225,
+        103
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "position",
+            "tpsl_order"
+          ]
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.index",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tpsl_order",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  112,
+                  115,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "check_liquidation",
       "docs": [
         "Check liquidation status (private health factor check)"
@@ -187,6 +304,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -413,7 +535,8 @@
           "name": "cluster_account"
         },
         {
-          "name": "instructions_sysvar"
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         },
         {
           "name": "position",
@@ -469,6 +592,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -571,6 +699,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -757,7 +890,8 @@
           "name": "cluster_account"
         },
         {
-          "name": "instructions_sysvar"
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         },
         {
           "name": "position",
@@ -813,6 +947,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -922,6 +1061,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -1113,6 +1257,250 @@
       ]
     },
     {
+      "name": "close_position_with_session_v2",
+      "docs": [
+        "Relayer closes an encrypted position under an active wallet-scoped session."
+      ],
+      "discriminator": [
+        29,
+        27,
+        25,
+        130,
+        4,
+        207,
+        251,
+        7
+      ],
+      "accounts": [
+        {
+          "name": "relayer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "Session owner whose position is being closed."
+          ],
+          "relations": [
+            "session",
+            "position",
+            "margin_account"
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "position",
+            "margin_account"
+          ]
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  118,
+                  50
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "session.session_id",
+                "account": "TradeSessionV2"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.index",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "margin_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "cluster_account",
+          "writable": true
+        },
+        {
+          "name": "mempool_account",
+          "writable": true
+        },
+        {
+          "name": "executing_pool",
+          "writable": true
+        },
+        {
+          "name": "computation_account",
+          "writable": true
+        },
+        {
+          "name": "pool_account",
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
+        },
+        {
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "clock_account",
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "computation_offset",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "create_trade_session",
       "docs": [
         "Create an owner-approved delegated trading session for a relayer."
@@ -1152,6 +1540,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           }
@@ -1182,6 +1575,92 @@
               {
                 "kind": "account",
                 "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "session_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "session_id",
+          "type": "u64"
+        },
+        {
+          "name": "relayer",
+          "type": "pubkey"
+        },
+        {
+          "name": "max_actions",
+          "type": "u32"
+        },
+        {
+          "name": "max_margin_per_action",
+          "type": "u64"
+        },
+        {
+          "name": "expires_at",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "create_trade_session_v2",
+      "docs": [
+        "Create a wallet-scoped delegated trading session for all supported markets."
+      ],
+      "discriminator": [
+        194,
+        0,
+        90,
+        124,
+        56,
+        28,
+        251,
+        223
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  118,
+                  50
+                ]
               },
               {
                 "kind": "account",
@@ -1261,6 +1740,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -1385,6 +1869,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           },
@@ -1501,6 +1990,171 @@
       ]
     },
     {
+      "name": "deposit_collateral_with_session_v2",
+      "docs": [
+        "Relayer deposits collateral for owner under an active wallet-scoped delegated session."
+      ],
+      "discriminator": [
+        253,
+        185,
+        110,
+        148,
+        48,
+        248,
+        123,
+        242
+      ],
+      "accounts": [
+        {
+          "name": "relayer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "Session owner whose margin account is affected."
+          ],
+          "relations": [
+            "session"
+          ]
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  118,
+                  50
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "session.session_id",
+                "account": "TradeSessionV2"
+              }
+            ]
+          }
+        },
+        {
+          "name": "margin_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_token_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "deposit_to_shielded",
       "docs": [
         "Deposit tokens into the shielded pool with a commitment leaf."
@@ -1539,6 +2193,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -1640,9 +2299,333 @@
       ]
     },
     {
+      "name": "execute_private_order",
+      "docs": [
+        "Evaluate a stored private limit order against the current market price via Arcium MPC.",
+        "Queues compute for the order at the given index; callback reveals params only if triggered."
+      ],
+      "discriminator": [
+        60,
+        142,
+        50,
+        242,
+        149,
+        60,
+        67,
+        7
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "The order owner (must sign to authorize execution)."
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "private_order_book"
+          ]
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "private_order_book"
+          ]
+        },
+        {
+          "name": "private_order_book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  118,
+                  97,
+                  116,
+                  101,
+                  45,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "cluster_account",
+          "writable": true
+        },
+        {
+          "name": "mempool_account",
+          "writable": true
+        },
+        {
+          "name": "executing_pool",
+          "writable": true
+        },
+        {
+          "name": "computation_account",
+          "writable": true
+        },
+        {
+          "name": "pool_account",
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
+        },
+        {
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "clock_account",
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "order_index",
+          "type": "u32"
+        },
+        {
+          "name": "is_bid",
+          "type": "bool"
+        },
+        {
+          "name": "client_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nonce",
+          "type": "u128"
+        },
+        {
+          "name": "computation_offset",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "execute_private_order_callback",
+      "docs": [
+        "Callback after execute_private_order MPC computation."
+      ],
+      "discriminator": [
+        87,
+        31,
+        67,
+        66,
+        32,
+        99,
+        103,
+        227
+      ],
+      "accounts": [
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "computation_account"
+        },
+        {
+          "name": "cluster_account"
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "private_order_book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  118,
+                  97,
+                  116,
+                  101,
+                  45,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "private_order_book.owner",
+                "account": "PrivateOrderBook"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "output",
+          "type": {
+            "defined": {
+              "name": "SignedComputationOutputs",
+              "generics": [
+                {
+                  "kind": "type",
+                  "type": {
+                    "defined": {
+                      "name": "ExecutePrivateOrderOutput"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "finalize_withdraw",
       "docs": [
-        "Finalize a pending withdrawal after the delay period."
+        "Finalize a pending withdrawal after the delay period.",
+        "Requires proof_verified = true (set by verify_withdrawal_proof_request callback)."
       ],
       "discriminator": [
         17,
@@ -1678,6 +2661,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -1896,6 +2884,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           }
@@ -1935,6 +2928,179 @@
       "args": []
     },
     {
+      "name": "init_execute_private_order_comp_def",
+      "discriminator": [
+        139,
+        174,
+        9,
+        95,
+        81,
+        180,
+        74,
+        76
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "mxe_account",
+          "writable": true
+        },
+        {
+          "name": "comp_def_account",
+          "writable": true
+        },
+        {
+          "name": "address_lookup_table",
+          "writable": true
+        },
+        {
+          "name": "lut_program",
+          "address": "AddressLookupTab1e1111111111111111111111111"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_funding_state",
+      "docs": [
+        "Authority-only: initialize the FundingState PDA for a market."
+      ],
+      "discriminator": [
+        34,
+        240,
+        253,
+        243,
+        83,
+        249,
+        38,
+        189
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "funding_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "funding_interval",
+          "type": "u64"
+        },
+        {
+          "name": "max_funding_rate",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "init_liquidation_comp_def",
       "discriminator": [
         7,
@@ -1971,6 +3137,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -2030,11 +3201,39 @@
         },
         {
           "name": "market",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
         },
         {
           "name": "authority",
-          "signer": true
+          "signer": true,
+          "relations": [
+            "market"
+          ]
         },
         {
           "name": "mxe_account",
@@ -2103,6 +3302,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -2181,6 +3385,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -2269,6 +3478,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           }
@@ -2327,11 +3541,39 @@
         },
         {
           "name": "market",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
         },
         {
           "name": "authority",
-          "signer": true
+          "signer": true,
+          "relations": [
+            "market"
+          ]
         },
         {
           "name": "mxe_account",
@@ -2399,6 +3641,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -2521,6 +3768,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           }
@@ -2630,6 +3882,87 @@
       ]
     },
     {
+      "name": "init_verify_withdrawal_proof_comp_def",
+      "discriminator": [
+        230,
+        218,
+        134,
+        166,
+        20,
+        81,
+        14,
+        233
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "mxe_account",
+          "writable": true
+        },
+        {
+          "name": "comp_def_account",
+          "writable": true
+        },
+        {
+          "name": "address_lookup_table",
+          "writable": true
+        },
+        {
+          "name": "lut_program",
+          "address": "AddressLookupTab1e1111111111111111111111111"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "initialize",
       "docs": [
         "Initialize a market. Each (collateral_mint, base_asset_mint) pair gets its own PDA."
@@ -2686,7 +4019,8 @@
         {
           "name": "base_asset_mint",
           "docs": [
-            "Base asset mint for this market (e.g., SOL mint for SOL-USD)."
+            "Base asset mint for this market (e.g., SOL mint for SOL-USD).",
+            "Used as part of the PDA seed so multiple markets can share the same collateral."
           ]
         },
         {
@@ -2781,6 +4115,7 @@
         },
         {
           "name": "market",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -2797,6 +4132,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -2869,6 +4209,105 @@
           }
         },
         {
+          "name": "commitment_tree",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  109,
+                  105,
+                  116,
+                  109,
+                  101,
+                  110,
+                  116,
+                  95,
+                  116,
+                  114,
+                  101,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "cluster_account",
+          "writable": true
+        },
+        {
+          "name": "mempool_account",
+          "writable": true
+        },
+        {
+          "name": "executing_pool",
+          "writable": true
+        },
+        {
+          "name": "computation_account",
+          "writable": true
+        },
+        {
+          "name": "pool_account",
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
+        },
+        {
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "clock_account",
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
@@ -2886,6 +4325,27 @@
         {
           "name": "encrypted_payload",
           "type": "bytes"
+        },
+        {
+          "name": "client_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nonce",
+          "type": "u128"
+        },
+        {
+          "name": "requested_margin",
+          "type": "u64"
+        },
+        {
+          "name": "computation_offset",
+          "type": "u64"
         }
       ]
     },
@@ -2922,7 +4382,8 @@
           "name": "cluster_account"
         },
         {
-          "name": "instructions_sysvar"
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         },
         {
           "name": "shielded_pool",
@@ -3090,6 +4551,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -3343,7 +4809,8 @@
           "name": "cluster_account"
         },
         {
-          "name": "instructions_sysvar"
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         },
         {
           "name": "position",
@@ -3399,6 +4866,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -3504,6 +4976,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -3760,6 +5237,314 @@
       ]
     },
     {
+      "name": "open_position_with_session_v2",
+      "docs": [
+        "Relayer opens an encrypted position under an active wallet-scoped session."
+      ],
+      "discriminator": [
+        199,
+        50,
+        77,
+        157,
+        78,
+        24,
+        143,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "relayer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "Session owner whose margin account/position are touched."
+          ],
+          "relations": [
+            "session",
+            "margin_account"
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "margin_account"
+          ]
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  118,
+                  50
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "session.session_id",
+                "account": "TradeSessionV2"
+              }
+            ]
+          }
+        },
+        {
+          "name": "margin_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "margin_account.positions_opened",
+                "account": "MarginAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "cluster_account",
+          "writable": true
+        },
+        {
+          "name": "mempool_account",
+          "writable": true
+        },
+        {
+          "name": "executing_pool",
+          "writable": true
+        },
+        {
+          "name": "computation_account",
+          "writable": true
+        },
+        {
+          "name": "pool_account",
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
+        },
+        {
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "clock_account",
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "encrypted_size",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "encrypted_entry_price",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "encrypted_leverage",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "encrypted_is_long",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "encrypted_margin",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "margin_mode",
+          "type": "u8"
+        },
+        {
+          "name": "margin",
+          "type": "u64"
+        },
+        {
+          "name": "client_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nonce",
+          "type": "u128"
+        },
+        {
+          "name": "computation_offset",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "request_withdraw_private",
       "docs": [
         "Request a private withdrawal by submitting a nullifier."
@@ -3798,6 +5583,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -3966,6 +5756,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           },
@@ -4016,6 +5811,71 @@
       "args": []
     },
     {
+      "name": "revoke_trade_session_v2",
+      "docs": [
+        "Owner can revoke a wallet-scoped delegated trading session at any time."
+      ],
+      "discriminator": [
+        13,
+        34,
+        116,
+        207,
+        255,
+        15,
+        70,
+        55
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "session"
+          ]
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  118,
+                  50
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "session.session_id",
+                "account": "TradeSessionV2"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "seed_open_interest_state",
       "docs": [
         "Bootstrap the market with a valid MXE-owned encrypted zero OI state."
@@ -4058,6 +5918,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -4174,7 +6039,8 @@
           "name": "cluster_account"
         },
         {
-          "name": "instructions_sysvar"
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         },
         {
           "name": "market",
@@ -4195,6 +6061,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -4219,6 +6090,242 @@
               ]
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "set_funding_premium",
+      "docs": [
+        "Authority-only: set the premium_bps input for the funding rate formula."
+      ],
+      "discriminator": [
+        120,
+        223,
+        13,
+        56,
+        163,
+        77,
+        198,
+        128
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "funding_state"
+          ]
+        },
+        {
+          "name": "funding_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "premium_bps",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "set_oi_caps",
+      "docs": [
+        "Authority-only: set long and short OI caps for a market."
+      ],
+      "discriminator": [
+        158,
+        126,
+        55,
+        81,
+        94,
+        72,
+        54,
+        65
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "funding_state"
+          ]
+        },
+        {
+          "name": "funding_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "long_oi_cap",
+          "type": "u64"
+        },
+        {
+          "name": "short_oi_cap",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_pyth_feed_id",
+      "docs": [
+        "Authority-only: update the Pyth feed ID stored on a market."
+      ],
+      "discriminator": [
+        165,
+        17,
+        146,
+        205,
+        200,
+        222,
+        70,
+        4
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "pyth_feed_id_hex",
+          "type": "string"
         }
       ]
     },
@@ -4265,6 +6372,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           }
@@ -4308,9 +6420,138 @@
       ]
     },
     {
+      "name": "set_tpsl",
+      "docs": [
+        "Owner: create or update a TP/SL order for a position."
+      ],
+      "discriminator": [
+        11,
+        47,
+        134,
+        201,
+        75,
+        78,
+        150,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.index",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tpsl_order",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  112,
+                  115,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "tp_price",
+          "type": "u64"
+        },
+        {
+          "name": "sl_price",
+          "type": "u64"
+        },
+        {
+          "name": "is_long",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "settle_close_position",
       "docs": [
-        "Settle a closed position \u00e2\u20ac\u201d transfers tokens from vault to owner.",
+        "Settle a closed position — transfers tokens from vault to owner.",
         "Called after the close_position callback sets status to ClosedPendingSettlement."
       ],
       "discriminator": [
@@ -4383,6 +6624,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           },
@@ -4429,7 +6675,7 @@
     {
       "name": "settle_liquidation",
       "docs": [
-        "Settle a liquidated position \u00e2\u20ac\u201d transfers penalty from vault to liquidator.",
+        "Settle a liquidated position — transfers penalty from vault to liquidator.",
         "Called after the check_liquidation callback sets status to LiquidatedPendingSettlement."
       ],
       "discriminator": [
@@ -4505,6 +6751,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -4591,7 +6842,7 @@
     {
       "name": "settle_private_position",
       "docs": [
-        "Settle a private position via Arcium MPC callback (stub \u00e2\u20ac\u201d awaiting circuit integration)."
+        "Settle a private position via Arcium MPC."
       ],
       "discriminator": [
         90,
@@ -4605,12 +6856,13 @@
       ],
       "accounts": [
         {
-          "name": "authority",
+          "name": "owner",
           "writable": true,
           "signer": true
         },
         {
           "name": "market",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -4627,6 +6879,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -4661,6 +6918,110 @@
               }
             ]
           }
+        },
+        {
+          "name": "shielded_margin_ref",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "cluster_account",
+          "writable": true
+        },
+        {
+          "name": "mempool_account",
+          "writable": true
+        },
+        {
+          "name": "executing_pool",
+          "writable": true
+        },
+        {
+          "name": "computation_account",
+          "writable": true
+        },
+        {
+          "name": "pool_account",
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
+        },
+        {
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "clock_account",
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
         },
         {
           "name": "system_program",
@@ -4745,7 +7106,8 @@
           "name": "cluster_account"
         },
         {
-          "name": "instructions_sysvar"
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         },
         {
           "name": "market",
@@ -4766,6 +7128,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -4904,6 +7271,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           }
@@ -4922,6 +7294,366 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "trigger_tpsl",
+      "docs": [
+        "Permissionless keeper: trigger TP/SL if mark_price conditions are met.",
+        "Queues the same MPC close computation as close_position."
+      ],
+      "discriminator": [
+        149,
+        108,
+        249,
+        244,
+        185,
+        66,
+        58,
+        104
+      ],
+      "accounts": [
+        {
+          "name": "keeper",
+          "docs": [
+            "Permissionless keeper — pays for the computation"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "position",
+            "margin_account"
+          ]
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              },
+              {
+                "kind": "account",
+                "path": "position.index",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tpsl_order",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  112,
+                  115,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "margin_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "cluster_account",
+          "writable": true
+        },
+        {
+          "name": "mempool_account",
+          "writable": true
+        },
+        {
+          "name": "executing_pool",
+          "writable": true
+        },
+        {
+          "name": "computation_account",
+          "writable": true
+        },
+        {
+          "name": "pool_account",
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
+        },
+        {
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "clock_account",
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "computation_offset",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_funding_rate",
+      "docs": [
+        "Permissionless: update the funding rate if the interval has elapsed."
+      ],
+      "discriminator": [
+        201,
+        178,
+        116,
+        212,
+        166,
+        144,
+        72,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "funding_state"
+          ]
+        },
+        {
+          "name": "funding_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "update_mark_price",
+      "docs": [
+        "Price feeder or authority: update mark price (bounded ±2% from index)."
+      ],
+      "discriminator": [
+        45,
+        127,
+        122,
+        166,
+        7,
+        30,
+        90,
+        45
+      ],
+      "accounts": [
+        {
+          "name": "price_feeder",
+          "docs": [
+            "Either the market authority or the price_feeder may update mark price."
+          ],
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "mark_price",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "update_mxe_cluster",
@@ -4966,6 +7698,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -5023,6 +7760,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           }
@@ -5031,6 +7773,406 @@
       "args": [
         {
           "name": "price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_price_from_pyth",
+      "docs": [
+        "Update oracle price from Pyth (permissionless). Feed ID is stored per-market."
+      ],
+      "discriminator": [
+        84,
+        58,
+        243,
+        161,
+        33,
+        66,
+        221,
+        101
+      ],
+      "accounts": [
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "The Pyth PriceUpdateV2 account for this market's base asset.",
+            "The correct feed ID is validated against market.pyth_feed_id at runtime."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "verify_withdrawal_proof_callback",
+      "docs": [
+        "Callback after verify_withdrawal_proof MPC computation."
+      ],
+      "discriminator": [
+        156,
+        135,
+        160,
+        65,
+        254,
+        161,
+        143,
+        8
+      ],
+      "accounts": [
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "computation_account"
+        },
+        {
+          "name": "cluster_account"
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "shielded_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool.market",
+                "account": "ShieldedPool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_withdrawal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool"
+              },
+              {
+                "kind": "account",
+                "path": "pending_withdrawal.nullifier",
+                "account": "PendingWithdrawal"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "output",
+          "type": {
+            "defined": {
+              "name": "SignedComputationOutputs",
+              "generics": [
+                {
+                  "kind": "type",
+                  "type": {
+                    "defined": {
+                      "name": "VerifyWithdrawalProofOutput"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "verify_withdrawal_proof_request",
+      "docs": [
+        "Queue Arcium MPC proof verification for a pending withdrawal.",
+        "Must be called after request_withdraw_private and before finalize_withdraw."
+      ],
+      "discriminator": [
+        124,
+        180,
+        52,
+        143,
+        159,
+        243,
+        10,
+        106
+      ],
+      "accounts": [
+        {
+          "name": "requester",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "shielded_pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  105,
+                  101,
+                  108,
+                  100,
+                  101,
+                  100,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pending_withdrawal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shielded_pool"
+              },
+              {
+                "kind": "account",
+                "path": "pending_withdrawal.nullifier",
+                "account": "PendingWithdrawal"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mxe_account"
+        },
+        {
+          "name": "comp_def_account"
+        },
+        {
+          "name": "cluster_account",
+          "writable": true
+        },
+        {
+          "name": "mempool_account",
+          "writable": true
+        },
+        {
+          "name": "executing_pool",
+          "writable": true
+        },
+        {
+          "name": "computation_account",
+          "writable": true
+        },
+        {
+          "name": "pool_account",
+          "writable": true,
+          "address": "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
+        },
+        {
+          "name": "sign_pda_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  65,
+                  114,
+                  99,
+                  105,
+                  117,
+                  109,
+                  83,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  65,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "clock_account",
+          "writable": true,
+          "address": "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
+        },
+        {
+          "name": "arcium_program",
+          "address": "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "encrypted_payload",
+          "type": "bytes"
+        },
+        {
+          "name": "client_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nonce",
+          "type": "u128"
+        },
+        {
+          "name": "computation_offset",
           "type": "u64"
         }
       ]
@@ -5077,6 +8219,11 @@
               {
                 "kind": "account",
                 "path": "market.collateral_mint",
+                "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
                 "account": "Market"
               }
             ]
@@ -5200,6 +8347,11 @@
                 "kind": "account",
                 "path": "market.collateral_mint",
                 "account": "Market"
+              },
+              {
+                "kind": "account",
+                "path": "market.base_asset_mint",
+                "account": "Market"
               }
             ]
           },
@@ -5313,28 +8465,38 @@
       ]
     },
     {
-      "name": "set_pyth_feed_id",
+      "name": "withdraw_collateral_with_session_v2",
       "docs": [
-        "Authority-only: update the Pyth feed ID stored on a market."
+        "Relayer withdraws collateral for owner under an active wallet-scoped delegated session."
       ],
       "discriminator": [
-        165,
-        17,
-        146,
-        205,
-        200,
-        222,
-        70,
-        4
+        104,
+        249,
+        192,
+        230,
+        245,
+        78,
+        63,
+        221
       ],
       "accounts": [
         {
-          "name": "authority",
+          "name": "relayer",
+          "writable": true,
           "signer": true
         },
         {
+          "name": "owner",
+          "docs": [
+            "Session owner whose margin account is affected."
+          ],
+          "relations": [
+            "session",
+            "margin_account"
+          ]
+        },
+        {
           "name": "market",
-          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -5350,75 +8512,122 @@
               },
               {
                 "kind": "account",
-                "path": "market.collateral_mint"
+                "path": "market.collateral_mint",
+                "account": "Market"
               },
               {
                 "kind": "account",
-                "path": "market.base_asset_mint"
+                "path": "market.base_asset_mint",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "margin_account"
+          ]
+        },
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110,
+                  95,
+                  118,
+                  50
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "session.session_id",
+                "account": "TradeSessionV2"
               }
             ]
           }
+        },
+        {
+          "name": "margin_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  103,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_token_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
         {
-          "name": "pyth_feed_id_hex",
-          "type": "string"
+          "name": "amount",
+          "type": "u64"
         }
       ]
-    },
-    {
-      "name": "update_price_from_pyth",
-      "docs": [
-        "Anyone can call this to sync the market oracle price from Pyth.",
-        "No price_feeder signer required."
-      ],
-      "discriminator": [
-        84,
-        58,
-        243,
-        161,
-        33,
-        66,
-        221,
-        101
-      ],
-      "accounts": [
-        {
-          "name": "market",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  109,
-                  97,
-                  114,
-                  107,
-                  101,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "market.collateral_mint"
-              },
-              {
-                "kind": "account",
-                "path": "market.base_asset_mint"
-              }
-            ]
-          }
-        },
-        {
-          "name": "price_update",
-          "docs": [
-            "The Pyth PriceUpdateV2 account for this markets base asset."
-          ]
-        }
-      ],
-      "args": []
     }
   ],
   "accounts": [
@@ -5514,6 +8723,19 @@
       ]
     },
     {
+      "name": "FundingState",
+      "discriminator": [
+        132,
+        4,
+        11,
+        218,
+        67,
+        4,
+        197,
+        184
+      ]
+    },
+    {
       "name": "LiquidationSettlement",
       "discriminator": [
         215,
@@ -5605,6 +8827,19 @@
       ]
     },
     {
+      "name": "PriceUpdateV2",
+      "discriminator": [
+        34,
+        241,
+        35,
+        99,
+        157,
+        126,
+        244,
+        205
+      ]
+    },
+    {
       "name": "ShieldedMarginRef",
       "discriminator": [
         196,
@@ -5631,6 +8866,19 @@
       ]
     },
     {
+      "name": "TpSlOrder",
+      "discriminator": [
+        65,
+        65,
+        84,
+        5,
+        31,
+        241,
+        167,
+        5
+      ]
+    },
+    {
       "name": "TradeSession",
       "discriminator": [
         43,
@@ -5641,6 +8889,19 @@
         148,
         140,
         69
+      ]
+    },
+    {
+      "name": "TradeSessionV2",
+      "discriminator": [
+        179,
+        173,
+        18,
+        13,
+        206,
+        23,
+        134,
+        25
       ]
     }
   ],
@@ -6305,6 +9566,50 @@
       }
     },
     {
+      "name": "ExecutePrivateOrderOutput",
+      "docs": [
+        "The output of the callback instruction. Provided as a struct with ordered fields",
+        "as anchor does not support tuples and tuple structs yet."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "field_0",
+            "type": {
+              "defined": {
+                "name": "ExecutePrivateOrderOutputStruct0"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExecutePrivateOrderOutputStruct0",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "field_0",
+            "type": "bool"
+          },
+          {
+            "name": "field_1",
+            "type": "u64"
+          },
+          {
+            "name": "field_2",
+            "type": "u64"
+          },
+          {
+            "name": "field_3",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
       "name": "FeePool",
       "type": {
         "kind": "struct",
@@ -6314,6 +9619,158 @@
             "type": "u8"
           }
         ]
+      }
+    },
+    {
+      "name": "FundingPremiumSet",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "premium_bps",
+            "type": "i64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "FundingRateUpdated",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_funding_rate",
+            "type": "i64"
+          },
+          {
+            "name": "cumulative_funding",
+            "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "FundingState",
+      "docs": [
+        "FundingState PDA — seeded `[b\"funding\", market.key()]`.",
+        "",
+        "Stores funding rate data and OI caps for a market.",
+        "Kept as a separate account to avoid expanding the Market account.",
+        "",
+        "Reserved space layout (55 bytes of body _reserved, then extra 32 in the _reserved2 field):",
+        "_reserved[0..8]   — long_oi_cap  (u64, 0 = no cap)",
+        "_reserved[8..16]  — short_oi_cap (u64, 0 = no cap)",
+        "_reserved[16..24] — approx_long_oi  (u64, proxy using requested_margin)",
+        "_reserved[24..32] — approx_short_oi (u64, proxy using requested_margin)",
+        "_reserved[32..55] — future use"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "docs": [
+              "The market this FundingState belongs to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "funding_rate",
+            "docs": [
+              "Hourly funding rate in bps (signed; positive = longs pay shorts)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "cumulative_funding",
+            "docs": [
+              "All-time accumulated funding rate (sum of funding_rate * elapsed_hours)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "last_funding_time",
+            "docs": [
+              "Unix timestamp of the last funding update"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "funding_interval",
+            "docs": [
+              "Seconds between funding updates (default 3600 = 1 hour)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_funding_rate",
+            "docs": [
+              "Maximum absolute funding rate in bps per hour (e.g. 100 = 1%)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "premium_bps",
+            "docs": [
+              "Authority-set premium in bps used as input to the funding rate formula"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA derivation"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Reserved space (see layout above)"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                55
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "docs": [
+        "Events"
+      ],
+      "name": "FundingStateInitialized",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "funding_interval",
+            "type": "u64"
+          },
+          {
+            "name": "max_funding_rate",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
       }
     },
     {
@@ -6657,14 +10114,35 @@
             "type": "pubkey"
           },
           {
-            "name": "_reserved",
+            "name": "base_asset_mint",
             "docs": [
-              "Reserved space for future upgrades (112 legacy reserved bytes - 32 new pubkey = 80)"
+              "The base asset mint this market trades (e.g. SOL mint for SOL-USD).",
+              "Part of the PDA seed: [\"market\", collateral_mint, base_asset_mint]."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "pyth_feed_id",
+            "docs": [
+              "Pyth price feed ID for this market's base asset (32-byte feed hash).",
+              "Used by `update_price_from_pyth` to read the correct Pyth feed."
             ],
             "type": {
               "array": [
                 "u8",
-                80
+                32
+              ]
+            }
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Reserved space for future upgrades (includes slots for shielded comp defs)"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                16
               ]
             }
           }
@@ -6693,6 +10171,37 @@
           {
             "name": "liquidation_threshold",
             "type": "u16"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "docs": [
+        "Event emitted when mark price is updated"
+      ],
+      "name": "MarkPriceUpdated",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_mark_price",
+            "type": "u64"
+          },
+          {
+            "name": "new_mark_price",
+            "type": "u64"
+          },
+          {
+            "name": "index_price",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ],
         "kind": "struct"
@@ -6951,6 +10460,26 @@
       }
     },
     {
+      "name": "OiCapsSet",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "long_oi_cap",
+            "type": "u64"
+          },
+          {
+            "name": "short_oi_cap",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
       "name": "OnChainCircuitSource",
       "type": {
         "kind": "struct",
@@ -7107,7 +10636,8 @@
       "name": "PendingWithdrawal",
       "docs": [
         "Withdrawal intent tied to a nullifier. Created by request_withdraw_private,",
-        "finalized after the delay period by finalize_withdraw."
+        "proof-verified by the Arcium MPC callback, and finalized after the delay",
+        "period by finalize_withdraw."
       ],
       "type": {
         "kind": "struct",
@@ -7142,6 +10672,15 @@
             "type": "bool"
           },
           {
+            "name": "proof_verified",
+            "docs": [
+              "Set to true by verify_withdrawal_proof_callback once MPC confirms the",
+              "caller owns a valid commitment covering this amount. finalize_withdraw",
+              "requires this to be true before releasing funds."
+            ],
+            "type": "bool"
+          },
+          {
             "name": "bump",
             "type": "u8"
           },
@@ -7150,7 +10689,7 @@
             "type": {
               "array": [
                 "u8",
-                32
+                31
               ]
             }
           }
@@ -7332,7 +10871,7 @@
     {
       "docs": [
         "Event emitted when a position is liquidated.",
-        "liquidation_price is intentionally omitted \u00e2\u20ac\u201d revealing it would let observers",
+        "liquidation_price is intentionally omitted — revealing it would let observers",
         "reconstruct leverage/direction from margin + price. Only the fact of liquidation",
         "is public, matching the MPC circuit's boolean-only output guarantee."
       ],
@@ -7416,6 +10955,74 @@
       }
     },
     {
+      "name": "PriceFeedMessage",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "docs": [
+              "`FeedId` but avoid the type alias because of compatibility issues with Anchor's `idl-build` feature."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "price",
+            "type": "i64"
+          },
+          {
+            "name": "conf",
+            "type": "u64"
+          },
+          {
+            "name": "exponent",
+            "type": "i32"
+          },
+          {
+            "name": "publish_time",
+            "docs": [
+              "The timestamp of this price update in seconds"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "prev_publish_time",
+            "docs": [
+              "The timestamp of the previous price update. This field is intended to allow users to",
+              "identify the single unique price update for any moment in time:",
+              "for any time t, the unique update is the one such that prev_publish_time < t <= publish_time.",
+              "",
+              "Note that there may not be such an update while we are migrating to the new message-sending logic,",
+              "as some price updates on pythnet may not be sent to other chains (because the message-sending",
+              "logic may not have triggered). We can solve this problem by making the message-sending mandatory",
+              "(which we can do once publishers have migrated over).",
+              "",
+              "Additionally, this field may be equal to publish_time if the message is sent on a slot where",
+              "where the aggregation was unsuccesful. This problem will go away once all publishers have",
+              "migrated over to a recent version of pyth-agent."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "ema_price",
+            "type": "i64"
+          },
+          {
+            "name": "ema_conf",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "docs": [
         "Event emitted when oracle price is updated"
       ],
@@ -7436,6 +11043,46 @@
           }
         ],
         "kind": "struct"
+      }
+    },
+    {
+      "name": "PriceUpdateV2",
+      "docs": [
+        "A price update account. This account is used by the Pyth Receiver program to store a verified price update from a Pyth price feed.",
+        "It contains:",
+        "- `write_authority`: The write authority for this account. This authority can close this account to reclaim rent or update the account to contain a different price update.",
+        "- `verification_level`: The [`VerificationLevel`] of this price update. This represents how many Wormhole guardian signatures have been verified for this price update.",
+        "- `price_message`: The actual price update.",
+        "- `posted_slot`: The slot at which this price update was posted."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "write_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "verification_level",
+            "type": {
+              "defined": {
+                "name": "VerificationLevel"
+              }
+            }
+          },
+          {
+            "name": "price_message",
+            "type": {
+              "defined": {
+                "name": "PriceFeedMessage"
+              }
+            }
+          },
+          {
+            "name": "posted_slot",
+            "type": "u64"
+          }
+        ]
       }
     },
     {
@@ -7876,6 +11523,165 @@
       }
     },
     {
+      "name": "TpSlOrder",
+      "docs": [
+        "TpSlOrder PDA — seeded `[b\"tpsl\", position.key()]`.",
+        "",
+        "Stores take-profit and stop-loss trigger prices for a position.",
+        "`is_long` is revealed at set-time by the user — they know their own direction.",
+        "This is a necessary trade-off since TP/SL trigger logic requires it on-chain."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "position",
+            "docs": [
+              "The position this TP/SL order is attached to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "docs": [
+              "Owner of the position (authorized to modify)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "docs": [
+              "Market the position belongs to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "tp_price",
+            "docs": [
+              "Take-profit price in 6-decimal fixed-point (0 = no TP)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "sl_price",
+            "docs": [
+              "Stop-loss price in 6-decimal fixed-point (0 = no SL)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "is_long",
+            "docs": [
+              "Whether the position is long (revealed at set-time by user)",
+              "None means not yet set; Some(true) = long, Some(false) = short"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "active",
+            "docs": [
+              "Whether this TP/SL order is active"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA derivation"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Reserved space for future upgrades"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                13
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "TpSlOrderCancelled",
+      "type": {
+        "fields": [
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "docs": [
+        "Events"
+      ],
+      "name": "TpSlOrderSet",
+      "type": {
+        "fields": [
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "tp_price",
+            "type": "u64"
+          },
+          {
+            "name": "sl_price",
+            "type": "u64"
+          },
+          {
+            "name": "is_long",
+            "type": "bool"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "TpSlTriggered",
+      "type": {
+        "fields": [
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "trigger_type",
+            "type": "u8"
+          },
+          {
+            "name": "trigger_price",
+            "type": "u64"
+          },
+          {
+            "name": "mark_price",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
       "name": "TradeSession",
       "docs": [
         "Delegated trading session approved by owner once, then consumed by relayer."
@@ -8029,6 +11835,159 @@
       }
     },
     {
+      "name": "TradeSessionV2",
+      "docs": [
+        "Wallet-scoped delegated trading session that can be used across all supported markets."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "docs": [
+              "Session owner whose margin/positions are affected."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "relayer",
+            "docs": [
+              "Authorized relayer signer."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "session_id",
+            "docs": [
+              "User-chosen session id for deterministic PDA derivation."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_actions",
+            "docs": [
+              "Hard cap on how many delegated actions can be executed."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "used_actions",
+            "docs": [
+              "Number of delegated actions already consumed."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "max_margin_per_action",
+            "docs": [
+              "Per-open cap to reduce blast radius if relayer misbehaves."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "expires_at",
+            "docs": [
+              "Unix timestamp after which this session is invalid."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "revoked",
+            "docs": [
+              "Explicit owner revocation bit."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "scope_all_markets",
+            "docs": [
+              "Whether the session is allowed to operate on every supported market."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump for PDA."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Reserved for upgrades."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                29
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "TradeSessionV2Created",
+      "type": {
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "relayer",
+            "type": "pubkey"
+          },
+          {
+            "name": "session_id",
+            "type": "u64"
+          },
+          {
+            "name": "max_actions",
+            "type": "u32"
+          },
+          {
+            "name": "max_margin_per_action",
+            "type": "u64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "scope_all_markets",
+            "type": "bool"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "TradeSessionV2Revoked",
+      "type": {
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "relayer",
+            "type": "pubkey"
+          },
+          {
+            "name": "session_id",
+            "type": "u64"
+          },
+          {
+            "name": "scope_all_markets",
+            "type": "bool"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
       "name": "UtilityPubkeys",
       "type": {
         "kind": "struct",
@@ -8068,6 +12027,75 @@
                 64
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerificationLevel",
+      "docs": [
+        "Pyth price updates are bridged to all blockchains via Wormhole.",
+        "Using the price updates on another chain requires verifying the signatures of the Wormhole guardians.",
+        "The usual process is to check the signatures for two thirds of the total number of guardians, but this can be cumbersome on Solana because of the transaction size limits,",
+        "so we also allow for partial verification.",
+        "",
+        "This enum represents how much a price update has been verified:",
+        "- If `Full`, we have verified the signatures for two thirds of the current guardians.",
+        "- If `Partial`, only `num_signatures` guardian signatures have been checked.",
+        "",
+        "# Warning",
+        "Using partially verified price updates is dangerous, as it lowers the threshold of guardians that need to collude to produce a malicious price update."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Partial",
+            "fields": [
+              {
+                "name": "num_signatures",
+                "type": "u8"
+              }
+            ]
+          },
+          {
+            "name": "Full"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerifyWithdrawalProofOutput",
+      "docs": [
+        "The output of the callback instruction. Provided as a struct with ordered fields",
+        "as anchor does not support tuples and tuple structs yet."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "field_0",
+            "type": {
+              "defined": {
+                "name": "VerifyWithdrawalProofOutputStruct0"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerifyWithdrawalProofOutputStruct0",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "field_0",
+            "type": "bool"
+          },
+          {
+            "name": "field_1",
+            "type": "u64"
           }
         ]
       }
@@ -8161,6 +12189,45 @@
     },
     {
       "discriminator": [
+        131,
+        234,
+        241,
+        164,
+        62,
+        218,
+        206,
+        102
+      ],
+      "name": "FundingPremiumSet"
+    },
+    {
+      "discriminator": [
+        14,
+        161,
+        238,
+        38,
+        236,
+        94,
+        57,
+        59
+      ],
+      "name": "FundingRateUpdated"
+    },
+    {
+      "discriminator": [
+        61,
+        197,
+        48,
+        72,
+        20,
+        61,
+        171,
+        160
+      ],
+      "name": "FundingStateInitialized"
+    },
+    {
+      "discriminator": [
         134,
         160,
         122,
@@ -8171,6 +12238,32 @@
         81
       ],
       "name": "MarketInitialized"
+    },
+    {
+      "discriminator": [
+        7,
+        90,
+        41,
+        114,
+        164,
+        146,
+        198,
+        36
+      ],
+      "name": "MarkPriceUpdated"
+    },
+    {
+      "discriminator": [
+        126,
+        171,
+        159,
+        92,
+        121,
+        88,
+        60,
+        78
+      ],
+      "name": "OiCapsSet"
     },
     {
       "discriminator": [
@@ -8304,6 +12397,45 @@
     },
     {
       "discriminator": [
+        128,
+        210,
+        56,
+        131,
+        220,
+        158,
+        64,
+        217
+      ],
+      "name": "TpSlOrderCancelled"
+    },
+    {
+      "discriminator": [
+        54,
+        183,
+        171,
+        224,
+        207,
+        84,
+        107,
+        216
+      ],
+      "name": "TpSlOrderSet"
+    },
+    {
+      "discriminator": [
+        210,
+        145,
+        76,
+        229,
+        144,
+        204,
+        182,
+        71
+      ],
+      "name": "TpSlTriggered"
+    },
+    {
+      "discriminator": [
         58,
         231,
         172,
@@ -8327,6 +12459,32 @@
         189
       ],
       "name": "TradeSessionRevoked"
+    },
+    {
+      "discriminator": [
+        19,
+        213,
+        81,
+        41,
+        215,
+        83,
+        217,
+        96
+      ],
+      "name": "TradeSessionV2Created"
+    },
+    {
+      "discriminator": [
+        171,
+        161,
+        174,
+        3,
+        27,
+        181,
+        24,
+        199
+      ],
+      "name": "TradeSessionV2Revoked"
     },
     {
       "discriminator": [
@@ -8368,118 +12526,168 @@
     },
     {
       "code": 6002,
+      "name": "InvalidLiquidationThreshold",
+      "msg": "Invalid liquidation threshold - must be between 1 and 5000 bps (0.01%–50%)"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidTradingFee",
+      "msg": "Invalid trading fee - must be at most 500 bps (5%)"
+    },
+    {
+      "code": 6004,
       "name": "InsufficientMargin",
       "msg": "Insufficient margin for position"
     },
     {
-      "code": 6003,
+      "code": 6005,
       "name": "PositionNotOpen",
       "msg": "Position is not open"
     },
     {
-      "code": 6004,
+      "code": 6006,
       "name": "PositionAlreadyClosed",
       "msg": "Position is already closed"
     },
     {
-      "code": 6005,
+      "code": 6007,
       "name": "InvalidPrice",
       "msg": "Invalid oracle price"
     },
     {
-      "code": 6006,
+      "code": 6008,
       "name": "StalePrice",
       "msg": "Price is stale - needs update"
     },
     {
-      "code": 6007,
+      "code": 6009,
       "name": "ComputationInProgress",
       "msg": "Computation already in progress"
     },
     {
-      "code": 6008,
+      "code": 6010,
       "name": "InvalidComputationResult",
       "msg": "Invalid computation result"
     },
     {
-      "code": 6009,
+      "code": 6011,
       "name": "MarketPaused",
       "msg": "Market is paused"
     },
     {
-      "code": 6010,
+      "code": 6012,
       "name": "InsufficientBalance",
       "msg": "Insufficient balance for withdrawal"
     },
     {
-      "code": 6011,
+      "code": 6013,
       "name": "ZeroAmount",
       "msg": "Amount must be greater than zero"
     },
     {
-      "code": 6012,
+      "code": 6014,
       "name": "CannotLiquidate",
       "msg": "Position cannot be liquidated - health factor above threshold"
     },
     {
-      "code": 6013,
+      "code": 6015,
       "name": "InvalidNonce",
       "msg": "Invalid nonce"
     },
     {
-      "code": 6014,
+      "code": 6016,
       "name": "ArithmeticOverflow",
       "msg": "Arithmetic overflow"
     },
     {
-      "code": 6015,
+      "code": 6017,
       "name": "InvalidAccountData",
       "msg": "Invalid account data"
     },
     {
-      "code": 6016,
+      "code": 6018,
       "name": "SessionExpired",
       "msg": "Trade session is expired"
     },
     {
-      "code": 6017,
+      "code": 6019,
       "name": "SessionRevoked",
       "msg": "Trade session is revoked"
     },
     {
-      "code": 6018,
+      "code": 6020,
       "name": "SessionActionLimitReached",
       "msg": "Trade session action limit reached"
     },
     {
-      "code": 6019,
+      "code": 6021,
       "name": "SessionMarginLimitExceeded",
       "msg": "Trade session per-action margin limit exceeded"
     },
     {
-      "code": 6020,
+      "code": 6022,
       "name": "ShieldedNotEnabled",
       "msg": "Shielded collateral feature not enabled"
     },
     {
-      "code": 6021,
+      "code": 6023,
       "name": "NullifierAlreadySpent",
       "msg": "Nullifier already spent"
     },
     {
-      "code": 6022,
+      "code": 6024,
       "name": "InvalidCommitmentProof",
       "msg": "Invalid commitment proof"
     },
     {
-      "code": 6023,
+      "code": 6025,
       "name": "WithdrawalNotReady",
       "msg": "Withdrawal delay not yet passed"
     },
     {
-      "code": 6024,
+      "code": 6026,
       "name": "CommitmentTreeFull",
       "msg": "Commitment tree is full"
+    },
+    {
+      "code": 6027,
+      "name": "PendingComputationTimeout",
+      "msg": "Pending computation has timed out"
+    },
+    {
+      "code": 6028,
+      "name": "MarkPriceDeviationExceedsCap",
+      "msg": "Mark price deviation exceeds the allowed cap from index price"
+    },
+    {
+      "code": 6029,
+      "name": "FundingIntervalNotElapsed",
+      "msg": "Funding interval has not elapsed yet"
+    },
+    {
+      "code": 6030,
+      "name": "OiCapExceeded",
+      "msg": "Open interest cap exceeded for this direction"
+    },
+    {
+      "code": 6031,
+      "name": "TpSlNotActive",
+      "msg": "TP/SL order is not active"
+    },
+    {
+      "code": 6032,
+      "name": "TpSlNotTriggered",
+      "msg": "TP/SL trigger conditions not met"
+    },
+    {
+      "code": 6033,
+      "name": "InvalidTpSlPrice",
+      "msg": "Invalid TP/SL price configuration"
+    },
+    {
+      "code": 6034,
+      "name": "MarkPriceStale",
+      "msg": "Mark price is not set or stale"
     }
   ]
 }

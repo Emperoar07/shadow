@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { getExplorerTxUrl } from "../lib/explorer";
 
 export type TradeStep =
@@ -29,9 +30,9 @@ const STEPS: { key: TradeStep; label: string; sub: string }[] = [
   { key: "confirmed", label: "Confirmed", sub: "Position opened" },
 ];
 
-const PROGRESS_AUTO_MINIMIZE_MS = 1800;
-const TERMINAL_AUTO_MINIMIZE_MS = 3500;
-const TERMINAL_AUTO_DISMISS_MS = 20_000;
+const PROGRESS_AUTO_MINIMIZE_MS = 1200;
+const TERMINAL_AUTO_MINIMIZE_MS = 1200;
+const TERMINAL_AUTO_DISMISS_MS = 15_000;
 
 function stepIndex(step: TradeStep): number {
   if (step === "error") return -1;
@@ -49,9 +50,10 @@ export default function TradeConfirmationModal({
   txSignature,
   onClose,
 }: TradeConfirmationModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const [minimized, setMinimized] = useState(false);
-  const [stickyExpanded, setStickyExpanded] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const minimizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -77,14 +79,19 @@ export default function TradeConfirmationModal({
   }, [clearDismissTimer, onClose]);
 
   useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  useEffect(() => {
     if (isOpen) {
       requestAnimationFrame(() => setVisible(true));
       setMinimized(false);
-      setStickyExpanded(false);
+      setIsHovered(false);
     } else {
       setVisible(false);
       setMinimized(false);
-      setStickyExpanded(false);
+      setIsHovered(false);
       clearMinimizeTimer();
       clearDismissTimer();
     }
@@ -92,32 +99,32 @@ export default function TradeConfirmationModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    const isTerminal = step === "confirmed" || step === "error";
 
+    const isTerminal = step === "confirmed" || step === "error";
     clearMinimizeTimer();
 
-    if (isTerminal) {
-      setStickyExpanded(false);
-      scheduleDismiss();
-      minimizeTimerRef.current = setTimeout(() => {
-        setMinimized(true);
-      }, TERMINAL_AUTO_MINIMIZE_MS);
+    if (isHovered) {
+      clearDismissTimer();
+      setMinimized(false);
       return;
     }
 
-    clearDismissTimer();
-    if (!stickyExpanded) {
-      minimizeTimerRef.current = setTimeout(() => {
-        setMinimized(true);
-      }, PROGRESS_AUTO_MINIMIZE_MS);
+    minimizeTimerRef.current = setTimeout(() => {
+      setMinimized(true);
+    }, isTerminal ? TERMINAL_AUTO_MINIMIZE_MS : PROGRESS_AUTO_MINIMIZE_MS);
+
+    if (isTerminal) {
+      scheduleDismiss();
+    } else {
+      clearDismissTimer();
     }
   }, [
     clearDismissTimer,
     clearMinimizeTimer,
+    isHovered,
     isOpen,
     scheduleDismiss,
     step,
-    stickyExpanded,
   ]);
 
   useEffect(() => {
@@ -127,7 +134,7 @@ export default function TradeConfirmationModal({
     };
   }, [clearDismissTimer, clearMinimizeTimer]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const currentIdx = stepIndex(step);
   const isError = step === "error";
@@ -166,76 +173,87 @@ export default function TradeConfirmationModal({
     : "border-accent-purple/30 bg-accent-purple/8 text-accent-purple";
 
   const handleExpand = () => {
+    clearMinimizeTimer();
+    clearDismissTimer();
     setMinimized(false);
-    setStickyExpanded(true);
-    if (isTerminal) {
-      scheduleDismiss();
-    }
   };
 
   const handleMinimize = () => {
+    setIsHovered(false);
     setMinimized(true);
-    setStickyExpanded(false);
     if (isTerminal) {
       scheduleDismiss();
     }
   };
 
-  const handleCardInteraction = () => {
-    if (!isTerminal) return;
-    setStickyExpanded(true);
-    scheduleDismiss();
+  const handlePointerEnter = () => {
+    setIsHovered(true);
+    clearMinimizeTimer();
+    clearDismissTimer();
+    setMinimized(false);
   };
 
-  if (minimized) {
-    return (
-      <div className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
-        <button
-          type="button"
-          onClick={handleExpand}
-          className={`pointer-events-auto flex min-w-[15rem] items-center gap-3 rounded-2xl border border-shadow-500 bg-shadow-800/95 px-4 py-3 shadow-2xl backdrop-blur transition-all hover:-translate-y-0.5 ${
-            isError
-              ? "shadow-red-500/10"
-              : isComplete
-              ? "shadow-emerald-500/10"
-              : "shadow-purple-500/10"
-          }`}
-        >
-          <span
-            className={`inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border ${statusToneClass}`}
-          >
-            {isTerminal ? (
-              <span
-                className={`h-2.5 w-2.5 rounded-full ${
-                  isError ? "bg-accent-red" : "bg-accent-green"
-                }`}
-              />
-            ) : (
-              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" />
-                <path className="opacity-100" d="M21 12a9 9 0 00-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-              </svg>
-            )}
-          </span>
-          <span className="min-w-0 flex-1 text-left">
-            <span className="block text-[11px] font-semibold text-white">{statusLabel}</span>
-            <span className="block truncate text-[10px] text-gray-500">
-              {isTerminal ? compactMessage : `${direction.toUpperCase()} ${size} @ $${priceStr}`}
-            </span>
-          </span>
-          <svg className="h-4 w-4 flex-shrink-0 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
-    );
-  }
+  const handlePointerLeave = () => {
+    setIsHovered(false);
+    setMinimized(true);
+    if (isTerminal) {
+      scheduleDismiss();
+    }
+  };
 
-  return (
-    <div className="fixed bottom-4 right-4 z-50 pointer-events-none sm:bottom-6 sm:right-6">
+  const minimizedView = (
+    <div className="fixed bottom-4 right-4 z-[650] sm:bottom-6 sm:right-6">
+      <button
+        type="button"
+        onClick={handleExpand}
+        onMouseEnter={handlePointerEnter}
+        onMouseLeave={handlePointerLeave}
+        onFocus={handlePointerEnter}
+        onBlur={handlePointerLeave}
+        className={`pointer-events-auto flex min-w-[15rem] items-center gap-3 rounded-2xl border border-shadow-500 bg-shadow-800/95 px-4 py-3 shadow-2xl backdrop-blur transition-all hover:-translate-y-0.5 ${
+          isError
+            ? "shadow-red-500/10"
+            : isComplete
+            ? "shadow-emerald-500/10"
+            : "shadow-purple-500/10"
+        }`}
+      >
+        <span
+          className={`inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border ${statusToneClass}`}
+        >
+          {isTerminal ? (
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                isError ? "bg-accent-red" : "bg-accent-green"
+              }`}
+            />
+          ) : (
+            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" />
+              <path className="opacity-100" d="M21 12a9 9 0 00-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+          )}
+        </span>
+        <span className="min-w-0 flex-1 text-left">
+          <span className="block text-[11px] font-semibold text-white">{statusLabel}</span>
+          <span className="block truncate text-[10px] text-gray-500">
+            {isTerminal ? compactMessage : `${direction.toUpperCase()} ${size} @ $${priceStr}`}
+          </span>
+        </span>
+        <svg className="h-4 w-4 flex-shrink-0 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+    </div>
+  );
+
+  const expandedView = (
+    <div className="fixed bottom-4 right-4 z-[650] pointer-events-none sm:bottom-6 sm:right-6">
       <div
-        onMouseDown={handleCardInteraction}
-        onTouchStart={handleCardInteraction}
+        onMouseEnter={handlePointerEnter}
+        onMouseLeave={handlePointerLeave}
+        onFocus={handlePointerEnter}
+        onBlur={handlePointerLeave}
         className={`pointer-events-auto w-[min(26rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-shadow-500/80 bg-shadow-800 shadow-2xl transition-all duration-300 ${
           visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-95 opacity-0"
         }`}
@@ -404,7 +422,7 @@ export default function TradeConfirmationModal({
           {!isComplete && !isError && (
             <div className="flex items-center justify-center gap-1.5 pt-1 text-[10px] text-gray-600">
               <svg className="h-2.5 w-2.5 text-accent-purple/50" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </svg>
               Secured by Arcium MPC
             </div>
@@ -413,4 +431,6 @@ export default function TradeConfirmationModal({
       </div>
     </div>
   );
+
+  return createPortal(minimized ? minimizedView : expandedView, document.body);
 }

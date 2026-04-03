@@ -11,6 +11,7 @@ import { checkRateLimit } from "../../../lib/server/rate-limit";
 
 const WITHDRAW_RATE_LIMIT = 5;  // max 5 withdraw requests per owner per minute
 const RATE_WINDOW_MS = 60_000;
+const ALL_MARKETS_SESSION_KEY = "__all_markets__";
 
 type WithdrawRequestBody = {
   owner?: string;
@@ -94,25 +95,52 @@ export default async function handler(
     const nowSeconds = Math.floor(Date.now() / 1000);
     const authExpiresAt = Math.floor(body.auth.expiresAt as number);
 
-    const sessionAddress = relay.client.getTradeSessionAddress(
-      marketAddress,
-      owner,
-      sessionId
-    );
-    const session = await relay.client.getTradeSession(sessionAddress);
-    if (!session.owner.equals(owner)) {
-      throw new Error("Session owner mismatch");
+    let sessionVersion: "v1" | "v2" = "v1";
+    let sessionExpiry: number;
+    let sessionUsedActions: number;
+    let sessionMaxActions: number;
+    let sessionMaxMarginPerAction: BN;
+    try {
+      const sessionAddress = relay.client.getTradeSessionV2Address(owner, sessionId);
+      const session = await relay.client.getTradeSessionV2(sessionAddress);
+      if (!session.owner.equals(owner)) {
+        throw new Error("Session owner mismatch");
+      }
+      if (!session.relayer.equals(relay.relayer.publicKey)) {
+        throw new Error("Session relayer mismatch");
+      }
+      if (session.revoked) {
+        throw new Error("Session revoked");
+      }
+      sessionVersion = "v2";
+      sessionExpiry = Number(session.expiresAt.toString());
+      sessionUsedActions = session.usedActions;
+      sessionMaxActions = session.maxActions;
+      sessionMaxMarginPerAction = session.maxMarginPerAction;
+    } catch (v2Error: any) {
+      const message = typeof v2Error?.message === "string" ? v2Error.message : "";
+      if (!message.includes("Account does not exist")) {
+        throw v2Error;
+      }
+      const sessionAddress = relay.client.getTradeSessionAddress(marketAddress, owner, sessionId);
+      const session = await relay.client.getTradeSession(sessionAddress);
+      if (!session.owner.equals(owner)) {
+        throw new Error("Session owner mismatch");
+      }
+      if (!session.market.equals(marketAddress)) {
+        throw new Error("Session market mismatch");
+      }
+      if (!session.relayer.equals(relay.relayer.publicKey)) {
+        throw new Error("Session relayer mismatch");
+      }
+      if (session.revoked) {
+        throw new Error("Session revoked");
+      }
+      sessionExpiry = Number(session.expiresAt.toString());
+      sessionUsedActions = session.usedActions;
+      sessionMaxActions = session.maxActions;
+      sessionMaxMarginPerAction = session.maxMarginPerAction;
     }
-    if (!session.market.equals(marketAddress)) {
-      throw new Error("Session market mismatch");
-    }
-    if (!session.relayer.equals(relay.relayer.publicKey)) {
-      throw new Error("Session relayer mismatch");
-    }
-    if (session.revoked) {
-      throw new Error("Session revoked");
-    }
-    const sessionExpiry = Number(session.expiresAt.toString());
     if (sessionExpiry <= nowSeconds) {
       throw new Error("Session expired");
     }
@@ -125,7 +153,10 @@ export default async function handler(
 
     const message = buildRelaySessionAuthMessage({
       owner: owner.toBase58(),
-      market: marketAddress.toBase58(),
+      market:
+        sessionVersion === "v2"
+          ? ALL_MARKETS_SESSION_KEY
+          : marketAddress.toBase58(),
       sessionId: sessionId.toString(),
       action: "withdraw",
       sessionExpiresAt: sessionExpiry,
@@ -139,19 +170,17 @@ export default async function handler(
     if (!verified) {
       throw new Error("Invalid session authorization signature");
     }
-    if (session.usedActions >= session.maxActions) {
+    if (sessionUsedActions >= sessionMaxActions) {
       throw new Error("Session action limit reached");
     }
-    if (amount.gt(session.maxMarginPerAction)) {
+    if (amount.gt(sessionMaxMarginPerAction)) {
       throw new Error("Withdraw exceeds delegated session limit");
     }
 
-    const txSignature = await relay.client.withdrawCollateralWithSession(
-      marketAddress,
-      owner,
-      sessionId,
-      amount
-    );
+    const txSignature =
+      sessionVersion === "v2"
+        ? await relay.client.withdrawCollateralWithSessionV2(marketAddress, owner, sessionId, amount)
+        : await relay.client.withdrawCollateralWithSession(marketAddress, owner, sessionId, amount);
 
     res.status(200).json({
       ok: true,

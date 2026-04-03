@@ -63,8 +63,10 @@ export interface PrivateOrderInput {
 }
 
 export interface SessionRelayInfo {
+  sessionVersion: "v1" | "v2";
   owner: string;
   market: string;
+  scopeAllMarkets: boolean;
   relayer: string;
   sessionId: string;
   sessionAddress: string;
@@ -93,6 +95,7 @@ export const RELAY_SESSION_RENEW_BEFORE_SECONDS = 15;
 const DEFAULT_SESSION_MAX_ACTIONS = 200;
 const DEFAULT_SESSION_MAX_MARGIN_USDC = 1_000;
 const RELAY_SESSION_OPTIMISTIC_HOLD_MS = 15_000;
+const ALL_MARKETS_SESSION_KEY = "__all_markets__";
 
 function actionFromReason(reason?: EnsureRelaySessionOptions["reason"]): RelaySessionAction {
   if (reason === "deposit") return "deposit";
@@ -138,6 +141,14 @@ function storageKey(owner: string, market: string): string {
   return `${RELAY_SESSION_STORAGE_KEY}:${owner}:${market}`;
 }
 
+function sessionStorageMarketKey(session: Pick<SessionRelayInfo, "market" | "scopeAllMarkets">): string {
+  return session.scopeAllMarkets ? ALL_MARKETS_SESSION_KEY : session.market;
+}
+
+function sessionSupportsMarket(session: SessionRelayInfo, market: string): boolean {
+  return session.scopeAllMarkets || session.market === market;
+}
+
 function isRelayStorageKey(key: string | null): boolean {
   if (!key) return false;
   return key === RELAY_SESSION_STORAGE_KEY || key.startsWith(`${RELAY_SESSION_STORAGE_KEY}:`);
@@ -179,6 +190,9 @@ function parseSession(raw: string | null): SessionRelayInfo | null {
         : null;
     return {
       ...parsed,
+      sessionVersion: parsed.sessionVersion === "v2" ? "v2" : "v1",
+      scopeAllMarkets:
+        typeof parsed.scopeAllMarkets === "boolean" ? parsed.scopeAllMarkets : false,
       authScope:
         typeof parsed.authScope === "string" && parsed.authScope.length > 0
           ? parsed.authScope
@@ -214,6 +228,13 @@ function readStoredSession(owner?: string, market?: string): SessionRelayInfo | 
     const keyed = parseSession(window.localStorage.getItem(storageKey(owner, market)));
     if (keyed) {
       return keyed;
+    }
+
+    const globalSession = parseSession(
+      window.localStorage.getItem(storageKey(owner, ALL_MARKETS_SESSION_KEY))
+    );
+    if (globalSession && globalSession.scopeAllMarkets) {
+      return globalSession;
     }
 
     // Legacy migration: single-session storage key.
@@ -255,7 +276,7 @@ function sanitizeSessionForStorage(session: SessionRelayInfo): SessionRelayInfo 
 function writeStoredSession(session: SessionRelayInfo): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(
-    storageKey(session.owner, session.market),
+    storageKey(session.owner, sessionStorageMarketKey(session)),
     JSON.stringify(sanitizeSessionForStorage(session))
   );
 }
@@ -276,6 +297,9 @@ function clearStoredSession(owner: string, market: string): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(storageKey(owner, market));
+    if (market !== ALL_MARKETS_SESSION_KEY) {
+      window.localStorage.removeItem(storageKey(owner, ALL_MARKETS_SESSION_KEY));
+    }
   } catch {
     // no-op
   }
@@ -309,7 +333,7 @@ function isUsableRelaySession(
 ): session is SessionRelayInfo {
   if (!session || !owner || !market) return false;
   if (session.owner !== owner) return false;
-  if (session.market !== market) return false;
+  if (!sessionSupportsMarket(session, market)) return false;
   if (session.authScope !== RELAY_SESSION_AUTH_SCOPE) return false;
   if (session.expiresAt - nowSeconds <= RELAY_SESSION_RENEW_BEFORE_SECONDS) return false;
   if (session.usedActions >= session.maxActions) return false;
@@ -675,7 +699,13 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
     const current = candidate ?? relaySession;
     if (!current) return null;
     const currentOwner = current.owner;
-    const currentMarket = current.market;
+    const ctx = getClient();
+    const resolvedRuntimeMarket = ctx
+      ? (resolveMarketAddress(ctx) ?? ctx.runtime.marketAddress).toBase58()
+      : null;
+    const currentMarket = current.scopeAllMarkets
+      ? resolvedRuntimeMarket ?? current.market
+      : current.market;
     if (!publicKey || current.owner !== publicKey.toBase58()) {
       setRelaySession(null);
       return null;
@@ -683,12 +713,11 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
 
     setRelaySessionRecovering(true);
     try {
-      const ctx = getClient();
       const query = new URLSearchParams({
         owner: current.owner,
         sessionId: current.sessionId,
       });
-      const pair = resolvePairLabelForMarket(ctx, current.market);
+      const pair = resolvePairLabelForMarket(ctx, currentMarket);
       if (pair) {
         query.set("pair", pair);
       }
@@ -706,7 +735,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
           return current;
         }
         setRelaySession(null);
-        clearStoredSession(currentOwner, currentMarket);
+        clearStoredSession(currentOwner, sessionStorageMarketKey(current));
         return null;
       }
       if (!payload.session) return current;
@@ -723,6 +752,9 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
 
       const next: SessionRelayInfo = {
         ...current,
+        sessionVersion: payload.session.sessionVersion === "v2" ? "v2" : "v1",
+        market: payload.session.scopeAllMarkets ? ALL_MARKETS_SESSION_KEY : currentMarket,
+        scopeAllMarkets: Boolean(payload.session.scopeAllMarkets),
         relayer: payload.session.relayer,
         usedActions: Math.min(nextUsedActions, nextMaxActions),
         maxActions: nextMaxActions,
@@ -736,7 +768,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         next.usedActions >= next.maxActions
       ) {
         setRelaySession(null);
-        clearStoredSession(current.owner, current.market);
+        clearStoredSession(current.owner, sessionStorageMarketKey(current));
         return null;
       }
 
@@ -748,7 +780,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
     } finally {
       setRelaySessionRecovering(false);
     }
-  }, [getClient, publicKey, relaySession, resolvePairLabelForMarket]);
+  }, [getClient, publicKey, relaySession, resolveMarketAddress, resolvePairLabelForMarket]);
 
   const invalidateRelaySession = useCallback(
     (owner?: string, market?: string) => {
@@ -761,7 +793,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       setRelaySession((current) => {
         if (!current) return null;
         if (resolvedOwner && current.owner !== resolvedOwner) return current;
-        if (resolvedMarket && current.market !== resolvedMarket) return current;
+        if (resolvedMarket && !sessionSupportsMarket(current, resolvedMarket)) return current;
         return null;
       });
     },
@@ -823,7 +855,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       setStatusMessage("Authorizing delegated trading session...");
       const authMessage = buildRelaySessionAuthMessage({
         owner: session.owner,
-        market: session.market,
+        market: sessionStorageMarketKey(session),
         sessionId: session.sessionId,
         action,
         sessionExpiresAt: session.expiresAt,
@@ -893,18 +925,27 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         const sessionId = String(payload.session.sessionId);
         const expiresAt = Number(payload.session.expiresAt);
 
-        const sessionAddress = ctx.client
-          .getTradeSessionAddress(
-            resolvedMarket,
-            new PublicKey(owner),
-            new BN(sessionId, 10)
-          )
-          .toBase58();
+        const sessionVersion = payload.session.sessionVersion === "v2" ? "v2" : "v1";
+        const scopeAllMarkets = Boolean(payload.session.scopeAllMarkets);
+        const sessionAddress =
+          sessionVersion === "v2"
+            ? ctx.client
+                .getTradeSessionV2Address(new PublicKey(owner), new BN(sessionId, 10))
+                .toBase58()
+            : ctx.client
+                .getTradeSessionAddress(
+                  resolvedMarket,
+                  new PublicKey(owner),
+                  new BN(sessionId, 10)
+                )
+                .toBase58();
 
         const stored = readStoredSession(owner, market);
         const candidate: SessionRelayInfo = {
+          sessionVersion,
           owner,
-          market,
+          market: scopeAllMarkets ? ALL_MARKETS_SESSION_KEY : market,
+          scopeAllMarkets,
           relayer: payload.session.relayer,
           sessionId,
           sessionAddress,
@@ -1015,7 +1056,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
 
         const authMessage = buildRelaySessionAuthMessage({
           owner,
-          market: marketAddress,
+          market: ALL_MARKETS_SESSION_KEY,
           sessionId: sessionId.toString(),
           action: actionFromReason(reason),
           sessionExpiresAt: expiresAt,
@@ -1026,8 +1067,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         setStatus("queued");
         setStatusMessage("Creating delegated session on-chain...");
 
-        const { txSignature, sessionAddress } = await client.createTradeSession(
-          resolvedMarket,
+        const { txSignature, sessionAddress } = await client.createTradeSessionV2(
           sessionId,
           new PublicKey(relayInfo.relayer),
           maxActions,
@@ -1037,8 +1077,10 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         setLastSignature(txSignature);
 
         const nextSession: SessionRelayInfo = {
+          sessionVersion: "v2",
           owner,
-          market: marketAddress,
+          market: ALL_MARKETS_SESSION_KEY,
+          scopeAllMarkets: true,
           relayer: relayInfo.relayer,
           sessionId: sessionId.toString(),
           sessionAddress: sessionAddress.toBase58(),
@@ -1124,8 +1166,8 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         return finalize(recovered);
       }
 
-      if (stored && owner && market) {
-        clearStoredSession(owner, market);
+      if (stored && owner) {
+        clearStoredSession(owner, sessionStorageMarketKey(stored));
       }
 
       if (!userInitiated) {
@@ -1159,14 +1201,18 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         if (!ctx) {
           throw new Error("Trading client unavailable.");
         }
-        await ctx.client.revokeTradeSession(
-          resolveMarketAddress(ctx) ?? ctx.runtime.marketAddress,
-          new BN(current.sessionId, 10)
-        );
+        if (current.sessionVersion === "v2") {
+          await ctx.client.revokeTradeSessionV2(new BN(current.sessionId, 10));
+        } else {
+          await ctx.client.revokeTradeSession(
+            resolveMarketAddress(ctx) ?? ctx.runtime.marketAddress,
+            new BN(current.sessionId, 10)
+          );
+        }
       }
 
       setRelaySession(null);
-      clearStoredSession(current.owner, current.market);
+      clearStoredSession(current.owner, sessionStorageMarketKey(current));
     },
     [relaySession, getClient, resolveMarketAddress]
   );
@@ -1214,7 +1260,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         setRelaySession(recovered);
         return;
       }
-      clearStoredSession(owner, market);
+      clearStoredSession(owner, sessionStorageMarketKey(stored));
     })();
 
     return () => {

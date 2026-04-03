@@ -39,6 +39,19 @@ This document describes the live request/response flow across UI, Solana, and Ar
 4. Program queues Arcium computation exactly like direct open path
 5. Callback finalizes `Pending -> Open`
 
+### Delegated Open (Wallet-Scoped Session V2 Path)
+
+1. Owner creates `TradeSessionV2` once (`create_trade_session_v2`)
+2. Relayer submits `open_position_with_session_v2`
+3. Program validates session:
+   - relayer match
+   - not expired/revoked
+   - action cap remaining
+   - margin <= per-action cap
+   - wallet-scoped session is allowed across supported markets
+4. Program queues Arcium computation exactly like direct open path
+5. Callback finalizes `Pending -> Open`
+
 ## 2. Close Position Flow
 
 1. UI requests close for open position
@@ -51,6 +64,13 @@ This document describes the live request/response flow across UI, Solana, and Ar
 ### Delegated Close (Session Path)
 
 1. Relayer submits `close_position_with_session` under active session
+2. Program validates session and consumes one action
+3. Program queues Arcium close computation
+4. Callback verifies output, then relayer submits `settle_close_position`
+
+### Delegated Close (Wallet-Scoped Session V2 Path)
+
+1. Relayer submits `close_position_with_session_v2` under active wallet-scoped session
 2. Program validates session and consumes one action
 3. Program queues Arcium close computation
 4. Callback verifies output, then relayer submits `settle_close_position`
@@ -114,6 +134,14 @@ Note:
 1. `create_trade_session`: owner signs once, defines relayer + limits
 2. `open_position_with_session` / `close_position_with_session`: relayer executes within limits
 3. `revoke_trade_session`: owner can immediately disable delegated execution
+4. `create_trade_session_v2`: owner signs once for a wallet-scoped delegated window across supported markets
+5. `open_position_with_session_v2` / `close_position_with_session_v2`: relayer executes across markets within the same limits
+6. `revoke_trade_session_v2`: owner can immediately disable the wallet-scoped delegated session
+
+Note:
+
+- `TradeSessionV2` is implemented in source and reflected in the generated IDL.
+- It still requires a matching program deploy before it is live on devnet.
 
 ## 5. Oracle Flow
 

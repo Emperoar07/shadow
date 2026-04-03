@@ -66,6 +66,8 @@ Main handlers:
 - delegated session controls:
   - `create_trade_session`
   - `revoke_trade_session`
+  - `create_trade_session_v2`
+  - `revoke_trade_session_v2`
 - feature-gated shielded collateral (`shielded-collateral` feature only):
   - `init_shielded_pool` (creates pool, commitment tree, nullifier set)
   - `set_shielded_collateral_feature` (toggle activation bit)
@@ -81,7 +83,8 @@ State accounts:
 - `MarginAccount`
 - `Position`
 - `LiquidationSettlement` (authorized liquidator binding for deferred liquidation settlement)
-- `TradeSession` (owner-approved relayer window with action/margin caps + expiry)
+- `TradeSession` (market-scoped owner-approved relayer window with action/margin caps + expiry)
+- `TradeSessionV2` (wallet-scoped owner-approved relayer window reusable across supported markets; requires matching program deploy before live use)
 - optional private orderbook state
 - feature-gated shielded collateral state (`shielded-collateral` feature only):
   - `ShieldedPool` (per-market pool with commitment tree root, vault, accounting)

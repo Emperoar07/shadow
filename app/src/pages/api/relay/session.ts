@@ -16,6 +16,8 @@ type SessionResponse =
       runtime?: RelayRuntimeSummary;
       exists?: boolean;
       session?: {
+        sessionVersion: "v1" | "v2";
+        scopeAllMarkets: boolean;
         owner: string;
         relayer: string;
         sessionId: string;
@@ -44,8 +46,10 @@ function parseSessionId(value?: string): BN {
 }
 
 type DecodedTradeSession = {
+  sessionVersion: "v1" | "v2";
+  scopeAllMarkets: boolean;
   owner: string;
-  market: string;
+  market: string | null;
   relayer: string;
   sessionId: string;
   maxActions: number;
@@ -82,8 +86,38 @@ function decodeTradeSessionAccount(data: Buffer): DecodedTradeSession | null {
   const revoked = data.readUInt8(136) === 1;
 
   return {
+    sessionVersion: "v1",
+    scopeAllMarkets: false,
     owner,
     market,
+    relayer,
+    sessionId,
+    maxActions,
+    usedActions,
+    maxMarginPerAction,
+    expiresAt,
+    revoked,
+  };
+}
+
+function decodeTradeSessionV2Account(data: Buffer): DecodedTradeSession | null {
+  if (data.length < 136) return null;
+
+  const owner = new PublicKey(data.subarray(8, 40)).toBase58();
+  const relayer = new PublicKey(data.subarray(40, 72)).toBase58();
+  const sessionId = readU64LE(data, 72).toString();
+  const maxActions = readU32LE(data, 80);
+  const usedActions = readU32LE(data, 84);
+  const maxMarginPerAction = readU64LE(data, 88).toString();
+  const expiresAt = readI64LE(data, 96).toString();
+  const revoked = data.readUInt8(104) === 1;
+  const scopeAllMarkets = data.readUInt8(105) === 1;
+
+  return {
+    sessionVersion: "v2",
+    scopeAllMarkets,
+    owner,
+    market: null,
     relayer,
     sessionId,
     maxActions,
@@ -155,19 +189,54 @@ export default async function handler(
     try {
       const owner = new PublicKey(ownerRaw);
       const connection = (relay.client as any).provider.connection;
-      const accounts = await connection.getProgramAccounts(relay.config.programId, {
-        filters: [
-          { dataSize: 168 },
-          { memcmp: { offset: 8, bytes: owner.toBase58() } },
-          { memcmp: { offset: 40, bytes: marketAddress.toBase58() } },
-          { memcmp: { offset: 72, bytes: relay.relayer.publicKey.toBase58() } },
-        ],
-      });
+      const [v2Accounts, v1Accounts] = await Promise.all([
+        connection.getProgramAccounts(relay.config.programId, {
+          filters: [
+            { dataSize: 136 },
+            { memcmp: { offset: 8, bytes: owner.toBase58() } },
+            { memcmp: { offset: 40, bytes: relay.relayer.publicKey.toBase58() } },
+          ],
+        }),
+        connection.getProgramAccounts(relay.config.programId, {
+          filters: [
+            { dataSize: 168 },
+            { memcmp: { offset: 8, bytes: owner.toBase58() } },
+            { memcmp: { offset: 40, bytes: marketAddress.toBase58() } },
+            { memcmp: { offset: 72, bytes: relay.relayer.publicKey.toBase58() } },
+          ],
+        }),
+      ]);
 
       const now = Math.floor(Date.now() / 1000);
-      let latest: DecodedTradeSession | null = null;
+      let latestV2: DecodedTradeSession | null = null;
+      let latestV1: DecodedTradeSession | null = null;
 
-      for (const account of accounts) {
+      for (const account of v2Accounts) {
+        const decoded = decodeTradeSessionV2Account(account.account.data);
+        if (!decoded) continue;
+        const expiresAt = Number(decoded.expiresAt);
+        if (!Number.isFinite(expiresAt) || expiresAt <= now) continue;
+        if (decoded.revoked) continue;
+        if (decoded.usedActions >= decoded.maxActions) continue;
+
+        if (!latestV2) {
+          latestV2 = decoded;
+          continue;
+        }
+
+        const latestExpires = Number(latestV2.expiresAt);
+        const latestSessionId = Number(latestV2.sessionId);
+        const currentSessionId = Number(decoded.sessionId);
+        if (expiresAt > latestExpires) {
+          latestV2 = decoded;
+          continue;
+        }
+        if (expiresAt === latestExpires && currentSessionId > latestSessionId) {
+          latestV2 = decoded;
+        }
+      }
+
+      for (const account of v1Accounts) {
         const decoded = decodeTradeSessionAccount(account.account.data);
         if (!decoded) continue;
         const expiresAt = Number(decoded.expiresAt);
@@ -175,22 +244,24 @@ export default async function handler(
         if (decoded.revoked) continue;
         if (decoded.usedActions >= decoded.maxActions) continue;
 
-        if (!latest) {
-          latest = decoded;
+        if (!latestV1) {
+          latestV1 = decoded;
           continue;
         }
 
-        const latestExpires = Number(latest.expiresAt);
-        const latestSessionId = Number(latest.sessionId);
+        const latestExpires = Number(latestV1.expiresAt);
+        const latestSessionId = Number(latestV1.sessionId);
         const currentSessionId = Number(decoded.sessionId);
         if (expiresAt > latestExpires) {
-          latest = decoded;
+          latestV1 = decoded;
           continue;
         }
         if (expiresAt === latestExpires && currentSessionId > latestSessionId) {
-          latest = decoded;
+          latestV1 = decoded;
         }
       }
+
+      const latest = latestV2 ?? latestV1;
 
       if (!latest) {
         res.status(200).json({
@@ -240,11 +311,39 @@ export default async function handler(
   try {
     const owner = new PublicKey(ownerRaw!);
     const sessionId = parseSessionId(sessionIdRaw);
-    const sessionAddress = relay.client.getTradeSessionAddress(
-      marketAddress,
-      owner,
-      sessionId
-    );
+    try {
+      const sessionAddress = relay.client.getTradeSessionV2Address(owner, sessionId);
+      const session = await relay.client.getTradeSessionV2(sessionAddress);
+
+      res.status(200).json({
+        ok: true,
+        available: true,
+        relayer: relay.relayer.publicKey.toBase58(),
+        market: marketAddress.toBase58(),
+        runtime: runtimeSummary,
+        exists: true,
+        session: {
+          sessionVersion: "v2",
+          scopeAllMarkets: Boolean((session as any).scopeAllMarkets ?? true),
+          owner: session.owner.toBase58(),
+          relayer: session.relayer.toBase58(),
+          sessionId: session.sessionId.toString(),
+          maxActions: session.maxActions,
+          usedActions: session.usedActions,
+          maxMarginPerAction: session.maxMarginPerAction.toString(),
+          expiresAt: session.expiresAt.toString(),
+          revoked: session.revoked,
+        },
+      });
+      return;
+    } catch (v2Error: any) {
+      const message = typeof v2Error?.message === "string" ? v2Error.message : "";
+      if (!message.includes("Account does not exist")) {
+        throw v2Error;
+      }
+    }
+
+    const sessionAddress = relay.client.getTradeSessionAddress(marketAddress, owner, sessionId);
     const session = await relay.client.getTradeSession(sessionAddress);
 
     res.status(200).json({
@@ -255,6 +354,8 @@ export default async function handler(
       runtime: runtimeSummary,
       exists: true,
       session: {
+        sessionVersion: "v1",
+        scopeAllMarkets: false,
         owner: session.owner.toBase58(),
         relayer: session.relayer.toBase58(),
         sessionId: session.sessionId.toString(),

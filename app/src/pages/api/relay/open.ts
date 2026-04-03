@@ -17,6 +17,7 @@ import { checkRateLimit } from "../../../lib/server/rate-limit";
 const OPEN_RATE_LIMIT = 10;   // max 10 open requests per owner per minute
 const RATE_WINDOW_MS = 60_000;
 const ORACLE_MAX_AGE_SECONDS = 250; // refresh if older than this (contract requires < 300)
+const ALL_MARKETS_SESSION_KEY = "__all_markets__";
 
 // CoinGecko IDs and Binance symbols for each trading pair
 const PAIR_PRICE_SOURCES: Record<string, { coingeckoId: string; binanceSymbol: string }> = {
@@ -179,26 +180,55 @@ export default async function handler(
       throw new Error(`Unknown trading pair: ${pairLabel}`);
     }
 
-    const sessionAddress = relay.client.getTradeSessionAddress(
-      marketAddress,
-      owner,
-      sessionId
-    );
-    const session = await relay.client.getTradeSession(sessionAddress);
-    if (!session.owner.equals(owner)) {
-      throw new Error("Session owner mismatch");
-    }
-    if (!session.market.equals(marketAddress)) {
-      throw new Error("Session market mismatch");
-    }
-    if (!session.relayer.equals(relay.relayer.publicKey)) {
-      throw new Error("Session relayer mismatch");
-    }
-    if (session.revoked) {
-      throw new Error("Session revoked");
-    }
     const nowSeconds = Math.floor(Date.now() / 1000);
-    const sessionExpiry = Number(session.expiresAt.toString());
+    let sessionVersion: "v1" | "v2" = "v1";
+    let sessionExpiry: number;
+    let sessionUsedActions: number;
+    let sessionMaxActions: number;
+    let sessionMaxMarginPerAction: BN;
+    try {
+      const sessionAddress = relay.client.getTradeSessionV2Address(owner, sessionId);
+      const session = await relay.client.getTradeSessionV2(sessionAddress);
+      if (!session.owner.equals(owner)) {
+        throw new Error("Session owner mismatch");
+      }
+      if (!session.relayer.equals(relay.relayer.publicKey)) {
+        throw new Error("Session relayer mismatch");
+      }
+      if (session.revoked) {
+        throw new Error("Session revoked");
+      }
+      sessionVersion = "v2";
+      sessionExpiry = Number(session.expiresAt.toString());
+      sessionUsedActions = session.usedActions;
+      sessionMaxActions = session.maxActions;
+      sessionMaxMarginPerAction = session.maxMarginPerAction;
+    } catch (v2Error: any) {
+      const message = typeof v2Error?.message === "string" ? v2Error.message : "";
+      if (!message.includes("Account does not exist")) {
+        throw v2Error;
+      }
+
+      const sessionAddress = relay.client.getTradeSessionAddress(marketAddress, owner, sessionId);
+      const session = await relay.client.getTradeSession(sessionAddress);
+      if (!session.owner.equals(owner)) {
+        throw new Error("Session owner mismatch");
+      }
+      if (!session.market.equals(marketAddress)) {
+        throw new Error("Session market mismatch");
+      }
+      if (!session.relayer.equals(relay.relayer.publicKey)) {
+        throw new Error("Session relayer mismatch");
+      }
+      if (session.revoked) {
+        throw new Error("Session revoked");
+      }
+      sessionExpiry = Number(session.expiresAt.toString());
+      sessionUsedActions = session.usedActions;
+      sessionMaxActions = session.maxActions;
+      sessionMaxMarginPerAction = session.maxMarginPerAction;
+    }
+
     if (sessionExpiry <= nowSeconds) {
       throw new Error("Session expired");
     }
@@ -211,7 +241,10 @@ export default async function handler(
     }
     const message = buildRelaySessionAuthMessage({
       owner: owner.toBase58(),
-      market: marketAddress.toBase58(),
+      market:
+        sessionVersion === "v2"
+          ? ALL_MARKETS_SESSION_KEY
+          : marketAddress.toBase58(),
       sessionId: sessionId.toString(),
       action: "open",
       sessionExpiresAt: sessionExpiry,
@@ -225,10 +258,10 @@ export default async function handler(
     if (!verified) {
       throw new Error("Invalid session authorization signature");
     }
-    if (session.usedActions >= session.maxActions) {
+    if (sessionUsedActions >= sessionMaxActions) {
       throw new Error("Session action limit reached");
     }
-    if (margin.gt(session.maxMarginPerAction)) {
+    if (margin.gt(sessionMaxMarginPerAction)) {
       throw new Error("Margin exceeds delegated session limit");
     }
 
@@ -242,19 +275,24 @@ export default async function handler(
     // Auto-refresh oracle price if stale (contract requires < 300s freshness)
     await ensureOracleFresh(relay, marketAddress, pairLabel);
 
-    const result = await relay.client.openPositionWithSession(
-      marketAddress,
-      owner,
-      sessionId,
-      {
-        size,
-        entryPrice,
-        leverage: body.leverage as number,
-        direction: body.side,
-        margin,
-        marginMode: body.marginMode ?? "cross",
-      }
-    );
+    const result =
+      sessionVersion === "v2"
+        ? await relay.client.openPositionWithSessionV2(marketAddress, owner, sessionId, {
+            size,
+            entryPrice,
+            leverage: body.leverage as number,
+            direction: body.side,
+            margin,
+            marginMode: body.marginMode ?? "cross",
+          })
+        : await relay.client.openPositionWithSession(marketAddress, owner, sessionId, {
+            size,
+            entryPrice,
+            leverage: body.leverage as number,
+            direction: body.side,
+            margin,
+            marginMode: body.marginMode ?? "cross",
+          });
 
     res.status(200).json({
       ok: true,

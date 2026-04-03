@@ -87,6 +87,19 @@ export interface TradeSession {
   bump: number;
 }
 
+export interface TradeSessionV2 {
+  owner: PublicKey;
+  relayer: PublicKey;
+  sessionId: BN;
+  maxActions: number;
+  usedActions: number;
+  maxMarginPerAction: BN;
+  expiresAt: BN;
+  revoked: boolean;
+  scopeAllMarkets: boolean;
+  bump: number;
+}
+
 // Close position result (revealed data)
 export interface ClosePositionResult {
   realizedPnl: BN;

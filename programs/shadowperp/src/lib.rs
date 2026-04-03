@@ -29,11 +29,17 @@ use handlers::private_orders::__client_accounts_add_private_order;
 use handlers::private_orders::__client_accounts_init_private_order_book;
 use handlers::seed_open_interest_state::__client_accounts_seed_open_interest_state;
 use handlers::session_trading::__client_accounts_close_position_with_session;
+use handlers::session_trading::__client_accounts_close_position_with_session_v2;
 use handlers::session_trading::__client_accounts_create_trade_session;
+use handlers::session_trading::__client_accounts_create_trade_session_v2;
 use handlers::session_trading::__client_accounts_deposit_collateral_with_session;
+use handlers::session_trading::__client_accounts_deposit_collateral_with_session_v2;
 use handlers::session_trading::__client_accounts_open_position_with_session;
+use handlers::session_trading::__client_accounts_open_position_with_session_v2;
 use handlers::session_trading::__client_accounts_revoke_trade_session;
+use handlers::session_trading::__client_accounts_revoke_trade_session_v2;
 use handlers::session_trading::__client_accounts_withdraw_collateral_with_session;
+use handlers::session_trading::__client_accounts_withdraw_collateral_with_session_v2;
 use handlers::settle_close_position::__client_accounts_settle_close_position;
 use handlers::settle_liquidation::__client_accounts_settle_liquidation;
 use handlers::sync_comp_defs::__client_accounts_sync_comp_defs;
@@ -109,6 +115,8 @@ use handlers::seed_open_interest_state::SeedOpenInterestState;
 use handlers::session_trading::{
     ClosePositionWithSession, CreateTradeSession, DepositCollateralWithSession,
     OpenPositionWithSession, RevokeTradeSession, WithdrawCollateralWithSession,
+    ClosePositionWithSessionV2, CreateTradeSessionV2, DepositCollateralWithSessionV2,
+    OpenPositionWithSessionV2, RevokeTradeSessionV2, WithdrawCollateralWithSessionV2,
 };
 #[cfg(feature = "shielded-collateral")]
 use handlers::shielded_collateral::{
@@ -372,9 +380,33 @@ pub mod shadowperp {
         )
     }
 
+    /// Create a wallet-scoped delegated trading session for all supported markets.
+    pub fn create_trade_session_v2(
+        ctx: Context<CreateTradeSessionV2>,
+        session_id: u64,
+        relayer: Pubkey,
+        max_actions: u32,
+        max_margin_per_action: u64,
+        expires_at: i64,
+    ) -> Result<()> {
+        handlers::session_trading::create_trade_session_v2_handler(
+            ctx,
+            session_id,
+            relayer,
+            max_actions,
+            max_margin_per_action,
+            expires_at,
+        )
+    }
+
     /// Owner can revoke a delegated trading session at any time.
     pub fn revoke_trade_session(ctx: Context<RevokeTradeSession>) -> Result<()> {
         handlers::session_trading::revoke_trade_session_handler(ctx)
+    }
+
+    /// Owner can revoke a wallet-scoped delegated trading session at any time.
+    pub fn revoke_trade_session_v2(ctx: Context<RevokeTradeSessionV2>) -> Result<()> {
+        handlers::session_trading::revoke_trade_session_v2_handler(ctx)
     }
 
     /// Relayer opens an encrypted position under an active owner-approved session.
@@ -392,6 +424,35 @@ pub mod shadowperp {
         computation_offset: u64,
     ) -> Result<()> {
         handlers::session_trading::open_position_with_session_handler(
+            ctx,
+            encrypted_size,
+            encrypted_entry_price,
+            encrypted_leverage,
+            encrypted_is_long,
+            encrypted_margin,
+            margin_mode,
+            margin,
+            client_pubkey,
+            nonce,
+            computation_offset,
+        )
+    }
+
+    /// Relayer opens an encrypted position under an active wallet-scoped session.
+    pub fn open_position_with_session_v2(
+        ctx: Context<OpenPositionWithSessionV2>,
+        encrypted_size: [u8; 32],
+        encrypted_entry_price: [u8; 32],
+        encrypted_leverage: [u8; 32],
+        encrypted_is_long: [u8; 32],
+        encrypted_margin: [u8; 32],
+        margin_mode: u8,
+        margin: u64,
+        client_pubkey: [u8; 32],
+        nonce: u128,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::session_trading::open_position_with_session_v2_handler(
             ctx,
             encrypted_size,
             encrypted_entry_price,
@@ -434,6 +495,14 @@ pub mod shadowperp {
         computation_offset: u64,
     ) -> Result<()> {
         handlers::session_trading::close_position_with_session_handler(ctx, computation_offset)
+    }
+
+    /// Relayer closes an encrypted position under an active wallet-scoped session.
+    pub fn close_position_with_session_v2(
+        ctx: Context<ClosePositionWithSessionV2>,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::session_trading::close_position_with_session_v2_handler(ctx, computation_offset)
     }
 
     /// Callback after position closing - reveals final PnL
@@ -526,6 +595,14 @@ pub mod shadowperp {
         handlers::session_trading::withdraw_collateral_with_session_handler(ctx, amount)
     }
 
+    /// Relayer withdraws collateral for owner under an active wallet-scoped delegated session.
+    pub fn withdraw_collateral_with_session_v2(
+        ctx: Context<WithdrawCollateralWithSessionV2>,
+        amount: u64,
+    ) -> Result<()> {
+        handlers::session_trading::withdraw_collateral_with_session_v2_handler(ctx, amount)
+    }
+
     /// Relayer deposits collateral for owner under an active delegated session.
     /// Requires prior SPL token delegate approval from owner to relayer.
     pub fn deposit_collateral_with_session(
@@ -533,6 +610,14 @@ pub mod shadowperp {
         amount: u64,
     ) -> Result<()> {
         handlers::session_trading::deposit_collateral_with_session_handler(ctx, amount)
+    }
+
+    /// Relayer deposits collateral for owner under an active wallet-scoped delegated session.
+    pub fn deposit_collateral_with_session_v2(
+        ctx: Context<DepositCollateralWithSessionV2>,
+        amount: u64,
+    ) -> Result<()> {
+        handlers::session_trading::deposit_collateral_with_session_v2_handler(ctx, amount)
     }
 
     /// Initialize a user-scoped encrypted private orderbook account.
