@@ -124,13 +124,19 @@ export default async function handler(
 
   const ownerRaw = first(req.query.owner);
   const sessionIdRaw = first(req.query.sessionId);
+  const pairParam = first(req.query.pair);
+  if (pairParam && !relay.config.marketRegistry[pairParam]) {
+    throw new Error(`Unknown trading pair: ${pairParam}`);
+  }
+  const pairLabel = pairParam ?? "SOL-USD";
+  const marketAddress = relay.config.marketRegistry[pairLabel] ?? relay.config.marketAddress;
 
   if (!ownerRaw && !sessionIdRaw) {
     res.status(200).json({
       ok: true,
       available: true,
       relayer: relay.relayer.publicKey.toBase58(),
-      market: relay.config.marketAddress.toBase58(),
+      market: marketAddress.toBase58(),
       runtime: runtimeSummary,
     });
     return;
@@ -153,7 +159,7 @@ export default async function handler(
         filters: [
           { dataSize: 168 },
           { memcmp: { offset: 8, bytes: owner.toBase58() } },
-          { memcmp: { offset: 40, bytes: relay.config.marketAddress.toBase58() } },
+          { memcmp: { offset: 40, bytes: marketAddress.toBase58() } },
           { memcmp: { offset: 72, bytes: relay.relayer.publicKey.toBase58() } },
         ],
       });
@@ -191,7 +197,7 @@ export default async function handler(
           ok: true,
           available: true,
           relayer: relay.relayer.publicKey.toBase58(),
-          market: relay.config.marketAddress.toBase58(),
+          market: marketAddress.toBase58(),
           runtime: runtimeSummary,
           exists: false,
         });
@@ -202,7 +208,7 @@ export default async function handler(
         ok: true,
         available: true,
         relayer: relay.relayer.publicKey.toBase58(),
-        market: relay.config.marketAddress.toBase58(),
+        market: marketAddress.toBase58(),
         runtime: runtimeSummary,
         exists: true,
         session: latest,
@@ -216,7 +222,7 @@ export default async function handler(
           ok: true,
           available: true,
           relayer: relay.relayer.publicKey.toBase58(),
-          market: relay.config.marketAddress.toBase58(),
+          market: marketAddress.toBase58(),
           runtime: runtimeSummary,
           exists: false,
         });
@@ -235,7 +241,7 @@ export default async function handler(
     const owner = new PublicKey(ownerRaw!);
     const sessionId = parseSessionId(sessionIdRaw);
     const sessionAddress = relay.client.getTradeSessionAddress(
-      relay.config.marketAddress,
+      marketAddress,
       owner,
       sessionId
     );
@@ -245,7 +251,7 @@ export default async function handler(
       ok: true,
       available: true,
       relayer: relay.relayer.publicKey.toBase58(),
-      market: relay.config.marketAddress.toBase58(),
+      market: marketAddress.toBase58(),
       runtime: runtimeSummary,
       exists: true,
       session: {
@@ -266,7 +272,7 @@ export default async function handler(
         ok: true,
         available: true,
         relayer: relay.relayer.publicKey.toBase58(),
-        market: relay.config.marketAddress.toBase58(),
+        market: marketAddress.toBase58(),
         runtime: runtimeSummary,
         exists: false,
       });

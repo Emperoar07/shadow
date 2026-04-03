@@ -37,7 +37,7 @@ export default function MarketInfo({
 
   return (
     <div
-      className={`trade-market-bar relative z-[120] flex flex-col gap-2 border-b border-shadow-600 bg-shadow-900 px-4 py-2 overflow-visible sm:flex-row sm:items-center sm:gap-3 ${className}`}
+      className={`trade-market-bar relative z-[120] flex flex-col gap-1.5 border-t-2 border-shadow-600 bg-shadow-900 px-4 py-1.5 overflow-visible sm:flex-row sm:items-center sm:gap-2 ${className}`}
     >
       <div className="flex items-center justify-between gap-3 sm:min-w-0">
         {activePair && (
@@ -94,7 +94,6 @@ export default function MarketInfo({
         </div>
       </div>
 
-      <div className="hidden h-6 w-px shrink-0 bg-shadow-600 sm:block" />
       <PortfolioSummary onMarginReady={onMarginReady} />
     </div>
   );

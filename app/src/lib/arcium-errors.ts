@@ -119,6 +119,15 @@ export function classifyArciumError(error: unknown): ArciumErrorInfo {
   }
 
   // --- Arcium: AbortedComputation (6000) ---
+  if (msg.includes("callback already failed on-chain")) {
+    return {
+      message: trimmedMessage(msg),
+      isRetryable: true,
+      errorCode: 6000,
+      category: "arcium",
+    };
+  }
+
   if (code === ANCHOR_ERROR_OFFSET + 0 || msg.includes("AbortedComputation")) {
     return {
       message: "Privacy computation was aborted. Please retry.",
@@ -541,6 +550,10 @@ function extractMessage(error: unknown): string {
     }
   }
   return String(error);
+}
+
+function trimmedMessage(message: string): string {
+  return message.length > 240 ? `${message.slice(0, 240)}...` : message;
 }
 
 function extractErrorCode(error: unknown): number | null {

@@ -37,9 +37,9 @@ async function fetchSolPrice(): Promise<number> {
 }
 
 /** Refresh oracle if stale. Returns silently on failure — the open tx will produce a clearer error. */
-async function ensureOracleFresh(relay: RelayRuntimeContext): Promise<void> {
+async function ensureOracleFresh(relay: RelayRuntimeContext, marketAddress: PublicKey): Promise<void> {
   try {
-    const market = await relay.client.getMarket(relay.config.marketAddress);
+    const market = await relay.client.getMarket(marketAddress);
     const lastUpdate = Number(market.lastPriceUpdate?.toString?.() ?? "0");
     const age = Math.floor(Date.now() / 1000) - lastUpdate;
     if (age < ORACLE_MAX_AGE_SECONDS) return; // still fresh
@@ -47,7 +47,7 @@ async function ensureOracleFresh(relay: RelayRuntimeContext): Promise<void> {
     const price = await fetchSolPrice();
     const priceMicro = new BN(Math.round(price * 1_000_000));
     await relay.client.updateOraclePrice(
-      relay.config.marketAddress,
+      marketAddress,
       relay.relayer.publicKey,
       priceMicro
     );
@@ -66,6 +66,8 @@ type OpenRequestBody = {
   sizeRaw?: string;
   entryPriceRaw?: string;
   marginRaw?: string;
+  /** Trading pair label e.g. "SOL-USD", "BTC-USD". Defaults to SOL-USD. */
+  pairLabel?: string;
   auth?: {
     action?: "open" | "deposit" | "withdraw";
     expiresAt?: number;
@@ -157,8 +159,15 @@ export default async function handler(
     const entryPrice = parseU64Bn("entryPriceRaw", body.entryPriceRaw);
     const margin = parseU64Bn("marginRaw", body.marginRaw);
 
+    // Resolve market address for the requested pair
+    const pairLabel = body.pairLabel ?? "SOL-USD";
+    const marketAddress = relay.config.marketRegistry[pairLabel] ?? relay.config.marketAddress;
+    if (!relay.config.marketRegistry[pairLabel]) {
+      throw new Error(`Unknown trading pair: ${pairLabel}`);
+    }
+
     const sessionAddress = relay.client.getTradeSessionAddress(
-      relay.config.marketAddress,
+      marketAddress,
       owner,
       sessionId
     );
@@ -166,7 +175,7 @@ export default async function handler(
     if (!session.owner.equals(owner)) {
       throw new Error("Session owner mismatch");
     }
-    if (!session.market.equals(relay.config.marketAddress)) {
+    if (!session.market.equals(marketAddress)) {
       throw new Error("Session market mismatch");
     }
     if (!session.relayer.equals(relay.relayer.publicKey)) {
@@ -189,7 +198,7 @@ export default async function handler(
     }
     const message = buildRelaySessionAuthMessage({
       owner: owner.toBase58(),
-      market: relay.config.marketAddress.toBase58(),
+      market: marketAddress.toBase58(),
       sessionId: sessionId.toString(),
       action: "open",
       sessionExpiresAt: sessionExpiry,
@@ -211,17 +220,17 @@ export default async function handler(
     }
 
     // Verify margin account exists — it is created by the first deposit, not by open_position
-    const marginAddress = relay.client.getMarginAccountAddress(relay.config.marketAddress, owner);
+    const marginAddress = relay.client.getMarginAccountAddress(marketAddress, owner);
     const marginExists = await relay.client.getMarginAccount(marginAddress).then(() => true).catch(() => false);
     if (!marginExists) {
       throw new Error("No collateral deposited. Deposit collateral before opening a position.");
     }
 
     // Auto-refresh oracle price if stale (contract requires < 300s freshness)
-    await ensureOracleFresh(relay);
+    await ensureOracleFresh(relay, marketAddress);
 
     const result = await relay.client.openPositionWithSession(
-      relay.config.marketAddress,
+      marketAddress,
       owner,
       sessionId,
       {

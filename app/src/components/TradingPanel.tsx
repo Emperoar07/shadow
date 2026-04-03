@@ -171,7 +171,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     refreshRelaySession,
     ensureRelaySession,
     invalidateRelaySession,
-  } = useArciumPrivacy();
+  } = useArciumPrivacy({ pairLabel: activePair.label });
 
   const isRelaySessionActive =
     !!relaySession &&
@@ -424,6 +424,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
           leverage: input.leverage,
           entryPriceUi: input.entryPrice,
           marginMode: input.marginMode,
+          pairLabel: input.pairLabel,
         },
         true,
         {
@@ -510,16 +511,26 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       setStopLoss("");
       void refreshMarketData();
     } catch (error: any) {
+      const exactErrorMessage =
+        typeof error?.message === "string" && error.message.trim().length > 0
+          ? error.message.trim()
+          : null;
       const rawRelayMessage =
         typeof error?.relayMessage === "string" && error.relayMessage.trim().length > 0
           ? error.relayMessage.trim()
           : null;
       const classified = error?.classified ?? classifyArciumError(error);
-      const msg = rawRelayMessage || classified.message || "Failed to open position";
+      const msg =
+        rawRelayMessage ||
+        (exactErrorMessage?.includes("callback already failed on-chain")
+          ? exactErrorMessage
+          : null) ||
+        classified.message ||
+        "Failed to open position";
       if (typeof error?.txSignature === "string" && error.txSignature.length > 0) {
         setTradeTxSig(error.txSignature);
       }
-      setPrivacyError(classified.message || msg);
+      setPrivacyError(msg);
       if (msg.includes("env var")) {
         setModalOpen(false);
       } else {
@@ -1155,6 +1166,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
         ensureRelaySession={ensureRelaySession}
         invalidateRelaySession={invalidateRelaySession}
         refreshRelaySession={refreshRelaySession}
+        pairLabel={activePair.label}
       />
 
       <OrderConfirmModal

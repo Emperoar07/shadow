@@ -460,6 +460,8 @@ pub fn close_position_with_session_handler(
         .try_into()
         .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
 
+    let exit_price = market.effective_mark_price_at(clock.unix_timestamp);
+
     let args = ArgBuilder::new()
         // position: Enc<Shared, Position> - client x25519 key needed for decryption
         .x25519_pubkey(position.client_pubkey)
@@ -469,7 +471,7 @@ pub fn close_position_with_session_handler(
         .encrypted_u8(encrypted_leverage)
         .encrypted_bool(encrypted_is_long)
         .encrypted_u64(encrypted_margin)
-        .plaintext_u64(market.oracle_price)
+        .plaintext_u64(exit_price)
         .plaintext_u16(market.trading_fee)
         .build();
 

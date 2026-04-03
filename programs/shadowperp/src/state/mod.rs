@@ -1,17 +1,23 @@
+pub mod funding_state;
 pub mod margin_account;
 pub mod market;
 pub mod liquidation_settlement;
 pub mod position;
+pub mod position_funding_ref;
 pub mod private_order_book;
 pub mod trade_session;
+pub mod tpsl_order;
 #[cfg(feature = "shielded-collateral")]
 pub mod shielded_collateral;
 
+pub use funding_state::*;
 pub use margin_account::*;
 pub use market::*;
 pub use liquidation_settlement::*;
 pub use position::*;
+pub use position_funding_ref::*;
 pub use private_order_book::*;
 pub use trade_session::*;
+pub use tpsl_order::*;
 #[cfg(feature = "shielded-collateral")]
 pub use shielded_collateral::*;

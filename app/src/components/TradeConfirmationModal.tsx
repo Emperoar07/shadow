@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getExplorerTxUrl } from "../lib/explorer";
 
 export type TradeStep =
@@ -29,6 +29,10 @@ const STEPS: { key: TradeStep; label: string; sub: string }[] = [
   { key: "confirmed", label: "Confirmed", sub: "Position opened" },
 ];
 
+const PROGRESS_AUTO_MINIMIZE_MS = 1800;
+const TERMINAL_AUTO_MINIMIZE_MS = 3500;
+const TERMINAL_AUTO_DISMISS_MS = 20_000;
+
 function stepIndex(step: TradeStep): number {
   if (step === "error") return -1;
   return STEPS.findIndex((s) => s.key === step);
@@ -47,46 +51,149 @@ export default function TradeConfirmationModal({
 }: TradeConfirmationModalProps) {
   const [visible, setVisible] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [stickyExpanded, setStickyExpanded] = useState(false);
+  const minimizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearMinimizeTimer = useCallback(() => {
+    if (minimizeTimerRef.current) {
+      clearTimeout(minimizeTimerRef.current);
+      minimizeTimerRef.current = null;
+    }
+  }, []);
+
+  const clearDismissTimer = useCallback(() => {
+    if (dismissTimerRef.current) {
+      clearTimeout(dismissTimerRef.current);
+      dismissTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleDismiss = useCallback(() => {
+    clearDismissTimer();
+    dismissTimerRef.current = setTimeout(() => {
+      onClose();
+    }, TERMINAL_AUTO_DISMISS_MS);
+  }, [clearDismissTimer, onClose]);
 
   useEffect(() => {
     if (isOpen) {
       requestAnimationFrame(() => setVisible(true));
       setMinimized(false);
+      setStickyExpanded(false);
     } else {
       setVisible(false);
       setMinimized(false);
+      setStickyExpanded(false);
+      clearMinimizeTimer();
+      clearDismissTimer();
     }
-  }, [isOpen]);
+  }, [clearDismissTimer, clearMinimizeTimer, isOpen]);
 
   useEffect(() => {
-    if (step === "confirmed" || step === "error") {
-      setMinimized(false);
+    if (!isOpen) return;
+    const isTerminal = step === "confirmed" || step === "error";
+
+    clearMinimizeTimer();
+
+    if (isTerminal) {
+      setStickyExpanded(false);
+      scheduleDismiss();
+      minimizeTimerRef.current = setTimeout(() => {
+        setMinimized(true);
+      }, TERMINAL_AUTO_MINIMIZE_MS);
+      return;
     }
-  }, [step]);
+
+    clearDismissTimer();
+    if (!stickyExpanded) {
+      minimizeTimerRef.current = setTimeout(() => {
+        setMinimized(true);
+      }, PROGRESS_AUTO_MINIMIZE_MS);
+    }
+  }, [
+    clearDismissTimer,
+    clearMinimizeTimer,
+    isOpen,
+    scheduleDismiss,
+    step,
+    stickyExpanded,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      clearMinimizeTimer();
+      clearDismissTimer();
+    };
+  }, [clearDismissTimer, clearMinimizeTimer]);
 
   if (!isOpen) return null;
 
   const currentIdx = stepIndex(step);
   const isError = step === "error";
   const isComplete = step === "confirmed";
+  const isTerminal = isError || isComplete;
   const hasQueuedTx = Boolean(txSignature);
   const isLong = direction === "long";
   const priceStr = entryPrice < 0.01 ? entryPrice.toFixed(8) : entryPrice.toFixed(2);
+  const compactMessage =
+    errorMessage && errorMessage.trim().length > 0
+      ? errorMessage.trim()
+      : isComplete
+      ? "Position opened."
+      : "Processing securely on Arcium.";
+  const followUpMessage =
+    hasQueuedTx && isError
+      ? /already failed on-chain|aborted/i.test(errorMessage ?? "")
+        ? "The callback already failed on-chain. Retry after the underlying issue is fixed."
+        : "The request was already queued on Arcium. The callback may still settle."
+      : null;
+  const hasKnownOnChainCallbackFailure =
+    isError && /callback already failed on-chain/i.test(errorMessage ?? "");
   const statusLabel = isError
-    ? hasQueuedTx
+    ? hasKnownOnChainCallbackFailure
+      ? "Callback failed"
+      : hasQueuedTx
       ? "Queued"
       : "Failed"
     : isComplete
     ? "Confirmed"
     : STEPS[Math.max(currentIdx, 0)]?.label ?? "Processing";
+  const statusToneClass = isError
+    ? "border-accent-red/30 bg-accent-red/8 text-accent-red"
+    : isComplete
+    ? "border-accent-green/30 bg-accent-green/8 text-accent-green"
+    : "border-accent-purple/30 bg-accent-purple/8 text-accent-purple";
+
+  const handleExpand = () => {
+    setMinimized(false);
+    setStickyExpanded(true);
+    if (isTerminal) {
+      scheduleDismiss();
+    }
+  };
+
+  const handleMinimize = () => {
+    setMinimized(true);
+    setStickyExpanded(false);
+    if (isTerminal) {
+      scheduleDismiss();
+    }
+  };
+
+  const handleCardInteraction = () => {
+    if (!isTerminal) return;
+    setStickyExpanded(true);
+    scheduleDismiss();
+  };
 
   if (minimized) {
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
         <button
           type="button"
-          onClick={() => setMinimized(false)}
-          className={`pointer-events-auto flex items-center gap-3 rounded-2xl border border-shadow-500 bg-shadow-800 px-4 py-3 shadow-2xl transition-all hover:-translate-y-0.5 ${
+          onClick={handleExpand}
+          className={`pointer-events-auto flex min-w-[15rem] items-center gap-3 rounded-2xl border border-shadow-500 bg-shadow-800/95 px-4 py-3 shadow-2xl backdrop-blur transition-all hover:-translate-y-0.5 ${
             isError
               ? "shadow-red-500/10"
               : isComplete
@@ -95,28 +202,40 @@ export default function TradeConfirmationModal({
           }`}
         >
           <span
-            className={`inline-flex h-2.5 w-2.5 rounded-full ${
-              isError
-                ? "bg-accent-red"
-                : isComplete
-                ? "bg-accent-green"
-                : "bg-accent-purple animate-pulse"
-            }`}
-          />
-          <span className="text-left">
+            className={`inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border ${statusToneClass}`}
+          >
+            {isTerminal ? (
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  isError ? "bg-accent-red" : "bg-accent-green"
+                }`}
+              />
+            ) : (
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" />
+                <path className="opacity-100" d="M21 12a9 9 0 00-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              </svg>
+            )}
+          </span>
+          <span className="min-w-0 flex-1 text-left">
             <span className="block text-[11px] font-semibold text-white">{statusLabel}</span>
-            <span className="block text-[10px] text-gray-500">
-              {direction.toUpperCase()} {size} @ ${priceStr}
+            <span className="block truncate text-[10px] text-gray-500">
+              {isTerminal ? compactMessage : `${direction.toUpperCase()} ${size} @ $${priceStr}`}
             </span>
           </span>
+          <svg className="h-4 w-4 flex-shrink-0 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
         </button>
       </div>
     );
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 pointer-events-none">
+    <div className="fixed bottom-4 right-4 z-50 pointer-events-none sm:bottom-6 sm:right-6">
       <div
+        onMouseDown={handleCardInteraction}
+        onTouchStart={handleCardInteraction}
         className={`pointer-events-auto w-[min(26rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-shadow-500/80 bg-shadow-800 shadow-2xl transition-all duration-300 ${
           visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-95 opacity-0"
         }`}
@@ -146,7 +265,7 @@ export default function TradeConfirmationModal({
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setMinimized(true)}
+              onClick={handleMinimize}
               className="mt-0.5 text-gray-600 transition-colors hover:text-gray-300"
               aria-label="Minimize trade status"
             >
@@ -226,15 +345,19 @@ export default function TradeConfirmationModal({
                   </svg>
                 </div>
                 <span className="text-sm font-semibold text-accent-red">
-                  {hasQueuedTx ? "Queued but not finalized" : "Transaction failed"}
+                  {hasKnownOnChainCallbackFailure
+                    ? "Callback failed on-chain"
+                    : hasQueuedTx
+                    ? "Queued but not finalized"
+                    : "Transaction failed"}
                 </span>
               </div>
               <p className="text-[11px] leading-relaxed text-gray-500">
                 {errorMessage || "An error occurred. Please try again."}
               </p>
-              {hasQueuedTx ? (
+              {followUpMessage ? (
                 <p className="mt-2 text-[10px] text-gray-500">
-                  The request was already queued on Arcium. The callback may still settle.
+                  {followUpMessage}
                 </p>
               ) : null}
             </div>

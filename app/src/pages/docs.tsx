@@ -323,7 +323,7 @@ export default function DocsPage() {
               to prevent position data from becoming exploitable public information.
             </p>
             <p>
-              ShadowPerp supports <strong>11 trading pairs</strong> including SOL, BTC, ETH, WIF, JUP, PYTH, RAY, ORCA, W, JTO, and RENDER against USD. The selected pair persists across page refreshes. On chain settlement and oracle data currently use the SOL/USD market on devnet.
+              ShadowPerp supports <strong>6 trading pairs</strong>: SOL-USD, BTC-USD, ETH-USD, JUP-USD, PYTH-USD, and ORCA-USD. Each pair routes to its own on-chain market PDA. The selected pair persists across page refreshes.
             </p>
             <Note>
               ShadowPerp is currently deployed on <strong>Solana Devnet</strong> at program ID <Code>ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4</Code>. All balances are test funds.

@@ -2,6 +2,7 @@ pub mod callbacks;
 pub mod check_liquidation;
 pub mod close_position;
 pub mod deposit_collateral;
+pub mod funding;
 pub mod init_arcium_signer;
 pub mod init_comp_defs;
 pub mod initialize;
@@ -14,6 +15,7 @@ pub mod settle_liquidation;
 #[cfg(feature = "shielded-collateral")]
 pub mod shielded_collateral;
 pub mod sync_comp_defs;
+pub mod tpsl;
 pub mod update_mxe_cluster;
 pub mod update_price;
 pub mod withdraw_collateral;

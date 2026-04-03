@@ -28,6 +28,7 @@ interface CollateralModalProps {
   ) => Promise<SessionRelayInfo | null>;
   invalidateRelaySession: (owner?: string, market?: string) => void;
   refreshRelaySession: () => Promise<SessionRelayInfo | null>;
+  pairLabel?: string;
 }
 
 export default function CollateralModal({
@@ -41,6 +42,7 @@ export default function CollateralModal({
   ensureRelaySession,
   invalidateRelaySession,
   refreshRelaySession,
+  pairLabel = "SOL-USD",
 }: CollateralModalProps) {
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
@@ -88,6 +90,7 @@ export default function CollateralModal({
             owner: session.owner,
             sessionId: session.sessionId,
             amountRaw: amountBN.toString(),
+            pairLabel,
             auth: {
               action: endpoint === "/api/relay/deposit" ? "deposit" : "withdraw",
               expiresAt: authExpiresAt,

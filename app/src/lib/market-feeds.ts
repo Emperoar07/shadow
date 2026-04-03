@@ -37,19 +37,6 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "gateio", symbol: "SOL_USDT", quoteSymbol: "USDT" },
     ],
   },
-  "WIF-USD": {
-    primaryChartSymbol: "BINANCE:WIFUSDT.P",
-    primaryDepthProvider: "binance",
-    secondaryDepthProvider: "bybit",
-    minVisibleLevels: 14,
-    preferredGrouping: 0.001,
-    referenceProviders: [
-      { provider: "binance", symbol: "WIFUSDT", quoteSymbol: "USDT" },
-      { provider: "bybit", symbol: "WIFUSDT", quoteSymbol: "USDT" },
-      { provider: "mexc", symbol: "WIFUSDT", quoteSymbol: "USDT" },
-      { provider: "gateio", symbol: "WIF_USDT", quoteSymbol: "USDT" },
-    ],
-  },
   "JUP-USD": {
     primaryChartSymbol: "BINANCE:JUPUSDT.P",
     primaryDepthProvider: "bybit",
@@ -100,18 +87,6 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
       { provider: "gateio", symbol: "PYTH_USDT", quoteSymbol: "USDT" },
     ],
   },
-  "RAY-USD": {
-    primaryChartSymbol: "BINANCE:RAYUSDT.P",
-    primaryDepthProvider: "binance",
-    secondaryDepthProvider: "gateio",
-    minVisibleLevels: 14,
-    preferredGrouping: 0.001,
-    referenceProviders: [
-      { provider: "binance", symbol: "RAYUSDT", quoteSymbol: "USDT" },
-      { provider: "gateio", symbol: "RAY_USDT", quoteSymbol: "USDT" },
-      { provider: "mexc", symbol: "RAYUSDT", quoteSymbol: "USDT" },
-    ],
-  },
   "ORCA-USD": {
     primaryChartSymbol: "BYBIT:ORCAUSDT.P",
     primaryDepthProvider: "mexc",
@@ -121,43 +96,6 @@ const MARKET_FEEDS: Record<string, MarketFeedConfig> = {
     referenceProviders: [
       { provider: "mexc", symbol: "ORCAUSDT", quoteSymbol: "USDT" },
       { provider: "gateio", symbol: "ORCA_USDT", quoteSymbol: "USDT" },
-    ],
-  },
-  "W-USD": {
-    primaryChartSymbol: "BINANCE:WUSDT.P",
-    primaryDepthProvider: "binance",
-    secondaryDepthProvider: "bybit",
-    minVisibleLevels: 14,
-    preferredGrouping: 0.001,
-    referenceProviders: [
-      { provider: "binance", symbol: "WUSDT", quoteSymbol: "USDT" },
-      { provider: "bybit", symbol: "WUSDT", quoteSymbol: "USDT" },
-      { provider: "mexc", symbol: "WUSDT", quoteSymbol: "USDT" },
-      { provider: "gateio", symbol: "W_USDT", quoteSymbol: "USDT" },
-    ],
-  },
-  "JTO-USD": {
-    primaryChartSymbol: "BINANCE:JTOUSDT.P",
-    primaryDepthProvider: "bybit",
-    secondaryDepthProvider: "mexc",
-    minVisibleLevels: 14,
-    preferredGrouping: 0.001,
-    referenceProviders: [
-      { provider: "bybit", symbol: "JTOUSDT", quoteSymbol: "USDT" },
-      { provider: "mexc", symbol: "JTOUSDT", quoteSymbol: "USDT" },
-      { provider: "gateio", symbol: "JTO_USDT", quoteSymbol: "USDT" },
-    ],
-  },
-  "RENDER-USD": {
-    primaryChartSymbol: "BINANCE:RENDERUSDT.P",
-    primaryDepthProvider: "binance",
-    secondaryDepthProvider: "gateio",
-    minVisibleLevels: 14,
-    preferredGrouping: 0.001,
-    referenceProviders: [
-      { provider: "binance", symbol: "RENDERUSDT", quoteSymbol: "USDT" },
-      { provider: "gateio", symbol: "RENDER_USDT", quoteSymbol: "USDT" },
-      { provider: "mexc", symbol: "RENDERUSDT", quoteSymbol: "USDT" },
     ],
   },
 };

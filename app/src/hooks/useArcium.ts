@@ -59,6 +59,7 @@ export interface PrivateOrderInput {
   leverage: number;
   entryPriceUi?: number;
   marginMode?: "cross" | "isolated";
+  pairLabel?: string;
 }
 
 export interface SessionRelayInfo {
@@ -529,7 +530,7 @@ function attachRelayOpenContext(
   return withContext;
 }
 
-export const useArciumPrivacy = () => {
+export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => {
   const { connection } = useConnection();
   const anchorWallet = useAnchorWalletCompat();
   const { publicKey, signMessage } = useWallet();
@@ -606,6 +607,38 @@ export const useArciumPrivacy = () => {
     return clientRef.current;
   }, [anchorWallet, connection]);
 
+  // Resolve market address: use pairLabel's market PDA if known, otherwise default.
+  const resolveMarketAddress = useCallback((ctx: ReturnType<typeof getClient>) => {
+    if (!ctx) return null;
+    const registry = ctx.runtime.marketRegistry as Record<string, import("@solana/web3.js").PublicKey> | undefined;
+    if (pairLabel && registry && registry[pairLabel]) return registry[pairLabel];
+    return ctx.runtime.marketAddress;
+  }, [pairLabel]);
+
+  const resolvePairLabelForMarket = useCallback(
+    (
+      ctx: ReturnType<typeof getClient>,
+      marketAddress?: string | import("@solana/web3.js").PublicKey | null
+    ): string | undefined => {
+      if (!ctx) return pairLabel;
+      const target =
+        typeof marketAddress === "string"
+          ? marketAddress
+          : marketAddress?.toBase58();
+      if (!target) return pairLabel;
+      const registry =
+        ctx.runtime.marketRegistry as
+          | Record<string, import("@solana/web3.js").PublicKey>
+          | undefined;
+      if (!registry) return pairLabel;
+      for (const [label, address] of Object.entries(registry)) {
+        if (address.toBase58() === target) return label;
+      }
+      return pairLabel;
+    },
+    [pairLabel]
+  );
+
   const resetStatus = useCallback(() => {
     setStatus("idle");
     setStatusMessage("");
@@ -650,10 +683,15 @@ export const useArciumPrivacy = () => {
 
     setRelaySessionRecovering(true);
     try {
+      const ctx = getClient();
       const query = new URLSearchParams({
         owner: current.owner,
         sessionId: current.sessionId,
       });
+      const pair = resolvePairLabelForMarket(ctx, current.market);
+      if (pair) {
+        query.set("pair", pair);
+      }
       const response = await fetch(`/api/relay/session?${query.toString()}`);
       const payload = await response.json().catch(() => null);
       const nowSeconds = Math.floor(Date.now() / 1000);
@@ -710,7 +748,7 @@ export const useArciumPrivacy = () => {
     } finally {
       setRelaySessionRecovering(false);
     }
-  }, [publicKey, relaySession]);
+  }, [getClient, publicKey, relaySession, resolvePairLabelForMarket]);
 
   const invalidateRelaySession = useCallback(
     (owner?: string, market?: string) => {
@@ -828,11 +866,14 @@ export const useArciumPrivacy = () => {
       if (!ctx) return null;
 
       const owner = publicKey.toBase58();
-      const market = ctx.runtime.marketAddress.toBase58();
+      const resolvedMarket = resolveMarketAddress(ctx);
+      if (!resolvedMarket) return null;
+      const market = resolvedMarket.toBase58();
       const nowSeconds = Math.floor(Date.now() / 1000);
       setRelaySessionRecovering(true);
       try {
         const query = new URLSearchParams({ owner });
+        if (pairLabel) query.set("pair", pairLabel);
         const response = await fetch(`/api/relay/session?${query.toString()}`);
         const payload = await response.json().catch(() => null);
         if (!response.ok || !payload?.ok || !payload?.available || payload.exists === false || !payload.session) {
@@ -854,7 +895,7 @@ export const useArciumPrivacy = () => {
 
         const sessionAddress = ctx.client
           .getTradeSessionAddress(
-            ctx.runtime.marketAddress,
+            resolvedMarket,
             new PublicKey(owner),
             new BN(sessionId, 10)
           )
@@ -910,7 +951,7 @@ export const useArciumPrivacy = () => {
         setRelaySessionRecovering(false);
       }
     },
-    [publicKey, getClient, ensureRelaySessionAuth]
+    [publicKey, getClient, resolveMarketAddress, pairLabel, ensureRelaySessionAuth]
   );
 
   const createRelaySession = useCallback(
@@ -933,9 +974,10 @@ export const useArciumPrivacy = () => {
           throw new Error(relayError || "Relay unavailable.");
         }
 
-        const { client, runtime } = ctx;
+        const { client } = ctx;
+        const resolvedMarket = resolveMarketAddress(ctx)!;
         const owner = publicKey.toBase58();
-        const marketAddress = runtime.marketAddress.toBase58();
+        const marketAddress = resolvedMarket.toBase58();
         const nowSeconds = Math.floor(Date.now() / 1000);
         const existing =
           relaySession ??
@@ -950,7 +992,7 @@ export const useArciumPrivacy = () => {
           const prepared = await maybeEnsureCollateralForReason(
             authed,
             reason,
-            runtime.marketAddress
+            resolvedMarket
           );
           setRelaySession(prepared);
           return prepared;
@@ -985,7 +1027,7 @@ export const useArciumPrivacy = () => {
         setStatusMessage("Creating delegated session on-chain...");
 
         const { txSignature, sessionAddress } = await client.createTradeSession(
-          runtime.marketAddress,
+          resolvedMarket,
           sessionId,
           new PublicKey(relayInfo.relayer),
           maxActions,
@@ -1013,7 +1055,7 @@ export const useArciumPrivacy = () => {
         const preparedSession = await maybeEnsureCollateralForReason(
           nextSession,
           reason,
-          runtime.marketAddress
+          resolvedMarket
         );
         setRelaySession(preparedSession);
         persistSession(preparedSession);
@@ -1030,6 +1072,7 @@ export const useArciumPrivacy = () => {
       publicKey,
       signMessage,
       getClient,
+      resolveMarketAddress,
       refreshRelayAvailability,
       relayError,
       relaySession,
@@ -1042,7 +1085,8 @@ export const useArciumPrivacy = () => {
     async (options?: EnsureRelaySessionOptions) => {
       const ctx = getClient();
       const owner = publicKey?.toBase58();
-      const market = ctx?.runtime.marketAddress.toBase58();
+      const resolvedCtxMarket = ctx ? resolveMarketAddress(ctx) : null;
+      const market = resolvedCtxMarket?.toBase58();
       const nowSeconds = Math.floor(Date.now() / 1000);
       const reason = options?.reason ?? "trade";
       const userInitiated = Boolean(options?.userInitiated);
@@ -1056,7 +1100,7 @@ export const useArciumPrivacy = () => {
         return maybeEnsureCollateralForReason(
           authed,
           reason,
-          ctx?.runtime.marketAddress
+          resolvedCtxMarket ?? undefined
         );
       };
 
@@ -1095,6 +1139,7 @@ export const useArciumPrivacy = () => {
     [
       createRelaySession,
       getClient,
+      resolveMarketAddress,
       ensureRelaySessionAuth,
       maybeEnsureCollateralForReason,
       publicKey,
@@ -1115,7 +1160,7 @@ export const useArciumPrivacy = () => {
           throw new Error("Trading client unavailable.");
         }
         await ctx.client.revokeTradeSession(
-          ctx.runtime.marketAddress,
+          resolveMarketAddress(ctx) ?? ctx.runtime.marketAddress,
           new BN(current.sessionId, 10)
         );
       }
@@ -1123,7 +1168,7 @@ export const useArciumPrivacy = () => {
       setRelaySession(null);
       clearStoredSession(current.owner, current.market);
     },
-    [relaySession, getClient]
+    [relaySession, getClient, resolveMarketAddress]
   );
 
   useEffect(() => {
@@ -1141,7 +1186,7 @@ export const useArciumPrivacy = () => {
     }
 
     const owner = publicKey.toBase58();
-    const market = ctx.runtime.marketAddress.toBase58();
+    const market = (resolveMarketAddress(ctx) ?? ctx.runtime.marketAddress).toBase58();
     const stored = readStoredSession(owner, market);
     if (!stored) {
       setRelaySession(null);
@@ -1263,7 +1308,7 @@ export const useArciumPrivacy = () => {
         setRelaySession(null);
         return;
       }
-      const market = ctx.runtime.marketAddress.toBase58();
+      const market = (resolveMarketAddress(ctx) ?? ctx.runtime.marketAddress).toBase58();
       const stored = readStoredSession(owner, market);
       const nowSeconds = Math.floor(Date.now() / 1000);
       if (
@@ -1311,7 +1356,8 @@ export const useArciumPrivacy = () => {
         throw new Error("Connect a compatible wallet and ensure runtime env vars are configured.");
       }
 
-      const { client, runtime } = ctx;
+      const { client } = ctx;
+      const orderMarket = resolveMarketAddress(ctx)!;
       requireFinitePositive(order.sizeUi, "position size");
       if (!Number.isInteger(order.leverage) || order.leverage < 1) {
         throw new Error("Invalid leverage.");
@@ -1324,7 +1370,7 @@ export const useArciumPrivacy = () => {
           : "Public mode selected. This build routes through encrypted path."
       );
 
-      const market = await client.getMarket(runtime.marketAddress);
+      const market = await client.getMarket(orderMarket);
       const marketMaxLeverage = Number(market.maxLeverage ?? 0);
       if (
         !Number.isFinite(marketMaxLeverage) ||
@@ -1354,7 +1400,7 @@ export const useArciumPrivacy = () => {
         isUsableRelaySession(
           relaySession,
           anchorWallet?.publicKey?.toBase58(),
-          runtime.marketAddress.toBase58(),
+          orderMarket.toBase58(),
           nowSeconds
         )
           ? relaySession
@@ -1369,7 +1415,7 @@ export const useArciumPrivacy = () => {
           isUsableRelaySession(
             ensured,
             anchorWallet?.publicKey?.toBase58(),
-            runtime.marketAddress.toBase58(),
+            orderMarket.toBase58(),
             Math.floor(Date.now() / 1000)
           )
         ) {
@@ -1420,6 +1466,7 @@ export const useArciumPrivacy = () => {
           sizeRaw: sizeBase.toString(),
           entryPriceRaw: entryPrice.toString(),
           marginRaw: marginBase.toString(),
+          pairLabel: order.pairLabel ?? "SOL-USD",
           auth: {
             action: "open",
             expiresAt: activeRelaySession.authExpiresAt,
@@ -1484,7 +1531,7 @@ export const useArciumPrivacy = () => {
           connection,
           client,
           new PublicKey(positionAddress),
-          runtime.clusterOffset
+          ctx.runtime.clusterOffset
         );
       } catch (error: any) {
         const message =
@@ -1506,7 +1553,7 @@ export const useArciumPrivacy = () => {
         usedPrivatePath: true,
       };
     },
-    [getClient, relaySession, anchorWallet, ensureRelaySession, invalidateRelaySession, connection]
+    [getClient, resolveMarketAddress, relaySession, anchorWallet, ensureRelaySession, invalidateRelaySession, connection]
   );
 
   const setError = useCallback((message: string) => {

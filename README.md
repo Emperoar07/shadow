@@ -11,7 +11,7 @@ ShadowPerp encrypts order sizes, entry prices, leverage, and collateral before s
 - **Encrypted Positions** — Trade size, direction, leverage, entry price, and liquidation price are encrypted end to end. No plaintext position data is published on chain.
 - **Private Orderbook** — Order flow is shielded from MEV bots and front runners. Orders cannot be extracted or front run because they are never visible.
 - **Session Trading** — Approve a delegated trading session once and trade without repeated wallet prompts. The relay submits encrypted orders on your behalf within configurable limits. Revoke the session instantly from the Settings panel.
-- **11 Trading Pairs** — SOL, BTC, ETH, WIF, JUP, PYTH, RAY, ORCA, W, JTO, and RENDER against USD. Selected pair persists across page refreshes.
+- **6 Trading Pairs** — SOL-USD, BTC-USD, ETH-USD, JUP-USD, PYTH-USD, and ORCA-USD. Each pair routes to its own on-chain market PDA. Selected pair persists across page refreshes.
 - **Live Orderbook** — Real time market depth from Binance, Coinbase, Bybit, and Gate.io. Gate.io is fetched directly in the browser as a fallback when other providers are unreachable.
 - **Cross and Isolated Margin** — Choose between shared margin across positions or isolated margin per position. Leverage from 1x to 50x.
 - **Confidential Liquidations** — Liquidation prices are encrypted. No external party can target a position based on its liquidation threshold.
@@ -164,7 +164,7 @@ ShadowPerp is deployed on Solana Devnet as an active prototype.
 - Take profit and stop loss rules
 - Collateral deposit and withdrawal (direct and session delegated)
 - Private position metadata stored in the browser for UI continuity
-- Live reference orderbook for all 11 pairs via Binance, Coinbase, Bybit, and Gate.io with client side fallback
+- Live reference orderbook for all 6 pairs via Binance, Coinbase, Bybit, and Gate.io with client side fallback
 - Pyth oracle integration with `update-oracle-pyth.ts`
 - Custom named RPC endpoint manager (up to 5, saved to localStorage)
 - Session revoke UI in the Settings panel

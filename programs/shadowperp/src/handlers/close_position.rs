@@ -138,6 +138,8 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         .try_into()
         .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
 
+    let exit_price = market.effective_mark_price_at(clock.unix_timestamp);
+
     let args = ArgBuilder::new()
         // position: Enc<Shared, Position> - client x25519 key needed for decryption
         .x25519_pubkey(position.client_pubkey)
@@ -147,8 +149,8 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         .encrypted_u8(encrypted_leverage) // leverage
         .encrypted_bool(encrypted_is_long) // is_long
         .encrypted_u64(encrypted_margin) // margin
-        // exit_price: u64 (plaintext - current oracle price)
-        .plaintext_u64(market.oracle_price)
+        // exit_price: fresh mark_price or oracle_price as fallback
+        .plaintext_u64(exit_price)
         // trading_fee_bps: only market field needed by the close circuit
         .plaintext_u16(market.trading_fee)
         .build();

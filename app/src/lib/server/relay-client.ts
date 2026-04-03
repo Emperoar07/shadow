@@ -13,6 +13,7 @@ import {
 import shadowperpIdl from "../../idl/shadowperp.json";
 import { ShadowPerpClient } from "../client";
 import { ShadowPerpConfig } from "../../types";
+import { TRADING_PAIRS } from "../tokens";
 
 const DEFAULT_CLUSTER_OFFSET = 456;
 const DEFAULT_RPC_ENDPOINT = "https://api.devnet.solana.com";
@@ -193,12 +194,17 @@ function buildRelayConfig(programId: PublicKey): ShadowPerpConfig {
     "NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT",
     DEFAULT_COLLATERAL_MINT
   );
-  // SOL mint — base asset seed for the SOL-USD market PDA
-  const SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
-  const [derivedMarketAddress] = PublicKey.findProgramAddressSync(
-    [Buffer.from("market"), collateralMint.toBuffer(), SOL_MINT.toBuffer()],
-    programId
-  );
+
+  // Derive market PDA for each trading pair
+  const marketRegistry: Record<string, PublicKey> = {};
+  for (const pair of TRADING_PAIRS) {
+    const [pda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("market"), collateralMint.toBuffer(), pair.base.mint.toBuffer()],
+      programId
+    );
+    marketRegistry[pair.label] = pda;
+  }
+  const derivedMarketAddress = marketRegistry["SOL-USD"]!;
   const clusterOffsetRaw = normalize(process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET);
   const clusterOffset = clusterOffsetRaw
     ? Number.parseInt(clusterOffsetRaw, 10)
@@ -230,6 +236,7 @@ function buildRelayConfig(programId: PublicKey): ShadowPerpConfig {
       "NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT",
       derivedMarketAddress.toBase58()
     ),
+    marketRegistry,
     mempoolAccount: getMempoolAccAddress(clusterOffset),
     executingPool: getExecutingPoolAccAddress(clusterOffset),
     poolAccount: getFeePoolAccAddress(),

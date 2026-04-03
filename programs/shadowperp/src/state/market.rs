@@ -131,8 +131,61 @@ impl Market {
         32 + // seed_open_interest_comp_def
         32 + // base_asset_mint
         32 + // pyth_feed_id
-        16; // reserved (includes future shielded comp def slots)
+        16; // reserved (mark_price [0..8] + last_mark_price_update [8..16])
 
+    // _reserved byte layout:
+    // [0..8]  — mark_price (u64, 6-decimal fixed-point, same scale as oracle_price)
+    // [8..16] — last_mark_price_update (i64, unix timestamp)
+    const MARK_PRICE_OFFSET: usize = 0;
+    const LAST_MARK_PRICE_UPDATE_OFFSET: usize = 8;
+
+    /// Maximum deviation of mark_price from index_price as basis points (200 bps = 2%)
+    pub const MARK_PRICE_MAX_DEVIATION_BPS: u64 = 200;
+    pub const MARK_PRICE_MAX_AGE_SECONDS: i64 = 300;
+
+    pub fn mark_price(&self) -> u64 {
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&self._reserved[Self::MARK_PRICE_OFFSET..Self::MARK_PRICE_OFFSET + 8]);
+        u64::from_le_bytes(buf)
+    }
+
+    pub fn last_mark_price_update(&self) -> i64 {
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(
+            &self._reserved[Self::LAST_MARK_PRICE_UPDATE_OFFSET..Self::LAST_MARK_PRICE_UPDATE_OFFSET + 8],
+        );
+        i64::from_le_bytes(buf)
+    }
+
+    pub fn set_mark_price(&mut self, value: u64) {
+        self._reserved[Self::MARK_PRICE_OFFSET..Self::MARK_PRICE_OFFSET + 8]
+            .copy_from_slice(&value.to_le_bytes());
+    }
+
+    pub fn set_last_mark_price_update(&mut self, value: i64) {
+        self._reserved[Self::LAST_MARK_PRICE_UPDATE_OFFSET..Self::LAST_MARK_PRICE_UPDATE_OFFSET + 8]
+            .copy_from_slice(&value.to_le_bytes());
+    }
+
+    pub fn mark_price_is_fresh(&self, now_ts: i64) -> bool {
+        let mark_price = self.mark_price();
+        let last_update = self.last_mark_price_update();
+        if mark_price == 0 || last_update <= 0 {
+            return false;
+        }
+        now_ts.saturating_sub(last_update) < Self::MARK_PRICE_MAX_AGE_SECONDS
+    }
+
+    /// Returns the effective settlement/liquidation price.
+    /// Falls back to oracle_price if mark_price is unset or stale.
+    pub fn effective_mark_price_at(&self, now_ts: i64) -> u64 {
+        let mp = self.mark_price();
+        if mp == 0 || !self.mark_price_is_fresh(now_ts) {
+            self.oracle_price
+        } else {
+            mp
+        }
+    }
 }
 
 /// Event emitted when market is initialized
@@ -149,5 +202,15 @@ pub struct MarketInitialized {
 pub struct PriceUpdated {
     pub old_price: u64,
     pub new_price: u64,
+    pub timestamp: i64,
+}
+
+/// Event emitted when mark price is updated
+#[event]
+pub struct MarkPriceUpdated {
+    pub market: Pubkey,
+    pub old_mark_price: u64,
+    pub new_mark_price: u64,
+    pub index_price: u64,
     pub timestamp: i64,
 }

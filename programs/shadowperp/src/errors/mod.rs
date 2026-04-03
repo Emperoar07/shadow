@@ -93,4 +93,25 @@ pub enum ShadowPerpError {
 
     #[msg("Pending computation has timed out")]
     PendingComputationTimeout,
+
+    #[msg("Mark price deviation exceeds the allowed cap from index price")]
+    MarkPriceDeviationExceedsCap,
+
+    #[msg("Funding interval has not elapsed yet")]
+    FundingIntervalNotElapsed,
+
+    #[msg("Open interest cap exceeded for this direction")]
+    OiCapExceeded,
+
+    #[msg("TP/SL order is not active")]
+    TpSlNotActive,
+
+    #[msg("TP/SL trigger conditions not met")]
+    TpSlNotTriggered,
+
+    #[msg("Invalid TP/SL price configuration")]
+    InvalidTpSlPrice,
+
+    #[msg("Mark price is not set or stale")]
+    MarkPriceStale,
 }

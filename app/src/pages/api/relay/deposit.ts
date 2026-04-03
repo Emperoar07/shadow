@@ -16,6 +16,7 @@ type DepositRequestBody = {
   owner?: string;
   sessionId?: string;
   amountRaw?: string;
+  pairLabel?: string;
   auth?: {
     action?: "open" | "deposit" | "withdraw";
     expiresAt?: number;
@@ -84,11 +85,17 @@ export default async function handler(
     const sessionId = new BN(body.sessionId, 10);
     const amount = parseU64Bn("amountRaw", body.amountRaw);
 
+    const pairLabel = body.pairLabel ?? "SOL-USD";
+    if (!relay.config.marketRegistry[pairLabel]) {
+      throw new Error(`Unknown trading pair: ${pairLabel}`);
+    }
+    const marketAddress = relay.config.marketRegistry[pairLabel];
+
     const nowSeconds = Math.floor(Date.now() / 1000);
     const authExpiresAt = Math.floor(body.auth.expiresAt as number);
 
     const sessionAddress = relay.client.getTradeSessionAddress(
-      relay.config.marketAddress,
+      marketAddress,
       owner,
       sessionId
     );
@@ -96,7 +103,7 @@ export default async function handler(
     if (!session.owner.equals(owner)) {
       throw new Error("Session owner mismatch");
     }
-    if (!session.market.equals(relay.config.marketAddress)) {
+    if (!session.market.equals(marketAddress)) {
       throw new Error("Session market mismatch");
     }
     if (!session.relayer.equals(relay.relayer.publicKey)) {
@@ -118,7 +125,7 @@ export default async function handler(
 
     const message = buildRelaySessionAuthMessage({
       owner: owner.toBase58(),
-      market: relay.config.marketAddress.toBase58(),
+      market: marketAddress.toBase58(),
       sessionId: sessionId.toString(),
       action: "deposit",
       sessionExpiresAt: sessionExpiry,
@@ -140,7 +147,7 @@ export default async function handler(
     }
 
     const txSignature = await relay.client.depositCollateralWithSession(
-      relay.config.marketAddress,
+      marketAddress,
       owner,
       sessionId,
       amount

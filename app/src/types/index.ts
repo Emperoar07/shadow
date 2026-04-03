@@ -122,7 +122,10 @@ export interface ShadowPerpConfig {
   mxeProgramId: PublicKey;
   clusterOffset: number;
   clusterAddress: PublicKey;
+  /** Default market (SOL-USD) — kept for backwards compat */
   marketAddress: PublicKey;
+  /** Per-pair market addresses: label → PDA (e.g. "BTC-USD" → PublicKey) */
+  marketRegistry: Record<string, PublicKey>;
   mempoolAccount: PublicKey;
   executingPool: PublicKey;
   poolAccount: PublicKey;

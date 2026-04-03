@@ -42,6 +42,14 @@ use handlers::update_price::__client_accounts_update_price;
 use handlers::update_price::__client_accounts_update_price_from_pyth;
 use handlers::update_price::__client_accounts_set_pyth_feed_id;
 use handlers::withdraw_collateral::__client_accounts_withdraw_collateral;
+use handlers::funding::__client_accounts_init_funding_state;
+use handlers::funding::__client_accounts_update_funding_rate;
+use handlers::funding::__client_accounts_set_funding_premium;
+use handlers::funding::__client_accounts_set_oi_caps;
+use handlers::funding::__client_accounts_update_mark_price;
+use handlers::tpsl::__client_accounts_set_tp_sl;
+use handlers::tpsl::__client_accounts_cancel_tp_sl;
+use handlers::tpsl::__client_accounts_trigger_tp_sl;
 use handlers::callbacks::__client_accounts_check_liquidation_callback;
 use handlers::callbacks::__client_accounts_close_position_v2_callback;
 use handlers::callbacks::__client_accounts_execute_private_order_callback;
@@ -121,6 +129,8 @@ use handlers::sync_comp_defs::SyncCompDefs;
 use handlers::update_mxe_cluster::UpdateMxeCluster;
 use handlers::update_price::{SetPythFeedId, UpdatePrice, UpdatePriceFromPyth};
 use handlers::withdraw_collateral::WithdrawCollateral;
+use handlers::funding::{InitFundingState, UpdateFundingRate, SetFundingPremium, SetOiCaps, UpdateMarkPrice};
+use handlers::tpsl::{SetTpSl, CancelTpSl, TriggerTpSl};
 
 #[arcium_program]
 pub mod shadowperp {
@@ -589,6 +599,67 @@ pub mod shadowperp {
     /// Authority-only: update the Pyth feed ID stored on a market.
     pub fn set_pyth_feed_id(ctx: Context<SetPythFeedId>, pyth_feed_id_hex: String) -> Result<()> {
         handlers::update_price::set_pyth_feed_id_handler(ctx, pyth_feed_id_hex)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Tier 2: Mark price, funding rates, OI caps, TP/SL
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Authority-only: initialize the FundingState PDA for a market.
+    pub fn init_funding_state(
+        ctx: Context<InitFundingState>,
+        funding_interval: u64,
+        max_funding_rate: u64,
+    ) -> Result<()> {
+        handlers::funding::init_funding_state_handler(ctx, funding_interval, max_funding_rate)
+    }
+
+    /// Permissionless: update the funding rate if the interval has elapsed.
+    pub fn update_funding_rate(ctx: Context<UpdateFundingRate>) -> Result<()> {
+        handlers::funding::update_funding_rate_handler(ctx)
+    }
+
+    /// Authority-only: set the premium_bps input for the funding rate formula.
+    pub fn set_funding_premium(
+        ctx: Context<SetFundingPremium>,
+        premium_bps: i64,
+    ) -> Result<()> {
+        handlers::funding::set_funding_premium_handler(ctx, premium_bps)
+    }
+
+    /// Authority-only: set long and short OI caps for a market.
+    pub fn set_oi_caps(
+        ctx: Context<SetOiCaps>,
+        long_oi_cap: u64,
+        short_oi_cap: u64,
+    ) -> Result<()> {
+        handlers::funding::set_oi_caps_handler(ctx, long_oi_cap, short_oi_cap)
+    }
+
+    /// Price feeder or authority: update mark price (bounded ±2% from index).
+    pub fn update_mark_price(ctx: Context<UpdateMarkPrice>, mark_price: u64) -> Result<()> {
+        handlers::funding::update_mark_price_handler(ctx, mark_price)
+    }
+
+    /// Owner: create or update a TP/SL order for a position.
+    pub fn set_tpsl(
+        ctx: Context<SetTpSl>,
+        tp_price: u64,
+        sl_price: u64,
+        is_long: bool,
+    ) -> Result<()> {
+        handlers::tpsl::set_tpsl_handler(ctx, tp_price, sl_price, is_long)
+    }
+
+    /// Owner: deactivate a TP/SL order.
+    pub fn cancel_tpsl(ctx: Context<CancelTpSl>) -> Result<()> {
+        handlers::tpsl::cancel_tpsl_handler(ctx)
+    }
+
+    /// Permissionless keeper: trigger TP/SL if mark_price conditions are met.
+    /// Queues the same MPC close computation as close_position.
+    pub fn trigger_tpsl(ctx: Context<TriggerTpSl>, computation_offset: u64) -> Result<()> {
+        handlers::tpsl::trigger_tpsl_handler(ctx, computation_offset)
     }
 
 }
