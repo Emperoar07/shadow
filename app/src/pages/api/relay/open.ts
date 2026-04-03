@@ -18,33 +18,46 @@ const OPEN_RATE_LIMIT = 10;   // max 10 open requests per owner per minute
 const RATE_WINDOW_MS = 60_000;
 const ORACLE_MAX_AGE_SECONDS = 250; // refresh if older than this (contract requires < 300)
 
-/** Fetch SOL price from multiple sources; return median. */
-async function fetchSolPrice(): Promise<number> {
-  const sources = await Promise.allSettled([
-    fetch("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd")
+// CoinGecko IDs and Binance symbols for each trading pair
+const PAIR_PRICE_SOURCES: Record<string, { coingeckoId: string; binanceSymbol: string }> = {
+  "SOL-USD": { coingeckoId: "solana",                   binanceSymbol: "SOLUSDT" },
+  "BTC-USD": { coingeckoId: "bitcoin",                  binanceSymbol: "BTCUSDT" },
+  "ETH-USD": { coingeckoId: "ethereum",                 binanceSymbol: "ETHUSDT" },
+  "JUP-USD": { coingeckoId: "jupiter-exchange-solana",  binanceSymbol: "JUPUSDT" },
+  "PYTH-USD": { coingeckoId: "pyth-network",            binanceSymbol: "PYTHUSDT" },
+  "ORCA-USD": { coingeckoId: "orca",                    binanceSymbol: "ORCAUSDT" },
+};
+
+/** Fetch price for a specific pair from CoinGecko + Binance; return median. */
+async function fetchPairPrice(pairLabel: string): Promise<number> {
+  const sources = PAIR_PRICE_SOURCES[pairLabel];
+  if (!sources) throw new Error(`No price source configured for ${pairLabel}`);
+
+  const results = await Promise.allSettled([
+    fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${sources.coingeckoId}&vs_currencies=usd`)
       .then((r) => r.json())
-      .then((d: any) => d?.solana?.usd as number),
-    fetch("https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT")
+      .then((d: any) => d?.[sources.coingeckoId]?.usd as number),
+    fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${sources.binanceSymbol}`)
       .then((r) => r.json())
       .then((d: any) => parseFloat(d?.price)),
   ]);
-  const prices = sources
-    .filter((r): r is PromiseFulfilledResult<number> => r.status === "fulfilled" && r.value > 0)
+  const prices = results
+    .filter((r): r is PromiseFulfilledResult<number> => r.status === "fulfilled" && Number.isFinite(r.value) && r.value > 0)
     .map((r) => r.value);
-  if (!prices.length) throw new Error("No live price sources available");
+  if (!prices.length) throw new Error(`No live price sources available for ${pairLabel}`);
   prices.sort((a, b) => a - b);
   return prices[Math.floor(prices.length / 2)];
 }
 
 /** Refresh oracle if stale. Returns silently on failure — the open tx will produce a clearer error. */
-async function ensureOracleFresh(relay: RelayRuntimeContext, marketAddress: PublicKey): Promise<void> {
+async function ensureOracleFresh(relay: RelayRuntimeContext, marketAddress: PublicKey, pairLabel: string): Promise<void> {
   try {
     const market = await relay.client.getMarket(marketAddress);
     const lastUpdate = Number(market.lastPriceUpdate?.toString?.() ?? "0");
     const age = Math.floor(Date.now() / 1000) - lastUpdate;
     if (age < ORACLE_MAX_AGE_SECONDS) return; // still fresh
 
-    const price = await fetchSolPrice();
+    const price = await fetchPairPrice(pairLabel);
     const priceMicro = new BN(Math.round(price * 1_000_000));
     await relay.client.updateOraclePrice(
       marketAddress,
@@ -227,7 +240,7 @@ export default async function handler(
     }
 
     // Auto-refresh oracle price if stale (contract requires < 300s freshness)
-    await ensureOracleFresh(relay, marketAddress);
+    await ensureOracleFresh(relay, marketAddress, pairLabel);
 
     const result = await relay.client.openPositionWithSession(
       marketAddress,

@@ -10,6 +10,9 @@ const EXPLORER_BASE = "https://explorer.solana.com/tx";
 const INITIAL_TX_COUNT = 5;
 const LOAD_MORE_COUNT = 10;
 const SHADOWPERP_PROGRAM_ID = process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ?? "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4";
+const TX_ACTIVITY_CACHE_PREFIX = "shadowperp:ui:activity:v2";
+const PARSED_TX_BATCH_SIZE = 3;
+const PARSED_TX_RETRIES = 2;
 
 
 interface RecentTx {
@@ -85,6 +88,46 @@ const INSTRUCTION_TYPE_MAP: Record<string, TxType> = {
   liquidateposition: { label: "Liquidation", color: "text-accent-red", icon: "close" },
 };
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimited(error: unknown): boolean {
+  const message = String((error as { message?: string } | undefined)?.message ?? error ?? "");
+  return message.includes("429") || message.toLowerCase().includes("too many requests");
+}
+
+function getActivityCacheKey(walletPk: PublicKey): string {
+  return `${TX_ACTIVITY_CACHE_PREFIX}:${walletPk.toBase58()}`;
+}
+
+function readTxTypeCache(walletPk: PublicKey): Record<string, TxType> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(getActivityCacheKey(walletPk));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, TxType>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeTxTypeCache(walletPk: PublicKey, entries: Record<string, TxType>): void {
+  if (typeof window === "undefined") return;
+  try {
+    const existing = readTxTypeCache(walletPk);
+    const merged = { ...existing, ...entries };
+    const recentEntries = Object.entries(merged).slice(-100);
+    window.localStorage.setItem(
+      getActivityCacheKey(walletPk),
+      JSON.stringify(Object.fromEntries(recentEntries))
+    );
+  } catch {
+    // ignore cache failures
+  }
+}
+
 function extractInstructionName(
   ptx: import("@solana/web3.js").ParsedTransactionWithMeta
 ): string | null {
@@ -93,6 +136,15 @@ function extractInstructionName(
     const match = line.match(/Instruction:\s+([A-Za-z0-9_]+)/);
     if (match?.[1]) return match[1];
   }
+
+  for (const ix of ptx.transaction.message.instructions) {
+    const programId = "programId" in ix && ix.programId ? ix.programId.toBase58() : null;
+    if (programId !== SHADOWPERP_PROGRAM_ID) continue;
+
+    const parsedType = (ix as { parsed?: { type?: string } }).parsed?.type;
+    if (parsedType) return parsedType;
+  }
+
   return null;
 }
 
@@ -131,25 +183,69 @@ function getWalletTokenDelta(
   };
 }
 
+async function fetchParsedTransactionsResilient(
+  connection: import("@solana/web3.js").Connection,
+  signatures: string[]
+): Promise<(import("@solana/web3.js").ParsedTransactionWithMeta | null)[]> {
+  const results: (import("@solana/web3.js").ParsedTransactionWithMeta | null)[] = new Array(signatures.length).fill(null);
+
+  for (let start = 0; start < signatures.length; start += PARSED_TX_BATCH_SIZE) {
+    const batch = signatures.slice(start, start + PARSED_TX_BATCH_SIZE);
+
+    try {
+      const parsedBatch = await connection.getParsedTransactions(batch, {
+        maxSupportedTransactionVersion: 0,
+        commitment: "confirmed",
+      });
+      for (let i = 0; i < parsedBatch.length; i += 1) {
+        results[start + i] = parsedBatch[i];
+      }
+      continue;
+    } catch (error) {
+      if (batch.length > 1 && isRateLimited(error)) {
+        await sleep(300);
+      }
+    }
+
+    for (let i = 0; i < batch.length; i += 1) {
+      const sig = batch[i];
+      for (let attempt = 0; attempt <= PARSED_TX_RETRIES; attempt += 1) {
+        try {
+          results[start + i] = await connection.getParsedTransaction(sig, {
+            maxSupportedTransactionVersion: 0,
+            commitment: "confirmed",
+          });
+          break;
+        } catch (error) {
+          if (attempt >= PARSED_TX_RETRIES || !isRateLimited(error)) {
+            break;
+          }
+          await sleep(400 * (attempt + 1));
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
 async function enrichTxTypes(
   connection: import("@solana/web3.js").Connection,
   txs: RecentTx[],
   walletPk: PublicKey
 ): Promise<RecentTx[]> {
-  const unenriched = txs.filter((t) => !t.txType);
-  if (unenriched.length === 0) return txs;
+  const cached = readTxTypeCache(walletPk);
+  const baseTxs = txs.map((tx) => (cached[tx.sig] ? { ...tx, txType: cached[tx.sig] } : tx));
+  const unenriched = baseTxs.filter((t) => !t.txType);
+  if (unenriched.length === 0) return baseTxs;
 
-  let parsed: (import("@solana/web3.js").ParsedTransactionWithMeta | null)[] = [];
-  try {
-    parsed = await connection.getParsedTransactions(
-      unenriched.map((t) => t.sig),
-      { maxSupportedTransactionVersion: 0, commitment: "confirmed" }
-    );
-  } catch {
-    return txs;
-  }
+  const parsed = await fetchParsedTransactionsResilient(
+    connection,
+    unenriched.map((t) => t.sig)
+  );
 
   const enriched = new Map<string, TxType>();
+  const cacheUpdates: Record<string, TxType> = {};
 
   for (let i = 0; i < unenriched.length; i++) {
     const tx = unenriched[i];
@@ -200,9 +296,14 @@ async function enrichTxTypes(
     }
 
     enriched.set(tx.sig, txType);
+    cacheUpdates[tx.sig] = txType;
   }
 
-  return txs.map((t) => enriched.has(t.sig) ? { ...t, txType: enriched.get(t.sig)! } : t);
+  if (Object.keys(cacheUpdates).length > 0) {
+    writeTxTypeCache(walletPk, cacheUpdates);
+  }
+
+  return baseTxs.map((t) => enriched.has(t.sig) ? { ...t, txType: enriched.get(t.sig)! } : t);
 }
 
 export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletPopupProps) {
