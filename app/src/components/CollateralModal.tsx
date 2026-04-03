@@ -53,6 +53,14 @@ export default function CollateralModal({
   const [visible, setVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  const getSelectedMarketAddress = useCallback(() => {
+    if (!anchorWallet) {
+      throw new Error("Connect your wallet");
+    }
+    const { runtime } = createShadowPerpClient(connection, anchorWallet);
+    return runtime.marketRegistry[pairLabel] ?? runtime.marketAddress;
+  }, [anchorWallet, connection, pairLabel]);
+
   const getRuntimeErrorMessage = useCallback((rawMessage: string, action: "deposit" | "withdraw") => {
     if (!rawMessage.includes("env var")) return null;
     const matched = rawMessage.match(/env var:\s*([A-Z0-9_]+)/i);
@@ -224,9 +232,10 @@ export default function CollateralModal({
       if (delegatedDepositComplete) return;
 
       if (!anchorWallet || !publicKey) { throw new Error("Connect your wallet"); }
-      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
+      const { client } = createShadowPerpClient(connection, anchorWallet);
+      const marketAddress = getSelectedMarketAddress();
       toast.loading("Depositing collateral...", { id: "collateral" });
-      const tx = await client.depositCollateral(runtime.marketAddress, amountBN);
+      const tx = await client.depositCollateral(marketAddress, amountBN);
       toast.success(
         <div>
           <p className="font-medium">Deposited ${amt.toFixed(2)} USDC</p>
@@ -260,6 +269,7 @@ export default function CollateralModal({
     anchorWallet,
     connection,
     ensureRelaySession,
+    getSelectedMarketAddress,
     getRuntimeErrorMessage,
     isRelaySessionActive,
     onSuccess,
@@ -332,9 +342,10 @@ export default function CollateralModal({
       if (!anchorWallet || !publicKey) {
         throw new Error("Connect your wallet");
       }
-      const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
+      const { client } = createShadowPerpClient(connection, anchorWallet);
+      const marketAddress = getSelectedMarketAddress();
       toast.loading("Withdrawing collateral...", { id: "collateral" });
-      const tx = await client.withdrawCollateral(runtime.marketAddress, amountBN);
+      const tx = await client.withdrawCollateral(marketAddress, amountBN);
       toast.success(
         <div>
           <p className="font-medium">Withdrew ${amt.toFixed(2)} USDC</p>
@@ -367,6 +378,7 @@ export default function CollateralModal({
     amount,
     anchorWallet,
     connection,
+    getSelectedMarketAddress,
     getRuntimeErrorMessage,
     marginBalance,
     onSuccess,

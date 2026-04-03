@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface OrderConfirmModalProps {
   isOpen: boolean;
@@ -25,8 +26,14 @@ export default function OrderConfirmModal({
   onConfirm,
   onCancel,
 }: OrderConfirmModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +54,7 @@ export default function OrderConfirmModal({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isOpen, step]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const isDanger = variant === "danger";
   const accentBorder = isDanger ? "border-accent-red/30" : "border-accent-purple/30";
@@ -64,8 +71,8 @@ export default function OrderConfirmModal({
     onConfirm();
   };
 
-  return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center pointer-events-none">
+  const modal = (
+    <div className="fixed inset-0 z-[650] flex items-center justify-center pointer-events-none">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px] pointer-events-auto"
         onClick={onCancel}
@@ -136,4 +143,6 @@ export default function OrderConfirmModal({
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

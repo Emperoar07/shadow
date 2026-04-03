@@ -140,8 +140,9 @@ Note:
 
 Note:
 
-- `TradeSessionV2` is implemented in source and reflected in the generated IDL.
-- It still requires a matching program deploy before it is live on devnet.
+- `TradeSessionV2` is deployed on devnet and reflected in the generated IDL.
+- One wallet-scoped delegated session has been smoke-tested across multiple markets for delegated collateral actions.
+- The separate `open_position_probe_b` callback issue remains an independent blocker and is not part of the v2 session smoke proof.
 
 ## 5. Oracle Flow
 

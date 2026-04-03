@@ -94,7 +94,7 @@ export default function MarketInfo({
         </div>
       </div>
 
-      <PortfolioSummary onMarginReady={onMarginReady} />
+      <PortfolioSummary pair={activePair} onMarginReady={onMarginReady} />
     </div>
   );
 }

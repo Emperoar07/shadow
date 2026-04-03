@@ -10,6 +10,7 @@ import {
 } from "../lib/trade-automation";
 import CollateralModal from "./CollateralModal";
 import { useArciumPrivacy } from "../hooks/useArcium";
+import type { TradingPair } from "../lib/tokens";
 
 interface PortfolioData {
   marginBalance: number;
@@ -24,9 +25,10 @@ interface PortfolioData {
 
 interface PortfolioSummaryProps {
   onMarginReady?: (balance: number | null, openModal: () => void) => void;
+  pair?: TradingPair;
 }
 
-export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProps = {}) {
+export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSummaryProps = {}) {
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
@@ -61,12 +63,15 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
         clientRef.current = createShadowPerpClient(connection, anchorWallet);
       }
       const { client, runtime } = clientRef.current;
+      const marketAddress = pair
+        ? runtime.marketRegistry[pair.label] ?? runtime.marketAddress
+        : runtime.marketAddress;
 
       const [marginResult, positionsResult] = await Promise.allSettled([
         client.getMarginAccount(
-          client.getMarginAccountAddress(runtime.marketAddress, publicKey)
+          client.getMarginAccountAddress(marketAddress, publicKey)
         ),
-        client.getUserPositionAccounts(runtime.marketAddress, publicKey),
+        client.getUserPositionAccounts(marketAddress, publicKey),
       ]);
       const livePrices = await fetchPrices().catch(() => null);
 
@@ -150,7 +155,7 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
       // config/runtime errors
       setData(null);
     }
-  }, [publicKey, anchorWallet, connection]);
+  }, [publicKey, anchorWallet, connection, pair]);
 
   useEffect(() => {
     void loadPortfolio();
@@ -235,6 +240,7 @@ export default function PortfolioSummary({ onMarginReady }: PortfolioSummaryProp
       ensureRelaySession={ensureRelaySession}
       invalidateRelaySession={invalidateRelaySession}
       refreshRelaySession={refreshRelaySession}
+      pairLabel={pair?.label}
       onClose={() => setCollateralModalOpen(false)}
       onSuccess={() => {
         setCollateralModalOpen(false);

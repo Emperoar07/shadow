@@ -84,7 +84,7 @@ State accounts:
 - `Position`
 - `LiquidationSettlement` (authorized liquidator binding for deferred liquidation settlement)
 - `TradeSession` (market-scoped owner-approved relayer window with action/margin caps + expiry)
-- `TradeSessionV2` (wallet-scoped owner-approved relayer window reusable across supported markets; requires matching program deploy before live use)
+- `TradeSessionV2` (wallet-scoped owner-approved relayer window reusable across supported markets; deployed and smoke-verified for delegated collateral across multiple markets on devnet)
 - optional private orderbook state
 - feature-gated shielded collateral state (`shielded-collateral` feature only):
   - `ShieldedPool` (per-market pool with commitment tree root, vault, accounting)

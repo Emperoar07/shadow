@@ -8,26 +8,26 @@ ShadowPerp encrypts order sizes, entry prices, leverage, and collateral before s
 
 ## Features
 
-- **Encrypted Positions** — Trade size, direction, leverage, entry price, and liquidation price are encrypted end to end. No plaintext position data is published on chain.
-- **Private Orderbook** — Order flow is shielded from MEV bots and front runners. Orders cannot be extracted or front run because they are never visible.
-- **Session Trading** — Approve a delegated trading session once and trade without repeated wallet prompts. The relay submits encrypted orders on your behalf within configurable limits. Revoke the session instantly from the Settings panel.
-- **6 Trading Pairs** — SOL-USD, BTC-USD, ETH-USD, JUP-USD, PYTH-USD, and ORCA-USD. Each pair routes to its own on-chain market PDA. Selected pair persists across page refreshes.
-- **Live Orderbook** — Real time market depth from Binance, Coinbase, Bybit, and Gate.io. Gate.io is fetched directly in the browser as a fallback when other providers are unreachable.
-- **Cross and Isolated Margin** — Choose between shared margin across positions or isolated margin per position. Leverage from 1x to 50x.
-- **Confidential Liquidations** — Liquidation prices are encrypted. No external party can target a position based on its liquidation threshold.
-- **Pyth Oracle Integration** — Price feeds sourced from Pyth Network with fallback to aggregated external sources. Circuit breakers and staleness checks protect against manipulation.
-- **Custom RPC Endpoints** — Save up to 5 named RPC endpoints in the settings panel. Endpoints persist in browser localStorage; no env var changes required. Falls back to public Solana devnet.
-- **Shielded Collateral** (in progress) — Commitment tree based collateral pool with nullifier withdrawals, hiding internal balance ownership and margin transitions from public view.
+- **Encrypted Positions** - Trade size, direction, leverage, entry price, and liquidation price are encrypted end to end. No plaintext position data is published on chain.
+- **Private Orderbook** - Order flow is shielded from MEV bots and front runners. Orders cannot be extracted or front run because they are never visible.
+- **Session Trading** - Approve a delegated trading session once and let the relay act within configurable limits. The default session model is wallet-scoped and reusable across supported markets.
+- **6 Trading Pairs** - SOL-USD, BTC-USD, ETH-USD, JUP-USD, PYTH-USD, and ORCA-USD. Each pair routes to its own on-chain market PDA. Selected pair persists across page refreshes.
+- **Live Orderbook** - Real time market depth from Binance, Coinbase, Bybit, and Gate.io. Gate.io is fetched directly in the browser as a fallback when other providers are unreachable.
+- **Cross and Isolated Margin** - Choose between shared margin across positions or isolated margin per position. Leverage from 1x to 50x.
+- **Confidential Liquidations** - Liquidation prices are encrypted. No external party can target a position based on its liquidation threshold.
+- **Pyth Oracle Integration** - Price feeds sourced from Pyth Network with fallback to aggregated external sources. Circuit breakers and staleness checks protect against manipulation.
+- **Custom RPC Endpoints** - Save up to 5 named RPC endpoints in the settings panel. Endpoints persist in browser localStorage; no env var changes required. Falls back to public Solana devnet.
+- **Shielded Collateral** (in progress) - Commitment tree based collateral pool with nullifier withdrawals, hiding internal balance ownership and margin transitions from public view.
 
 ## Architecture
 
 ShadowPerp follows an encrypt, compute, settle model:
 
-1. **Encrypt** — The client encrypts sensitive trade inputs (size, price, leverage, direction, margin) in the browser.
-2. **Queue** — The Solana program receives the encrypted payload and queues an Arcium computation.
-3. **Compute** — Arcium's MPC network evaluates trade logic, margin checks, PnL, and liquidation conditions without exposing raw inputs to any single node.
-4. **Callback** — Arcium returns a verified result to the Solana program via a replay hardened callback.
-5. **Settle** — The program updates position and margin state from the verified output.
+1. **Encrypt** - The client encrypts sensitive trade inputs (size, price, leverage, direction, margin) in the browser.
+2. **Queue** - The Solana program receives the encrypted payload and queues an Arcium computation.
+3. **Compute** - Arcium's MPC network evaluates trade logic, margin checks, PnL, and liquidation conditions without exposing raw inputs to any single node.
+4. **Callback** - Arcium returns a verified result to the Solana program via a replay hardened callback.
+5. **Settle** - The program updates position and margin state from the verified output.
 
 ### Privacy Boundary
 
@@ -77,7 +77,7 @@ cp app/.env.example app/.env.local
 Configure the following in `app/.env.local`:
 
 - Program ID and market account
-- RPC endpoint (QuickNode recommended; falls back to public devnet)
+- RPC endpoint
 - Arcium program ID and cluster offset
 
 ### Run the Frontend
@@ -151,32 +151,40 @@ cargo build --features shielded-collateral -p shadowperp
 
 ## Current Status
 
-ShadowPerp is deployed on Solana Devnet as an active prototype.
+ShadowPerp is deployed on Solana devnet as an active prototype.
 
 **Working today:**
 
 - Program deployment and upgrade on devnet with Arcium SDK 0.9.2
-- Delegated session trading with relay (sign once, trade freely)
-- Encrypted open, close, and liquidation computation flows
+- Wallet-scoped delegated session v2 on devnet, reusable across supported markets
+- Delegated collateral deposit and withdrawal under one active session across multiple markets
+- All 6 market PDAs initialized on chain with synced comp-def pointers
+- Encrypted open, close, and liquidation computation paths wired into the program and relay
 - Automatic oracle refresh before trades on the relay path
 - Cross and isolated margin modes with 1x to 50x leverage
-- Limit orders with browser based automation
+- Limit orders with browser-based automation
 - Take profit and stop loss rules
 - Collateral deposit and withdrawal (direct and session delegated)
 - Private position metadata stored in the browser for UI continuity
-- Live reference orderbook for all 6 pairs via Binance, Coinbase, Bybit, and Gate.io with client side fallback
+- Live reference orderbook for all 6 pairs via Binance, Coinbase, Bybit, and Gate.io with client-side fallback
 - Pyth oracle integration with `update-oracle-pyth.ts`
 - Custom named RPC endpoint manager (up to 5, saved to localStorage)
 - Session revoke UI in the Settings panel
 - Selected trading pair persists across page refreshes
-- Security hardened program: zombie position prevention, correct rent reclaim targets, computation offset validation on all queue handlers
+- Security-hardened program paths such as rent reclaim fixes, computation offset validation, and safer relay/runtime checks
 - Shielded collateral pool: `deposit_to_shielded`, `request_withdraw_private`, `finalize_withdraw` deployed and active on devnet
-- Shielded collateral state: commitment Merkle tree, nullifier set, pending withdrawal with time-delay, shielded margin ref
+- Shielded collateral state: commitment Merkle tree, nullifier set, pending withdrawal with time delay, shielded margin ref
+
+**Known devnet limitations:**
+
+- End-to-end open and close are not fully signed off yet. The current `open_position_probe_b` callback can still abort on devnet with `AbortedComputation (6000) -> InvalidComputationResult (6010)`.
+- Limit orders and TP/SL are browser-local automation, not exchange-side order persistence.
+- Oracle updates are protected by a circuit breaker. If the on-chain price drifts too far from live sources, manual intervention is required before trading resumes.
 
 **In progress:**
 
-- Private margin lock and settle via Arcium MPC (`lock_margin_private`, `settle_private_position` — circuits built, on-chain wiring complete, circuit integration pending)
-- Commitment tree hashing (placeholder XOR fold pending SHA256/Poseidon integration)
+- Private margin lock and settle via Arcium MPC (`lock_margin_private`, `settle_private_position` - circuits built, on-chain wiring complete, circuit integration pending)
+- Commitment tree hashing (placeholder additive binding pending stronger tree hashing integration)
 
 ## References
 

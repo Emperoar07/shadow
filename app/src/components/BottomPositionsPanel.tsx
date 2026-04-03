@@ -191,7 +191,10 @@ export default function BottomPositionsPanel({
         clientRef.current = createShadowPerpClient(connection, anchorWallet);
       }
       const { client, runtime } = clientRef.current;
-      const onchain = await client.getUserPositionAccounts(runtime.marketAddress, publicKey);
+      const marketAddress =
+        (activePairLabel ? runtime.marketRegistry[activePairLabel] : undefined) ??
+        runtime.marketAddress;
+      const onchain = await client.getUserPositionAccounts(marketAddress, publicKey);
       const mapped: UiPosition[] = onchain.map((p) => {
         const account = p.account as any;
         const encData: number[] | Uint8Array = account.encryptedData ?? [];
@@ -208,7 +211,7 @@ export default function BottomPositionsPanel({
       mapped.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
       setPositions(mapped);
       try {
-        const market = await client.getMarket(runtime.marketAddress);
+        const market = await client.getMarket(marketAddress);
         const price = new BN(market.oraclePrice.toString()).toNumber() / 1_000_000;
         setOraclePrice(Number.isFinite(price) && price > 0 ? price : null);
         const threshold = Number(market.liquidationThreshold) / 100;
@@ -289,17 +292,20 @@ export default function BottomPositionsPanel({
           clientRef.current = createShadowPerpClient(connection, anchorWallet);
         }
         const { client, runtime } = clientRef.current;
+        const marketAddress =
+          (activePairLabel ? runtime.marketRegistry[activePairLabel] : undefined) ??
+          runtime.marketAddress;
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(
-          runtime.marketAddress
+          marketAddress
         );
         toastLoading("Queuing close via Arcium MPC...", { id: pos.address });
         const tx = await client.closePosition(
-          runtime.marketAddress,
+          marketAddress,
           pos.index
         );
         toastLoading("Awaiting MPC callback and settlement...", { id: pos.address });
         const finalized = await client.finalizeClosePosition(
-          runtime.marketAddress,
+          marketAddress,
           publicKey,
           pos.index,
           ownerTokenAccount
@@ -338,7 +344,7 @@ export default function BottomPositionsPanel({
         setClosingAddress(null);
       }
     },
-    [publicKey, anchorWallet, connection, loadPositions, toastSuccess, toastLoading]
+    [activePairLabel, publicKey, anchorWallet, connection, loadPositions, toastSuccess, toastLoading]
   );
 
   const handleClose = useCallback(

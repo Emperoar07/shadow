@@ -365,15 +365,16 @@ export default function DocsPage() {
             </p>
             <ol>
               <li>
-                You sign a <strong>CreateTradeSession</strong> transaction. This creates a session PDA tied to your
-                wallet and the relay.
+                You sign a <strong>CreateTradeSessionV2</strong> transaction by default. This creates a wallet scoped
+                session PDA tied to your wallet and the relay, and reusable across supported markets.
               </li>
               <li>
                 You sign a short <strong>authorization message</strong>. This is not a transaction. It simply proves
                 that the relay can act for you during the session window.
               </li>
               <li>
-                For the rest of that session, the relay submits trades without opening a wallet popup each time.
+                For the rest of that session, the relay can submit trades and delegated collateral actions without
+                opening a wallet popup each time.
               </li>
             </ol>
             <h3>Session Limits</h3>
@@ -404,8 +405,9 @@ export default function DocsPage() {
               </tbody>
             </table>
             <Note>
-              The session authorization signature is tied to a specific session ID, market, and expiry. It cannot be
-              reused across sessions or markets.
+              The session authorization signature is tied to a specific session ID, scope, and expiry. With the default
+              wallet scoped session model, the same session can be reused across supported markets until it expires or
+              is revoked. Older market scoped sessions remain supported for backward compatibility.
             </Note>
             <h3>Revoking a Session</h3>
             <p>
@@ -621,6 +623,12 @@ export default function DocsPage() {
             <p>
               The trade was submitted successfully and is waiting for the Arcium MPC cluster to compute and return the callback. On devnet this typically takes 30 to 120 seconds depending on cluster load. If it takes longer, the cluster may be temporarily delayed, but your collateral remains safe and the position will resolve once the callback arrives.
             </p>
+            <Note>
+              Current devnet status: wallet scoped delegated sessions and delegated collateral actions are working across
+              supported markets. The open position callback path is still being debugged on the current namespace, so if
+              the MPC callback already fails on chain the app now surfaces that failure directly instead of only showing
+              a generic pending timeout.
+            </Note>
 
             <h3>Is my data stored anywhere?</h3>
             <p>
@@ -727,7 +735,7 @@ export default function DocsPage() {
                   </tr>
                   <tr>
                     <td><Code>shadowperp.relay.session.v1:*</Code></td>
-                    <td>Active trading session info per wallet and market</td>
+                    <td>Active trading session info per wallet and scope. Wallet scoped sessions use the same namespace with an all markets key.</td>
                     <td>Session expiry</td>
                   </tr>
                   <tr>
