@@ -43,6 +43,14 @@ pub struct SettlePrivatePositionCallback<'info> {
 
     #[account(
         mut,
+        seeds = [b"commitment_tree", market.key().as_ref()],
+        bump = commitment_tree.bump,
+        constraint = commitment_tree.pool == shielded_pool.key() @ ShadowPerpError::InvalidAccountData,
+    )]
+    pub commitment_tree: Box<Account<'info, CommitmentTree>>,
+
+    #[account(
+        mut,
         seeds = [b"shielded_margin", shielded_pool.key().as_ref(), shielded_margin_ref.owner.as_ref()],
         bump = shielded_margin_ref.bump,
         constraint = shielded_margin_ref.pool == shielded_pool.key() @ ShadowPerpError::InvalidAccountData,
@@ -70,8 +78,22 @@ pub fn settle_private_position_callback_handler(
         }
     };
 
+    // Callback must be bound to this market's configured Arcium cluster.
+    // The comp-def account itself is already pinned by the callback account address
+    // constraint because Market does not currently persist this auxiliary comp-def.
+    require!(
+        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
+        ShadowPerpError::Unauthorized
+    );
+    require!(
+        ctx.accounts.comp_def_account.key()
+            == derive_comp_def_pda!(COMP_DEF_OFFSET_SETTLE_PRIVATE_POSITION),
+        ShadowPerpError::Unauthorized
+    );
+
     let market = &mut ctx.accounts.market;
     let pool = &mut ctx.accounts.shielded_pool;
+    let tree = &mut ctx.accounts.commitment_tree;
     let margin_ref = &mut ctx.accounts.shielded_margin_ref;
 
     // Extract circuit outputs: (realized_pnl, settlement_amount, fee, new_balance)
@@ -94,9 +116,7 @@ pub fn settle_private_position_callback_handler(
         &balance_bytes,
     );
     let new_root = CommitmentTree::compute_next_root(&pool.tree_root, &new_commitment);
-
-    // We don't push to tree here since commitment_tree is not in accounts.
-    // The root update is tracked in the pool for settlement validation.
+    tree.push_root(new_root);
     pool.tree_root = new_root;
 
     // Update margin ref

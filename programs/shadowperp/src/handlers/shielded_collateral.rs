@@ -957,6 +957,14 @@ pub struct SettlePrivatePosition<'info> {
 
     #[account(
         mut,
+        seeds = [b"commitment_tree", market.key().as_ref()],
+        bump = commitment_tree.bump,
+        constraint = commitment_tree.pool == shielded_pool.key() @ ShadowPerpError::InvalidAccountData,
+    )]
+    pub commitment_tree: Box<Account<'info, CommitmentTree>>,
+
+    #[account(
+        mut,
         seeds = [b"shielded_margin", shielded_pool.key().as_ref(), owner.key().as_ref()],
         bump = shielded_margin_ref.bump,
         constraint = shielded_margin_ref.owner == owner.key() @ ShadowPerpError::Unauthorized,
@@ -1095,6 +1103,10 @@ pub fn settle_private_position_handler(
         },
         CallbackAccount {
             pubkey: ctx.accounts.shielded_pool.key(),
+            is_writable: true,
+        },
+        CallbackAccount {
+            pubkey: ctx.accounts.commitment_tree.key(),
             is_writable: true,
         },
         CallbackAccount {

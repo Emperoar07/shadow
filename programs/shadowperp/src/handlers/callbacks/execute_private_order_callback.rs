@@ -62,6 +62,19 @@ pub fn execute_private_order_callback_handler(
         }
     };
 
+    // Callback must be bound to this market's configured Arcium cluster.
+    // The comp-def account itself is already pinned by the callback account address
+    // constraint because Market does not currently persist this auxiliary comp-def.
+    require!(
+        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
+        ShadowPerpError::Unauthorized
+    );
+    require!(
+        ctx.accounts.comp_def_account.key()
+            == derive_comp_def_pda!(COMP_DEF_OFFSET_EXECUTE_PRIVATE_ORDER),
+        ShadowPerpError::Unauthorized
+    );
+
     // Extract circuit outputs: (triggered, size, entry_price, is_long)
     let triggered = verified_output.field_0.field_0;
     let size = verified_output.field_0.field_1;

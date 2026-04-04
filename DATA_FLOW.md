@@ -137,7 +137,9 @@ This document describes the live request/response flow across UI, Solana, and Ar
 Important:
 
 - This is a migration-backed architecture change, not a silent in-place flip.
-- Do not assume shared collateral is live for an existing devnet deployment until the adoption + owner migration steps have run.
+- On the current devnet namespace, adopted markets already use the shared vault model.
+- Each owner with legacy per-market balances still needs the owner migration step before treating their balance as one shared pool.
+- Cross-pair shared collateral has been smoke-verified on adopted markets, but that does not migrate legacy balances automatically for every wallet.
 
 Note:
 

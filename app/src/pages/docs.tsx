@@ -454,9 +454,9 @@ export default function DocsPage() {
           <Section id="margin" title="Margin and Leverage">
             <p>ShadowPerp supports two margin modes and leverage up to <strong>50x</strong>.</p>
             <p>
-              The source now includes a <strong>shared collateral migration lane</strong>. Once markets are adopted into the
-              shared vault model and legacy balances are migrated, one collateral pool can back positions across supported
-              pairs instead of requiring a separate funding bucket per market.
+              The current devnet namespace now uses a <strong>migration-backed shared collateral model</strong> for adopted
+              markets. After your wallet is migrated from any legacy per-market margin accounts, one owner scoped collateral
+              balance can back positions across supported pairs instead of requiring a separate funding bucket per market.
             </p>
             <h3>Cross Margin</h3>
             <p>
@@ -475,8 +475,9 @@ export default function DocsPage() {
               <Code>50x</Code>.
             </p>
             <Note>
-              Shared collateral across pairs is a migration-backed change. Existing legacy per-market balances and positions
-              must be migrated carefully before the shared model should be treated as active on devnet.
+              Shared collateral across pairs is active on adopted markets, but it is not automatic for every wallet. If you
+              have legacy per-market balances, you still need the migration runbook before treating your collateral as one
+              global pool.
             </Note>
             <table className="docs-table">
               <thead>
@@ -577,8 +578,9 @@ export default function DocsPage() {
 
           <Section id="shielded-collateral" title="Shielded Collateral">
             <p>
-              ShadowPerp is building a shielded collateral system that hides internal balance ownership and margin
-              transitions from public view. The design follows a "public edge, private core" model.
+              ShadowPerp already has the base shielded collateral flow deployed on devnet. Deposits, private withdrawal
+              requests, proof verification callbacks, and delayed finalization are live. The remaining work is private
+              margin lock and private position settlement through Arcium MPC.
             </p>
             <h3>How it works</h3>
             <ol>

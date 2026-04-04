@@ -13,12 +13,12 @@ ShadowPerp encrypts order sizes, entry prices, leverage, and collateral before s
 - **Session Trading** - Approve a delegated trading session once and let the relay act within configurable limits. The default session model is wallet-scoped and reusable across supported markets.
 - **6 Trading Pairs** - SOL-USD, BTC-USD, ETH-USD, JUP-USD, PYTH-USD, and ORCA-USD. Each pair routes to its own on-chain market PDA. Selected pair persists across page refreshes.
 - **Live Orderbook** - Real time market depth from Binance, Coinbase, Bybit, and Gate.io. Gate.io is fetched directly in the browser as a fallback when other providers are unreachable.
-- **Shared Collateral Migration Lane** - Source now includes a shared-collateral vault model and owner-scoped margin account so one deposit can back multiple adopted markets after the migration runbook is executed.
+- **Shared Collateral on Devnet** - Adopted markets now resolve to a shared collateral vault per mint, and migrated owners use one owner-scoped margin balance across supported pairs.
 - **Cross and Isolated Position Modes** - Choose between shared collateral exposure across positions or isolated position-level margin usage. Leverage from 1x to 50x.
 - **Confidential Liquidations** - Liquidation prices are encrypted. No external party can target a position based on its liquidation threshold.
 - **Pyth Oracle Integration** - Price feeds sourced from Pyth Network with fallback to aggregated external sources. Circuit breakers and staleness checks protect against manipulation.
 - **Custom RPC Endpoints** - Save up to 5 named RPC endpoints in the settings panel. Endpoints persist in browser localStorage; no env var changes required. Falls back to public Solana devnet.
-- **Shielded Collateral** (in progress) - Commitment tree based collateral pool with nullifier withdrawals, hiding internal balance ownership and margin transitions from public view.
+- **Shielded Collateral Base Flows** - `deposit_to_shielded`, `request_withdraw_private`, and `finalize_withdraw` are deployed on devnet. Private margin lock and private position settlement remain in progress.
 
 ## Architecture
 
@@ -166,10 +166,11 @@ ShadowPerp is deployed on Solana devnet as an active prototype.
 - Wallet-scoped delegated session v2 on devnet, reusable across supported markets
 - Delegated collateral deposit and withdrawal under one active session across multiple markets
 - All 6 market PDAs initialized on chain with synced comp-def pointers
-- Shared-collateral migration lane implemented in source:
+- Shared-collateral custody model deployed on devnet:
   - shared vault PDA per collateral mint
   - owner-scoped margin PDA
-  - migration/adoption instructions and scripts for legacy per-market balances
+  - adoption and migration instructions/scripts for legacy per-market balances
+  - cross-pair shared-balance smoke proof completed on adopted markets
 - Encrypted open, close, and liquidation computation paths wired into the program and relay
 - Automatic oracle refresh before trades on the relay path
 - Cross and isolated margin modes with 1x to 50x leverage
@@ -189,7 +190,7 @@ ShadowPerp is deployed on Solana devnet as an active prototype.
 **Known devnet limitations:**
 
 - End-to-end open and close are not fully signed off yet. The current `open_position_probe_b` callback can still abort on devnet with `AbortedComputation (6000) -> InvalidComputationResult (6010)`.
-- The shared-collateral model is implemented in source but still requires deploy + migration before it should be treated as the active custody model on devnet.
+- Shared collateral is active only for adopted markets and migrated owners. Wallets with legacy per-market balances still need the migration runbook before treating their balance as one shared pool.
 - Legacy per-market balances and positions must be migrated carefully. The intended runbook is:
   1. close or settle open legacy positions
   2. run `scripts/adopt-shared-collateral.ts`

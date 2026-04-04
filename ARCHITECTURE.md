@@ -85,7 +85,7 @@ State accounts:
 - `LiquidationSettlement` (authorized liquidator binding for deferred liquidation settlement)
 - `TradeSession` (market-scoped owner-approved relayer window with action/margin caps + expiry)
 - `TradeSessionV2` (wallet-scoped owner-approved relayer window reusable across supported markets; deployed and smoke-verified for delegated collateral across multiple markets on devnet)
-- `SharedCollateral` migration lane (implemented in source, migration required before live use):
+- `SharedCollateral` migration-backed custody model (deployed on devnet; each owner with legacy balances still needs migration):
   - shared vault PDA per collateral mint
   - owner-scoped `MarginAccount` PDA (`[b"margin", owner]`)
   - adoption instruction for existing market vaults
@@ -139,7 +139,7 @@ Arcium-related account pointers are stored in market state and validated in call
 
 ### Shared Collateral Boundary
 
-- New source model:
+- Current adopted-market model on devnet:
   - shared collateral vault PDA per collateral mint
   - owner-scoped margin account across adopted markets
 - This changes the money model from:
@@ -148,12 +148,16 @@ Arcium-related account pointers are stored in market state and validated in call
   to:
   - one owner-scoped margin ledger
   - one shared vault per collateral mint
-- Safety requirement:
-  - do not treat this as live on existing markets until the migration runbook is executed
+- Operational requirement:
+  - adopted markets now point to the shared vault on devnet
+  - each owner with legacy balances must still run the migration runbook before treating their balance as one shared pool
   - legacy open positions should be closed or settled before margin migration because migration requires `locked_balance == 0`
 - Migration tooling:
   - `scripts/adopt-shared-collateral.ts`
   - `scripts/migrate-shared-margin.ts`
+
+- Current proof point:
+  - cross-pair shared collateral was smoke-verified on devnet by depositing through `BTC-USD` and withdrawing through `JUP-USD` against the same migrated owner-scoped margin account
 
 ### Shielded Collateral Boundary
 
