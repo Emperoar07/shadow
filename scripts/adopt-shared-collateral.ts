@@ -11,7 +11,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import { resolveRpcEndpoint } from "./rpc";
+import { resolveRpcEndpoint, retryRpcCall, sendAndConfirmWithPolling } from "./rpc";
 import { TRADING_PAIRS } from "../app/src/lib/tokens";
 
 const PROGRAM_ID = new PublicKey(
@@ -94,7 +94,10 @@ async function main() {
 
   for (const pair of TRADING_PAIRS) {
     const market = deriveMarketPda(pair.base.mint);
-    const marketAccount = await (program.account as any).market.fetchNullable(market);
+    const marketAccount = await retryRpcCall<any | null>(
+      `[${pair.label}] fetch market`,
+      () => (program.account as any).market.fetchNullable(market)
+    );
     if (!marketAccount) {
       console.log(`[${pair.label}] market missing, skipping`);
       continue;
@@ -125,9 +128,13 @@ async function main() {
         systemProgram: SystemProgram.programId,
         rent: SYSVAR_RENT_PUBKEY,
       })
-      .rpc({ commitment: "confirmed" });
+      .transaction();
 
-    console.log(`ok ${tx.slice(0, 18)}...`);
+    const sig = await sendAndConfirmWithPolling(connection, walletKeypair, tx, {
+      commitment: "confirmed",
+    });
+
+    console.log(`ok ${sig.slice(0, 18)}...`);
   }
 }
 

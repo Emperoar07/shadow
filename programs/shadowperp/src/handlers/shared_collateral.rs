@@ -15,19 +15,19 @@ pub struct AdoptSharedCollateralVault<'info> {
         seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
-    pub market: Account<'info, Market>,
+    pub market: Box<Account<'info, Market>>,
 
     #[account(
         constraint = collateral_mint.key() == market.collateral_mint @ ShadowPerpError::InvalidAccountData
     )]
-    pub collateral_mint: Account<'info, Mint>,
+    pub collateral_mint: Box<Account<'info, Mint>>,
 
     #[account(
         mut,
         seeds = [b"vault", market.key().as_ref()],
         bump
     )]
-    pub legacy_vault: Account<'info, TokenAccount>,
+    pub legacy_vault: Box<Account<'info, TokenAccount>>,
 
     #[account(
         init_if_needed,
@@ -37,7 +37,7 @@ pub struct AdoptSharedCollateralVault<'info> {
         seeds = [b"shared_vault", collateral_mint.key().as_ref()],
         bump
     )]
-    pub shared_vault: Account<'info, TokenAccount>,
+    pub shared_vault: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: PDA authority for the shared collateral vault.
     #[account(
@@ -91,7 +91,7 @@ pub struct MigrateLegacyMarginAccount<'info> {
         seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump
     )]
-    pub market: Account<'info, Market>,
+    pub market: Box<Account<'info, Market>>,
 
     #[account(
         mut,
@@ -99,7 +99,7 @@ pub struct MigrateLegacyMarginAccount<'info> {
         bump = legacy_margin_account.bump,
         has_one = owner,
     )]
-    pub legacy_margin_account: Account<'info, MarginAccount>,
+    pub legacy_margin_account: Box<Account<'info, MarginAccount>>,
 
     #[account(
         init_if_needed,
@@ -110,29 +110,13 @@ pub struct MigrateLegacyMarginAccount<'info> {
         constraint = global_margin_account.owner == Pubkey::default()
             || global_margin_account.owner == owner.key(),
     )]
-    pub global_margin_account: Account<'info, MarginAccount>,
-
-    #[account(
-        mut,
-        seeds = [b"vault", market.key().as_ref()],
-        bump
-    )]
-    pub legacy_vault: Account<'info, TokenAccount>,
+    pub global_margin_account: Box<Account<'info, MarginAccount>>,
 
     #[account(
         mut,
         constraint = shared_vault.key() == market.vault @ ShadowPerpError::InvalidAccountData
     )]
-    pub shared_vault: Account<'info, TokenAccount>,
-
-    /// CHECK: PDA authority for the shared collateral vault.
-    #[account(
-        seeds = [b"shared_vault_authority", market.collateral_mint.as_ref()],
-        bump
-    )]
-    pub shared_vault_authority: UncheckedAccount<'info>,
-
-    pub token_program: Program<'info, Token>,
+    pub shared_vault: Box<Account<'info, TokenAccount>>,
     pub system_program: Program<'info, System>,
 }
 
@@ -148,33 +132,16 @@ pub fn migrate_legacy_margin_account_handler(
         ShadowPerpError::InvalidAccountData
     );
 
+    // Idempotency: if the legacy account no longer carries spendable balance,
+    // treat repeat migrations as a no-op instead of re-applying historical counters.
+    if legacy_balance == 0 {
+        return Ok(());
+    }
+
     if global_margin_account.owner == Pubkey::default() {
         global_margin_account.owner = ctx.accounts.owner.key();
         global_margin_account.market = Pubkey::default();
         global_margin_account.bump = ctx.bumps.global_margin_account;
-    }
-
-    if legacy_balance > 0
-        && ctx.accounts.legacy_vault.key() != ctx.accounts.shared_vault.key()
-    {
-        let market = &ctx.accounts.market;
-        let seeds = &[
-            b"market",
-            market.collateral_mint.as_ref(),
-            market.base_asset_mint.as_ref(),
-            &[market.bump],
-        ];
-        let signer_seeds = &[&seeds[..]];
-        let transfer_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.legacy_vault.to_account_info(),
-                to: ctx.accounts.shared_vault.to_account_info(),
-                authority: market.to_account_info(),
-            },
-            signer_seeds,
-        );
-        token::transfer(transfer_ctx, legacy_balance)?;
     }
 
     global_margin_account.balance = global_margin_account
@@ -195,6 +162,12 @@ pub fn migrate_legacy_margin_account_handler(
 
     legacy_margin_account.balance = 0;
     legacy_margin_account.locked_balance = 0;
+    legacy_margin_account.total_deposited = 0;
+    legacy_margin_account.total_withdrawn = 0;
+    legacy_margin_account.positions_opened = 0;
+    legacy_margin_account.positions_closed = 0;
+    legacy_margin_account.total_realized_pnl = 0;
+    legacy_margin_account._reserved = [0u8; 64];
 
     Ok(())
 }

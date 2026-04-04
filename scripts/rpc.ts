@@ -1,4 +1,11 @@
-import { Commitment, Connection } from "@solana/web3.js";
+import {
+  Commitment,
+  Connection,
+  Keypair,
+  SendOptions,
+  Signer,
+  Transaction,
+} from "@solana/web3.js";
 
 type RpcResolveOptions = {
   preferred?: string;
@@ -17,6 +24,19 @@ export type RpcResolveResult = {
   rpcUrl: string;
   candidates: string[];
   attempts: RpcAttempt[];
+};
+
+export type PollingConfirmOptions = {
+  commitment?: Commitment;
+  timeoutMs?: number;
+  pollMs?: number;
+  sendOptions?: SendOptions;
+  signers?: Signer[];
+};
+
+type RetryRpcOptions = {
+  attempts?: number;
+  delayMs?: number;
 };
 
 const DEFAULT_RPC = "https://api.devnet.solana.com";
@@ -121,5 +141,112 @@ export async function resolveRpcEndpoint(
     .map((a) => `- ${a.url} :: ${a.error ?? "unknown error"}`)
     .join("\n");
   throw new Error(`No healthy RPC endpoint found.\n${details}`);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientRpcError(error: unknown): boolean {
+  const message = String((error as any)?.message || error || "").toLowerCase();
+  return (
+    message.includes("fetch failed") ||
+    message.includes("socket") ||
+    message.includes("timed out") ||
+    message.includes("429") ||
+    message.includes("too many requests") ||
+    message.includes("und_err_")
+  );
+}
+
+export async function retryRpcCall<T>(
+  label: string,
+  fn: () => Promise<T>,
+  options: RetryRpcOptions = {}
+): Promise<T> {
+  const attempts = options.attempts ?? 3;
+  const delayMs = options.delayMs ?? 1_000;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt >= attempts || !isTransientRpcError(error)) {
+        throw error;
+      }
+      console.warn(`${label} transient RPC failure (attempt ${attempt}/${attempts}), retrying...`);
+      await sleep(delayMs * attempt);
+    }
+  }
+
+  throw lastError;
+}
+
+export async function sendAndConfirmWithPolling(
+  connection: Connection,
+  payer: Keypair,
+  tx: Transaction,
+  options: PollingConfirmOptions = {}
+): Promise<string> {
+  const commitment = options.commitment ?? "confirmed";
+  const timeoutMs = options.timeoutMs ?? 90_000;
+  const pollMs = options.pollMs ?? 1_500;
+
+  tx.feePayer = tx.feePayer ?? payer.publicKey;
+
+  const latestBlockhash = await retryRpcCall("getLatestBlockhash", () =>
+    connection.getLatestBlockhash(commitment)
+  );
+  tx.recentBlockhash = latestBlockhash.blockhash;
+  tx.sign(payer, ...(options.signers ?? []));
+
+  const signature = await retryRpcCall("sendRawTransaction", () =>
+    connection.sendRawTransaction(tx.serialize(), {
+      skipPreflight: false,
+      preflightCommitment: commitment,
+      ...(options.sendOptions ?? {}),
+    })
+  );
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const statuses = await retryRpcCall("getSignatureStatuses", () =>
+        connection.getSignatureStatuses([signature], {
+          searchTransactionHistory: false,
+        })
+      );
+      const status = statuses.value[0];
+      if (status?.err) {
+        throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
+      }
+      if (
+        status?.confirmationStatus === "confirmed" ||
+        status?.confirmationStatus === "finalized"
+      ) {
+        return signature;
+      }
+    } catch (error: any) {
+      const message = String(error?.message || error);
+      if (message.includes("Transaction failed:")) throw error;
+    }
+
+    const currentBlockHeight = await retryRpcCall("getBlockHeight", () =>
+      connection.getBlockHeight(commitment)
+    );
+    if (currentBlockHeight > latestBlockhash.lastValidBlockHeight) {
+      throw new Error(
+        `Transaction expired before confirmation: ${signature}`
+      );
+    }
+
+    await sleep(pollMs);
+  }
+
+  throw new Error(
+    `Transaction was not confirmed in ${(timeoutMs / 1000).toFixed(2)} seconds. Check signature ${signature}.`
+  );
 }
 

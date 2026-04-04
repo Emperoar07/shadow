@@ -1,11 +1,10 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import { resolveRpcEndpoint } from "./rpc";
+import { resolveRpcEndpoint, retryRpcCall, sendAndConfirmWithPolling } from "./rpc";
 import { TRADING_PAIRS } from "../app/src/lib/tokens";
 
 const PROGRAM_ID = new PublicKey(
@@ -76,10 +75,6 @@ async function main() {
     [Buffer.from("margin"), owner.toBuffer()],
     PROGRAM_ID
   );
-  const [sharedVaultAuthority] = PublicKey.findProgramAddressSync(
-    [Buffer.from("shared_vault_authority"), COLLATERAL_MINT.toBuffer()],
-    PROGRAM_ID
-  );
 
   console.log(`RPC: ${rpcSelection.rpcUrl}`);
   console.log(`Owner: ${owner.toBase58()}`);
@@ -88,7 +83,10 @@ async function main() {
 
   for (const pair of TRADING_PAIRS) {
     const market = deriveMarketPda(pair.base.mint);
-    const marketAccount = await (program.account as any).market.fetchNullable(market);
+    const marketAccount = await retryRpcCall<any | null>(
+      `[${pair.label}] fetch market`,
+      () => (program.account as any).market.fetchNullable(market)
+    );
     if (!marketAccount) {
       console.log(`[${pair.label}] market missing, skipping`);
       continue;
@@ -98,9 +96,17 @@ async function main() {
       [Buffer.from("margin"), market.toBuffer(), owner.toBuffer()],
       PROGRAM_ID
     );
-    const legacyMargin = await (program.account as any).marginAccount.fetchNullable(legacyMarginAccount);
+    const legacyMargin = await retryRpcCall<any | null>(
+      `[${pair.label}] fetch legacy margin`,
+      () => (program.account as any).marginAccount.fetchNullable(legacyMarginAccount)
+    );
     if (!legacyMargin) {
       console.log(`[${pair.label}] no legacy margin account`);
+      continue;
+    }
+
+    if (Number(legacyMargin.balance) === 0 && Number(legacyMargin.lockedBalance) === 0) {
+      console.log(`[${pair.label}] no legacy balance to migrate`);
       continue;
     }
 
@@ -109,10 +115,6 @@ async function main() {
       continue;
     }
 
-    const [legacyVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), market.toBuffer()],
-      PROGRAM_ID
-    );
     const sharedVault = new PublicKey(marketAccount.vault);
 
     process.stdout.write(`[${pair.label}] migrating legacy margin... `);
@@ -123,14 +125,14 @@ async function main() {
         market,
         legacyMarginAccount,
         globalMarginAccount,
-        legacyVault,
         sharedVault,
-        sharedVaultAuthority,
-        tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
-      .rpc({ commitment: "confirmed" });
-    console.log(`ok ${tx.slice(0, 18)}...`);
+      .transaction();
+    const sig = await sendAndConfirmWithPolling(connection, walletKeypair, tx, {
+      commitment: "confirmed",
+    });
+    console.log(`ok ${sig.slice(0, 18)}...`);
   }
 }
 
