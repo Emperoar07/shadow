@@ -447,7 +447,7 @@ export default function DocsPage() {
               <li>Per-user balance within the protocol</li>
             </ul>
             <Note>
-              The reference orderbook pulls live market depth from external venues including Binance, Coinbase, Bybit, and Gate.io depending on the selected pair. Gate.io is fetched directly from the browser as a fallback when other providers are unreachable. The orderbook provides market context only and does not represent ShadowPerp's own venue liquidity. It does not reveal other traders' positions.
+              The reference orderbook pulls live market depth from external venues including Binance, Coinbase, Bybit, and Gate.io depending on the selected pair. Provider selection happens through the server-side reference depth pipeline, with cached client state used as a graceful fallback when a provider is temporarily unreachable. The orderbook provides market context only and does not represent ShadowPerp's own venue liquidity. It does not reveal other traders' positions.
             </Note>
           </Section>
 

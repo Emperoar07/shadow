@@ -58,7 +58,14 @@ export default function CollateralModal({
       throw new Error("Connect your wallet");
     }
     const { runtime } = createShadowPerpClient(connection, anchorWallet);
-    return runtime.marketRegistry[pairLabel] ?? runtime.marketAddress;
+    if (!pairLabel) {
+      return runtime.marketAddress;
+    }
+    const marketAddress = runtime.marketRegistry[pairLabel];
+    if (!marketAddress) {
+      throw new Error(`Unknown trading pair: ${pairLabel}`);
+    }
+    return marketAddress;
   }, [anchorWallet, connection, pairLabel]);
 
   const getRuntimeErrorMessage = useCallback((rawMessage: string, action: "deposit" | "withdraw") => {

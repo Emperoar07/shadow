@@ -11,6 +11,7 @@ export default function PriceChart({
   chartSymbol,
 }: PriceChartProps) {
   const [isLoading, setIsLoading] = useState(true);
+  const [showSoftLoading, setShowSoftLoading] = useState(false);
   const [tvTheme, setTvTheme] = useState<"dark" | "light">("dark");
   const [isMobile, setIsMobile] = useState(false);
 
@@ -25,7 +26,19 @@ export default function PriceChart({
 
   useEffect(() => {
     setIsLoading(true);
+    setShowSoftLoading(false);
   }, [chartSymbol]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setShowSoftLoading(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setShowSoftLoading(true);
+    }, 4500);
+    return () => window.clearTimeout(timer);
+  }, [isLoading, chartSymbol]);
 
   useEffect(() => {
     const syncViewport = () => setIsMobile(window.innerWidth < 640);
@@ -55,7 +68,7 @@ export default function PriceChart({
     <div className="trade-price-chart flex flex-col h-full min-h-0">
       {/* Chart — fills remaining height */}
       <div className="relative flex-1 min-h-0">
-        {isLoading && (
+        {isLoading && !showSoftLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-shadow-800">
             <div className="flex items-center justify-center">
               <svg className="animate-spin h-8 w-8 text-accent-purple" viewBox="0 0 24 24">
@@ -74,6 +87,15 @@ export default function PriceChart({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
+            </div>
+          </div>
+        )}
+
+        {isLoading && showSoftLoading && (
+          <div className={`absolute z-20 ${isMobile ? "left-3 right-3 top-3" : "right-3 top-3"}`}>
+            <div className="inline-flex items-center gap-2 rounded-full border border-shadow-500/80 bg-shadow-900/90 px-3 py-1.5 text-[11px] font-medium text-gray-300 backdrop-blur-sm">
+              <span className="inline-block h-2 w-2 rounded-full bg-accent-purple animate-pulse" />
+              Chart still loading
             </div>
           </div>
         )}

@@ -60,28 +60,55 @@ pub fn handler(ctx: Context<WithdrawCollateral>, amount: u64) -> Result<()> {
 
     require!(available >= amount, ShadowPerpError::InsufficientBalance);
 
-    // Transfer tokens from vault to user using PDA signer
-    let (_, shared_vault_authority_bump) = Pubkey::find_program_address(
-        &[b"shared_vault_authority", market.collateral_mint.as_ref()],
+    let (shared_vault, _) = Pubkey::find_program_address(
+        &[b"shared_vault", market.collateral_mint.as_ref()],
         ctx.program_id,
     );
-    let authority_seeds = &[
-        b"shared_vault_authority".as_ref(),
-        market.collateral_mint.as_ref(),
-        &[shared_vault_authority_bump],
-    ];
-    let signer_seeds = &[&authority_seeds[..]];
 
-    let transfer_ctx = CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
-        Transfer {
-            from: ctx.accounts.vault.to_account_info(),
-            to: ctx.accounts.user_token_account.to_account_info(),
-            authority: ctx.accounts.shared_vault_authority.to_account_info(),
-        },
-        signer_seeds,
-    );
-    token::transfer(transfer_ctx, amount)?;
+    // Backward compatibility: adopted markets route through the shared vault PDA,
+    // while legacy markets still use the market PDA as the vault authority.
+    if ctx.accounts.vault.key() == shared_vault {
+        let (_, shared_vault_authority_bump) = Pubkey::find_program_address(
+            &[b"shared_vault_authority", market.collateral_mint.as_ref()],
+            ctx.program_id,
+        );
+        let authority_seeds = &[
+            b"shared_vault_authority".as_ref(),
+            market.collateral_mint.as_ref(),
+            &[shared_vault_authority_bump],
+        ];
+        let signer_seeds = &[&authority_seeds[..]];
+
+        let transfer_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.vault.to_account_info(),
+                to: ctx.accounts.user_token_account.to_account_info(),
+                authority: ctx.accounts.shared_vault_authority.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::transfer(transfer_ctx, amount)?;
+    } else {
+        let market_seeds = &[
+            b"market".as_ref(),
+            market.collateral_mint.as_ref(),
+            market.base_asset_mint.as_ref(),
+            &[market.bump],
+        ];
+        let signer_seeds = &[&market_seeds[..]];
+
+        let transfer_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.vault.to_account_info(),
+                to: ctx.accounts.user_token_account.to_account_info(),
+                authority: ctx.accounts.market.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::transfer(transfer_ctx, amount)?;
+    }
 
     // Update margin account
     margin_account.balance = margin_account

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BN from "bn.js";
+import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
@@ -23,11 +24,14 @@ import {
   subscribeAutomationUpdates,
   updateLimitOrder,
 } from "../lib/trade-automation";
+import { fetchPrices } from "../lib/prices";
 
 type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated" | "settling";
 
 interface UiPosition {
   address: string;
+  marketAddress: string;
+  pairLabel: string;
   index: BN;
   status: UiStatus;
   margin: number;
@@ -172,6 +176,8 @@ export default function BottomPositionsPanel({
   const [closeConfirmPos, setCloseConfirmPos] = useState<UiPosition | null>(null);
   const [oraclePrice, setOraclePrice] = useState<number | null>(null);
   const [liqThreshold, setLiqThreshold] = useState(5);
+  const [pairPrices, setPairPrices] = useState<Record<string, number>>({});
+  const [pairLiqThresholds, setPairLiqThresholds] = useState<Record<string, number>>({});
   const autoCloseInFlightRef = useRef<Set<string>>(new Set());
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
 
@@ -191,15 +197,36 @@ export default function BottomPositionsPanel({
         clientRef.current = createShadowPerpClient(connection, anchorWallet);
       }
       const { client, runtime } = clientRef.current;
-      const marketAddress =
-        (activePairLabel ? runtime.marketRegistry[activePairLabel] : undefined) ??
-        runtime.marketAddress;
-      const onchain = await client.getUserPositionAccounts(marketAddress, publicKey);
+      const configuredMarkets = Array.from(
+        new Map(
+          Object.entries(runtime.marketRegistry).map(([label, address]) => [
+            address.toBase58(),
+            { label, address },
+          ])
+        ).values()
+      );
+      if (!configuredMarkets.some((entry) => entry.address.equals(runtime.marketAddress))) {
+        configuredMarkets.unshift({
+          label: activePairLabel ?? "SOL-USD",
+          address: runtime.marketAddress,
+        });
+      }
+
+      const labelByMarket = new Map(
+        configuredMarkets.map(({ label, address }) => [address.toBase58(), label] as const)
+      );
+      const onchain = await client.getUserPositionAccountsAcrossMarkets(
+        configuredMarkets.map(({ address }) => address),
+        publicKey
+      );
       const mapped: UiPosition[] = onchain.map((p) => {
         const account = p.account as any;
         const encData: number[] | Uint8Array = account.encryptedData ?? [];
+        const marketAddress = new PublicKey(account.market).toBase58();
         return {
           address: p.publicKey.toBase58(),
+          marketAddress,
+          pairLabel: labelByMarket.get(marketAddress) ?? activePairLabel ?? "SOL-USD",
           index: new BN(account.index.toString()),
           status: parseStatus(account.status),
           margin: new BN(account.margin.toString()).toNumber() / 1_000_000,
@@ -211,12 +238,51 @@ export default function BottomPositionsPanel({
       mapped.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
       setPositions(mapped);
       try {
-        const market = await client.getMarket(marketAddress);
-        const price = new BN(market.oraclePrice.toString()).toNumber() / 1_000_000;
-        setOraclePrice(Number.isFinite(price) && price > 0 ? price : null);
-        const threshold = Number(market.liquidationThreshold) / 100;
-        if (Number.isFinite(threshold) && threshold > 0 && threshold <= 100) {
-          setLiqThreshold(threshold);
+        const [livePrices, marketResults] = await Promise.all([
+          fetchPrices().catch(() => null),
+          Promise.allSettled(
+            configuredMarkets.map(async ({ label, address }) => {
+              const market = await client.getMarket(address);
+              const threshold = Number(market.liquidationThreshold) / 100;
+              return {
+                label,
+                oraclePrice: new BN(market.oraclePrice.toString()).toNumber() / 1_000_000,
+                liqThreshold:
+                  Number.isFinite(threshold) && threshold > 0 && threshold <= 100 ? threshold : 5,
+              };
+            })
+          ),
+        ]);
+
+        const nextPairPrices: Record<string, number> = {};
+        const nextPairLiqThresholds: Record<string, number> = {};
+        for (const result of marketResults) {
+          if (result.status !== "fulfilled") continue;
+          nextPairLiqThresholds[result.value.label] = result.value.liqThreshold;
+          const livePrice = livePrices?.[result.value.label]?.price;
+          if (Number.isFinite(livePrice) && livePrice! > 0) {
+            nextPairPrices[result.value.label] = livePrice!;
+          } else if (
+            Number.isFinite(result.value.oraclePrice) &&
+            result.value.oraclePrice > 0
+          ) {
+            nextPairPrices[result.value.label] = result.value.oraclePrice;
+          }
+        }
+        setPairPrices(nextPairPrices);
+        setPairLiqThresholds(nextPairLiqThresholds);
+        const selectedPrice =
+          nextPairPrices[activePairLabel ?? ""] ??
+          nextPairPrices[mapped[0]?.pairLabel ?? ""] ??
+          null;
+        if (selectedPrice !== null) {
+          setOraclePrice(selectedPrice);
+        }
+        const selectedThreshold =
+          nextPairLiqThresholds[activePairLabel ?? ""] ??
+          nextPairLiqThresholds[mapped[0]?.pairLabel ?? ""];
+        if (selectedThreshold) {
+          setLiqThreshold(selectedThreshold);
         }
       } catch {
         // keep previous oracle price
@@ -226,7 +292,7 @@ export default function BottomPositionsPanel({
     } finally {
       setLoading(false);
     }
-  }, [publicKey, anchorWallet, connection]);
+  }, [activePairLabel, publicKey, anchorWallet, connection]);
 
   const loadAutomationState = useCallback(() => {
     // Ensure owner is set before reading views so plain-text storage is loaded
@@ -291,10 +357,8 @@ export default function BottomPositionsPanel({
         if (!clientRef.current) {
           clientRef.current = createShadowPerpClient(connection, anchorWallet);
         }
-        const { client, runtime } = clientRef.current;
-        const marketAddress =
-          (activePairLabel ? runtime.marketRegistry[activePairLabel] : undefined) ??
-          runtime.marketAddress;
+        const { client } = clientRef.current;
+        const marketAddress = new PublicKey(pos.marketAddress);
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(
           marketAddress
         );
@@ -344,7 +408,7 @@ export default function BottomPositionsPanel({
         setClosingAddress(null);
       }
     },
-    [activePairLabel, publicKey, anchorWallet, connection, loadPositions, toastSuccess, toastLoading]
+    [publicKey, anchorWallet, connection, loadPositions, toastSuccess, toastLoading]
   );
 
   const handleClose = useCallback(
@@ -382,7 +446,9 @@ export default function BottomPositionsPanel({
     const sl = parseOptionalPositive(draft.stopLoss);
     const existingRule = positionRules[address];
     const view = ownerPositionViews[address];
-    const pairLabel = view?.pairLabel ?? existingRule?.pairLabel ?? activePairLabel ?? "USD";
+    const position = positions.find((item) => item.address === address);
+    const pairLabel =
+      view?.pairLabel ?? existingRule?.pairLabel ?? position?.pairLabel ?? activePairLabel ?? "SOL-USD";
     if (tp === null && sl === null) {
       removePositionRule(address);
       toastSuccess("TP/SL rule removed");
@@ -397,7 +463,7 @@ export default function BottomPositionsPanel({
       updatedAt: Date.now(),
     });
     toastSuccess("TP/SL rule saved");
-  }, [activePairLabel, ownerPositionViews, positionRules, ruleDrafts]);
+  }, [activePairLabel, ownerPositionViews, positionRules, positions, ruleDrafts]);
 
   const openPositions = useMemo(
     () => positions.filter((p) => ["open", "pending", "closing", "settling"].includes(p.status)),
@@ -423,13 +489,15 @@ export default function BottomPositionsPanel({
       const marginMode = view?.marginMode ?? "cross";
       const leverage = view?.leverage ?? null;
       const entryPrice = view?.entryPrice ?? null;
-      const pairLabel = view?.pairLabel ?? rule?.pairLabel ?? "SOL-USD";
+      const pairLabel = view?.pairLabel ?? position.pairLabel ?? rule?.pairLabel ?? "SOL-USD";
       const sizeBase = view?.sizeBase ?? null;
       const baseSymbol = pairLabel.split("-")[0] ?? "USD";
+      const pairOraclePrice = pairPrices[pairLabel] ?? null;
+      const pairLiqThreshold = pairLiqThresholds[pairLabel] ?? liqThreshold;
 
       let liqPrice: number | null = null;
       if (entryPrice !== null && leverage !== null && leverage > 0) {
-        const liqFactor = (1 - liqThreshold / 100) / leverage;
+        const liqFactor = (1 - pairLiqThreshold / 100) / leverage;
         liqPrice =
           side === "short"
             ? entryPrice * (1 + liqFactor)
@@ -440,11 +508,11 @@ export default function BottomPositionsPanel({
       if (
         entryPrice !== null &&
         sizeBase !== null &&
-        oraclePrice !== null &&
-        Number.isFinite(oraclePrice)
+        pairOraclePrice !== null &&
+        Number.isFinite(pairOraclePrice)
       ) {
         const direction = side === "short" ? -1 : 1;
-        unrealizedPnl = (oraclePrice - entryPrice) * sizeBase * direction;
+        unrealizedPnl = (pairOraclePrice - entryPrice) * sizeBase * direction;
       }
 
       // Do not use on-chain `position.margin` for active-position health/PnL calculations.
@@ -463,18 +531,18 @@ export default function BottomPositionsPanel({
       if (
         liqPrice !== null &&
         entryPrice !== null &&
-        oraclePrice !== null &&
+        pairOraclePrice !== null &&
         side
       ) {
         if (side === "long") {
           const denominator = entryPrice - liqPrice;
           if (denominator > 0) {
-            healthPercent = clampPercent(((oraclePrice - liqPrice) / denominator) * 100);
+            healthPercent = clampPercent(((pairOraclePrice - liqPrice) / denominator) * 100);
           }
         } else {
           const denominator = liqPrice - entryPrice;
           if (denominator > 0) {
-            healthPercent = clampPercent(((liqPrice - oraclePrice) / denominator) * 100);
+            healthPercent = clampPercent(((liqPrice - pairOraclePrice) / denominator) * 100);
           }
         }
       }
@@ -494,29 +562,31 @@ export default function BottomPositionsPanel({
         healthPercent,
       };
     },
-    [activePairLabel, liqThreshold, oraclePrice, ownerPositionViews, positionRules]
+    [liqThreshold, ownerPositionViews, pairLiqThresholds, pairPrices, positionRules]
   );
 
   useEffect(() => {
     if (TRADING_DISABLED) return;
-    if (!oraclePrice || activeTab !== "position") return;
+    if (activeTab !== "position") return;
     for (const pos of openPositions) {
       if (pos.status !== "open") continue;
       if (autoCloseInFlightRef.current.has(pos.address)) continue;
       const rule = positionRules[pos.address];
       if (!rule) continue;
+      const triggerPrice = pairPrices[rule.pairLabel];
+      if (!triggerPrice || !Number.isFinite(triggerPrice)) continue;
       const hit =
         rule.side === "long"
-          ? (rule.takeProfit !== null && oraclePrice >= rule.takeProfit) ||
-            (rule.stopLoss !== null && oraclePrice <= rule.stopLoss)
-          : (rule.takeProfit !== null && oraclePrice <= rule.takeProfit) ||
-            (rule.stopLoss !== null && oraclePrice >= rule.stopLoss);
+          ? (rule.takeProfit !== null && triggerPrice >= rule.takeProfit) ||
+            (rule.stopLoss !== null && triggerPrice <= rule.stopLoss)
+          : (rule.takeProfit !== null && triggerPrice <= rule.takeProfit) ||
+            (rule.stopLoss !== null && triggerPrice >= rule.stopLoss);
 
       if (!hit) continue;
 
       autoCloseInFlightRef.current.add(pos.address);
       toast(
-        `TP/SL hit for #${pos.index.toString()} at ${formatPrice(oraclePrice)}. Closing position...`,
+        `TP/SL hit for #${pos.index.toString()} at ${formatPrice(triggerPrice)}. Closing position...`,
         { id: `tp-sl-${pos.address}` }
       );
 
@@ -524,7 +594,7 @@ export default function BottomPositionsPanel({
         autoCloseInFlightRef.current.delete(pos.address);
       });
     }
-  }, [activeTab, executeClose, openPositions, oraclePrice, positionRules]);
+  }, [activeTab, executeClose, openPositions, pairPrices, positionRules]);
 
   const updateOrderField = useCallback(
     (orderId: string, field: "limitPrice" | "takeProfit" | "stopLoss", raw: string) => {

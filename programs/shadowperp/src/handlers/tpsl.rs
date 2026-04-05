@@ -8,14 +8,10 @@ use crate::ID;
 use crate::ID_CONST;
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
-use arcium_anchor::traits::CallbackCompAccs;
-use arcium_client::idl::arcium::types::CallbackAccount;
 
 use crate::errors::{ErrorCode, ShadowPerpError};
-use crate::handlers::callbacks::close_position_callback::ClosePositionV2Callback;
 use crate::state::{
-    MarginAccount, Market, Position, PositionStatus, TpSlOrder, TpSlOrderCancelled, TpSlOrderSet,
-    TpSlTriggered,
+    MarginAccount, Market, Position, TpSlOrder, TpSlOrderCancelled,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,70 +55,8 @@ pub fn set_tpsl_handler(
     sl_price: u64,
     is_long: bool,
 ) -> Result<()> {
-    let position = &ctx.accounts.position;
-    let clock = Clock::get()?;
-
-    // Position must be open to set TP/SL
-    require!(
-        position.status == PositionStatus::Open,
-        ShadowPerpError::PositionNotOpen
-    );
-
-    // At least one of TP or SL must be set
-    require!(
-        tp_price > 0 || sl_price > 0,
-        ShadowPerpError::InvalidTpSlPrice
-    );
-
-    let current_price = ctx
-        .accounts
-        .market
-        .effective_mark_price_at(clock.unix_timestamp);
-
-    // Validate TP/SL prices make sense for direction
-    if tp_price > 0 && current_price > 0 {
-        if is_long {
-            // TP for long should be above current price
-            require!(tp_price > current_price, ShadowPerpError::InvalidTpSlPrice);
-        } else {
-            // TP for short should be below current price
-            require!(tp_price < current_price, ShadowPerpError::InvalidTpSlPrice);
-        }
-    }
-
-    if sl_price > 0 && current_price > 0 {
-        if is_long {
-            // SL for long should be below current price
-            require!(sl_price < current_price, ShadowPerpError::InvalidTpSlPrice);
-        } else {
-            // SL for short should be above current price
-            require!(sl_price > current_price, ShadowPerpError::InvalidTpSlPrice);
-        }
-    }
-
-    let tpsl = &mut ctx.accounts.tpsl_order;
-    tpsl.position = position.key();
-    tpsl.owner = ctx.accounts.owner.key();
-    tpsl.market = ctx.accounts.market.key();
-    tpsl.tp_price = tp_price;
-    tpsl.sl_price = sl_price;
-    tpsl.is_long = if is_long {
-        TpSlOrder::IS_LONG_LONG
-    } else {
-        TpSlOrder::IS_LONG_SHORT
-    };
-    tpsl.active = true;
-    tpsl.bump = ctx.bumps.tpsl_order;
-
-    emit!(TpSlOrderSet {
-        position: position.key(),
-        owner: ctx.accounts.owner.key(),
-        tp_price,
-        sl_price,
-        is_long,
-    });
-
-    Ok(())
+    let _ = (&ctx, tp_price, sl_price, is_long);
+    err!(ShadowPerpError::TpSlPrivateDirectionUnsupported)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -261,159 +195,6 @@ pub fn trigger_tpsl_handler(
     ctx: Context<TriggerTpSl>,
     computation_offset: u64,
 ) -> Result<()> {
-    ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
-
-    require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
-
-    let tpsl = &ctx.accounts.tpsl_order;
-
-    require!(tpsl.active, ShadowPerpError::TpSlNotActive);
-
-    let position = &ctx.accounts.position;
-    require!(
-        position.status == PositionStatus::Open,
-        ShadowPerpError::PositionNotOpen
-    );
-
-    let market = &ctx.accounts.market;
-
-    // Mark price must have been set (non-zero) to trigger TP/SL
-    let mark_price = market.mark_price();
-    require!(mark_price > 0, ShadowPerpError::MarkPriceStale);
-
-    // Validate oracle freshness
-    let clock = Clock::get()?;
-    let price_age = clock
-        .unix_timestamp
-        .saturating_sub(market.last_mark_price_update());
-    require!(price_age < 300, ShadowPerpError::MarkPriceStale);
-
-    let is_long = tpsl.is_long == TpSlOrder::IS_LONG_LONG;
-    require!(
-        tpsl.is_long != TpSlOrder::IS_LONG_UNSET,
-        ShadowPerpError::InvalidTpSlPrice
-    );
-
-    // Determine trigger type: 1 = TP, 2 = SL
-    let (triggered, trigger_type, trigger_price) = check_trigger(
-        mark_price,
-        tpsl.tp_price,
-        tpsl.sl_price,
-        is_long,
-    );
-    require!(triggered, ShadowPerpError::TpSlNotTriggered);
-
-    // Deactivate the TP/SL order
-    let tpsl_mut = &mut ctx.accounts.tpsl_order;
-    tpsl_mut.active = false;
-
-    emit!(TpSlTriggered {
-        position: position.key(),
-        owner: tpsl_mut.owner,
-        trigger_type,
-        trigger_price,
-        mark_price,
-    });
-
-    // Queue close_position_v2 MPC computation using mark_price as exit price
-    let position = &mut ctx.accounts.position;
-    position.status = PositionStatus::Closing;
-    position.begin_pending_computation(
-        ctx.accounts.computation_account.key(),
-        Position::CALLBACK_KIND_CLOSE,
-        computation_offset,
-    )?;
-
-    let market = &ctx.accounts.market;
-    let nonce = u128::from_le_bytes(position.nonce);
-    let encrypted_size: [u8; 32] = position.encrypted_data[0..32]
-        .try_into()
-        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
-    let encrypted_entry_price: [u8; 32] = position.encrypted_data[32..64]
-        .try_into()
-        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
-    let encrypted_leverage: [u8; 32] = position.encrypted_data[64..96]
-        .try_into()
-        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
-    let encrypted_is_long: [u8; 32] = position.encrypted_data[96..128]
-        .try_into()
-        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
-    let encrypted_margin: [u8; 32] = position.encrypted_data[128..160]
-        .try_into()
-        .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
-
-    // Use mark_price as exit price for TP/SL settlement
-    let args = ArgBuilder::new()
-        .x25519_pubkey(position.client_pubkey)
-        .plaintext_u128(nonce)
-        .encrypted_u64(encrypted_size)
-        .encrypted_u64(encrypted_entry_price)
-        .encrypted_u8(encrypted_leverage)
-        .encrypted_bool(encrypted_is_long)
-        .encrypted_u64(encrypted_margin)
-        .plaintext_u64(mark_price)
-        .plaintext_u16(market.trading_fee)
-        .build();
-
-    let callback_accounts = vec![
-        CallbackAccount {
-            pubkey: position.key(),
-            is_writable: true,
-        },
-        CallbackAccount {
-            pubkey: market.key(),
-            is_writable: true,
-        },
-        CallbackAccount {
-            pubkey: ctx.accounts.margin_account.key(),
-            is_writable: true,
-        },
-    ];
-
-    let callback_ix = ClosePositionV2Callback::callback_ix(
-        computation_offset,
-        &ctx.accounts.mxe_account,
-        &callback_accounts,
-    )?;
-
-    queue_computation(
-        ctx.accounts,
-        computation_offset,
-        args,
-        vec![callback_ix],
-        1,
-        0,
-    )?;
-
-    Ok(())
-}
-
-/// Returns (triggered, trigger_type, trigger_price).
-/// trigger_type: 1 = TP, 2 = SL
-fn check_trigger(
-    mark_price: u64,
-    tp_price: u64,
-    sl_price: u64,
-    is_long: bool,
-) -> (bool, u8, u64) {
-    if is_long {
-        // Long TP: mark >= tp_price
-        if tp_price > 0 && mark_price >= tp_price {
-            return (true, 1, tp_price);
-        }
-        // Long SL: mark <= sl_price
-        if sl_price > 0 && mark_price <= sl_price {
-            return (true, 2, sl_price);
-        }
-    } else {
-        // Short TP: mark <= tp_price
-        if tp_price > 0 && mark_price <= tp_price {
-            return (true, 1, tp_price);
-        }
-        // Short SL: mark >= sl_price
-        if sl_price > 0 && mark_price >= sl_price {
-            return (true, 2, sl_price);
-        }
-    }
-    (false, 0, 0)
+    let _ = (&ctx, computation_offset);
+    err!(ShadowPerpError::TpSlPrivateDirectionUnsupported)
 }

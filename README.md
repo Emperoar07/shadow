@@ -12,7 +12,7 @@ ShadowPerp encrypts order sizes, entry prices, leverage, and collateral before s
 - **Private Orderbook** - Order flow is shielded from MEV bots and front runners. Orders cannot be extracted or front run because they are never visible.
 - **Session Trading** - Approve a delegated trading session once and let the relay act within configurable limits. The default session model is wallet-scoped and reusable across supported markets.
 - **6 Trading Pairs** - SOL-USD, BTC-USD, ETH-USD, JUP-USD, PYTH-USD, and ORCA-USD. Each pair routes to its own on-chain market PDA. Selected pair persists across page refreshes.
-- **Live Orderbook** - Real time market depth from Binance, Coinbase, Bybit, and Gate.io. Gate.io is fetched directly in the browser as a fallback when other providers are unreachable.
+- **Live Orderbook** - Real time market depth from Binance, Coinbase, Bybit, and Gate.io through the server-side reference depth pipeline, with cached client state as a graceful fallback.
 - **Shared Collateral on Devnet** - Adopted markets now resolve to a shared collateral vault per mint, and migrated owners use one owner-scoped margin balance across supported pairs.
 - **Cross and Isolated Position Modes** - Choose between shared collateral exposure across positions or isolated position-level margin usage. Leverage from 1x to 50x.
 - **Confidential Liquidations** - Liquidation prices are encrypted. No external party can target a position based on its liquidation threshold.
@@ -178,7 +178,7 @@ ShadowPerp is deployed on Solana devnet as an active prototype.
 - Take profit and stop loss rules
 - Collateral deposit and withdrawal (direct and session delegated)
 - Private position metadata stored in the browser for UI continuity
-- Live reference orderbook for all 6 pairs via Binance, Coinbase, Bybit, and Gate.io with client-side fallback
+- Live reference orderbook for all 6 pairs via Binance, Coinbase, Bybit, and Gate.io through the server-side reference depth pipeline
 - Pyth oracle integration with `update-oracle-pyth.ts`
 - Custom named RPC endpoint manager (up to 5, saved to localStorage)
 - Session revoke UI in the Settings panel

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BN from "bn.js";
+import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
@@ -11,6 +12,7 @@ type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated" | "sett
 
 interface UiPosition {
   address: string;
+  marketAddress: string;
   index: BN;
   status: UiStatus;
   margin: number;
@@ -64,7 +66,15 @@ export default function PositionsList() {
     setLoading(true);
     try {
       const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
-      const onchain = await client.getUserPositionAccounts(runtime.marketAddress, publicKey);
+      const marketEntries = Array.from(
+        new Map(
+          Object.values(runtime.marketRegistry).map((address) => [address.toBase58(), address])
+        ).values()
+      );
+      if (!marketEntries.some((address) => address.equals(runtime.marketAddress))) {
+        marketEntries.unshift(runtime.marketAddress);
+      }
+      const onchain = await client.getUserPositionAccountsAcrossMarkets(marketEntries, publicKey);
       const mapped: UiPosition[] = onchain.map((p) => {
         const account = p.account as any;
         const marginBn = new BN(account.margin.toString());
@@ -74,6 +84,7 @@ export default function PositionsList() {
         const hasEnc = Array.from(encData).some((b: number) => b !== 0);
         return {
           address: p.publicKey.toBase58(),
+          marketAddress: new PublicKey(account.market).toBase58(),
           index: new BN(account.index.toString()),
           status: parseStatus(account.status),
           margin: marginBn.toNumber() / 1_000_000,
@@ -104,13 +115,14 @@ export default function PositionsList() {
       if (!publicKey || !anchorWallet) return;
       setClosingAddress(position.address);
       try {
-        const { client, runtime } = createShadowPerpClient(connection, anchorWallet);
-        const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(runtime.marketAddress);
+        const { client } = createShadowPerpClient(connection, anchorWallet);
+        const marketAddress = new PublicKey(position.marketAddress);
+        const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(marketAddress);
         toast.loading("Queuing close via Arcium MPC...", { id: position.address });
-        const tx = await client.closePosition(runtime.marketAddress, position.index);
+        const tx = await client.closePosition(marketAddress, position.index);
         toast.loading("Awaiting MPC callback and settlement...", { id: position.address });
         const finalized = await client.finalizeClosePosition(
-          runtime.marketAddress,
+          marketAddress,
           publicKey,
           position.index,
           ownerTokenAccount

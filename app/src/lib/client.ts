@@ -1337,6 +1337,32 @@ export class ShadowPerpClient {
     }));
   }
 
+  async getUserPositionAccountsAcrossMarkets(
+    markets: PublicKey[],
+    owner: PublicKey
+  ): Promise<Array<{ publicKey: PublicKey; account: EncryptedPosition }>> {
+    const dedupedMarkets = Array.from(
+      new Map(markets.map((market) => [market.toBase58(), market])).values()
+    );
+    const settled = await Promise.allSettled(
+      dedupedMarkets.map((market) => this.getUserPositionAccounts(market, owner))
+    );
+    const seen = new Set<string>();
+    const merged: Array<{ publicKey: PublicKey; account: EncryptedPosition }> = [];
+
+    for (const result of settled) {
+      if (result.status !== "fulfilled") continue;
+      for (const position of result.value) {
+        const address = position.publicKey.toBase58();
+        if (seen.has(address)) continue;
+        seen.add(address);
+        merged.push(position);
+      }
+    }
+
+    return merged;
+  }
+
   async getOwnerCollateralTokenAccount(market: PublicKey): Promise<PublicKey> {
     const owner = this.provider.wallet.publicKey;
     const marketAccount = await this.getMarket(market);

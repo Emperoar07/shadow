@@ -289,13 +289,11 @@ export default async function handler(
       const message =
         typeof error?.message === "string" ? error.message : "Session lookup failed";
       if (message.includes("getProgramAccounts is not available")) {
-        res.status(200).json({
-          ok: true,
-          available: true,
-          relayer: relay.relayer.publicKey.toBase58(),
-          market: marketAddress.toBase58(),
-          runtime: runtimeSummary,
-          exists: false,
+        res.status(503).json({
+          ok: false,
+          available: false,
+          error:
+            "Relay session lookup is temporarily degraded on this RPC: getProgramAccounts is unavailable.",
         });
         return;
       }

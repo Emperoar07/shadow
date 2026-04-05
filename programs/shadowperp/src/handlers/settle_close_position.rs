@@ -59,29 +59,55 @@ pub fn handler(ctx: Context<SettleClosePosition>) -> Result<()> {
     // position.margin holds the settlement amount stored by the callback.
     let settlement_amount = position.margin;
 
+    let (shared_vault, _) = Pubkey::find_program_address(
+        &[b"shared_vault", market.collateral_mint.as_ref()],
+        ctx.program_id,
+    );
+
     // Transfer settlement amount to user
     if settlement_amount > 0 {
-        let (_, shared_vault_authority_bump) = Pubkey::find_program_address(
-            &[b"shared_vault_authority", market.collateral_mint.as_ref()],
-            ctx.program_id,
-        );
-        let authority_seeds = &[
-            b"shared_vault_authority".as_ref(),
-            market.collateral_mint.as_ref(),
-            &[shared_vault_authority_bump],
-        ];
-        let signer_seeds = &[&authority_seeds[..]];
+        if ctx.accounts.vault.key() == shared_vault {
+            let (_, shared_vault_authority_bump) = Pubkey::find_program_address(
+                &[b"shared_vault_authority", market.collateral_mint.as_ref()],
+                ctx.program_id,
+            );
+            let authority_seeds = &[
+                b"shared_vault_authority".as_ref(),
+                market.collateral_mint.as_ref(),
+                &[shared_vault_authority_bump],
+            ];
+            let signer_seeds = &[&authority_seeds[..]];
 
-        let transfer_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.vault.to_account_info(),
-                to: ctx.accounts.owner_token_account.to_account_info(),
-                authority: ctx.accounts.shared_vault_authority.to_account_info(),
-            },
-            signer_seeds,
-        );
-        token::transfer(transfer_ctx, settlement_amount)?;
+            let transfer_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.vault.to_account_info(),
+                    to: ctx.accounts.owner_token_account.to_account_info(),
+                    authority: ctx.accounts.shared_vault_authority.to_account_info(),
+                },
+                signer_seeds,
+            );
+            token::transfer(transfer_ctx, settlement_amount)?;
+        } else {
+            let market_seeds = &[
+                b"market".as_ref(),
+                market.collateral_mint.as_ref(),
+                market.base_asset_mint.as_ref(),
+                &[market.bump],
+            ];
+            let signer_seeds = &[&market_seeds[..]];
+
+            let transfer_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.vault.to_account_info(),
+                    to: ctx.accounts.owner_token_account.to_account_info(),
+                    authority: ctx.accounts.market.to_account_info(),
+                },
+                signer_seeds,
+            );
+            token::transfer(transfer_ctx, settlement_amount)?;
+        }
     }
 
     // Finalize position state

@@ -114,4 +114,7 @@ pub enum ShadowPerpError {
 
     #[msg("Mark price is not set or stale")]
     MarkPriceStale,
+
+    #[msg("On-chain TP/SL requires a private direction-proof path and is currently disabled")]
+    TpSlPrivateDirectionUnsupported,
 }

@@ -73,29 +73,55 @@ pub fn handler(ctx: Context<SettleLiquidation>) -> Result<()> {
     // position.margin holds the liquidation penalty stored by the callback.
     let liquidation_penalty = position.margin;
 
+    let (shared_vault, _) = Pubkey::find_program_address(
+        &[b"shared_vault", market.collateral_mint.as_ref()],
+        ctx.program_id,
+    );
+
     // Pay liquidation reward from vault to liquidator
     if liquidation_penalty > 0 {
-        let (_, shared_vault_authority_bump) = Pubkey::find_program_address(
-            &[b"shared_vault_authority", market.collateral_mint.as_ref()],
-            ctx.program_id,
-        );
-        let authority_seeds = &[
-            b"shared_vault_authority".as_ref(),
-            market.collateral_mint.as_ref(),
-            &[shared_vault_authority_bump],
-        ];
-        let signer_seeds = &[&authority_seeds[..]];
+        if ctx.accounts.vault.key() == shared_vault {
+            let (_, shared_vault_authority_bump) = Pubkey::find_program_address(
+                &[b"shared_vault_authority", market.collateral_mint.as_ref()],
+                ctx.program_id,
+            );
+            let authority_seeds = &[
+                b"shared_vault_authority".as_ref(),
+                market.collateral_mint.as_ref(),
+                &[shared_vault_authority_bump],
+            ];
+            let signer_seeds = &[&authority_seeds[..]];
 
-        let transfer_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.vault.to_account_info(),
-                to: ctx.accounts.liquidator_token_account.to_account_info(),
-                authority: ctx.accounts.shared_vault_authority.to_account_info(),
-            },
-            signer_seeds,
-        );
-        token::transfer(transfer_ctx, liquidation_penalty)?;
+            let transfer_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.vault.to_account_info(),
+                    to: ctx.accounts.liquidator_token_account.to_account_info(),
+                    authority: ctx.accounts.shared_vault_authority.to_account_info(),
+                },
+                signer_seeds,
+            );
+            token::transfer(transfer_ctx, liquidation_penalty)?;
+        } else {
+            let market_seeds = &[
+                b"market".as_ref(),
+                market.collateral_mint.as_ref(),
+                market.base_asset_mint.as_ref(),
+                &[market.bump],
+            ];
+            let signer_seeds = &[&market_seeds[..]];
+
+            let transfer_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.vault.to_account_info(),
+                    to: ctx.accounts.liquidator_token_account.to_account_info(),
+                    authority: ctx.accounts.market.to_account_info(),
+                },
+                signer_seeds,
+            );
+            token::transfer(transfer_ctx, liquidation_penalty)?;
+        }
     }
 
     // Finalize position state

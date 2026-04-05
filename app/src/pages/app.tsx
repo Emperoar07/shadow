@@ -292,8 +292,8 @@ export default function TradingAppPage() {
             </div>
 
             {/* Mobile: stacked tab layout */}
-            <div className="lg:hidden shrink-0 border-b border-shadow-600 p-2">
-              <div className="mb-2 flex rounded-xl border border-shadow-600 bg-shadow-900 p-1">
+            <div className="lg:hidden shrink-0 border-b border-shadow-600 p-1.5">
+              <div className="mb-1.5 flex rounded-xl border border-shadow-600 bg-shadow-900 p-1">
                 {([
                   ["chart", "Chart"],
                   ["book", "Order Book"],
@@ -313,9 +313,9 @@ export default function TradingAppPage() {
                 ))}
               </div>
 
-              <div className="flex min-h-0 flex-col gap-2">
+              <div className="flex min-h-0 flex-col gap-1.5">
                 <div className="flex min-h-0 min-w-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900">
-                  <div className="trade-terminal-grid h-[340px] min-w-0 min-h-0 flex-1 grid grid-cols-1 sm:h-[420px]">
+                  <div className="trade-terminal-grid h-[280px] min-w-0 min-h-0 flex-1 grid grid-cols-1 sm:h-[360px]">
                     <div className={`min-w-0 min-h-0 ${mobileMarketTab === "chart" ? "block" : "hidden"}`}>
                       <PriceChart selectedPair={selectedPair} chartSymbol={marketSnapshot.chartSymbol} />
                     </div>

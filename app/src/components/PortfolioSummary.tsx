@@ -63,15 +63,27 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
         clientRef.current = createShadowPerpClient(connection, anchorWallet);
       }
       const { client, runtime } = clientRef.current;
-      const marketAddress = pair
-        ? runtime.marketRegistry[pair.label] ?? runtime.marketAddress
-        : runtime.marketAddress;
+      const marketEntries = Array.from(
+        new Map(
+          Object.entries(runtime.marketRegistry).map(([label, address]) => [
+            address.toBase58(),
+            { label, address },
+          ])
+        ).values()
+      );
+      if (!marketEntries.some((entry) => entry.address.equals(runtime.marketAddress))) {
+        marketEntries.unshift({
+          label: pair?.label ?? "SOL-USD",
+          address: runtime.marketAddress,
+        });
+      }
 
       const [marginResult, positionsResult] = await Promise.allSettled([
-        client.getMarginAccount(
-          client.getMarginAccountAddress(marketAddress, publicKey)
+        client.getMarginAccount(client.getMarginAccountAddress(publicKey)),
+        client.getUserPositionAccountsAcrossMarkets(
+          marketEntries.map(({ address }) => address),
+          publicKey
         ),
-        client.getUserPositionAccounts(marketAddress, publicKey),
       ]);
       const livePrices = await fetchPrices().catch(() => null);
 
