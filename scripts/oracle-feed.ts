@@ -16,7 +16,7 @@ import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { resolveRpcEndpoint } from "./rpc";
+import { resolveRpcEndpoint, sendAndConfirmWithPolling } from "./rpc";
 
 const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
@@ -176,9 +176,15 @@ async function updateMarketPrice(
       priceFeeder: wallet.publicKey,
       market: marketPda,
     })
-    .rpc({ commitment: "confirmed" });
+    .transaction();
 
-  console.log(`  ${label.padEnd(10)} $${priceUsd.toFixed(4).padStart(12)}  tx=${tx.slice(0, 12)}...`);
+  const sig = await sendAndConfirmWithPolling(connection, wallet, tx, {
+    commitment: "confirmed",
+    timeoutMs: 90_000,
+    pollMs: 2_000,
+  });
+
+  console.log(`  ${label.padEnd(10)} $${priceUsd.toFixed(4).padStart(12)}  tx=${sig.slice(0, 12)}...`);
   return priceMicro;
 }
 
