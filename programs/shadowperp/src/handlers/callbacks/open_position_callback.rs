@@ -64,13 +64,18 @@ pub fn open_position_callback_handler(
                 ctx.accounts.position.key(),
                 error
             );
-            // Mark position as Closed so it doesn't remain stuck in Pending.
-            // Requested margin was never locked, so margin account is unaffected.
+            // Persist a terminal cleanup state instead of returning an error.
+            // Solana rolls back account writes on error, which would otherwise
+            // leave this position stuck in Pending forever.
             ctx.accounts.position.status = PositionStatus::Closed;
             ctx.accounts.position.consume_pending_computation(
                 ctx.accounts.computation_account.key(),
             )?;
-            return Err(ShadowPerpError::InvalidComputationResult.into());
+            msg!(
+                "open_position callback cleanup committed for aborted computation {}",
+                ctx.accounts.computation_account.key()
+            );
+            return Ok(());
         }
     };
 
@@ -124,9 +129,13 @@ pub fn open_position_callback_handler(
     // Enforce MPC validation outcome.
     if !verified_output.field_0 {
         // MPC rejected the position (e.g. insufficient margin, invalid params).
-        // Mark as Closed so the account is not stuck in Pending.
+        // Persist a terminal state so the account is not stuck in Pending.
         position.status = PositionStatus::Closed;
-        return Err(ShadowPerpError::InvalidComputationResult.into());
+        msg!(
+            "open_position callback rejected position {} after MPC validation",
+            position.key()
+        );
+        return Ok(());
     }
 
     // Update position with MPC-validated encrypted data

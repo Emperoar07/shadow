@@ -68,6 +68,17 @@ pub fn check_liquidation_callback_handler(
                 ctx.accounts.position.key(),
                 error
             );
+            let position = &mut ctx.accounts.position;
+            if position.pending_computation_account == ctx.accounts.computation_account.key()
+                && position.pending_callback_kind() == Position::CALLBACK_KIND_LIQUIDATION
+            {
+                position.consume_pending_computation(ctx.accounts.computation_account.key())?;
+                msg!(
+                    "liquidation callback cleanup cleared pending computation for position {}",
+                    position.key()
+                );
+                return Ok(());
+            }
             return Err(ShadowPerpError::InvalidComputationResult.into());
         }
     };
