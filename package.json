@@ -1,7 +1,7 @@
 {
   "name": "shadowperp",
   "version": "0.1.0",
-  "description": "ShadowPerp - Private Perpetual Futures on Arcium",
+  "description": "ShadowPerp - Confidential execution infrastructure for Solana perps on Arcium",
   "scripts": {
     "build": "anchor build",
     "build:anchor:safe": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/build-anchor.ps1",

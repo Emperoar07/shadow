@@ -170,7 +170,7 @@ export default function TradingAppPage() {
         <title>Shadow - Private Perpetuals on Solana</title>
         <meta
           name="description"
-          content="Shadow private perpetual futures trading terminal powered by Arcium MPC."
+          content="Shadow confidential execution terminal for Solana perps, wallets, and bots powered by Arcium MPC."
         />
       </Head>
 

@@ -1,8 +1,8 @@
 # ShadowPerp
 
-Private perpetual futures trading on Solana, powered by Arcium confidential compute.
+Confidential execution infrastructure for Solana perps, wallets, and bots, powered by Arcium confidential compute.
 
-ShadowPerp encrypts order sizes, entry prices, leverage, and collateral before submission. Arcium's Multi Party Computation (MPC) network handles the private computation, and only the minimum public state required for settlement is written on chain.
+ShadowPerp encrypts order sizes, entry prices, leverage, and collateral before submission. Arcium's Multi Party Computation (MPC) network handles the private computation, and only the minimum public state required for settlement is written on chain. The product is best thought of as a privacy execution rail for confidential perps rather than just another Solana perp UI.
 
 **Program ID (Devnet):** `ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4`
 
@@ -10,7 +10,7 @@ ShadowPerp encrypts order sizes, entry prices, leverage, and collateral before s
 
 - **Encrypted Positions** - Trade size, direction, leverage, entry price, and liquidation price are encrypted end to end. No plaintext position data is published on chain.
 - **Private Orderbook** - Order flow is shielded from MEV bots and front runners. Orders cannot be extracted or front run because they are never visible.
-- **Session Trading** - Approve a delegated trading session once and let the relay act within configurable limits. The default session model is wallet-scoped and reusable across supported markets.
+- **Delegated Session Trading** - Approve a delegated trading session once and let the relay act within configurable limits. The default session model is wallet-scoped and reusable across supported markets.
 - **6 Trading Pairs** - SOL-USD, BTC-USD, ETH-USD, JUP-USD, PYTH-USD, and ORCA-USD. Each pair routes to its own on-chain market PDA. Selected pair persists across page refreshes.
 - **Live Orderbook** - Real time market depth from Binance, Coinbase, Bybit, and Gate.io through the server-side reference depth pipeline, with cached client state as a graceful fallback.
 - **Shared Collateral on Devnet** - Adopted markets now resolve to a shared collateral vault per mint, and migrated owners use one owner-scoped margin balance across supported pairs.
@@ -158,7 +158,7 @@ cargo build --features shielded-collateral -p shadowperp
 
 ## Current Status
 
-ShadowPerp is deployed on Solana devnet as an active prototype.
+ShadowPerp is deployed on Solana devnet as an active prototype for confidential execution rails.
 
 **Working today:**
 

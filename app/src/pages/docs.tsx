@@ -306,7 +306,7 @@ export default function DocsPage() {
           <div className="docs-header">
             <h1>ShadowPerp Documentation</h1>
             <p>
-              ShadowPerp is a private perpetual futures DEX built on Solana. It combines encrypted positions,
+              ShadowPerp is confidential execution infrastructure for Solana perps, wallets, and bots. It combines encrypted positions,
               delegated session trading, and Arcium Multi Party Computation so traders can operate without exposing
               order details on chain.
             </p>
@@ -314,8 +314,8 @@ export default function DocsPage() {
 
           <Section id="overview" title="Overview">
             <p>
-              ShadowPerp enables private perpetual futures trading on Solana. Trade size, direction,
-              leverage, and margin are encrypted before they reach the on chain program. Sensitive calculations
+              ShadowPerp enables private perpetual futures trading on Solana, but the stronger framing is privacy execution rails.
+              Trade size, direction, leverage, and margin are encrypted before they reach the on chain program. Sensitive calculations
               run through Arcium's MPC network rather than being exposed in plaintext on the ledger.
             </p>
             <p>
@@ -323,7 +323,7 @@ export default function DocsPage() {
               to prevent position data from becoming exploitable public information.
             </p>
             <p>
-              ShadowPerp supports <strong>6 trading pairs</strong>: SOL-USD, BTC-USD, ETH-USD, JUP-USD, PYTH-USD, and ORCA-USD. Each pair routes to its own on-chain market PDA. The selected pair persists across page refreshes.
+              ShadowPerp supports <strong>6 trading pairs</strong>: SOL-USD, BTC-USD, ETH-USD, JUP-USD, PYTH-USD, and ORCA-USD. Each pair routes to its own on-chain market PDA, while delegated sessions and shared collateral keep execution reusable across supported markets. The selected pair persists across page refreshes.
             </p>
             <Note>
               ShadowPerp is currently deployed on <strong>Solana Devnet</strong> at program ID <Code>ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4</Code>. All balances are test funds.

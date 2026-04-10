@@ -7,7 +7,7 @@ For the private collateral redesign plan, read `PRIVATE_COLLATERAL_SPEC.md`.
 
 ## System Overview
 
-ShadowPerp is a Solana perpetual DEX with privacy-preserving trade logic through Arcium MPC.
+ShadowPerp is a confidential execution stack for Solana perps, wallets, and bots with privacy-preserving trade logic through Arcium MPC.
 
 - Frontend: `app/` (Next.js + wallet adapter + Arcium client bindings)
 - Program: `programs/shadowperp/` (Anchor + Arcium macros)
