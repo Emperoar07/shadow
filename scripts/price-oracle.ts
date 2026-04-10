@@ -22,7 +22,7 @@ import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import * as fs from "fs";
 import * as https from "https";
 import * as path from "path";
-import { collectRpcCandidates, resolveRpcEndpoint } from "./rpc";
+import { collectRpcCandidates, resolveRpcEndpoint, sendAndConfirmWithPolling } from "./rpc";
 
 type SourceQuote = {
   source: string;
@@ -515,13 +515,16 @@ async function main(): Promise<void> {
       const ctx = getProgramCtx(rpcUrl);
       try {
         const started = Date.now();
-        const signature = await (ctx.program.methods as any)
+        const tx = await (ctx.program.methods as any)
           .updatePrice(new anchor.BN(priceRaw))
           .accounts({ priceFeeder: walletKeypair.publicKey, market: marketPda })
-          .signers([walletKeypair])
-          .rpc();
+          .transaction();
 
-        await ctx.connection.confirmTransaction(signature, "confirmed");
+        const signature = await sendAndConfirmWithPolling(ctx.connection, walletKeypair, tx, {
+          commitment: "confirmed",
+          timeoutMs: 90_000,
+          pollMs: 1_500,
+        });
 
         // Read-after-write verification.
         const verified = await fetchSnapshot(ctx);

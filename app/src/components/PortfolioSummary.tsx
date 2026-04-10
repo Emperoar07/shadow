@@ -14,6 +14,8 @@ import type { TradingPair } from "../lib/tokens";
 
 interface PortfolioData {
   marginBalance: number;
+  freeCollateral: number;
+  lockedCollateral: number;
   openPositions: number;
   accountEquity: number | null;
   unrealizedPnl: number | null; // null = unavailable
@@ -91,6 +93,11 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
         marginResult.status === "fulfilled"
           ? new BN(marginResult.value.balance.toString()).toNumber() / 1_000_000
           : 0;
+      const lockedCollateral =
+        marginResult.status === "fulfilled"
+          ? new BN(marginResult.value.lockedBalance.toString()).toNumber() / 1_000_000
+          : 0;
+      const freeCollateral = Math.max(0, marginBalance - lockedCollateral);
 
       let openPositions = 0;
       let ownerUnrealizedEstimate = 0;
@@ -155,6 +162,8 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
 
       setData({
         marginBalance,
+        freeCollateral,
+        lockedCollateral,
         openPositions,
         accountEquity,
         unrealizedPnl,
@@ -198,7 +207,14 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
 
   return (
     <>
-    <div className="flex items-center gap-4 shrink-0">
+    <div className="flex items-center gap-4 shrink-0 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
+      <SummaryStat
+        label="Free Collateral"
+        value={data ? `$${data.freeCollateral.toFixed(2)}` : "--"}
+      />
+
+      <div className="w-px h-5 bg-shadow-600 shrink-0" />
+
       {/* Open Positions */}
       <SummaryStat
         label="Open Positions"
@@ -246,6 +262,8 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
     <CollateralModal
       isOpen={collateralModalOpen}
       marginBalance={data?.marginBalance ?? null}
+      freeCollateral={data?.freeCollateral ?? null}
+      lockedCollateral={data?.lockedCollateral ?? null}
       relayAvailable={relayAvailable}
       relaySession={relaySession}
       isRelaySessionActive={isRelaySessionActive}

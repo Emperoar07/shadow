@@ -18,6 +18,8 @@ const SESSION_DEPOSIT_ENABLED = process.env.NEXT_PUBLIC_SESSION_DEPOSIT_ENABLED 
 interface CollateralModalProps {
   isOpen: boolean;
   marginBalance: number | null;
+  freeCollateral?: number | null;
+  lockedCollateral?: number | null;
   onClose: () => void;
   onSuccess: () => void;
   relayAvailable: boolean;
@@ -34,6 +36,8 @@ interface CollateralModalProps {
 export default function CollateralModal({
   isOpen,
   marginBalance,
+  freeCollateral,
+  lockedCollateral,
   onClose,
   onSuccess,
   relayAvailable,
@@ -52,6 +56,12 @@ export default function CollateralModal({
   const [isBusy, setIsBusy] = useState(false);
   const [visible, setVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const availableCollateral = freeCollateral ?? marginBalance;
+  const reservedCollateral =
+    lockedCollateral ??
+    (marginBalance !== null && freeCollateral != null
+      ? Math.max(0, marginBalance - freeCollateral)
+      : null);
 
   const getSelectedMarketAddress = useCallback(() => {
     if (!anchorWallet) {
@@ -291,8 +301,8 @@ export default function CollateralModal({
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) { toast.error("Enter a valid amount"); return; }
     if (!publicKey) { toast.error("Connect your wallet"); return; }
-    if (marginBalance !== null && amt > marginBalance) {
-      toast.error("Amount exceeds available balance");
+    if (availableCollateral !== null && amt > availableCollateral) {
+      toast.error("Amount exceeds free collateral");
       return;
     }
     setIsBusy(true);
@@ -387,7 +397,7 @@ export default function CollateralModal({
     connection,
     getSelectedMarketAddress,
     getRuntimeErrorMessage,
-    marginBalance,
+    availableCollateral,
     onSuccess,
     publicKey,
     refreshRelaySession,
@@ -399,16 +409,16 @@ export default function CollateralModal({
 
   const QUICK_AMOUNTS = tab === "deposit"
     ? ["10", "50", "100", "500"]
-    : marginBalance
+    : availableCollateral
     ? [
-        (marginBalance * 0.25).toFixed(2),
-        (marginBalance * 0.5).toFixed(2),
-        (marginBalance * 0.75).toFixed(2),
-        marginBalance.toFixed(2),
+        (availableCollateral * 0.25).toFixed(2),
+        (availableCollateral * 0.5).toFixed(2),
+        (availableCollateral * 0.75).toFixed(2),
+        availableCollateral.toFixed(2),
       ]
     : ["10", "50", "100"];
 
-  const QUICK_LABELS = tab === "withdraw" && marginBalance
+  const QUICK_LABELS = tab === "withdraw" && availableCollateral
     ? ["25%", "50%", "75%", "100%"]
     : QUICK_AMOUNTS.map((v) => `$${v}`);
 
@@ -439,11 +449,21 @@ export default function CollateralModal({
         </div>
 
         {/* Balance */}
-        <div className="px-5 py-3 flex items-center justify-between bg-shadow-800/60 border-b border-shadow-700">
-          <span className="text-xs text-gray-400">Margin Balance</span>
-          <span className="text-sm font-semibold">
-            {marginBalance !== null ? `$${marginBalance.toFixed(2)} USDC` : "--"}
-          </span>
+        <div className="grid grid-cols-3 gap-3 bg-shadow-800/60 border-b border-shadow-700 px-5 py-3">
+          <BalanceMetric
+            label="Total"
+            value={marginBalance !== null ? `$${marginBalance.toFixed(2)}` : "--"}
+          />
+          <BalanceMetric
+            label="Free"
+            value={availableCollateral !== null ? `$${availableCollateral.toFixed(2)}` : "--"}
+            valueClass="text-accent-green"
+          />
+          <BalanceMetric
+            label="Locked"
+            value={reservedCollateral !== null ? `$${reservedCollateral.toFixed(2)}` : "--"}
+            valueClass="text-yellow-300"
+          />
         </div>
 
         {/* Tabs */}
@@ -497,11 +517,11 @@ export default function CollateralModal({
           </div>
 
           {/* Info row */}
-          {tab === "withdraw" && marginBalance !== null && amount && parseFloat(amount) > 0 && (
+          {tab === "withdraw" && availableCollateral !== null && amount && parseFloat(amount) > 0 && (
             <div className="rounded-lg bg-shadow-700 px-3 py-2 text-xs text-gray-400">
-              Remaining balance after:{" "}
+              Remaining free collateral after:{" "}
               <span className="text-white font-medium">
-                ${Math.max(0, marginBalance - parseFloat(amount)).toFixed(2)} USDC
+                ${Math.max(0, availableCollateral - parseFloat(amount)).toFixed(2)} USDC
               </span>
             </div>
           )}
@@ -546,5 +566,24 @@ export default function CollateralModal({
       </div>
     </div>,
     document.body
+  );
+}
+
+function BalanceMetric({
+  label,
+  value,
+  valueClass = "text-white",
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500">{label}</span>
+      <span className={`text-sm font-semibold ${valueClass}`}>
+        {value} <span className="text-[10px] font-medium text-gray-500">USDC</span>
+      </span>
+    </div>
   );
 }

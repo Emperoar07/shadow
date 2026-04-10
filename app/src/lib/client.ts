@@ -507,7 +507,7 @@ export class ShadowPerpClient {
       BigInt(amount.toString())
     );
     const tx = new Transaction().add(approveIx);
-    return this.provider.sendAndConfirm(tx, []);
+    return this.sendTransactionWithPolling(tx);
   }
 
   // ============ COLLATERAL ============
@@ -1010,8 +1010,8 @@ export class ShadowPerpClient {
         systemProgram: SystemProgram.programId,
         clockAccount: getClockAccAddress(),
       })
-      .rpc();
-    return tx;
+      .transaction();
+    return this.sendTransactionWithPolling(tx);
   }
 
   /**
@@ -1055,9 +1055,9 @@ export class ShadowPerpClient {
         systemProgram: SystemProgram.programId,
         clockAccount: getClockAccAddress(),
       })
-      .rpc();
+      .transaction();
 
-    return tx;
+    return this.sendTransactionWithPolling(tx);
   }
 
   async closePositionWithSessionV2(
@@ -1147,8 +1147,8 @@ export class ShadowPerpClient {
         systemProgram: SystemProgram.programId,
         clockAccount: getClockAccAddress(),
       })
-      .rpc();
-    return tx;
+      .transaction();
+    return this.sendTransactionWithPolling(tx);
   }
 
   async settleClosePosition(
@@ -1167,7 +1167,7 @@ export class ShadowPerpClient {
       );
     }
 
-    return methods
+    const tx = await methods
       .settleClosePosition()
       .accounts({
         payer,
@@ -1178,7 +1178,9 @@ export class ShadowPerpClient {
         sharedVaultAuthority: this.getSharedVaultAuthorityAddress(marketAccount.collateralMint),
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .rpc();
+      .transaction();
+
+    return this.sendTransactionWithPolling(tx);
   }
 
   async settleLiquidation(
@@ -1198,7 +1200,7 @@ export class ShadowPerpClient {
       );
     }
 
-    return methods
+    const tx = await methods
       .settleLiquidation()
       .accounts({
         payer,
@@ -1211,7 +1213,9 @@ export class ShadowPerpClient {
         sharedVaultAuthority: this.getSharedVaultAuthorityAddress(marketAccount.collateralMint),
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .rpc();
+      .transaction();
+
+    return this.sendTransactionWithPolling(tx);
   }
 
   async waitForPositionStatus(
@@ -1385,8 +1389,8 @@ export class ShadowPerpClient {
         priceFeeder,
         market,
       })
-      .rpc();
-    return tx;
+      .transaction();
+    return this.sendTransactionWithPolling(tx);
   }
 
   // ============ EVENTS ============
