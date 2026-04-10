@@ -4,6 +4,7 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Wallet, Clock, ExternalLink, ChevronDown, ArrowDownToLine, ArrowUpFromLine, Zap, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { fetchWalletHistory } from "../lib/history";
 import { DEVNET_TOKENS, WALLET_DISPLAY_TOKENS } from "../lib/tokens";
 
 const EXPLORER_BASE = "https://explorer.solana.com/tx";
@@ -348,7 +349,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
 
     let cancelled = false;
 
-    const fetchBalances = async () => {
+  const fetchBalances = async () => {
       try {
         const sol = await connection.getBalance(publicKey);
         if (!cancelled) setSolBalance(sol / LAMPORTS_PER_SOL);
@@ -388,6 +389,23 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
     };
   }, [publicKey, connected, connection, open]);
 
+  const loadRecentTxsDirect = async (limit: number, before?: string) => {
+    if (!publicKey) return { txs: [] as RecentTx[], hasMore: false };
+    const sigs = await connection.getSignaturesForAddress(publicKey, {
+      limit,
+      before,
+    });
+    const base: RecentTx[] = sigs.map((s) => ({
+      sig: s.signature,
+      slot: s.slot,
+      err: s.err !== null,
+      blockTime: s.blockTime ?? null,
+      memo: s.memo ?? null,
+    }));
+    const enriched = await enrichTxTypes(connection, base, publicKey);
+    return { txs: enriched, hasMore: sigs.length >= limit };
+  };
+
   // Fetch recent transactions when activity tab is opened
   useEffect(() => {
     if (activeTab !== "activity" || !publicKey || !connected) return;
@@ -397,21 +415,25 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
     setTxsHasMore(true);
     void (async () => {
       try {
-        const sigs = await connection.getSignaturesForAddress(publicKey, { limit: INITIAL_TX_COUNT });
-        const base: RecentTx[] = sigs.map((s) => ({
-          sig: s.signature,
-          slot: s.slot,
-          err: s.err !== null,
-          blockTime: s.blockTime ?? null,
-          memo: s.memo ?? null,
-        }));
-        const enriched = await enrichTxTypes(connection, base, publicKey);
+        const snapshot = await fetchWalletHistory({
+          wallet: publicKey.toBase58(),
+          limit: INITIAL_TX_COUNT,
+          includePositions: false,
+        });
         if (!cancelled) {
-          setRecentTxs(enriched);
-          setTxsHasMore(sigs.length >= INITIAL_TX_COUNT);
+          setRecentTxs(snapshot.activity as RecentTx[]);
+          setTxsHasMore(snapshot.hasMore);
         }
       } catch {
-        // ignore
+        try {
+          const fallback = await loadRecentTxsDirect(INITIAL_TX_COUNT);
+          if (!cancelled) {
+            setRecentTxs(fallback.txs);
+            setTxsHasMore(fallback.hasMore);
+          }
+        } catch {
+          // ignore
+        }
       } finally {
         if (!cancelled) setTxsLoading(false);
       }
@@ -424,20 +446,20 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
     setTxsLoadingMore(true);
     try {
       const lastSig = recentTxs[recentTxs.length - 1].sig;
-      const sigs = await connection.getSignaturesForAddress(publicKey, {
-        limit: LOAD_MORE_COUNT,
-        before: lastSig,
-      });
-      const base: RecentTx[] = sigs.map((s) => ({
-        sig: s.signature,
-        slot: s.slot,
-        err: s.err !== null,
-        blockTime: s.blockTime ?? null,
-        memo: s.memo ?? null,
-      }));
-      const enriched = await enrichTxTypes(connection, base, publicKey);
-      setRecentTxs((prev) => [...prev, ...enriched]);
-      setTxsHasMore(sigs.length >= LOAD_MORE_COUNT);
+      try {
+        const snapshot = await fetchWalletHistory({
+          wallet: publicKey.toBase58(),
+          limit: LOAD_MORE_COUNT,
+          before: lastSig,
+          includePositions: false,
+        });
+        setRecentTxs((prev) => [...prev, ...(snapshot.activity as RecentTx[])]);
+        setTxsHasMore(snapshot.hasMore);
+      } catch {
+        const fallback = await loadRecentTxsDirect(LOAD_MORE_COUNT, lastSig);
+        setRecentTxs((prev) => [...prev, ...fallback.txs]);
+        setTxsHasMore(fallback.hasMore);
+      }
     } catch {
       // ignore
     } finally {

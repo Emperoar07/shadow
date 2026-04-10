@@ -4,6 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
+import { fetchWalletHistory } from "../lib/history";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
@@ -171,6 +172,9 @@ export default function BottomPositionsPanel({
   const [ownerPositionViews, setOwnerPositionViews] = useState<Record<string, OwnerPositionView>>(
     {}
   );
+  const [indexedHistoryPositions, setIndexedHistoryPositions] = useState<UiPosition[] | null>(
+    null
+  );
   const [ruleDrafts, setRuleDrafts] = useState<Record<string, RuleDraft>>({});
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [closeConfirmPos, setCloseConfirmPos] = useState<UiPosition | null>(null);
@@ -185,6 +189,10 @@ export default function BottomPositionsPanel({
   useEffect(() => {
     clientRef.current = null;
   }, [anchorWallet]);
+
+  useEffect(() => {
+    setIndexedHistoryPositions(null);
+  }, [publicKey]);
 
   const loadPositions = useCallback(async () => {
     if (!publicKey || !anchorWallet) return;
@@ -473,10 +481,11 @@ export default function BottomPositionsPanel({
     () => limitOrders.filter((o) => ["pending", "triggered", "failed"].includes(o.status)),
     [limitOrders]
   );
-  const historyPositions = useMemo(
+  const fallbackHistoryPositions = useMemo(
     () => positions.filter((p) => ["closed", "liquidated"].includes(p.status)),
     [positions]
   );
+  const historyPositions = indexedHistoryPositions ?? fallbackHistoryPositions;
   const displayed =
     activeTab === "position" ? openPositions : activeTab === "history" ? historyPositions : [];
   const hasEncryptedPositions = openPositions.some((position) => position.hasEncryptedData);
@@ -595,6 +604,47 @@ export default function BottomPositionsPanel({
       });
     }
   }, [activeTab, executeClose, openPositions, pairPrices, positionRules]);
+
+  useEffect(() => {
+    if (activeTab !== "history") return;
+    if (!publicKey || !anchorWallet) return;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const snapshot = await fetchWalletHistory({
+          wallet: publicKey.toBase58(),
+          limit: 100,
+          includePositions: true,
+        });
+        const mapped: UiPosition[] = snapshot.historyPositions.map((row) => ({
+          address: row.address,
+          marketAddress: row.marketAddress,
+          pairLabel: row.pairLabel,
+          index: new BN(row.index),
+          status: parseStatus(row.status),
+          margin: row.margin,
+          openedAt: new Date(row.openedAt),
+          realizedPnl: row.realizedPnl,
+          hasEncryptedData: row.hasEncryptedData,
+        }));
+        if (!cancelled) {
+          setIndexedHistoryPositions(mapped);
+        }
+      } catch {
+        if (!cancelled) {
+          setIndexedHistoryPositions(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, anchorWallet, publicKey]);
 
   const updateOrderField = useCallback(
     (orderId: string, field: "limitPrice" | "takeProfit" | "stopLoss", raw: string) => {
