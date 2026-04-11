@@ -1,8 +1,10 @@
 # ShadowPerp
 
-Confidential execution infrastructure for Solana perps, wallets, and bots, powered by Arcium confidential compute.
+Private perpetual trading on Solana, powered by Arcium confidential compute.
 
-ShadowPerp encrypts order sizes, entry prices, leverage, and collateral before submission. Arcium's Multi Party Computation (MPC) network handles the private computation, and only the minimum public state required for settlement is written on chain. The product is best thought of as a privacy execution rail for confidential perps rather than just another Solana perp UI.
+ShadowPerp is built for traders who want less information leakage by default. Order sizes, entry prices, leverage, and collateral are encrypted before submission. Arcium's Multi Party Computation (MPC) network handles the private computation, and only the minimum public state required for settlement is written on chain.
+
+The product is first and foremost a private perp DEX experience on Solana. This repository also contains the relay, program, and circuit stack that make that trading flow possible.
 
 **Program ID (Devnet):** `ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4`
 
@@ -161,7 +163,7 @@ cargo build --features shielded-collateral -p shadowperp
 
 ## Current Status
 
-ShadowPerp is deployed on Solana devnet as an active prototype for confidential execution rails.
+ShadowPerp is deployed on Solana devnet as an active prototype for private perpetual trading.
 
 **Working today:**
 

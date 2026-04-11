@@ -51,11 +51,11 @@ export default function DocsPage() {
         <title>Documentation | ShadowPerp</title>
         <meta
           name="description"
-          content="ShadowPerp documentation covering privacy, session trading, margin, leverage, order flow, and the Arcium MPC integration on Solana devnet."
+          content="ShadowPerp documentation for private perpetual trading on Solana, covering privacy, session trading, margin, leverage, order flow, and Arcium MPC on devnet."
         />
       </Head>
 
-      <style>{`
+      <style jsx global>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #0a0a0f; color: #e2e8f0; font-family: 'Inter', -apple-system, sans-serif; }
         html.light body { background: #0a0a0f; color: #e2e8f0; }
@@ -306,17 +306,17 @@ export default function DocsPage() {
           <div className="docs-header">
             <h1>ShadowPerp Documentation</h1>
             <p>
-              ShadowPerp is confidential execution infrastructure for Solana perps, wallets, and bots. It combines encrypted positions,
-              delegated session trading, and Arcium Multi Party Computation so traders can operate without exposing
-              order details on chain.
+              ShadowPerp is a private perpetual trading app on Solana. It combines encrypted positions, delegated
+              session trading, and Arcium Multi Party Computation so traders can operate without exposing order details
+              on chain by default.
             </p>
           </div>
 
           <Section id="overview" title="Overview">
             <p>
-              ShadowPerp enables private perpetual futures trading on Solana, but the stronger framing is privacy execution rails.
-              Trade size, direction, leverage, and margin are encrypted before they reach the on chain program. Sensitive calculations
-              run through Arcium's MPC network rather than being exposed in plaintext on the ledger.
+              ShadowPerp enables private perpetual futures trading on Solana. Trade size, direction, leverage, and
+              margin are encrypted before they reach the on chain program. Sensitive calculations run through Arcium's
+              MPC network rather than being exposed in plaintext on the ledger.
             </p>
             <p>
               Only the minimum public state required for settlement is written on chain. The protocol is designed
@@ -432,8 +432,8 @@ export default function DocsPage() {
               <a href="https://www.arcium.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa" }}>
                 Arcium
               </a>
-              {" "}Multi Party Computation infrastructure for trade privacy. Here is the practical boundary between what stays private and
-              what remains visible:
+              {" "}as the privacy layer behind trading. Here is the practical boundary between what stays private and what
+              remains visible:
             </p>
             <h3>What is private</h3>
             <ul>

@@ -4,6 +4,41 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Public Positioning Copy Pass (2026-04-11 UTC)
+
+### What changed
+
+- Reframed the public-facing product copy away from builder-centric "infrastructure / rails" language and toward a trader-first private perp DEX identity in:
+  - `README.md`
+  - `app/src/pages/index.tsx`
+  - `app/src/pages/docs.tsx`
+  - `app/src/pages/app.tsx`
+- Kept Arcium explicit as the privacy and confidential-compute layer behind Shadow instead of the whole product identity.
+- Preserved the existing devnet caveats so the new wording does not imply the open lane is fully signed off.
+- Fixed the docs page style block to use `style jsx global`, which removes a dev hydration mismatch that showed up during the mobile docs smoke pass.
+- Kept the favicon fallback asset follow-up in scope:
+  - `app/public/favicon.ico`
+
+### What was verified
+
+- `npm run check:preflight` -> PASS on the active QuickNode devnet RPC
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS after the public copy edits
+- Follow-up search confirmed the targeted "infrastructure / execution rails / wallets and bots" wording was removed from the touched public surfaces
+- Mobile smoke:
+  - landing page at `/` renders cleanly at `390x844`
+  - docs page at `/docs` now reloads at `390x844` with `0` console errors after the hydration fix
+
+### Current blocker
+
+- Public positioning is now more aligned with the product direction.
+- Main protocol blocker remains unchanged:
+  - the Arcium-backed open lane still does not finalize to `Open` on the active devnet namespace
+
+### Next safe step
+
+1. Do a quick visual smoke on landing + docs if we want to tune tone further in context.
+2. Commit this copy pass together with the favicon follow-up if we want one clean docs/brand push.
+
 ## Privacy Docs Truth Pass (2026-04-11 UTC)
 
 ### What changed
@@ -1844,8 +1879,50 @@ No code changes were made during this audit pass.
 
 ### Current blocker
 - `open_position_probe_b` remains the main live protocol blocker.
-- This UI pass has not yet had a wallet-connected visual smoke in-browser after the latest modal/popup copy and layout changes.
+- A non-wallet mobile smoke is complete, but a wallet-connected mobile smoke is still outstanding for collateral/session flows.
 
 ### Next safe step
-1. Run a wallet-connected desktop and mobile UI smoke for the chart fallback, wallet popup, collateral modal, order review modal, and trade status drawer.
-2. If the surfaces look right in-browser, commit and push this UI polish batch.
+1. Run a wallet-connected mobile smoke for collateral/session flows and a final desktop visual pass for the latest market-strip spacing tweaks.
+2. If those surfaces still look right, keep this UI baseline as the current release candidate.
+
+## Mobile Smoke (2026-04-11 UTC)
+
+### What was checked
+- Browser-driven mobile viewport smoke on `http://localhost:3000/app` at `390x844`.
+- Mobile checks covered:
+  - header layout
+  - market strip after the recent spacing/border tweaks
+  - chart tab load
+  - trading panel fit
+  - bottom positions section
+  - mobile wallet popup modal behavior
+
+### What happened
+- The mobile shell loaded successfully and the updated market strip remained intact after the latest spacing changes.
+- The chart tab rendered and the trading panel stayed within the viewport without layout breakage.
+- The wallet popup opened as a centered mobile modal and the updated copy/hierarchy rendered correctly.
+- Console noise was limited to known dev-only / environment issues:
+  - Next.js HMR warning
+  - missing local favicon
+  - transient external RPC SSL errors from ZAN
+  - TradingView websocket warning
+
+### Current blocker
+- No new mobile-specific UI regression was found in the non-wallet smoke.
+- A wallet-connected mobile pass is still needed for deposit/session/settings flows.
+
+### Next safe step
+1. Run one wallet-connected mobile pass to verify collateral/session/settings interactions.
+2. If that also looks clean, no further mobile UI patch is needed for this batch.
+
+## Asset Follow-up (2026-04-11 UTC)
+
+### What changed
+- Added `app/public/favicon.ico` as a real fallback icon asset to match the existing `/favicon.ico` reference in the app document head.
+
+### What was verified
+- `GET /favicon.ico` returned `200` on the local app server.
+
+### Notes
+- This fixes the missing favicon request seen during the mobile/browser smoke.
+- The remaining browser console noise from HMR, external RPC SSL failures, and TradingView websocket behavior is environment/provider-related and was not changed in this pass.
