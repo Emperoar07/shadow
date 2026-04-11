@@ -24,27 +24,35 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar — near-invisible, hover to reveal */
 * {
-  scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
-  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  scrollbar-width: none;
+}
+
+*:hover {
+  scrollbar-color: var(--app-scrollbar-thumb) transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 2px;
-  height: 2px;
+  width: 1px;
+  height: 1px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--app-scrollbar-track);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--app-scrollbar-thumb);
+  background: transparent;
   border-radius: 999px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+*:hover::-webkit-scrollbar-thumb {
+  background: var(--app-scrollbar-thumb);
+}
+
+*:hover::-webkit-scrollbar-thumb:hover {
   background: var(--app-scrollbar-thumb-hover);
 }
 
@@ -832,8 +840,6 @@ html.light .bg-cyan-500\/10             { background-color: rgba(6,182,212,0.10)
 /* Terminal grid: 5px gap reveals container bg as shared border */
 .terminal-grid-container {
   background: #252530;
-  border: 5px solid #252530;
-  border-top: none;
 }
 html.light .terminal-grid-container {
   background: #d8dce8;

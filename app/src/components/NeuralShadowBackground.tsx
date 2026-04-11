@@ -2,13 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-type Particle = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  size: number;
-};
+type Dot = { x: number; y: number };
 
 export default function NeuralShadowBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -19,98 +13,81 @@ export default function NeuralShadowBackground() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-    let particles: Particle[] = [];
+    let W = 0, H = 0;
+    let dots: Dot[] = [];
     let animationFrameId = 0;
-
-    const particleCount = 35;
-    const connectionDistance = 120;
-    const speed = 0.4;
-    const TARGET_FPS = 30;
-    const FRAME_INTERVAL = 1000 / TARGET_FPS;
+    let time = 0;
     let lastFrameTime = 0;
 
-    const isDark = () => !document.documentElement.classList.contains("light");
+    const GRID = 44;
+    const TARGET_FPS = 15;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
+    const WAVE_SPEED = 0.004;
+    const WAVE_WIDTH = 160;
 
-    const initParticles = () => {
+    const initDots = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = window.innerWidth;
-      height = window.innerHeight;
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = Math.floor(W * dpr);
+      canvas.height = Math.floor(H * dpr);
+      canvas.style.width = `${W}px`;
+      canvas.style.height = `${H}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      particles = Array.from({ length: particleCount }, () => ({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * speed,
-        vy: (Math.random() - 0.5) * speed,
-        size: Math.random() * 2 + 1,
-      }));
+      dots = [];
+      const cols = Math.ceil(W / GRID) + 1;
+      const rows = Math.ceil(H / GRID) + 1;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          dots.push({ x: c * GRID, y: r * GRID });
+        }
+      }
     };
 
     const animate = (timestamp: number) => {
       animationFrameId = window.requestAnimationFrame(animate);
-
-      // Throttle to TARGET_FPS; skip frame if tab hidden
       if (document.hidden) return;
       if (timestamp - lastFrameTime < FRAME_INTERVAL) return;
       lastFrameTime = timestamp;
 
-      const dark = isDark();
-      if (dark) {
-        ctx.fillStyle = "#020617";
-        ctx.fillRect(0, 0, width, height);
-      } else {
-        ctx.clearRect(0, 0, width, height);
-      }
+      time += WAVE_SPEED;
 
-      const nodeRgb = dark ? "6, 182, 212" : "139, 92, 246";
-      const linkRgb = dark ? "79, 70, 229" : "139, 92, 246";
-      const nodeOpacity = dark ? 0.6 : 0.18;
+      // shadow-900 background
+      ctx.fillStyle = "#0a0a0f";
+      ctx.fillRect(0, 0, W, H);
 
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
+      const cx = W / 2;
+      const cy = H / 2;
+      const maxDist = Math.hypot(cx, cy);
+      const waveRadius = (time % 1) * maxDist * 1.5;
 
-        if (p.x < 0 || p.x > width) p.vx *= -1;
-        if (p.y < 0 || p.y > height) p.vy *= -1;
+      for (const d of dots) {
+        const dist = Math.hypot(d.x - cx, d.y - cy);
+        const waveDelta = Math.abs(dist - waveRadius);
+        const waveFactor = waveDelta < WAVE_WIDTH ? 1 - waveDelta / WAVE_WIDTH : 0;
+
+        // Base: dim purple dot; wave peak blends purple → blue (accent palette)
+        const opacity = 0.06 + waveFactor * 0.30;
+        const size = 1.0 + waveFactor * 1.4;
+        // hue 262 = accent-purple (#8b5cf6), 217 = accent-blue (#3b82f6)
+        const hue = 262 - waveFactor * 45;
+        const sat = 70 + waveFactor * 15;
+        const lit = 62 + waveFactor * 12;
 
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${nodeRgb}, ${nodeOpacity})`;
+        ctx.arc(d.x, d.y, size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${hue},${sat}%,${lit}%,${opacity})`;
         ctx.fill();
-
-        for (let j = i + 1; j < particles.length; j++) {
-          const p2 = particles[j];
-          const dx = p.x - p2.x;
-          const dy = p.y - p2.y;
-          const distance = Math.hypot(dx, dy);
-
-          if (distance < connectionDistance) {
-            ctx.beginPath();
-            const alpha = (1 - distance / connectionDistance) * (dark ? 1 : 0.2);
-            ctx.strokeStyle = `rgba(${linkRgb}, ${alpha})`;
-            ctx.lineWidth = 1;
-            ctx.moveTo(p.x, p.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-          }
-        }
       }
-
     };
 
-    initParticles();
+    initDots();
     animationFrameId = window.requestAnimationFrame(animate);
-    window.addEventListener("resize", initParticles);
+    window.addEventListener("resize", initDots);
 
     return () => {
-      window.removeEventListener("resize", initParticles);
+      window.removeEventListener("resize", initDots);
       window.cancelAnimationFrame(animationFrameId);
     };
   }, []);

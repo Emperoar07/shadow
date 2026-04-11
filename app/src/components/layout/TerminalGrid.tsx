@@ -95,7 +95,7 @@ export default function TerminalGrid({
         cols={GRID_COLS}
         rowHeight={ROW_HEIGHT}
         margin={[5, 5] as [number, number]}
-        containerPadding={[0, 0] as [number, number]}
+        containerPadding={[5, 0] as [number, number]}
         draggableHandle=".drag-handle"
         onDragStop={(_layout: Layout[]) => handleInteractionEnd(_layout)}
         onResizeStop={(_layout: Layout[]) => handleInteractionEnd(_layout)}

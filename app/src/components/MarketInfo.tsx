@@ -37,7 +37,7 @@ export default function MarketInfo({
 
   return (
     <div
-      className={`trade-market-bar relative z-[120] flex flex-col gap-2 border-y-[3px] border-shadow-600 bg-shadow-900 px-4 pb-[7px] pt-[6px] overflow-visible sm:flex-row sm:items-center sm:gap-3 ${className}`}
+      className={`trade-market-bar relative flex flex-col gap-2 bg-shadow-900 px-4 pb-[7px] pt-[6px] overflow-visible sm:flex-row sm:items-center sm:gap-3 ${className}`}
     >
       <div className="flex items-center justify-between gap-3 sm:min-w-0">
         {activePair && (

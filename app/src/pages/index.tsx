@@ -42,66 +42,62 @@ export default function LandingPage() {
     setIsLight((current) => !current);
   };
 
-  // ── Particle canvas ──────────────────────────────────────────
+  // ── Dot grid pulse canvas ────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let W = 0, H = 0, rafId = 0, lastFrame = 0;
-    type P = { x: number; y: number; vx: number; vy: number; r: number; alpha: number; color: string };
-    const COLORS = ["139,92,246", "59,130,246", "16,185,129"];
-    let particles: P[] = [];
+    let W = 0, H = 0, rafId = 0, lastFrame = 0, time = 0;
+    const GRID = 44;
+    const FRAME_INTERVAL = 1000 / 15;
+    const WAVE_SPEED = 0.004;
+    const WAVE_WIDTH = 160;
+    type Dot = { x: number; y: number };
+    let dots: Dot[] = [];
 
     function resize() {
       W = canvas!.width = window.innerWidth;
       H = canvas!.height = window.innerHeight;
+      dots = [];
+      const cols = Math.ceil(W / GRID) + 1;
+      const rows = Math.ceil(H / GRID) + 1;
+      for (let r = 0; r < rows; r++)
+        for (let c = 0; c < cols; c++)
+          dots.push({ x: c * GRID, y: r * GRID });
     }
     resize();
     window.addEventListener("resize", resize);
 
-    for (let i = 0; i < 100; i++) {
-      particles.push({
-        x: Math.random() * W,
-        y: Math.random() * H,
-        vx: (Math.random() - 0.5) * 0.6,
-        vy: (Math.random() - 0.5) * 0.6,
-        r: Math.random() * 2.2 + 0.8,
-        alpha: Math.random() * 0.4 + 0.15,
-        color: COLORS[Math.floor(Math.random() * 3)],
-      });
-    }
-
     function draw(ts: number) {
-      if (ts - lastFrame < 33) { rafId = requestAnimationFrame(draw); return; }
-      lastFrame = ts;
-      ctx!.clearRect(0, 0, W, H);
-      particles.forEach((p) => {
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
-        if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
-        ctx!.beginPath();
-        ctx!.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx!.fillStyle = `rgba(${p.color},${p.alpha})`;
-        ctx!.fill();
-      });
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 160) {
-            ctx!.beginPath();
-            ctx!.moveTo(particles[i].x, particles[i].y);
-            ctx!.lineTo(particles[j].x, particles[j].y);
-            ctx!.strokeStyle = `rgba(99,92,246,${0.15 * (1 - dist / 160)})`;
-            ctx!.lineWidth = 0.8;
-            ctx!.stroke();
-          }
-        }
-      }
       rafId = requestAnimationFrame(draw);
+      if (document.hidden) return;
+      if (ts - lastFrame < FRAME_INTERVAL) return;
+      lastFrame = ts;
+      time += WAVE_SPEED;
+
+      ctx!.clearRect(0, 0, W, H);
+
+      const cx = W / 2, cy = H / 2;
+      const maxDist = Math.hypot(cx, cy);
+      const waveRadius = (time % 1) * maxDist * 1.5;
+
+      for (const d of dots) {
+        const dist = Math.hypot(d.x - cx, d.y - cy);
+        const waveDelta = Math.abs(dist - waveRadius);
+        const waveFactor = waveDelta < WAVE_WIDTH ? 1 - waveDelta / WAVE_WIDTH : 0;
+        const opacity = 0.06 + waveFactor * 0.30;
+        const size = 1.0 + waveFactor * 1.4;
+        // accent-purple (#8b5cf6) → accent-blue (#3b82f6) at wave peak
+        const hue = 262 - waveFactor * 45;
+        const sat = 70 + waveFactor * 15;
+        const lit = 62 + waveFactor * 12;
+        ctx!.beginPath();
+        ctx!.arc(d.x, d.y, size, 0, Math.PI * 2);
+        ctx!.fillStyle = `hsla(${hue},${sat}%,${lit}%,${opacity})`;
+        ctx!.fill();
+      }
     }
     rafId = requestAnimationFrame(draw);
     return () => { cancelAnimationFrame(rafId); window.removeEventListener("resize", resize); };

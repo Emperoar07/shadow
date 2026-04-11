@@ -21,7 +21,7 @@ import {
 import { useMarketSnapshot } from "../hooks/useMarketSnapshot";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 
-const NeuralShadowBackground = dynamic(
+const DotGridBackground = dynamic(
   () => import("../components/NeuralShadowBackground"),
   { ssr: false }
 );
@@ -186,12 +186,12 @@ export default function TradingAppPage() {
             50% { opacity: 0.6; transform: scale(0.85); }
           }
         `}</style>
-        <NeuralShadowBackground />
+        <DotGridBackground />
 
         <div className="relative z-10 flex h-screen flex-col overflow-hidden">
 
           {/* ── Header ── */}
-          <header className="trade-header sticky top-0 border-b-2 border-shadow-600 shrink-0 bg-shadow-900 z-[200]">
+          <header className="trade-header sticky top-0 border-b-[5px] border-shadow-600 shrink-0 bg-shadow-900 z-[200]">
             <div className="max-w-[1600px] mx-auto px-3 py-1.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center justify-between gap-3 sm:justify-start">
                 <Link
