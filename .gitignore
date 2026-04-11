@@ -53,6 +53,9 @@ app/.env.*
 .playwright-cli/
 DEV_NOTES.md
 .runtime/
+output/
+.tmp_app_job_id
+app/.logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -73,8 +76,10 @@ app/tsconfig.tsbuildinfo
 # =============================
 # Local tooling / backup dirs
 # =============================
+.agents/
 .tools/
 .claude/
+.trae/
 .tmp_arcium_examples/
 .tmp_arcium_playbook_1/
 app-local-*/
@@ -82,6 +87,7 @@ app/.next_bak_*/
 app/node_modules_bak_*/
 vendor/
 scripts/_*.json
+skills-lock.json
 
 # Local binaries / archives
 arcium_x86_64_linux

@@ -328,6 +328,12 @@ export default function DocsPage() {
             <Note>
               ShadowPerp is currently deployed on <strong>Solana Devnet</strong> at program ID <Code>ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4</Code>. All balances are test funds.
             </Note>
+            <Note>
+              Current live status: delegated sessions, delegated collateral actions, shared-collateral migration flows,
+              shielded-collateral base flows, and the hardened relay/runtime stack are working on devnet. The remaining
+              blocker is the Arcium-backed open-position lane, which still fails before reaching a stable <Code>Open</Code> state
+              on the current namespace.
+            </Note>
           </Section>
 
           <Section id="how-it-works" title="How It Works">
@@ -356,6 +362,11 @@ export default function DocsPage() {
               After your session is approved, the relay submits trades on your behalf. You sign once for the session
               instead of approving a wallet prompt for every action.
             </p>
+            <Note>
+              ShadowPerp now keeps longer callback wait windows and surfaces on-chain callback failures more directly.
+              That improves diagnosis and keeps failed opens from looking like indefinite pending states, but it does not
+              change the current devnet open-lane blocker itself.
+            </Note>
           </Section>
 
           <Section id="session-trading" title="Session Trading">
@@ -525,6 +536,8 @@ export default function DocsPage() {
             </p>
             <Note>
               Limit orders currently run in the browser. That means the tab needs to stay open for them to trigger.
+              Also note that market-order queueing is working on devnet, but end-to-end open finalization is still under
+              active investigation on the current namespace.
             </Note>
           </Section>
 
@@ -621,8 +634,9 @@ export default function DocsPage() {
           <Section id="faq" title="FAQ">
             <h3>Do I need to keep the browser open?</h3>
             <p>
-              For market orders, no. Once submitted, the relay handles execution. For limit orders and TP and SL
-              automation, yes. Those flows still run in the browser and need the tab to stay open.
+              For market orders, the relay and callback path continue after submission, so you do not need to keep the
+              tab open just to keep the request alive. For limit orders and TP and SL automation, yes. Those flows still
+              run in the browser and need the tab to stay open.
             </p>
 
             <h3>How do I deposit collateral?</h3>
@@ -632,13 +646,13 @@ export default function DocsPage() {
 
             <h3>Why does my position show "MPC Processing"?</h3>
             <p>
-              The trade was submitted successfully and is waiting for the Arcium MPC cluster to compute and return the callback. On devnet this typically takes 30 to 120 seconds depending on cluster load. If it takes longer, the cluster may be temporarily delayed, but your collateral remains safe and the position will resolve once the callback arrives.
+              The trade was submitted successfully and is waiting for the Arcium MPC cluster to compute and return the callback. On devnet this typically takes 30 to 120 seconds depending on cluster load. If it takes longer, the cluster may be temporarily delayed, but your collateral remains safe and the position will resolve once the callback arrives or fail into a terminal state if the callback aborts on chain.
             </p>
             <Note>
               Current devnet status: wallet scoped delegated sessions and delegated collateral actions are working across
-              supported markets. The open position callback path is still being debugged on the current namespace, so if
-              the MPC callback already fails on chain the app now surfaces that failure directly instead of only showing
-              a generic pending timeout.
+              supported markets. The open position callback path is still being debugged on the current namespace. A new
+              staged diagnostic harness now shows the abort survives tuple-only, margin-check, and full-check probes, so
+              the current evidence points away from simple margin or leverage business logic drift.
             </Note>
 
             <h3>Is my data stored anywhere?</h3>
@@ -701,7 +715,8 @@ export default function DocsPage() {
               <h3>Prototype Status</h3>
               <p>
                 ShadowPerp is an experimental prototype deployed on Solana Devnet. All balances are test funds with no real
-                monetary value. Do not send real assets to devnet addresses.
+                monetary value. Do not send real assets to devnet addresses. The protocol should not be treated as fully
+                live until end-to-end open and close are both signed off on the active namespace.
               </p>
               <h3>No Financial Advice</h3>
               <p>

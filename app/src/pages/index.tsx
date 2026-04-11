@@ -581,7 +581,7 @@ export default function LandingPage() {
               </span>
               <span className="lp-toggle-knob" />
             </button>
-            <Link href="/app" className="lp-nav-cta">Launch App &rarr;</Link>
+            <Link href="/app" className="lp-nav-cta">Launch App</Link>
           </div>
         </nav>
 
@@ -596,8 +596,8 @@ export default function LandingPage() {
             <span className="lp-accent"><span ref={decryptRef}>the Dark.</span></span>
           </h1>
           <p className="lp-hero-sub">
-            Confidential execution rails for Solana perps.<br />
-            Order size, leverage, and liquidation price are encrypted end to end via Arcium MPC.
+            Private execution rails for Solana perps.<br />
+            Shadow keeps sensitive trade inputs encrypted while Solana handles settlement and Arcium handles confidential compute.
           </p>
           <div className="lp-hero-ctas">
             <Link href="/app" className="lp-btn-primary">
@@ -621,22 +621,22 @@ export default function LandingPage() {
         <div id="how" />
         <div className="lp-section lp-reveal">
           <div className="lp-section-title">Privacy without compromise</div>
-          <p className="lp-section-sub">Three steps. Your trade flow stays private while the chain only sees the settlement it needs.</p>
+          <p className="lp-section-sub">Three steps. Sensitive trade logic stays private, while the chain only sees the state it actually needs for settlement.</p>
           <div className="lp-steps">
             <div className="lp-step lp-reveal lp-delay-1 lp-tilt">
               <div className="lp-step-num">01</div>
               <div className="lp-step-title">Encrypt &amp; Delegate</div>
-              <p className="lp-step-desc">Position inputs including size, leverage, and direction are encrypted in your browser. Approve a delegated session once and keep trading without a popup for every action.</p>
+              <p className="lp-step-desc">Size, direction, leverage, and margin are encrypted in your browser. You approve a session once, then the relay can handle repeated actions without interrupting every trade with another wallet popup.</p>
             </div>
             <div className="lp-step lp-reveal lp-delay-2 lp-tilt">
               <div className="lp-step-num">02</div>
               <div className="lp-step-title">MPC Validation</div>
-              <p className="lp-step-desc">Arcium&apos;s Multi Party Computation network validates your trade, checks margin requirements, and evaluates liquidation thresholds without any single node seeing the plaintext.</p>
+              <p className="lp-step-desc">Arcium&apos;s MPC network checks the trade, margin requirements, and liquidation conditions without any single node seeing the plaintext position data.</p>
             </div>
             <div className="lp-step lp-reveal lp-delay-3 lp-tilt">
               <div className="lp-step-num">03</div>
               <div className="lp-step-title">On Chain Settlement</div>
-              <p className="lp-step-desc">Verified results settle on Solana. Only realized PnL is revealed at close. Position size, entry price, and leverage remain encrypted on chain.</p>
+              <p className="lp-step-desc">Verified results settle on Solana. The public chain gets the minimum settlement state it needs, while the sensitive trade fields stay encrypted through the active position lifecycle.</p>
             </div>
           </div>
         </div>
@@ -650,7 +650,7 @@ export default function LandingPage() {
                 What others see vs.<br />what you see
               </div>
               <p style={{ fontSize: "14px", color: dark ? "#94a3b8" : "#475569", fontWeight: 500, lineHeight: 1.7, marginTop: "12px" }}>
-                On ShadowPerp, sensitive position fields are encrypted on chain. Hover the blurred values to see what an observer would find. Nothing useful.
+                On Shadow, the chain can see that a position exists, but not the sensitive details traders usually leak by default. Hover the blurred values to see how little an outside observer can actually learn.
               </p>
             </div>
             <div className="lp-reveal lp-delay-1">
@@ -680,7 +680,7 @@ export default function LandingPage() {
               </p>
               <h3 className="lp-session-title">One approval.<br />Fast repeated trades.</h3>
               <p className="lp-session-desc">
-                Create a delegated trading session and sign once. The relay executes your encrypted orders on chain without a wallet popup interrupting every position. Configure per trade margin caps and revoke at any time.
+                Create a delegated trading session, sign once, and let the relay execute within the limits you approve. It is a calmer trading flow for humans, wallets, and bots, without giving up control over expiry, action caps, or margin limits.
               </p>
             </div>
             <div className="lp-session-stats">
@@ -705,13 +705,13 @@ export default function LandingPage() {
           <p className="lp-section-tag">Features</p>
           <div className="lp-section-title">Built for private execution</div>
           <div className="lp-features-grid">
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Confidential Order Flow</div><p className="lp-feat-desc">Place orders without telegraphing intent. No MEV bot can front run an order it cannot see. Size, direction, and leverage stay private.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Confidential Liquidations</div><p className="lp-feat-desc">Your liquidation price is known only to the protocol. No hunter can target your position because the threshold is encrypted on chain.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Delegated Execution</div><p className="lp-feat-desc">Approve once and let wallets, bots, or frontends execute within session limits. The relay can move fast without exposing every action to a new signature prompt.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Arcium MPC</div><p className="lp-feat-desc">Every trade is validated through Arcium&apos;s Multi Party Computation network with replay hardened callbacks. No single node sees your inputs. Only the verified outcome reaches the chain.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Privacy Rails</div><p className="lp-feat-desc">Shadow sits on top of existing liquidity and settlement rails instead of forcing a new market to be bootstrapped from scratch.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Pyth Oracle Feeds</div><p className="lp-feat-desc">Price data sourced from Pyth Network with fallback aggregation from Coinbase and Binance. Staleness checks and circuit breakers protect against oracle manipulation.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Shared Collateral</div><p className="lp-feat-desc">Deposit once, trade across supported pairs, and keep the free balance visible. Locked collateral remains separate from what is actually available to deploy.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Confidential Order Flow</div><p className="lp-feat-desc">Orders do not broadcast the usual clues before execution. Size, direction, leverage, and liquidation-related internals stay out of the public mempool narrative.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Confidential Liquidations</div><p className="lp-feat-desc">Liquidation thresholds are hidden from casual observers, so traders are not forced to reveal one of the most exploitable parts of their position.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Delegated Execution</div><p className="lp-feat-desc">Approve a bounded session once and keep moving. It is faster for active trading, and clearer about what the relay is actually allowed to do on your behalf.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Arcium MPC</div><p className="lp-feat-desc">Trade validation runs through Arcium&apos;s MPC network with replay-hardened callbacks. The chain gets a verified outcome, not a plaintext view into your position.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Privacy Rails</div><p className="lp-feat-desc">Shadow is designed as infrastructure, not just a terminal. Wallets, bots, and frontends can plug into private execution flows without rebuilding the whole stack from scratch.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Safer Oracle Handling</div><p className="lp-feat-desc">Relay-side refreshes, staleness checks, and circuit breakers are designed to fail loudly instead of pretending everything is fine when price freshness drifts.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Shared Collateral</div><p className="lp-feat-desc">On adopted devnet markets, one owner-scoped balance can fund multiple pairs. Free and locked collateral stay visible separately, which keeps the UX more honest.</p></div>
           </div>
         </div>
 
@@ -720,10 +720,9 @@ export default function LandingPage() {
           <div className="lp-cta-glow" />
           <p className="lp-section-tag" style={{ textAlign: "center" }}>Ready?</p>
           <h2 className="lp-cta-title">Build on private<br />execution rails.</h2>
-          <p className="lp-cta-sub">Connect your wallet. Approve a session. Trade with full privacy across supported markets.</p>
+          <p className="lp-cta-sub">Connect your wallet, approve a session, and explore the current devnet stack. The privacy rails are real. The open lane is still being finished carefully.</p>
           <Link href="/app" className="lp-btn-primary" style={{ display: "inline-flex", fontSize: "16px", padding: "16px 40px" }}>
             Launch App
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
           </Link>
         </div>
 
@@ -736,8 +735,8 @@ export default function LandingPage() {
                 SHADOW
               </div>
               <p className="lp-footer-brand-desc">
-                Confidential execution infrastructure for Solana perps, wallets, and bots.
-                Encrypted positions, shielded order flow, and private settlement powered by Arcium.
+                Private execution infrastructure for Solana perps, wallets, and bots.
+                Built for honest privacy boundaries, faster repeated trading, and confidential compute through Arcium.
               </p>
               <div className="lp-footer-social">
                 <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer" aria-label="Twitter">

@@ -4,6 +4,77 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Safe Repo Cleanup Pass (2026-04-11 UTC)
+
+### What changed
+
+- Reduced local repo noise without touching protocol/runtime behavior:
+  - added local-only ignore coverage in `.gitignore` for:
+    - `.agents/`
+    - `.trae/`
+    - `output/`
+    - `.tmp_app_job_id`
+    - `skills-lock.json`
+    - `app/.logs/`
+- Trimmed unused frontend dependencies from `app/package.json`:
+  - removed `@noble/hashes`
+  - removed `lightweight-charts`
+  - removed `styled-jsx`
+- Refreshed `app/pnpm-lock.yaml` through `pnpm remove` so the app lockfile matches the manifest again.
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS after the dependency cleanup
+- direct code search found no live imports of:
+  - `@noble/hashes`
+  - `lightweight-charts`
+  - `styled-jsx`
+- normal `git status --short` now stays focused on tracked work instead of local agent/runtime clutter
+
+### Current blocker
+
+- Cleanup pass is safe and complete for the low-risk repo-hygiene layer.
+- Main protocol blocker remains unchanged:
+  - the Arcium-backed open lane still does not finalize to `Open` on the active devnet namespace
+
+### Next safe step
+
+1. If you want this cleanup published, commit it together with the current README/docs/landing truth-alignment updates.
+2. Keep `.agents/` and `.trae/` ignored but not deleted; they are local tooling state, not product code.
+3. If we want a second cleanup pass later, the next best target is dependency/tree simplification around the wallet-adapter stack, but that should be treated as a separate, higher-risk task.
+
+## Public Docs Alignment (2026-04-11 UTC)
+
+### What changed
+
+- Updated public repo/docs copy to match the current devnet truth:
+  - `README.md`
+  - `app/src/pages/docs.tsx`
+  - `app/src/pages/index.tsx`
+- Added the staged diagnostic command to the README validation section:
+  - `npm run diag:open-contract`
+- Clarified the current public status:
+  - hardened relay/runtime path is working
+  - delegated session and collateral flows are working
+  - the remaining blocker is still the Arcium-backed open lane
+- Removed wording that implied end-to-end market-order open finalization is already fully signed off.
+- Removed decorative arrow icons from the public landing-page `Launch App` CTAs so the button copy reads more cleanly.
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS after the docs page updates
+
+### Current blocker
+
+- Public copy is now aligned with the current technical state.
+- Main protocol blocker remains unchanged:
+  - the open lane still does not finalize to `Open` on the current devnet namespace
+
+### Next safe step
+
+1. If you want these README + docs updates published remotely too, commit and push them as a docs-alignment follow-up.
+2. Keep the escalation packet and public docs in sync if Arcium guidance changes the diagnosis.
+
 ## Relay Reliability Hardening (2026-04-11 UTC)
 
 ### What changed

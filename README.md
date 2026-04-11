@@ -140,6 +140,9 @@ npx ts-node scripts/set-pyth-feed-id.ts
 # Run preflight checks
 npm run check:preflight
 
+# Run the staged open-contract diagnostics
+npm run diag:open-contract
+
 # Smoke test devnet
 npx ts-node scripts/smoke-test-devnet.ts
 ```
@@ -181,15 +184,28 @@ ShadowPerp is deployed on Solana devnet as an active prototype for confidential 
 - Live reference orderbook for all 6 pairs via Binance, Coinbase, Bybit, and Gate.io through the server-side reference depth pipeline
 - Pyth oracle integration with `update-oracle-pyth.ts`
 - Custom named RPC endpoint manager (up to 5, saved to localStorage)
+- Shared script-side RPC fallback with prioritized paid endpoints and aligned websocket resolution
+- Relay hardening around delegated session fallback, oracle refresh, and callback wait handling
 - Session revoke UI in the Settings panel
 - Selected trading pair persists across page refreshes
 - Security-hardened program paths such as rent reclaim fixes, computation offset validation, and safer relay/runtime checks
 - Shielded collateral pool: `deposit_to_shielded`, `request_withdraw_private`, `finalize_withdraw` deployed and active on devnet
 - Shielded collateral state: commitment Merkle tree, nullifier set, pending withdrawal with time delay, shielded margin ref
+- Devnet-safe staged open-position diagnostic harness:
+  - tuple-only probe
+  - margin-check probe
+  - full-check probe
+- Hardened relay-open smoke now confirms failed opens resolve to a terminal `Closed` state instead of staying stranded in `Pending`
 
 **Known devnet limitations:**
 
-- End-to-end open and close are not fully signed off yet. The current `open_position_probe_b` callback can still abort on devnet with `AbortedComputation (6000) -> InvalidComputationResult (6010)`.
+- End-to-end open and close are not fully signed off yet.
+- The open lane is still blocked on devnet. The staged diagnostic harness shows the abort survives:
+  - tuple-only probe
+  - margin-check probe
+  - full-check probe
+- Current evidence points away from margin/leverage business logic and more toward an Arcium runtime or lower-level contract issue in the open lane.
+- The hardened relay path improves failure handling, but it does not fix the root protocol issue. A fresh delegated relay-open smoke still queued successfully and ended with the position in `Closed` rather than `Open`.
 - Shared collateral is active only for adopted markets and migrated owners. Wallets with legacy per-market balances still need the migration runbook before treating their balance as one shared pool.
 - Legacy per-market balances and positions must be migrated carefully. The intended runbook is:
   1. close or settle open legacy positions
@@ -202,6 +218,7 @@ ShadowPerp is deployed on Solana devnet as an active prototype for confidential 
 
 - Private margin lock and settle via Arcium MPC (`lock_margin_private`, `settle_private_position` - circuits built, on-chain wiring complete, circuit integration pending)
 - Commitment tree hashing (placeholder additive binding pending stronger tree hashing integration)
+- Arcium escalation for the open-position lane using the live packet in `docs/arcium-open-escalation-2026-04-11.md`
 
 ## References
 
