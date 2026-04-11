@@ -30,11 +30,41 @@ interface PortfolioSummaryProps {
   pair?: TradingPair;
 }
 
+const PORTFOLIO_CACHE_KEY = "shadow:portfolio:v1";
+
+function readCachedPortfolio(walletKey: string): PortfolioData | null {
+  try {
+    const raw = localStorage.getItem(`${PORTFOLIO_CACHE_KEY}:${walletKey}`);
+    if (!raw) return null;
+    return JSON.parse(raw) as PortfolioData;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedPortfolio(walletKey: string, data: PortfolioData) {
+  try {
+    localStorage.setItem(`${PORTFOLIO_CACHE_KEY}:${walletKey}`, JSON.stringify(data));
+  } catch {
+    // storage quota exceeded — not fatal
+  }
+}
+
 export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSummaryProps = {}) {
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
-  const [data, setData] = useState<PortfolioData | null>(null);
+  const [data, setData] = useState<PortfolioData | null>(() => {
+    if (typeof window === "undefined") return null;
+    // Try to read the most recently cached wallet key so data appears immediately on refresh
+    try {
+      const lastKey = localStorage.getItem(`${PORTFOLIO_CACHE_KEY}:last`);
+      if (lastKey) return readCachedPortfolio(lastKey);
+    } catch {
+      // ignore
+    }
+    return null;
+  });
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
   const {
@@ -56,7 +86,7 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
 
   const loadPortfolio = useCallback(async () => {
     if (!publicKey || !anchorWallet) {
-      setData(null);
+      // Don't clear data — keep showing cached values until wallet reconnects
       return;
     }
 
@@ -160,7 +190,7 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
           ? 100
           : 0;
 
-      setData({
+      const next: PortfolioData = {
         marginBalance,
         freeCollateral,
         lockedCollateral,
@@ -171,10 +201,14 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
         maintenanceMargin,
         crossAccountLeverage,
         accountHealth: health,
-      });
+      };
+      setData(next);
+      // Persist so next refresh shows data immediately before wallet reconnects
+      const walletKey = publicKey.toBase58();
+      writeCachedPortfolio(walletKey, next);
+      try { localStorage.setItem(`${PORTFOLIO_CACHE_KEY}:last`, walletKey); } catch { /* noop */ }
     } catch {
-      // config/runtime errors
-      setData(null);
+      // config/runtime errors — keep showing cached data, don't clear
     }
   }, [publicKey, anchorWallet, connection, pair]);
 
@@ -189,7 +223,8 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
   }, [data, onMarginReady]);
 
 
-  if (!publicKey) return null;
+  // If no wallet at all (never connected), hide the component
+  if (!publicKey && !data) return null;
 
   const healthColor =
     (data?.accountHealth ?? 0) > 70

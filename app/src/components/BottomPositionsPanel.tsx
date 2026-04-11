@@ -219,7 +219,18 @@ export default function BottomPositionsPanel({
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
-  const [positions, setPositions] = useState<UiPosition[]>([]);
+  const [positions, setPositions] = useState<UiPosition[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const lastKey = localStorage.getItem("shadow:positions:last");
+      if (!lastKey) return [];
+      const raw = localStorage.getItem(`shadow:positions:v1:${lastKey}`);
+      if (!raw) return [];
+      return JSON.parse(raw) as UiPosition[];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [closingAddress, setClosingAddress] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<BottomTab>("positions");
@@ -255,14 +266,21 @@ export default function BottomPositionsPanel({
     clientRef.current = null;
   }, [anchorWallet]);
 
+  const prevPublicKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    setIndexedHistoryPositions(null);
-    setActivityRows([]);
-    setWalletSolBalance(null);
-    setWalletTokenBalances([]);
-    setAccountTotal(null);
-    setFreeCollateral(null);
-    setLockedCollateral(null);
+    const current = publicKey?.toBase58() ?? null;
+    // Only clear data if a *different* wallet connects, not on reconnect of the same wallet
+    if (current !== null && prevPublicKeyRef.current !== null && current !== prevPublicKeyRef.current) {
+      setPositions([]);
+      setIndexedHistoryPositions(null);
+      setActivityRows([]);
+      setWalletSolBalance(null);
+      setWalletTokenBalances([]);
+      setAccountTotal(null);
+      setFreeCollateral(null);
+      setLockedCollateral(null);
+    }
+    prevPublicKeyRef.current = current;
   }, [publicKey]);
 
   const loadPositions = useCallback(async () => {
@@ -316,6 +334,12 @@ export default function BottomPositionsPanel({
       });
       mapped.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
       setPositions(mapped);
+      // Persist so positions appear immediately on next refresh
+      try {
+        const walletKey = publicKey.toBase58();
+        localStorage.setItem(`shadow:positions:v1:${walletKey}`, JSON.stringify(mapped));
+        localStorage.setItem("shadow:positions:last", walletKey);
+      } catch { /* storage quota — not fatal */ }
       try {
         const [livePrices, marketResults] = await Promise.all([
           fetchPrices().catch(() => null),
