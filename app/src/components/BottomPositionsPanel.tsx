@@ -755,10 +755,8 @@ export default function BottomPositionsPanel({
           setIndexedHistoryPositions(mapped);
         }
       } catch {
-        if (!cancelled) {
-          setActivityRows([]);
-          setIndexedHistoryPositions(null);
-        }
+        // On error keep existing data — don't blank the list
+        // setActivityRows and setIndexedHistoryPositions intentionally not cleared
       } finally {
         if (!cancelled) {
           setHistoryLoading(false);
@@ -825,12 +823,7 @@ export default function BottomPositionsPanel({
         setFreeCollateral(marginResult.free);
         setLockedCollateral(marginResult.locked);
       } catch {
-        if (cancelled) return;
-        setWalletSolBalance(null);
-        setWalletTokenBalances([]);
-        setAccountTotal(null);
-        setFreeCollateral(null);
-        setLockedCollateral(null);
+        // On error keep existing balance data — don't blank the display
       } finally {
         if (!cancelled) {
           setBalancesLoading(false);
@@ -1324,6 +1317,8 @@ export default function BottomPositionsPanel({
           )
 
         /* ── POSITIONS TAB ── */
+        ) : historyLoading && activeTab === "positionHistory" && displayed.length === 0 ? (
+          <div className="py-6 text-center text-xs text-gray-500">Loading position history...</div>
         ) : displayed.length === 0 ? (
           <div className="py-6 text-center text-xs text-gray-500">
             {!publicKey

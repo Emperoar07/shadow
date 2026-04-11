@@ -316,7 +316,7 @@ export async function getHistorySnapshot(
   options: { limit?: number; before?: string; includePositions?: boolean } = {}
 ): Promise<WalletHistorySnapshot> {
   const owner = new PublicKey(wallet);
-  const limit = Math.max(1, Math.min(options.limit ?? HISTORY_PAGE_SIZE, 25));
+  const limit = Math.max(1, Math.min(options.limit ?? HISTORY_PAGE_SIZE, 100));
   return loadHistorySnapshot(owner, {
     limit,
     before: options.before,
