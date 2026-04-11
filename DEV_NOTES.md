@@ -2020,3 +2020,39 @@ No code changes were made during this audit pass.
 ### Notes
 - This fixes the missing favicon request seen during the mobile/browser smoke.
 - The remaining browser console noise from HMR, external RPC SSL failures, and TradingView websocket behavior is environment/provider-related and was not changed in this pass.
+
+## Trader History + Callback Copy Pass (2026-04-11 UTC)
+
+### What changed
+- `app/src/hooks/useArcium.ts`
+  - treated `Closed` after queue as a callback-abort diagnosis path instead of falling back to the vaguer `unexpected status Closed` error
+- `app/src/components/TradeConfirmationModal.tsx`
+  - normalized callback-abort cases into clearer trader copy: `Arcium callback aborted`
+  - mapped `callback already failed on-chain`, `resolved to Closed instead of Open`, `unexpected status Closed`, `AbortedComputation`, and `InvalidComputationResult` into the same honest error family
+- `app/src/components/BottomPositionsPanel.tsx`
+  - expanded the lower panel into trader-facing tabs:
+    - `Positions`
+    - `Open Orders`
+    - `Balances`
+    - `Order History`
+    - `Trade History`
+    - `Funding History`
+    - `Position History`
+  - kept data-source boundaries explicit:
+    - balances pull live wallet balances plus margin-account total/free/locked
+    - order history uses browser-managed automation state
+    - trade history uses indexed wallet activity
+    - position history uses closed/liquidated position accounts
+    - funding history shows an honest placeholder until that ledger is wired
+  - normalized all lower-panel tables to the same shared table shell so the row cards match the main positions tab footprint
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit --incremental false` passed.
+
+### Current blocker
+- The core open-lane protocol blocker is still the Arcium callback abort on devnet.
+- Funding history is still not backed by a dedicated Shadow data source yet; the new tab is intentionally a placeholder.
+
+### Next safe step
+1. Do one browser QA pass on the new lower-panel tabs to check spacing, scrolling, and empty states.
+2. If the UI feels right, commit this pass separately from any unrelated landing-page or layout work already sitting in the tree.

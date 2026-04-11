@@ -400,6 +400,17 @@ async function waitForOpenPositionCallback(
             throw new Error(callbackFailure);
           }
         }
+      } else if (status === PositionStatus.Closed) {
+        const callbackFailure = await diagnoseOpenCallbackFailure(
+          connection,
+          positionAddress,
+          lastPendingComputationAddress,
+          clusterOffset
+        );
+        throw new Error(
+          callbackFailure ??
+            `Queued on Arcium cluster ${clusterOffset}, but the position resolved to Closed instead of Open.`
+        );
       } else {
         throw new Error(
           `Queued on Arcium cluster ${clusterOffset}, but the position entered unexpected status ${PositionStatus[status] ?? status}.`
