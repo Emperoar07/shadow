@@ -1150,6 +1150,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
         errorMessage={tradeError}
         txSignature={tradeTxSig}
         onClose={() => setModalOpen(false)}
+        onRetry={() => { setModalOpen(false); setTimeout(() => executeOpen(), 100); }}
       />
 
       <LeverageModal

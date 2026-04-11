@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BN from "bn.js";
-import { PublicKey } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
-import { fetchWalletHistory } from "../lib/history";
+import { fetchWalletHistory, type IndexedRecentTx } from "../lib/history";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
@@ -26,8 +27,17 @@ import {
   updateLimitOrder,
 } from "../lib/trade-automation";
 import { fetchPrices } from "../lib/prices";
+import { WALLET_DISPLAY_TOKENS } from "../lib/tokens";
 
 type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated" | "settling";
+type BottomTab =
+  | "positions"
+  | "openOrders"
+  | "balances"
+  | "orderHistory"
+  | "tradeHistory"
+  | "fundingHistory"
+  | "positionHistory";
 
 interface UiPosition {
   address: string;
@@ -47,6 +57,12 @@ type RuleDraft = {
   takeProfit: string;
   stopLoss: string;
 };
+
+interface TokenBalance {
+  symbol: string;
+  balance: number;
+  color: string;
+}
 
 function parseStatus(status: unknown): UiStatus {
   if (typeof status === "number") {
@@ -148,6 +164,38 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
+function formatAssetBalance(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "--";
+  if (value < 0.001) return "<0.001";
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return value < 1 ? value.toFixed(4) : value.toFixed(2);
+}
+
+function formatDollarAmount(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "--";
+  return `$${value.toFixed(2)}`;
+}
+
+function formatTimestamp(value: number | null | undefined): string {
+  if (!value) return "--";
+  return new Date(value * 1000).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function statusChipClass(error: boolean): string {
+  return error
+    ? "bg-accent-red/15 text-accent-red"
+    : "bg-accent-green/15 text-accent-green";
+}
+
+const PANEL_TABLE_CLASS = "w-full min-w-[800px] text-[11px]";
+const PANEL_TABLE_STYLE = { borderCollapse: "separate" as const, borderSpacing: "0 6px" };
+
 
 export default function BottomPositionsPanel({
   activePairLabel,
@@ -174,7 +222,7 @@ export default function BottomPositionsPanel({
   const [positions, setPositions] = useState<UiPosition[]>([]);
   const [loading, setLoading] = useState(false);
   const [closingAddress, setClosingAddress] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"position" | "orders" | "history">("position");
+  const [activeTab, setActiveTab] = useState<BottomTab>("positions");
   const [limitOrders, setLimitOrders] = useState<PendingLimitOrder[]>([]);
   const [positionRules, setPositionRules] = useState<Record<string, PositionProtectionRule>>({});
   const [ownerPositionViews, setOwnerPositionViews] = useState<Record<string, OwnerPositionView>>(
@@ -183,13 +231,25 @@ export default function BottomPositionsPanel({
   const [indexedHistoryPositions, setIndexedHistoryPositions] = useState<UiPosition[] | null>(
     null
   );
+  const [activityRows, setActivityRows] = useState<IndexedRecentTx[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [ruleDrafts, setRuleDrafts] = useState<Record<string, RuleDraft>>({});
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [closeConfirmPos, setCloseConfirmPos] = useState<UiPosition | null>(null);
   const [oraclePrice, setOraclePrice] = useState<number | null>(null);
   const [liqThreshold, setLiqThreshold] = useState(5);
+  const [filterCurrentMarket, setFilterCurrentMarket] = useState(false);
+  const [dateFilterOpen, setDateFilterOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [pairPrices, setPairPrices] = useState<Record<string, number>>({});
   const [pairLiqThresholds, setPairLiqThresholds] = useState<Record<string, number>>({});
+  const [balancesLoading, setBalancesLoading] = useState(false);
+  const [walletSolBalance, setWalletSolBalance] = useState<number | null>(null);
+  const [walletTokenBalances, setWalletTokenBalances] = useState<TokenBalance[]>([]);
+  const [accountTotal, setAccountTotal] = useState<number | null>(null);
+  const [freeCollateral, setFreeCollateral] = useState<number | null>(null);
+  const [lockedCollateral, setLockedCollateral] = useState<number | null>(null);
   const autoCloseInFlightRef = useRef<Set<string>>(new Set());
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
 
@@ -200,6 +260,12 @@ export default function BottomPositionsPanel({
 
   useEffect(() => {
     setIndexedHistoryPositions(null);
+    setActivityRows([]);
+    setWalletSolBalance(null);
+    setWalletTokenBalances([]);
+    setAccountTotal(null);
+    setFreeCollateral(null);
+    setLockedCollateral(null);
   }, [publicKey]);
 
   const loadPositions = useCallback(async () => {
@@ -486,7 +552,11 @@ export default function BottomPositionsPanel({
     [positions]
   );
   const openOrders = useMemo(
-    () => limitOrders.filter((o) => ["pending", "triggered", "failed"].includes(o.status)),
+    () => limitOrders.filter((o) => ["pending", "triggered"].includes(o.status)),
+    [limitOrders]
+  );
+  const orderHistory = useMemo(
+    () => limitOrders.filter((o) => ["filled", "failed", "cancelled"].includes(o.status)),
     [limitOrders]
   );
   const fallbackHistoryPositions = useMemo(
@@ -494,9 +564,49 @@ export default function BottomPositionsPanel({
     [positions]
   );
   const historyPositions = indexedHistoryPositions ?? fallbackHistoryPositions;
-  const displayed =
-    activeTab === "position" ? openPositions : activeTab === "history" ? historyPositions : [];
+
+  const filterPositions = useCallback((list: UiPosition[]) => {
+    let result = list;
+    if (filterCurrentMarket && activePairLabel) {
+      result = result.filter((p) => p.pairLabel === activePairLabel);
+    }
+    if (dateFrom) {
+      const from = new Date(dateFrom).getTime();
+      result = result.filter((p) => p.openedAt.getTime() >= from);
+    }
+    if (dateTo) {
+      const to = new Date(dateTo).getTime() + 86400000; // inclusive end of day
+      result = result.filter((p) => p.openedAt.getTime() <= to);
+    }
+    return result;
+  }, [filterCurrentMarket, activePairLabel, dateFrom, dateTo]);
+
+  const hasActiveFilters = filterCurrentMarket || dateFrom !== "" || dateTo !== "";
+
+  const displayed = useMemo(() => {
+    const base =
+      activeTab === "positions"
+        ? openPositions
+        : activeTab === "positionHistory"
+        ? historyPositions
+        : [];
+    return filterPositions(base);
+  }, [activeTab, openPositions, historyPositions, filterPositions]);
+
   const hasEncryptedPositions = openPositions.some((position) => position.hasEncryptedData);
+  const tradeActivity = useMemo(
+    () =>
+      activityRows.filter((row) =>
+        ["Open Position", "Close Position", "Liquidation", "Position Settled"].includes(
+          row.txType?.label ?? ""
+        )
+      ),
+    [activityRows]
+  );
+  const fundingActivity = useMemo(
+    () => activityRows.filter((row) => /funding/i.test(row.txType?.label ?? "")),
+    [activityRows]
+  );
 
   const derivePositionCard = useCallback(
     (position: UiPosition) => {
@@ -584,7 +694,7 @@ export default function BottomPositionsPanel({
 
   useEffect(() => {
     if (TRADING_DISABLED) return;
-    if (activeTab !== "position") return;
+    if (activeTab !== "positions") return;
     for (const pos of openPositions) {
       if (pos.status !== "open") continue;
       if (autoCloseInFlightRef.current.has(pos.address)) continue;
@@ -614,7 +724,7 @@ export default function BottomPositionsPanel({
   }, [activeTab, executeClose, openPositions, pairPrices, positionRules]);
 
   useEffect(() => {
-    if (activeTab !== "history") return;
+    if (!["tradeHistory", "fundingHistory", "positionHistory"].includes(activeTab)) return;
     if (!publicKey || !anchorWallet) return;
     if (typeof document !== "undefined" && document.visibilityState !== "visible") {
       return;
@@ -622,6 +732,7 @@ export default function BottomPositionsPanel({
 
     let cancelled = false;
     void (async () => {
+      setHistoryLoading(true);
       try {
         const snapshot = await fetchWalletHistory({
           wallet: publicKey.toBase58(),
@@ -640,11 +751,17 @@ export default function BottomPositionsPanel({
           hasEncryptedData: row.hasEncryptedData,
         }));
         if (!cancelled) {
+          setActivityRows(snapshot.activity);
           setIndexedHistoryPositions(mapped);
         }
       } catch {
         if (!cancelled) {
+          setActivityRows([]);
           setIndexedHistoryPositions(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setHistoryLoading(false);
         }
       }
     })();
@@ -653,6 +770,78 @@ export default function BottomPositionsPanel({
       cancelled = true;
     };
   }, [activeTab, anchorWallet, publicKey]);
+
+  useEffect(() => {
+    if (activeTab !== "balances") return;
+    if (!publicKey || !anchorWallet) return;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      setBalancesLoading(true);
+      try {
+        if (!clientRef.current) {
+          clientRef.current = createShadowPerpClient(connection, anchorWallet);
+        }
+        const { client } = clientRef.current;
+        const [solLamports, tokenResults, marginResult] = await Promise.all([
+          connection.getBalance(publicKey),
+          Promise.all(
+            WALLET_DISPLAY_TOKENS.map(async (token) => {
+              try {
+                const ata = await getAssociatedTokenAddress(token.mint, publicKey);
+                const info = await connection.getTokenAccountBalance(ata);
+                const amount = info.value.uiAmount ?? 0;
+                return amount > 0
+                  ? { symbol: token.symbol, balance: amount, color: token.color }
+                  : null;
+              } catch {
+                return null;
+              }
+            })
+          ),
+          client
+            .getMarginAccount(client.getMarginAccountAddress(publicKey))
+            .then((account) => {
+              const total = new BN(account.balance.toString()).toNumber() / 1_000_000;
+              const locked = new BN(account.lockedBalance.toString()).toNumber() / 1_000_000;
+              return {
+                total,
+                locked,
+                free: Math.max(0, total - locked),
+              };
+            })
+            .catch(() => ({ total: 0, locked: 0, free: 0 })),
+        ]);
+
+        if (cancelled) return;
+        setWalletSolBalance(solLamports / LAMPORTS_PER_SOL);
+        setWalletTokenBalances(
+          tokenResults.filter((entry): entry is TokenBalance => entry !== null)
+        );
+        setAccountTotal(marginResult.total);
+        setFreeCollateral(marginResult.free);
+        setLockedCollateral(marginResult.locked);
+      } catch {
+        if (cancelled) return;
+        setWalletSolBalance(null);
+        setWalletTokenBalances([]);
+        setAccountTotal(null);
+        setFreeCollateral(null);
+        setLockedCollateral(null);
+      } finally {
+        if (!cancelled) {
+          setBalancesLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, anchorWallet, connection, publicKey]);
 
   const updateOrderField = useCallback(
     (orderId: string, field: "limitPrice" | "takeProfit" | "stopLoss", raw: string) => {
@@ -684,29 +873,31 @@ export default function BottomPositionsPanel({
     }
   }, []);
 
+  const tabs: { key: BottomTab; label: string; count?: number }[] = [
+    { key: "positions", label: "Positions", count: openPositions.length },
+    { key: "openOrders", label: "Open Orders", count: openOrders.length },
+    { key: "balances", label: "Balances" },
+    { key: "orderHistory", label: "Order History", count: orderHistory.length },
+    { key: "tradeHistory", label: "Trade History", count: tradeActivity.length },
+    { key: "fundingHistory", label: "Funding History", count: fundingActivity.length },
+    { key: "positionHistory", label: "Position History", count: historyPositions.length },
+  ];
+
   return (
     <div className="trade-bottom-panel position-card flex flex-col h-full">
       {/* Tab bar — sticky within the panel */}
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-shadow-600 pl-1 pr-3 bg-shadow-900 shrink-0">
-        <div className="flex">
-          <TabBtn active={activeTab === "position"} onClick={() => setActiveTab("position")}>
-            Position
-            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-shadow-600 text-[10px] text-gray-300">
-              {openPositions.length}
-            </span>
-          </TabBtn>
-          <TabBtn active={activeTab === "orders"} onClick={() => setActiveTab("orders")}>
-            Orders
-            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-shadow-600 text-[10px] text-gray-300">
-              {openOrders.length}
-            </span>
-          </TabBtn>
-          <TabBtn active={activeTab === "history"} onClick={() => setActiveTab("history")}>
-            Trade History
-            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-shadow-600 text-[10px] text-gray-300">
-              {historyPositions.length}
-            </span>
-          </TabBtn>
+        <div className="flex overflow-x-auto">
+          {tabs.map((tab) => (
+            <TabBtn key={tab.key} active={activeTab === tab.key} onClick={() => setActiveTab(tab.key)}>
+              {tab.label}
+              {typeof tab.count === "number" ? (
+                <span className="ml-1.5 px-1.5 py-0.5 rounded bg-shadow-600 text-[10px] text-gray-300">
+                  {tab.count}
+                </span>
+              ) : null}
+            </TabBtn>
+          ))}
         </div>
         <div className="flex items-center gap-2">
           {hasEncryptedPositions ? (
@@ -714,19 +905,323 @@ export default function BottomPositionsPanel({
               Encrypted
             </span>
           ) : null}
-        </div>
 
+          {/* Current Market toggle */}
+          <label className="flex items-center gap-1.5 cursor-pointer select-none group">
+            <input
+              type="checkbox"
+              checked={filterCurrentMarket}
+              onChange={(e) => setFilterCurrentMarket(e.target.checked)}
+              className="w-3 h-3 accent-purple-500 cursor-pointer"
+            />
+            <span className="text-[11px] text-gray-400 group-hover:text-gray-200 transition-colors whitespace-nowrap">
+              Current Market
+            </span>
+          </label>
+
+          {/* Date filter button */}
+          <button
+            onClick={() => setDateFilterOpen((v) => !v)}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors ${
+              dateFilterOpen || dateFrom || dateTo
+                ? "bg-accent-purple/20 text-accent-purple"
+                : "text-gray-400 hover:text-gray-200 hover:bg-shadow-600"
+            }`}
+            title="Filter by date"
+          >
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5v-2z"/>
+            </svg>
+            Date
+          </button>
+
+          {/* Clear all filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={() => { setFilterCurrentMarket(false); setDateFrom(""); setDateTo(""); }}
+              className="text-[11px] text-gray-500 hover:text-gray-200 transition-colors px-1"
+              title="Clear filters"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Date filter overlay */}
+      {dateFilterOpen && (
+        <div className="relative z-20 shrink-0">
+          <div
+            className="fixed inset-0"
+            onClick={() => setDateFilterOpen(false)}
+          />
+          <div className="absolute right-3 top-0 z-30 mt-1 w-72 rounded-lg border border-shadow-500 bg-shadow-800 shadow-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[12px] font-semibold text-gray-200 tracking-wide uppercase">Filter by Date</span>
+              <button
+                onClick={() => setDateFilterOpen(false)}
+                className="text-gray-500 hover:text-gray-200 transition-colors text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">From</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full rounded border border-shadow-500 bg-shadow-900 px-3 py-1.5 text-[12px] text-gray-200 focus:border-accent-purple/50 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">To</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full rounded border border-shadow-500 bg-shadow-900 px-3 py-1.5 text-[12px] text-gray-200 focus:border-accent-purple/50 focus:outline-none"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => { setDateFrom(""); setDateTo(""); }}
+                  className="flex-1 rounded border border-shadow-500 py-1.5 text-[11px] text-gray-400 hover:text-gray-200 hover:border-gray-400 transition-colors"
+                >
+                  Clear
+                </button>
+                <button
+                  onClick={() => setDateFilterOpen(false)}
+                  className="flex-1 rounded bg-accent-purple/20 border border-accent-purple/30 py-1.5 text-[11px] text-accent-purple hover:bg-accent-purple/30 transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="overflow-x-auto flex-1 min-h-0">
       <div className="overflow-y-auto h-full">
-        {/* ── ORDERS TAB ── */}
-        {activeTab === "orders" ? (
+        {activeTab === "balances" ? (
+          !publicKey ? (
+            <div className="py-6 text-center text-xs text-gray-500">Connect wallet to view balances.</div>
+          ) : balancesLoading ? (
+            <div className="py-6 text-center text-xs text-gray-500">Refreshing balances...</div>
+          ) : (
+            <div className="grid gap-4 p-4 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="rounded-xl border border-shadow-600 bg-shadow-800/60 p-4">
+                <div className="mb-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Wallet</p>
+                  <p className="mt-1 text-xs text-gray-400">Live balances available in your connected wallet.</p>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border border-shadow-600/70 bg-shadow-900/40 px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-3 w-3 rounded-full" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
+                      <span className="text-sm text-gray-300">SOL</span>
+                    </div>
+                    <span className="text-sm font-semibold text-white">{formatAssetBalance(walletSolBalance)}</span>
+                  </div>
+                  {walletTokenBalances.length === 0 ? (
+                    <p className="text-xs text-gray-500">No tracked SPL balances detected for this wallet.</p>
+                  ) : (
+                    walletTokenBalances.map((token) => (
+                      <div key={token.symbol} className="flex items-center justify-between rounded-lg border border-shadow-600/70 bg-shadow-900/40 px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: token.color }} />
+                          <span className="text-sm text-gray-300">{token.symbol}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-white">{formatAssetBalance(token.balance)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div className="rounded-xl border border-shadow-600 bg-shadow-800/60 p-4">
+                <div className="mb-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Trading Account</p>
+                  <p className="mt-1 text-xs text-gray-400">Collateral currently tracked by the Shadow margin account.</p>
+                </div>
+                <div className="grid gap-3">
+                  <div className="rounded-lg border border-shadow-600/70 bg-shadow-900/40 px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Account Total</p>
+                    <p className="mt-1 text-xl font-semibold text-white">{formatDollarAmount(accountTotal)}</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-shadow-600/70 bg-shadow-900/40 px-3 py-3">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Available Now</p>
+                      <p className="mt-1 text-lg font-semibold text-accent-green">{formatDollarAmount(freeCollateral)}</p>
+                    </div>
+                    <div className="rounded-lg border border-shadow-600/70 bg-shadow-900/40 px-3 py-3">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Locked</p>
+                      <p className="mt-1 text-lg font-semibold text-yellow-300">{formatDollarAmount(lockedCollateral)}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs leading-relaxed text-gray-500">
+                    Locked collateral is reserved by open positions. Available now is what can still back a new trade or a withdrawal.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )
+        ) : activeTab === "orderHistory" ? (
+          orderHistory.length === 0 ? (
+            <div className="py-6 text-center text-xs text-gray-500">
+              No browser-managed order history yet.
+            </div>
+          ) : (
+            <div className="space-y-3 p-4">
+              <p className="text-xs text-gray-500">
+                Order history here reflects browser-managed Shadow automation for this wallet.
+              </p>
+              {orderHistory.map((order) => (
+                <div key={order.id} className="rounded-xl border border-shadow-600 bg-shadow-800/60 px-4 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-white">{order.pairLabel}</span>
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                          order.side === "long" ? "bg-accent-green/20 text-accent-green" : "bg-accent-red/20 text-accent-red"
+                        }`}>
+                          {order.side}
+                        </span>
+                        <span className="rounded bg-shadow-600 px-1.5 py-0.5 text-[10px] uppercase text-gray-400">
+                          {order.marginMode}
+                        </span>
+                        <span className="rounded bg-accent-purple/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-purple">
+                          {order.leverage}x
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Created {new Date(order.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <span className={`rounded px-2 py-1 text-[10px] font-semibold uppercase ${
+                      order.status === "filled"
+                        ? "bg-accent-green/15 text-accent-green"
+                        : order.status === "failed"
+                        ? "bg-accent-red/15 text-accent-red"
+                        : "bg-shadow-600 text-gray-300"
+                    }`}>
+                      {order.status}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-3 text-xs text-gray-400 sm:grid-cols-4">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Size</p>
+                      <p className="mt-1 text-sm text-white">{order.sizeBase.toFixed(4)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Limit</p>
+                      <p className="mt-1 text-sm text-white">{formatPrice(order.limitPrice)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Take Profit</p>
+                      <p className="mt-1 text-sm text-white">{formatPrice(order.takeProfit)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Stop Loss</p>
+                      <p className="mt-1 text-sm text-white">{formatPrice(order.stopLoss)}</p>
+                    </div>
+                  </div>
+                  {order.error ? (
+                    <p className="mt-3 text-xs text-accent-red">{order.error}</p>
+                  ) : null}
+                  {order.txSignature ? (
+                    <a
+                      href={getExplorerTxUrl(order.txSignature)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex text-xs text-accent-purple hover:underline"
+                    >
+                      View transaction
+                    </a>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )
+        ) : activeTab === "tradeHistory" ? (
+          historyLoading ? (
+            <div className="py-6 text-center text-xs text-gray-500">Loading trade activity...</div>
+          ) : tradeActivity.length === 0 ? (
+            <div className="py-6 text-center text-xs text-gray-500">No trade activity yet.</div>
+          ) : (
+            <table className={PANEL_TABLE_CLASS} style={PANEL_TABLE_STYLE}>
+              <thead className="sticky top-0 z-10 bg-shadow-900">
+                <tr className="text-[10px] uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-1.5 text-left font-medium">Event</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Status</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Detail</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Time</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Explorer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tradeActivity.map((row) => (
+                  <tr key={row.sig} className="position-row group">
+                    <td className="px-3 py-2.5">
+                      <div className={`font-medium ${row.txType?.color ?? "text-white"}`}>
+                        {row.txType?.label ?? "Trade event"}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2.5">
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${statusChipClass(row.err)}`}>
+                        {row.err ? "Failed" : "Confirmed"}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5 text-gray-400">
+                      {row.txType?.detail ?? row.memo ?? "--"}
+                    </td>
+                    <td className="px-2 py-2.5 text-right text-gray-400">{formatTimestamp(row.blockTime)}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      <a
+                        href={getExplorerTxUrl(row.sig)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-accent-purple hover:underline"
+                      >
+                        View
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        ) : activeTab === "fundingHistory" ? (
+          historyLoading ? (
+            <div className="py-6 text-center text-xs text-gray-500">Loading funding activity...</div>
+          ) : fundingActivity.length === 0 ? (
+            <div className="mx-4 my-6 rounded-xl border border-shadow-600 bg-shadow-800/60 px-4 py-4 text-xs leading-relaxed text-gray-400">
+              Funding history is not wired as a standalone Shadow ledger yet. When recurring funding settlements are exposed in the app, they will appear here.
+            </div>
+          ) : (
+            <div className="space-y-3 p-4">
+              {fundingActivity.map((row) => (
+                <div key={row.sig} className="rounded-xl border border-shadow-600 bg-shadow-800/60 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className={`text-sm font-semibold ${row.txType?.color ?? "text-white"}`}>
+                        {row.txType?.label ?? "Funding event"}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">{row.txType?.detail ?? row.memo ?? "--"}</p>
+                    </div>
+                    <span className="text-xs text-gray-400">{formatTimestamp(row.blockTime)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : activeTab === "openOrders" ? (
           openOrders.length === 0 ? (
             <div className="py-6 text-center text-xs text-gray-500">No active orders.</div>
           ) : (
-            <table className="w-full min-w-[700px] text-[11px]" style={{ borderCollapse: "separate", borderSpacing: "0 6px" }}>
+            <table className={PANEL_TABLE_CLASS} style={PANEL_TABLE_STYLE}>
               <thead className="sticky top-0 z-10 bg-shadow-900">
                 <tr className="text-[10px] uppercase tracking-wider text-gray-500">
                   <th className="px-3 py-1.5 text-left font-medium">Pair</th>
@@ -833,12 +1328,12 @@ export default function BottomPositionsPanel({
           <div className="py-6 text-center text-xs text-gray-500">
             {!publicKey
               ? "Connect wallet to view positions"
-              : activeTab === "position"
+              : activeTab === "positions"
               ? "No open positions"
               : "No closed positions yet"}
           </div>
         ) : (
-          <table className="w-full min-w-[800px] text-[11px]" style={{ borderCollapse: "separate", borderSpacing: "0 6px" }}>
+          <table className={PANEL_TABLE_CLASS} style={PANEL_TABLE_STYLE}>
             <thead className="sticky top-0 z-10 bg-shadow-900">
               <tr className="text-[10px] uppercase tracking-wider text-gray-500">
                 <th className="px-3 py-1.5 text-left font-medium">Pair</th>
@@ -848,7 +1343,7 @@ export default function BottomPositionsPanel({
                 <th className="px-2 py-1.5 text-right font-medium">Liq. Price</th>
                 <th className="px-2 py-1.5 text-right font-medium">Margin</th>
                 <th className="px-2 py-1.5 text-right font-medium">PnL</th>
-                {activeTab === "position" && <th className="px-2 py-1.5 text-right font-medium">TP / SL</th>}
+                {activeTab === "positions" && <th className="px-2 py-1.5 text-right font-medium">TP / SL</th>}
                 <th className="px-2 py-1.5 text-center font-medium">Health</th>
                 <th className="px-3 py-1.5 text-right font-medium">Action</th>
               </tr>
@@ -897,7 +1392,7 @@ export default function BottomPositionsPanel({
                     {/* Pair */}
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <div className="font-medium text-white">{card.pairLabel}</div>
-                      {activeTab === "history" && (
+                      {activeTab === "positionHistory" && (
                         <div className="mt-0.5 text-[10px] text-gray-500">
                           {historySideLabel}
                           {historySizeLabel ? ` • ${historySizeLabel}` : ""}
@@ -944,7 +1439,7 @@ export default function BottomPositionsPanel({
                       )}
                     </td>
                     {/* TP/SL */}
-                    {activeTab === "position" && (
+                    {activeTab === "positions" && (
                       <td className="px-2 py-2.5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <div className="relative">
@@ -977,7 +1472,7 @@ export default function BottomPositionsPanel({
                     </td>
                     {/* Action */}
                     <td className="px-3 py-2.5 text-right">
-                      {activeTab === "history" ? (
+                      {activeTab === "positionHistory" ? (
                         <div className="flex flex-col items-end gap-0.5">
                           <StatusBadge status={pos.status} isClosing={isClosing} />
                           <span className="text-[10px] text-gray-500">{historyTimeLabel}</span>
