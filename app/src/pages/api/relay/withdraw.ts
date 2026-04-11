@@ -173,9 +173,8 @@ export default async function handler(
     if (sessionUsedActions >= sessionMaxActions) {
       throw new Error("Session action limit reached");
     }
-    if (amount.gt(sessionMaxMarginPerAction)) {
-      throw new Error("Withdraw exceeds delegated session limit");
-    }
+    // max_margin_per_action applies to opens and deposits only, not withdrawals.
+    // See ARCHITECTURE.md §Session withdraw exemption.
 
     const txSignature =
       sessionVersion === "v2"
