@@ -4,6 +4,68 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Open Finalization Semantics Pass (2026-04-11 UTC)
+
+### What changed
+
+- Added shared open-finalization helpers to `app/src/lib/client.ts` so non-UI callers can wait for a real `Open` state instead of stopping at queue confirmation:
+  - `waitForOpenPositionFinalization(...)`
+  - `openPositionAndFinalize(...)`
+  - `openPositionWithSessionAndFinalize(...)`
+  - `openPositionWithSessionV2AndFinalize(...)`
+- Ported the relayer script open flows in `scripts/session-relayer.ts` to the finalization-aware helper so `open` and `smoke` now report finalized open status instead of treating "queued" as success.
+- Reused the same callback-failure diagnosis pattern already present in the browser hook so shared client callers now get clearer terminal errors when the open callback aborts on-chain.
+- Fixed `scripts/session-relayer.ts` config construction to include the now-required `marketRegistry` field expected by the shared client config type.
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS after the shared-client changes
+- Focused compile for the touched shared client + relayer script -> PASS:
+  - `npx tsc --noEmit --target ES2020 --module commonjs --lib ES2020,DOM --esModuleInterop --resolveJsonModule --skipLibCheck app/src/lib/client.ts scripts/session-relayer.ts`
+
+### Current blocker
+
+- Queue/open semantics are now more honest for non-UI callers.
+- Main protocol blocker remains unchanged:
+  - the Arcium-backed open lane still does not finalize to `Open` on the active devnet namespace
+
+### Next safe step
+
+1. Run one delegated `session-relayer open` or `session-relayer smoke` check on devnet and confirm it now reports either finalized open or a callback-specific failure instead of a false-positive queue success.
+2. If that looks clean, consider switching any other non-UI open callers to the new finalization-aware helper.
+3. After that, the next low-risk cleanup is aligning `@arcium-hq/client` to the latest 0.9.x patch and repeating the same smoke path.
+
+## Relay Oracle Failsafe Fix (2026-04-11 UTC)
+
+### What changed
+
+- Hardened `app/src/pages/api/relay/open.ts` so stale-oracle refresh during order open no longer hard-fails whenever one upstream reference source drops out.
+- Replaced the relay route's hardcoded two-source-only behavior with the same guarded single-source fallback policy already used by the oracle daemon:
+  - reads `ORACLE_MIN_SOURCES_REQUIRED`
+  - reads `ORACLE_FAILSAFE_ALLOW_SINGLE_SOURCE`
+  - reads `ORACLE_FAILSAFE_MAX_MOVE_BPS`
+- Added better upstream error reporting for provider fetch failures so relay logs now distinguish HTTP/provider failures from simple `NaN` parsing.
+- The relay still requires the full source threshold by default, but it can now safely refresh from one healthy source when:
+  - at least one quote is valid
+  - single-source failsafe is enabled
+  - the refreshed price stays within the guarded move limit versus the last on-chain oracle price
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS after the relay oracle patch
+
+### Current blocker
+
+- The stale-market-data failure during open should now be reduced when Binance or another single reference source drops out.
+- Main protocol blocker remains unchanged:
+  - the Arcium-backed open lane still does not finalize to `Open` on the active devnet namespace
+
+### Next safe step
+
+1. Restart the app server if needed so the relay route picks up the new env-backed oracle behavior.
+2. Retry an open on a previously failing pair and watch the relay logs for `reducedSourceMode` in `[relay/open:oracle]`.
+3. If upstream provider instability continues, add a third reference source to the relay open path instead of relying only on CoinGecko + Binance.
+
 ## In-App Voice Alignment Pass (2026-04-11 UTC)
 
 ### What changed

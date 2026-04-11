@@ -18,8 +18,33 @@ import { checkRateLimit } from "../../../lib/server/rate-limit";
 const OPEN_RATE_LIMIT = 10; // max 10 open requests per owner per minute
 const RATE_WINDOW_MS = 60_000;
 const ORACLE_MAX_AGE_SECONDS = 250; // refresh if older than this (contract requires < 300)
-const ORACLE_MIN_SOURCES = 2;
 const ALL_MARKETS_SESSION_KEY = "__all_markets__";
+
+function parsePositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function parseBooleanEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const normalized = raw.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
+const ORACLE_MIN_SOURCES = parsePositiveIntEnv("ORACLE_MIN_SOURCES_REQUIRED", 2);
+const ORACLE_FAILSAFE_ALLOW_SINGLE_SOURCE = parseBooleanEnv(
+  "ORACLE_FAILSAFE_ALLOW_SINGLE_SOURCE",
+  true
+);
+const ORACLE_FAILSAFE_MAX_MOVE_BPS = parsePositiveIntEnv(
+  "ORACLE_FAILSAFE_MAX_MOVE_BPS",
+  150
+);
 
 const PAIR_PRICE_SOURCES: Record<string, { coingeckoId: string; binanceSymbol: string }> = {
   "SOL-USD": { coingeckoId: "solana", binanceSymbol: "SOLUSDT" },
@@ -33,6 +58,11 @@ const PAIR_PRICE_SOURCES: Record<string, { coingeckoId: string; binanceSymbol: s
 type OracleQuote = {
   source: string;
   price: number;
+};
+
+type OracleSnapshot = {
+  ageSeconds: number;
+  priceUi: number;
 };
 
 type OpenRequestBody = {
@@ -75,6 +105,40 @@ async function getOracleAgeSeconds(
   return Math.floor(Date.now() / 1000) - lastUpdate;
 }
 
+async function getOracleSnapshot(
+  relay: RelayRuntimeContext,
+  marketAddress: PublicKey
+): Promise<OracleSnapshot> {
+  const market = await relay.client.getMarket(marketAddress);
+  const lastUpdate = Number(market.lastPriceUpdate?.toString?.() ?? "0");
+  const oraclePriceRaw = Number(market.oraclePrice?.toString?.() ?? "0");
+  return {
+    ageSeconds: Math.floor(Date.now() / 1000) - lastUpdate,
+    priceUi: oraclePriceRaw > 0 ? oraclePriceRaw / 1_000_000 : Number.NaN,
+  };
+}
+
+function deviationBps(nextPrice: number, previousPrice: number): number {
+  if (!Number.isFinite(nextPrice) || !Number.isFinite(previousPrice) || previousPrice <= 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return (Math.abs(nextPrice - previousPrice) / previousPrice) * 10_000;
+}
+
+async function fetchPriceJson(url: string, source: string): Promise<any> {
+  const response = await fetch(url, {
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    const trimmed = detail.replace(/\s+/g, " ").trim();
+    throw new Error(
+      `${source}: HTTP ${response.status}${trimmed ? ` ${trimmed.slice(0, 120)}` : ""}`
+    );
+  }
+  return response.json();
+}
+
 async function fetchPairPrice(pairLabel: string): Promise<{
   medianPrice: number;
   quotes: OracleQuote[];
@@ -84,16 +148,18 @@ async function fetchPairPrice(pairLabel: string): Promise<{
   if (!sources) throw new Error(`No price source configured for ${pairLabel}`);
 
   const results = await Promise.allSettled([
-    fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${sources.coingeckoId}&vs_currencies=usd`
+    fetchPriceJson(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${sources.coingeckoId}&vs_currencies=usd`,
+      "coingecko"
     )
-      .then((r) => r.json())
       .then((d: any) => ({
         source: "coingecko",
         price: d?.[sources.coingeckoId]?.usd as number,
       })),
-    fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${sources.binanceSymbol}`)
-      .then((r) => r.json())
+    fetchPriceJson(
+      `https://api.binance.com/api/v3/ticker/price?symbol=${sources.binanceSymbol}`,
+      "binance"
+    )
       .then((d: any) => ({
         source: "binance",
         price: parseFloat(d?.price),
@@ -114,11 +180,9 @@ async function fetchPairPrice(pairLabel: string): Promise<{
     warnings.push(extractErrorMessage(result.reason));
   }
 
-  if (quotes.length < ORACLE_MIN_SOURCES) {
+  if (quotes.length === 0) {
     const details = warnings.length > 0 ? ` ${warnings.join(" | ")}` : "";
-    throw new Error(
-      `Insufficient oracle sources for ${pairLabel} (${quotes.length}/${ORACLE_MIN_SOURCES}).${details}`
-    );
+    throw new Error(`No usable oracle sources for ${pairLabel}.${details}`);
   }
 
   const prices = quotes.map((quote) => quote.price).sort((a, b) => a - b);
@@ -135,15 +199,35 @@ async function ensureOracleFresh(
   pairLabel: string
 ): Promise<void> {
   try {
-    const age = await getOracleAgeSeconds(relay, marketAddress);
-    if (age < ORACLE_MAX_AGE_SECONDS) return;
+    const snapshot = await getOracleSnapshot(relay, marketAddress);
+    if (snapshot.ageSeconds < ORACLE_MAX_AGE_SECONDS) return;
 
     const composite = await fetchPairPrice(pairLabel);
+    const sourceCount = composite.quotes.length;
+    const details = composite.warnings.length > 0 ? ` ${composite.warnings.join(" | ")}` : "";
+    const moveFromLastBps = deviationBps(composite.medianPrice, snapshot.priceUi);
+    const reducedSourceMode =
+      sourceCount < ORACLE_MIN_SOURCES &&
+      ORACLE_FAILSAFE_ALLOW_SINGLE_SOURCE &&
+      sourceCount >= 1 &&
+      Number.isFinite(moveFromLastBps) &&
+      moveFromLastBps <= ORACLE_FAILSAFE_MAX_MOVE_BPS;
+
+    if (sourceCount < ORACLE_MIN_SOURCES && !reducedSourceMode) {
+      throw new Error(
+        `Insufficient oracle sources for ${pairLabel} (${sourceCount}/${ORACLE_MIN_SOURCES}).${details}`
+      );
+    }
+
     if (composite.warnings.length > 0) {
       console.warn("[relay/open:oracle]", {
         market: marketAddress.toBase58(),
         pairLabel,
         warnings: composite.warnings,
+        reducedSourceMode,
+        sourceCount,
+        minSourcesRequired: ORACLE_MIN_SOURCES,
+        moveFromLastBps: Number.isFinite(moveFromLastBps) ? moveFromLastBps : null,
       });
     }
 

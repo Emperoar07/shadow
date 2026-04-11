@@ -209,6 +209,9 @@ function buildClientConfig(
     clusterOffset,
     clusterAddress,
     marketAddress,
+    marketRegistry: {
+      "SOL-USD": marketAddress,
+    },
     mempoolAccount: getMempoolAccAddress(clusterOffset),
     executingPool: getExecutingPoolAccAddress(clusterOffset),
     poolAccount: getFeePoolAccAddress(),
@@ -446,18 +449,19 @@ async function main(): Promise<void> {
         marginMode,
       };
 
-      const result = await relayerClient.openPositionWithSession(
+      const result = await relayerClient.openPositionWithSessionAndFinalize(
         marketAddress,
         ownerForDelegated,
         sessionId,
         input
       );
-      console.log("Delegated open queued");
+      console.log("Delegated open finalized");
       console.log(`  Session ID: ${sessionId.toString()}`);
       console.log(`  Owner:      ${ownerForDelegated.toBase58()}`);
       console.log(`  Relayer:    ${relayerProvider.wallet.publicKey.toBase58()}`);
       console.log(`  Position:   ${result.positionAddress.toBase58()}`);
       console.log(`  Tx:         ${result.txSignature}`);
+      console.log("  Status:     Open");
       console.log(
         `  Explorer:   https://explorer.solana.com/tx/${result.txSignature}?cluster=devnet`
       );
@@ -589,13 +593,13 @@ async function main(): Promise<void> {
           marginMode: "cross",
         };
 
-        const opened = await relayerClient.openPositionWithSession(
+        const opened = await relayerClient.openPositionWithSessionAndFinalize(
           marketAddress,
           ownerForDelegated,
           sessionId,
           input
         );
-        console.log("Smoke step 2/2: delegated open queued");
+        console.log("Smoke step 2/2: delegated open finalized");
         console.log(`  Position: ${opened.positionAddress.toBase58()}`);
         console.log(`  Open tx:  ${opened.txSignature}`);
       } catch (error: any) {

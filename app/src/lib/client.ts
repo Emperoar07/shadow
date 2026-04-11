@@ -47,6 +47,7 @@ import { confirmWithPolling } from "./arcium-errors";
 export const DEFAULT_TRADE_SESSION_DURATION_SECONDS = 5 * 60 * 60;
 const DEFAULT_POSITION_STATUS_TIMEOUT_MS = 120_000;
 const DEFAULT_POSITION_STATUS_POLL_MS = 2_000;
+const OPEN_POSITION_CALLBACK_DIAG_POLL_MS = 6_000;
 
 const ANCHOR_STATUS_MAP: Record<string, number> = {
   pending: 0, open: 1, closing: 2, closed: 3, liquidated: 4,
@@ -61,6 +62,45 @@ function normalizeStatus(raw: unknown): number {
   }
   return -1;
 }
+
+function parsePendingComputationAccount(position: unknown): PublicKey | null {
+  const raw = (position as { pendingComputationAccount?: unknown } | null)?.pendingComputationAccount;
+  if (!raw) return null;
+
+  try {
+    const pubkey = raw instanceof PublicKey ? raw : new PublicKey(raw as string);
+    return pubkey.equals(PublicKey.default) ? null : pubkey;
+  } catch {
+    return null;
+  }
+}
+
+function extractOpenCallbackFailureMessage(
+  logs: string[],
+  clusterOffset: number
+): string | null {
+  if (!logs.some((line) => line.includes("Instruction: OpenPositionProbeBCallback"))) {
+    return null;
+  }
+
+  const aborted = logs.find((line) => line.includes("AbortedComputation"));
+  const invalidResult = logs.find((line) => line.includes("InvalidComputationResult"));
+
+  if (aborted || invalidResult) {
+    const stages = [
+      aborted ? "AbortedComputation (6000)" : null,
+      invalidResult ? "InvalidComputationResult (6010)" : null,
+    ].filter(Boolean);
+    return `Queued on Arcium cluster ${clusterOffset}, but the MPC callback already failed on-chain: ${stages.join(" -> ")}.`;
+  }
+
+  return `Queued on Arcium cluster ${clusterOffset}, but the MPC callback already failed on-chain.`;
+}
+
+type OpenPositionSubmission = {
+  txSignature: string;
+  positionAddress: PublicKey;
+};
 
 /**
  * ShadowPerp Client SDK
@@ -370,6 +410,53 @@ export class ShadowPerpClient {
     });
 
     return signature;
+  }
+
+  private async diagnoseOpenCallbackFailure(
+    positionAddress: PublicKey,
+    pendingComputationAddress: PublicKey | null
+  ): Promise<string | null> {
+    const connection = this.provider.connection;
+    const addresses = [pendingComputationAddress, positionAddress].filter(
+      (address): address is PublicKey => !!address
+    );
+    const seen = new Set<string>();
+    const signatures: { signature: string; blockTime: number }[] = [];
+
+    for (const address of addresses) {
+      try {
+        const recent = await connection.getSignaturesForAddress(address, { limit: 8 }, "confirmed");
+        for (const entry of recent) {
+          if (seen.has(entry.signature)) continue;
+          seen.add(entry.signature);
+          signatures.push({
+            signature: entry.signature,
+            blockTime: entry.blockTime ?? 0,
+          });
+        }
+      } catch {
+        // Best-effort only. If RPC history lookup fails, fall back to the generic pending message.
+      }
+    }
+
+    signatures.sort((a, b) => b.blockTime - a.blockTime);
+
+    for (const { signature } of signatures.slice(0, 12)) {
+      try {
+        const tx = await connection.getTransaction(signature, {
+          commitment: "confirmed",
+          maxSupportedTransactionVersion: 0,
+        });
+        const logs = tx?.meta?.logMessages ?? [];
+        if (!logs.length || !tx?.meta?.err) continue;
+        const message = extractOpenCallbackFailureMessage(logs, this.config.clusterOffset);
+        if (message) return message;
+      } catch {
+        // Ignore individual RPC misses and keep scanning.
+      }
+    }
+
+    return null;
   }
 
   // ============ DELEGATED SESSION ============
@@ -724,6 +811,9 @@ export class ShadowPerpClient {
    *
    * Privacy: Size, leverage, direction, and entry price are encrypted.
    * Only the margin amount is visible on-chain after the callback.
+   *
+   * This method confirms the queue transaction only. Use
+   * `openPositionAndFinalize(...)` when the caller needs a real `Open` state.
    */
   async openPosition(
     market: PublicKey,
@@ -813,6 +903,9 @@ export class ShadowPerpClient {
   /**
    * Relayer path: open encrypted position under an owner-approved delegated session.
    * The relayer signs/pays the tx; the owner's margin/position accounts are affected.
+   *
+   * This method confirms the queue transaction only. Use
+   * `openPositionWithSessionAndFinalize(...)` when the caller needs a real `Open` state.
    */
   async openPositionWithSession(
     market: PublicKey,
@@ -973,6 +1066,118 @@ export class ShadowPerpClient {
 
     const signature = await this.sendTransactionWithPolling(tx);
     return { txSignature: signature, positionAddress };
+  }
+
+  async waitForOpenPositionFinalization(
+    positionAddress: PublicKey,
+    options?: { timeoutMs?: number; pollMs?: number }
+  ): Promise<EncryptedPosition> {
+    const timeoutMs = options?.timeoutMs ?? DEFAULT_POSITION_STATUS_TIMEOUT_MS;
+    const pollMs = options?.pollMs ?? DEFAULT_POSITION_STATUS_POLL_MS;
+    const deadline = Date.now() + timeoutMs;
+    let lastStatus: PositionStatus | null = null;
+    let lastPendingComputationAddress: PublicKey | null = null;
+    let nextCallbackDiagnosisAt = 0;
+
+    while (Date.now() < deadline) {
+      try {
+        const position = await this.getPosition(positionAddress);
+        const status = normalizeStatus(position.status) as PositionStatus;
+        lastStatus = status;
+
+        if (status === PositionStatus.Open) {
+          return position;
+        }
+
+        if (status === PositionStatus.Pending) {
+          const pendingComputation = parsePendingComputationAccount(position);
+          if (pendingComputation) {
+            lastPendingComputationAddress = pendingComputation;
+          }
+
+          if (Date.now() >= nextCallbackDiagnosisAt) {
+            nextCallbackDiagnosisAt = Date.now() + OPEN_POSITION_CALLBACK_DIAG_POLL_MS;
+            const callbackFailure = await this.diagnoseOpenCallbackFailure(
+              positionAddress,
+              lastPendingComputationAddress
+            );
+            if (callbackFailure) {
+              throw new Error(callbackFailure);
+            }
+          }
+        } else if (status === PositionStatus.Closed) {
+          const callbackFailure = await this.diagnoseOpenCallbackFailure(
+            positionAddress,
+            lastPendingComputationAddress
+          );
+          throw new Error(
+            callbackFailure ??
+              `Queued on Arcium cluster ${this.config.clusterOffset}, but the position resolved to Closed instead of Open.`
+          );
+        } else {
+          throw new Error(
+            `Queued on Arcium cluster ${this.config.clusterOffset}, but the position entered unexpected status ${PositionStatus[status] ?? status}.`
+          );
+        }
+      } catch (error: any) {
+        if (!isMissingAccountError(error)) {
+          throw error;
+        }
+      }
+
+      const remainingMs = deadline - Date.now();
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(pollMs, Math.max(remainingMs, 0)))
+      );
+    }
+
+    const callbackFailure = await this.diagnoseOpenCallbackFailure(
+      positionAddress,
+      lastPendingComputationAddress
+    );
+    if (callbackFailure) {
+      throw new Error(callbackFailure);
+    }
+
+    const statusLabel =
+      lastStatus === null ? "no position state observed yet" : PositionStatus[lastStatus];
+    throw new Error(
+      `Queued on Arcium cluster ${this.config.clusterOffset}, but no MPC callback finalized the position within ${timeoutMs / 1000}s (${statusLabel}).`
+    );
+  }
+
+  async openPositionAndFinalize(
+    market: PublicKey,
+    input: OpenPositionInput,
+    options?: { timeoutMs?: number; pollMs?: number }
+  ): Promise<OpenPositionSubmission & { position: EncryptedPosition }> {
+    const queued = await this.openPosition(market, input);
+    const position = await this.waitForOpenPositionFinalization(queued.positionAddress, options);
+    return { ...queued, position };
+  }
+
+  async openPositionWithSessionAndFinalize(
+    market: PublicKey,
+    owner: PublicKey,
+    sessionId: BN | number,
+    input: OpenPositionInput,
+    options?: { timeoutMs?: number; pollMs?: number }
+  ): Promise<OpenPositionSubmission & { position: EncryptedPosition }> {
+    const queued = await this.openPositionWithSession(market, owner, sessionId, input);
+    const position = await this.waitForOpenPositionFinalization(queued.positionAddress, options);
+    return { ...queued, position };
+  }
+
+  async openPositionWithSessionV2AndFinalize(
+    market: PublicKey,
+    owner: PublicKey,
+    sessionId: BN | number,
+    input: OpenPositionInput,
+    options?: { timeoutMs?: number; pollMs?: number }
+  ): Promise<OpenPositionSubmission & { position: EncryptedPosition }> {
+    const queued = await this.openPositionWithSessionV2(market, owner, sessionId, input);
+    const position = await this.waitForOpenPositionFinalization(queued.positionAddress, options);
+    return { ...queued, position };
   }
 
   /**
