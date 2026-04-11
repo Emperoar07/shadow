@@ -39,6 +39,72 @@ function stepIndex(step: TradeStep): number {
   return STEPS.findIndex((s) => s.key === step);
 }
 
+function normalizeTradeError(
+  errorMessage: string | undefined,
+  hasQueuedTx: boolean
+): {
+  title: string;
+  body: string;
+  compact: string;
+  detail?: string;
+  followUp?: string;
+} {
+  const message = errorMessage?.trim() ?? "";
+
+  if (!message) {
+    return {
+      title: hasQueuedTx ? "Still resolving" : "Needs retry",
+      body: hasQueuedTx
+        ? "The request reached the protected queue and is still waiting on final settlement."
+        : "The order could not be completed. Please try again.",
+      compact: hasQueuedTx ? "Waiting on final settlement" : "Order needs retry",
+    };
+  }
+
+  if (/callback already failed on-chain/i.test(message)) {
+    return {
+      title: "Callback failed on-chain",
+      body: "The order reached the protected queue, but the callback aborted before the position could open.",
+      compact: "Callback failed before open",
+      detail: message,
+      followUp: "Retry after the underlying issue is fixed. Your wallet and collateral stay under your control.",
+    };
+  }
+
+  const staleOraclePair = message.match(/Oracle is stale for\s+([A-Z-]+)/i)?.[1];
+  if (
+    /Oracle is stale/i.test(message) ||
+    /Insufficient oracle sources/i.test(message) ||
+    /invalid price NaN/i.test(message)
+  ) {
+    const marketLabel = staleOraclePair ?? "this market";
+    return {
+      title: "Market data is syncing again",
+      body: `Shadow needs fresh reference prices for ${marketLabel} before it can queue a protected order.`,
+      compact: "Waiting for fresh price feeds",
+      detail: message,
+      followUp: "Give it a few seconds and retry. This is a market-data freshness issue, not a wallet approval problem.",
+    };
+  }
+
+  if (hasQueuedTx) {
+    return {
+      title: "Queued but still resolving",
+      body: "The request was accepted for protected processing, but final settlement has not completed yet.",
+      compact: "Queued and still resolving",
+      detail: message,
+      followUp: "If the state does not update soon, check the explorer link for the queued transaction and then retry.",
+    };
+  }
+
+  return {
+    title: "Transaction failed",
+    body: "The order could not be completed on this attempt.",
+    compact: "Order could not be completed",
+    detail: message,
+  };
+}
+
 export default function TradeConfirmationModal({
   isOpen,
   step,
@@ -143,18 +209,12 @@ export default function TradeConfirmationModal({
   const hasQueuedTx = Boolean(txSignature);
   const isLong = direction === "long";
   const priceStr = entryPrice < 0.01 ? entryPrice.toFixed(8) : entryPrice.toFixed(2);
-  const compactMessage =
-    errorMessage && errorMessage.trim().length > 0
-      ? errorMessage.trim()
-      : isComplete
-      ? "Position opened."
-      : "Processing securely on Arcium.";
-  const followUpMessage =
-    hasQueuedTx && isError
-      ? /already failed on-chain|aborted/i.test(errorMessage ?? "")
-        ? "The callback already failed on-chain. Retry after the underlying issue is fixed."
-        : "The request was already queued on Arcium. The callback may still settle."
-      : null;
+  const normalizedError = normalizeTradeError(errorMessage, hasQueuedTx);
+  const compactMessage = isError
+    ? normalizedError.compact
+    : isComplete
+    ? "Position opened."
+    : "Processing securely on Arcium.";
   const hasKnownOnChainCallbackFailure =
     isError && /callback already failed on-chain/i.test(errorMessage ?? "");
   const statusLabel = isError
@@ -363,20 +423,26 @@ export default function TradeConfirmationModal({
                   </svg>
                 </div>
                 <span className="text-sm font-semibold text-accent-red">
-                  {hasKnownOnChainCallbackFailure
-                    ? "Callback failed on-chain"
-                    : hasQueuedTx
-                    ? "Queued but not finalized"
-                    : "Transaction failed"}
+                  {normalizedError.title}
                 </span>
               </div>
               <p className="text-[11px] leading-relaxed text-gray-500">
-                {errorMessage || "An error occurred. Please try again."}
+                {normalizedError.body}
               </p>
-              {followUpMessage ? (
-                <p className="mt-2 text-[10px] text-gray-500">
-                  {followUpMessage}
+              {normalizedError.followUp ? (
+                <p className="mt-2 text-[10px] leading-relaxed text-gray-500">
+                  {normalizedError.followUp}
                 </p>
+              ) : null}
+              {normalizedError.detail ? (
+                <div className="mt-3 rounded-lg border border-shadow-600/80 bg-shadow-900/70 px-2.5 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500">
+                    Technical detail
+                  </p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-gray-500">
+                    {normalizedError.detail}
+                  </p>
+                </div>
               ) : null}
             </div>
           )}

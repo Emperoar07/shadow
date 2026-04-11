@@ -207,20 +207,17 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
 
   return (
     <>
-    <div className="flex items-center gap-4 shrink-0 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
+    <div className="flex items-center gap-2 shrink-0 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
       <SummaryStat
         label="Free Collateral"
         value={data ? `$${data.freeCollateral.toFixed(2)}` : "--"}
       />
-
-      <div className="w-px h-5 bg-shadow-600 shrink-0" />
 
       {/* Open Positions */}
       <SummaryStat
         label="Open Positions"
         value={data ? `${data.openPositions}` : "--"}
       />
-
 
       {/* Unrealized PnL */}
       <SummaryStat
@@ -240,11 +237,9 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
         }
       />
 
-      <div className="w-px h-5 bg-shadow-600 shrink-0" />
-
       {/* Account Health */}
-      <div className="flex flex-col gap-0.5 shrink-0">
-        <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500">Account Health</span>
+      <div className="flex min-w-[132px] flex-col gap-1 rounded-lg border border-shadow-700/80 bg-shadow-800/65 px-3 py-[7px] shrink-0">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-gray-400">Account Health</span>
         <div className="flex items-center gap-2">
           <div className="w-16 h-1.5 bg-shadow-600 rounded-full overflow-hidden">
             <div
@@ -289,9 +284,9 @@ function SummaryStat({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 shrink-0">
-      <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500">{label}</span>
-      <span className="text-xs font-semibold text-gray-200">{value}</span>
+    <div className="flex min-w-[120px] flex-col gap-1 rounded-lg border border-shadow-700/80 bg-shadow-800/65 px-3 py-[7px] shrink-0">
+      <span className="text-[10px] uppercase tracking-[0.12em] text-gray-400">{label}</span>
+      <span className="text-[13px] font-semibold leading-none text-gray-100">{value}</span>
     </div>
   );
 }

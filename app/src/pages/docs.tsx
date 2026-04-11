@@ -644,9 +644,9 @@ export default function DocsPage() {
               Click <strong>Collateral</strong> in the trading panel, or use the deposit button in the portfolio summary. You must deposit USDC before you can open a position. For devnet testing, use a devnet USDC faucet to fund your wallet with the correct test mint.
             </p>
 
-            <h3>Why does my position show "MPC Processing"?</h3>
+            <h3>Why does my position show "Queued" or "Finalizing"?</h3>
             <p>
-              The trade was submitted successfully and is waiting for the Arcium MPC cluster to compute and return the callback. On devnet this typically takes 30 to 120 seconds depending on cluster load. If it takes longer, the cluster may be temporarily delayed, but your collateral remains safe and the position will resolve once the callback arrives or fail into a terminal state if the callback aborts on chain.
+              Those states mean the trade was submitted successfully and is moving through the protected callback path. <strong>Queued</strong> means Shadow is still waiting for the Arcium MPC callback to return. <strong>Finalizing</strong> means the callback completed and the remaining on-chain settlement steps are finishing. On devnet this typically takes 30 to 120 seconds depending on cluster load. If it takes longer, the cluster may be temporarily delayed, but your collateral remains safe and the position will either resolve once settlement completes or fail into a terminal state if the callback aborts on chain.
             </p>
             <Note>
               Current devnet status: wallet scoped delegated sessions and delegated collateral actions are working across

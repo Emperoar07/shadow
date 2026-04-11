@@ -60,7 +60,6 @@ export default function OrderConfirmModal({
   const accentBorder = isDanger ? "border-accent-red/30" : "border-accent-purple/30";
   const accentBg = isDanger ? "bg-accent-red" : "bg-accent-purple";
   const accentBgLight = isDanger ? "bg-accent-red/15" : "bg-accent-purple/15";
-  const accentText = isDanger ? "text-accent-red" : "text-accent-purple";
   const accentHover = isDanger ? "hover:bg-accent-red/90" : "hover:bg-accent-purple/90";
 
   const handleConfirm = () => {
@@ -114,6 +113,9 @@ export default function OrderConfirmModal({
           {/* Details */}
           {details && details.length > 0 && (
             <div className="rounded-xl border border-shadow-600 bg-shadow-900/60 p-3 mb-3">
+              <p className="mb-2 text-[10px] uppercase tracking-[0.12em] text-gray-500">
+                Order summary
+              </p>
               {details.map((d, i) => (
                 <div key={i} className="flex items-center justify-between py-1">
                   <span className="text-[11px] text-gray-500">{d.label}</span>

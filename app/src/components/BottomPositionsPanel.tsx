@@ -81,13 +81,21 @@ const STATUS_COLORS: Record<UiStatus, string> = {
 };
 
 const STATUS_LABELS: Record<UiStatus, string> = {
-  pending: "MPC Processing",
+  pending: "Queued",
   open: "Open",
   closing: "Closing",
-  settling: "Settling",
-  closed: "Settled",
+  settling: "Finalizing",
+  closed: "Resolved",
   liquidated: "Liquidated",
 };
+
+function getStatusDetail(status: UiStatus, isClosing: boolean): string | null {
+  if (isClosing || status === "closing") return "PnL callback in progress";
+  if (status === "pending") return "Waiting on encrypted callback";
+  if (status === "settling") return "Settlement finishing on-chain";
+  if (status === "closed") return "Close settled on-chain";
+  return null;
+}
 
 function StatusBadge({ status, isClosing }: { status: UiStatus; isClosing: boolean }) {
   const animated = status === "pending" || status === "closing" || isClosing;
@@ -872,6 +880,7 @@ export default function BottomPositionsPanel({
                 const historySideLabel = displaySide
                   ? `${historyActionLabel} ${displaySide}`
                   : historyActionLabel;
+                const statusDetail = getStatusDetail(pos.status, isClosing);
                 const historySizeLabel =
                   card.sizeBase !== null
                     ? `${card.sizeBase.toFixed(4)} ${card.baseSymbol}`
@@ -974,13 +983,18 @@ export default function BottomPositionsPanel({
                           <span className="text-[10px] text-gray-500">{historyTimeLabel}</span>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <StatusBadge status={pos.status} isClosing={isClosing} />
-                          {!isPending && !isSettling && !isFinal ? (
-                          <button onClick={() => void handleClose(pos)} disabled={TRADING_DISABLED || isClosing}
-                            className="rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-40">
-                            {TRADING_DISABLED ? "Off" : isClosing ? "Closing..." : "Close"}
-                          </button>
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <StatusBadge status={pos.status} isClosing={isClosing} />
+                            {!isPending && !isSettling && !isFinal ? (
+                            <button onClick={() => void handleClose(pos)} disabled={TRADING_DISABLED || isClosing}
+                              className="rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-40">
+                              {TRADING_DISABLED ? "Off" : isClosing ? "Closing..." : "Close"}
+                            </button>
+                            ) : null}
+                          </div>
+                          {statusDetail ? (
+                            <span className="text-[10px] text-gray-500">{statusDetail}</span>
                           ) : null}
                         </div>
                       )}

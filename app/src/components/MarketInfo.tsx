@@ -37,7 +37,7 @@ export default function MarketInfo({
 
   return (
     <div
-      className={`trade-market-bar relative z-[120] flex flex-col gap-1.5 border-t-2 border-shadow-600 bg-shadow-900 px-4 py-1.5 overflow-visible sm:flex-row sm:items-center sm:gap-2 ${className}`}
+      className={`trade-market-bar relative z-[120] flex flex-col gap-2 border-y-[3px] border-shadow-600 bg-shadow-900 px-4 pb-[7px] pt-[6px] overflow-visible sm:flex-row sm:items-center sm:gap-3 ${className}`}
     >
       <div className="flex items-center justify-between gap-3 sm:min-w-0">
         {activePair && (
@@ -60,7 +60,7 @@ export default function MarketInfo({
         </div>
       </div>
 
-      <div className="hidden h-6 w-px shrink-0 bg-shadow-600 sm:block" />
+      <div className="hidden h-7 w-px shrink-0 bg-shadow-600 sm:block" />
 
       <div className="hidden min-w-0 flex-1 items-center gap-4 sm:flex">
         <MarketStat label="Price" value={`$${formattedPrice}`} />
@@ -109,9 +109,9 @@ function MarketStat({
   valueClass?: string;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 shrink-0">
-      <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500">{label}</span>
-      <span className={`text-xs font-semibold ${valueClass}`}>{value}</span>
+    <div className="flex min-w-[96px] flex-col gap-1 rounded-lg border border-shadow-700/80 bg-shadow-800/65 px-3 py-[7px] shrink-0">
+      <span className="text-[10px] uppercase tracking-[0.12em] text-gray-400">{label}</span>
+      <span className={`text-[13px] font-semibold leading-none ${valueClass}`}>{value}</span>
     </div>
   );
 }

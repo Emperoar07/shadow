@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
-import { Wallet, Clock, ExternalLink, ChevronDown, ArrowDownToLine, ArrowUpFromLine, Zap, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { Wallet, Clock, ExternalLink, ChevronDown, ArrowDownToLine, ArrowUpFromLine, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { fetchWalletHistory } from "../lib/history";
 import { DEVNET_TOKENS, WALLET_DISPLAY_TOKENS } from "../lib/tokens";
 
@@ -55,7 +55,7 @@ function TxIcon({ icon, className }: { icon: TxType["icon"]; className?: string 
   return <ExternalLink className={cls} />;
 }
 
-function formatBalance(bal: number, symbol: string): string {
+function formatBalance(bal: number): string {
   if (bal < 0.001) return "<0.001";
   if (bal >= 1_000_000) return `${(bal / 1_000_000).toFixed(1)}M`;
   if (bal >= 1_000) return `${(bal / 1_000).toFixed(1)}K`;
@@ -320,6 +320,10 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
   const [txsLoadingMore, setTxsLoadingMore] = useState(false);
   const [txsHasMore, setTxsHasMore] = useState(true);
   const panelRef = useRef<HTMLDivElement>(null);
+  const tradingAccountLabel =
+    marginBalance !== null && marginBalance > 0
+      ? "Protected collateral ready for trading."
+      : "Deposit USDC to fund your protected trading account.";
 
   // Close on outside click
   useEffect(() => {
@@ -505,8 +509,8 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
                     <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
                     <span className="text-[12px] text-gray-400">SOL</span>
                   </div>
-                  <span className="text-[12px] font-semibold text-gray-200">{formatBalance(solBalance, "SOL")}</span>
-                </div>
+                    <span className="text-[12px] font-semibold text-gray-200">{formatBalance(solBalance)}</span>
+                  </div>
               )}
               {tokenBalances.map((tb) => (
                 <div key={tb.symbol} className="flex items-center justify-between py-1.5">
@@ -514,17 +518,17 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
                     <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: tb.color }} />
                     <span className="text-[12px] text-gray-400">{tb.symbol}</span>
                   </div>
-                  <span className="text-[12px] font-semibold text-gray-200">{formatBalance(tb.balance, tb.symbol)}</span>
+                  <span className="text-[12px] font-semibold text-gray-200">{formatBalance(tb.balance)}</span>
                 </div>
               ))}
             </div>
           ) : connected ? (
             <div className="px-3 py-3">
-              <p className="text-[11px] text-gray-500">No balances found</p>
+              <p className="text-[11px] leading-relaxed text-gray-500">No wallet balances detected yet.</p>
             </div>
           ) : (
             <div className="px-3 py-3">
-              <p className="text-[11px] text-gray-500">Connect wallet to view balances</p>
+              <p className="text-[11px] leading-relaxed text-gray-500">Connect your wallet to see balances and recent activity.</p>
             </div>
           )}
 
@@ -538,6 +542,9 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
                 {marginBalance !== null ? `$${marginBalance.toFixed(2)}` : "--"}
               </span>
             </div>
+            <p className="mt-1 text-[10px] leading-relaxed text-gray-500">
+              {tradingAccountLabel}
+            </p>
           </div>
 
           {onOpenCollateral && (
@@ -548,9 +555,9 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
                   onOpenCollateral();
                   setOpen(false);
                 }}
-                className="w-full py-1.5 text-[11px] font-medium text-accent-purple border border-accent-purple/30 bg-accent-purple/10 hover:bg-accent-purple/20 transition-colors"
+                className="w-full rounded-xl border border-accent-purple/30 bg-accent-purple/10 py-2 text-[11px] font-medium text-accent-purple transition-colors hover:bg-accent-purple/20"
               >
-                {marginBalance === 0 || marginBalance === null ? "Deposit Collateral" : "Manage Collateral"}
+                {marginBalance === 0 || marginBalance === null ? "Fund Trading Account" : "Manage Trading Collateral"}
               </button>
             </div>
           )}
@@ -562,7 +569,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
         <div className="flex flex-col">
           {!connected ? (
             <div className="px-3 py-3">
-              <p className="text-[11px] text-gray-500">Connect wallet to view activity</p>
+              <p className="text-[11px] leading-relaxed text-gray-500">Connect your wallet to see on-chain activity.</p>
             </div>
           ) : txsLoading ? (
             <div className="px-3 py-4 text-center">
@@ -571,7 +578,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
             </div>
           ) : recentTxs.length === 0 ? (
             <div className="px-3 py-3">
-              <p className="text-[11px] text-gray-500">No recent transactions</p>
+              <p className="text-[11px] leading-relaxed text-gray-500">No recent on-chain activity yet.</p>
             </div>
           ) : (
             <>
@@ -637,7 +644,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
                   ) : (
                     <>
                       <ChevronDown className="w-3 h-3" />
-                      Show More
+                      Show older activity
                     </>
                   )}
                 </button>
@@ -662,7 +669,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
 
       {open && (
         <>
-          <div className="trade-header-popover absolute right-0 top-full mt-2 hidden w-72 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] sm:block">
+          <div className="trade-header-popover absolute right-0 top-full mt-2 hidden w-72 overflow-hidden rounded-2xl border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] sm:block">
             {panelContent}
           </div>
           {mounted && createPortal(

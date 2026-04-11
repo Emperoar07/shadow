@@ -211,6 +211,10 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
         ? entryPrice * (1 - (1 - liqThreshold / 100) / leverage)
         : entryPrice * (1 + (1 - liqThreshold / 100) / leverage)
       : null;
+  const tradeIntentLabel =
+    orderType === "limit"
+      ? `Place ${direction.charAt(0).toUpperCase() + direction.slice(1)} limit`
+      : `Open ${direction.charAt(0).toUpperCase() + direction.slice(1)} position`;
 
   const getClient = useCallback(() => {
     if (!anchorWallet) return null;
@@ -778,9 +782,9 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   }, [runLimitExecutor]);
 
   return (
-    <div className="trade-trading-panel flex flex-col bg-shadow-900 p-2 h-full overflow-y-auto">
-      <div className={isHorizontal ? "grid grid-cols-1 items-start gap-1.5 lg:grid-cols-12" : "space-y-1"}>
-        <div className={isHorizontal ? "space-y-1 lg:col-span-12" : "space-y-1"}>
+    <div className="trade-trading-panel flex flex-col bg-shadow-900 p-3 h-full overflow-y-auto">
+      <div className={isHorizontal ? "grid grid-cols-1 items-start gap-2 lg:grid-cols-12" : "space-y-2"}>
+        <div className={isHorizontal ? "space-y-2 lg:col-span-12" : "space-y-2"}>
           {/* Market / Limit — underlined text tabs */}
           <div className="flex items-center gap-3 border-b border-shadow-600 pb-0">
             <button
@@ -832,16 +836,16 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
 
 
 
-          {/* Hotkeys */}
-          <div className="flex justify-between px-0.5 text-[9px] text-gray-600">
+          {/* Keyboard shortcuts */}
+          <div className="flex justify-between px-0.5 text-[9px] text-gray-500">
             <span>
-              Hotkey:{" "}
-              <kbd className="rounded bg-shadow-600 px-1 py-0.5 text-gray-500">L</kbd> Long
+              Shortcut:{" "}
+              <kbd className="rounded bg-shadow-600 px-1 py-0.5 text-gray-400">L</kbd> Long
             </span>
             <span>
-              <kbd className="rounded bg-shadow-600 px-1 py-0.5 text-gray-500">S</kbd> Short
+              <kbd className="rounded bg-shadow-600 px-1 py-0.5 text-gray-400">S</kbd> Short
               {" | "}
-              <kbd className="rounded bg-shadow-600 px-1 py-0.5 text-gray-500">Enter</kbd> Submit
+              <kbd className="rounded bg-shadow-600 px-1 py-0.5 text-gray-400">Enter</kbd> Submit
             </span>
           </div>
 
@@ -1087,20 +1091,21 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                Processing via MPC...
+                Submitting protected order...
               </span>
             ) : !isRelaySessionActive ? (
-              `Sign Session & ${orderType === "limit"
-                ? `Place Limit ${direction.charAt(0).toUpperCase() + direction.slice(1)}`
-                : `Open ${direction.charAt(0).toUpperCase() + direction.slice(1)} Position`}`
+              `Approve Session & ${tradeIntentLabel}`
             ) : orderType === "limit" ? (
-              `Place Limit ${direction.charAt(0).toUpperCase() + direction.slice(1)}`
+              `Place ${direction.charAt(0).toUpperCase() + direction.slice(1)} limit`
             ) : (
               `Open ${direction.charAt(0).toUpperCase() + direction.slice(1)} Position`
             )}
           </button>
 
-          <div className="rounded-lg bg-shadow-900 border border-shadow-600 p-2 mt-0.5 space-y-1 text-[11px]">
+          <div className="rounded-xl bg-shadow-900 border border-shadow-600 p-3 mt-0.5 space-y-1.5 text-[11px]">
+            <div className="pb-1">
+              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Order summary</p>
+            </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-500">Liquidation Price</span>
               <span className="font-medium text-gray-300">
@@ -1124,8 +1129,8 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
               <span className="font-medium text-gray-300 capitalize">{marginMode}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-500">Slippage</span>
-              <span className="font-medium text-cyan-400">Est: 0% / Max: 8.00%</span>
+              <span className="text-gray-500">Price impact / max slippage</span>
+              <span className="font-medium text-cyan-400">Est. 0% / 8.00%</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-500">Fees</span>
@@ -1171,7 +1176,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       <OrderConfirmModal
         isOpen={openConfirmPending}
         title={`Open ${direction.charAt(0).toUpperCase() + direction.slice(1)} Position`}
-        description="Review your order details before submitting to Arcium MPC."
+        description="Review the protected order summary before sending it through Arcium MPC."
         variant="default"
         confirmLabel={`Open ${direction.charAt(0).toUpperCase() + direction.slice(1)}`}
         details={[

@@ -421,6 +421,18 @@ export default function CollateralModal({
   const QUICK_LABELS = tab === "withdraw" && availableCollateral
     ? ["25%", "50%", "75%", "100%"]
     : QUICK_AMOUNTS.map((v) => `$${v}`);
+  const actionHelperText =
+    relayAvailable
+      ? "Shadow will use your delegated session when supported, otherwise it falls back to a normal wallet transaction."
+      : "This action will open a normal wallet transaction on Solana devnet.";
+  const actionLabel = tab === "deposit" ? "Deposit to trading account" : "Withdraw to wallet";
+  const actionButtonLabel = isBusy
+    ? tab === "deposit"
+      ? "Preparing deposit..."
+      : "Preparing withdrawal..."
+    : tab === "deposit"
+    ? `Deposit${amount ? ` $${parseFloat(amount).toFixed(2)}` : ""}`
+    : `Withdraw${amount ? ` $${parseFloat(amount).toFixed(2)}` : ""}`;
 
   return createPortal(
     <div
@@ -436,26 +448,41 @@ export default function CollateralModal({
         style={{ background: "linear-gradient(135deg, #1a1a25 0%, #12121a 100%)" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-shadow-600">
-          <h3 className="text-base font-semibold">Manage Collateral</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+        <div className="border-b border-shadow-600 px-5 pb-4 pt-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-white">Manage Collateral</h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
+                Move USDC between your wallet and your Shadow trading account.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 transition-colors hover:text-white"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="mt-3 rounded-xl border border-shadow-600/80 bg-shadow-800/55 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500">
+              Trading account
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
+              Token transfers are public on Solana. Protected position state stays separate from the transfer itself.
+            </p>
+          </div>
         </div>
 
         {/* Balance */}
         <div className="grid grid-cols-3 gap-3 bg-shadow-800/60 border-b border-shadow-700 px-5 py-3">
           <BalanceMetric
-            label="Total"
+            label="Account total"
             value={marginBalance !== null ? `$${marginBalance.toFixed(2)}` : "--"}
           />
           <BalanceMetric
-            label="Free"
+            label="Available now"
             value={availableCollateral !== null ? `$${availableCollateral.toFixed(2)}` : "--"}
             valueClass="text-accent-green"
           />
@@ -486,8 +513,8 @@ export default function CollateralModal({
         {/* Body */}
         <div className="px-5 py-5 space-y-4">
           <div>
-            <label className="block text-xs text-gray-400 mb-1.5">
-              {tab === "deposit" ? "Deposit amount (USDC)" : "Withdraw amount (USDC)"}
+            <label className="mb-1.5 block text-xs text-gray-400">
+              {actionLabel} (USDC)
             </label>
             <div className="relative">
               <input
@@ -514,12 +541,15 @@ export default function CollateralModal({
                 </button>
               ))}
             </div>
+            <p className="mt-2 text-[10px] leading-relaxed text-gray-500">
+              {actionHelperText}
+            </p>
           </div>
 
           {/* Info row */}
           {tab === "withdraw" && availableCollateral !== null && amount && parseFloat(amount) > 0 && (
             <div className="rounded-lg bg-shadow-700 px-3 py-2 text-xs text-gray-400">
-              Remaining free collateral after:{" "}
+              Free collateral after this withdrawal:{" "}
               <span className="text-white font-medium">
                 ${Math.max(0, availableCollateral - parseFloat(amount)).toFixed(2)} USDC
               </span>
@@ -536,17 +566,11 @@ export default function CollateralModal({
                 : "bg-shadow-600 hover:bg-shadow-500 border border-shadow-500"
             } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {isBusy
-              ? tab === "deposit"
-                ? "Depositing..."
-                : "Withdrawing..."
-              : tab === "deposit"
-              ? `Deposit${amount ? ` $${parseFloat(amount).toFixed(2)}` : ""}`
-              : `Withdraw${amount ? ` $${parseFloat(amount).toFixed(2)}` : ""}`}
+            {actionButtonLabel}
           </button>
 
-          <p className="text-[10px] text-center text-gray-600">
-            Collateral is held on-chain in the Shadow vault
+          <p className="text-center text-[10px] leading-relaxed text-gray-600">
+            Collateral is held on-chain in the Shadow vault while your trading flow stays protected by Arcium MPC.
           </p>
           <div className="text-center mt-1">
             <a

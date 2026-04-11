@@ -1799,3 +1799,53 @@ Audit findings to keep in view:
 - `app/src/pages/api/history.ts` rate-limits by wallet query string only, so the expensive `includePositions=true` path is still easy to fan out across arbitrary wallet values.
 
 No code changes were made during this audit pass.
+
+## UI Surface Polish Pass (2026-04-11 UTC)
+
+### What changed
+- Tightened the main trading terminal UI without changing protocol behavior:
+  - `app/src/components/PriceChart.tsx`
+    - added a softer loading state
+    - added a hard fallback card with retry and TradingView escape hatch when the embed stalls
+  - `app/src/components/MarketInfo.tsx`
+  - `app/src/components/PortfolioSummary.tsx`
+    - upgraded thin metric strips into clearer card-like stat surfaces for better scanability
+  - `app/src/components/TradingPanel.tsx`
+    - softened session / submit language
+    - clarified the order summary section
+    - updated the order review copy to read more human
+  - `app/src/components/BottomPositionsPanel.tsx`
+    - replaced repeated `MPC Processing` language with calmer state labels and helper detail
+  - `app/src/components/PositionsList.tsx`
+    - aligned legacy position-card wording with the calmer `Queued` / `Finalizing` / `Resolved` state language
+  - `app/src/components/TradeConfirmationModal.tsx`
+    - normalized raw error strings into trader-facing explanations
+    - preserved technical detail inside the expanded error state
+  - `app/src/components/CollateralModal.tsx`
+    - clarified what is public vs protected
+    - improved header hierarchy and action copy
+  - `app/src/components/WalletPopup.tsx`
+  - `app/src/components/OrderConfirmModal.tsx`
+    - improved wallet/collateral wording and summary hierarchy
+  - `app/src/pages/docs.tsx`
+    - updated the FAQ to match the new queue/finalization wording instead of the older `MPC Processing` label
+  - Follow-up preference change:
+    - removed the extra execution explainer card and helper sentence from the trading panel after review
+    - restored the lower separator on the market strip so it reads as its own panel again
+    - removed the long-load chart fallback modal and kept only the lighter inline loading state
+    - trimmed the market strip and summary cards slightly so the lower boundary reads more like the other standalone panels
+    - added a touch more bottom breathing room inside the market strip so the lower separator matches the standalone panel feel more closely
+    - tightened the market strip bottom spacing again and increased its border thickness from 2px to 3px for a stronger panel boundary
+    - reduced the shared app scrollbar thickness globally so scrollable panels feel less visually heavy
+    - refined the shared scrollbar thickness again from 3px to 2px based on UI review
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit --incremental false` passed.
+
+### Current blocker
+- `open_position_probe_b` remains the main live protocol blocker.
+- This UI pass has not yet had a wallet-connected visual smoke in-browser after the latest modal/popup copy and layout changes.
+
+### Next safe step
+1. Run a wallet-connected desktop and mobile UI smoke for the chart fallback, wallet popup, collateral modal, order review modal, and trade status drawer.
+2. If the surfaces look right in-browser, commit and push this UI polish batch.

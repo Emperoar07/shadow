@@ -6,10 +6,16 @@
   --foreground-rgb: 255, 255, 255;
   --background-rgb: 10, 10, 15;
   --range-track-empty: #35354a;
+  --app-scrollbar-track: #12121a;
+  --app-scrollbar-thumb: #2a2a3a;
+  --app-scrollbar-thumb-hover: #5b4c9c;
 }
 
 html.light {
   --range-track-empty: #d1d5e8;
+  --app-scrollbar-track: #eef1f7;
+  --app-scrollbar-thumb: #cfd6e3;
+  --app-scrollbar-thumb-hover: #aeb8cc;
 }
 
 body {
@@ -19,21 +25,27 @@ body {
 }
 
 /* Custom scrollbar */
+* {
+  scrollbar-color: var(--app-scrollbar-thumb) var(--app-scrollbar-track);
+  scrollbar-width: thin;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 2px;
+  height: 2px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #12121a;
+  background: var(--app-scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #35354a;
-  border-radius: 4px;
+  background: var(--app-scrollbar-thumb);
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #8b5cf6;
+  background: var(--app-scrollbar-thumb-hover);
 }
 
 /* Wallet adapter styles override */
@@ -266,14 +278,6 @@ html.light body {
   color: #0f172a;
   --foreground-rgb: 15, 23, 42;
   --background-rgb: 238, 242, 247;
-}
-
-html.light ::-webkit-scrollbar-track {
-  background: #eef1f7;
-}
-
-html.light ::-webkit-scrollbar-thumb {
-  background: #cfd6e3;
 }
 
 html.light .gradient-bg {

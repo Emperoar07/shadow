@@ -34,10 +34,12 @@ export default function PriceChart({
       setShowSoftLoading(false);
       return;
     }
-    const timer = window.setTimeout(() => {
+    const softTimer = window.setTimeout(() => {
       setShowSoftLoading(true);
     }, 4500);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(softTimer);
+    };
   }, [isLoading, chartSymbol]);
 
   useEffect(() => {
@@ -66,7 +68,6 @@ export default function PriceChart({
 
   return (
     <div className="trade-price-chart flex flex-col h-full min-h-0">
-      {/* Chart — fills remaining height */}
       <div className="relative flex-1 min-h-0">
         {isLoading && !showSoftLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-shadow-800">
@@ -95,7 +96,7 @@ export default function PriceChart({
           <div className={`absolute z-20 ${isMobile ? "left-3 right-3 top-3" : "right-3 top-3"}`}>
             <div className="inline-flex items-center gap-2 rounded-full border border-shadow-500/80 bg-shadow-900/90 px-3 py-1.5 text-[11px] font-medium text-gray-300 backdrop-blur-sm">
               <span className="inline-block h-2 w-2 rounded-full bg-accent-purple animate-pulse" />
-              Chart still loading
+              Syncing live chart...
             </div>
           </div>
         )}
@@ -109,9 +110,7 @@ export default function PriceChart({
           title={`${selectedPair.label} chart`}
           onLoad={() => setIsLoading(false)}
         />
-
       </div>
     </div>
   );
 }
-
