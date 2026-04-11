@@ -6,6 +6,7 @@ import {
   base64ToUint8,
   buildRelaySessionAuthMessage,
 } from "../../../lib/relay-session-auth";
+import { isMissingAccountError } from "../../../lib/account-errors";
 import { createRelayRuntimeContext } from "../../../lib/server/relay-client";
 import { checkRateLimit } from "../../../lib/server/rate-limit";
 
@@ -118,8 +119,7 @@ export default async function handler(
       sessionMaxActions = session.maxActions;
       sessionMaxMarginPerAction = session.maxMarginPerAction;
     } catch (v2Error: any) {
-      const message = typeof v2Error?.message === "string" ? v2Error.message : "";
-      if (!message.includes("Account does not exist")) {
+      if (!isMissingAccountError(v2Error)) {
         throw v2Error;
       }
       const sessionAddress = relay.client.getTradeSessionAddress(marketAddress, owner, sessionId);

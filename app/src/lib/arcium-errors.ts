@@ -1,6 +1,7 @@
 import type { Connection, VersionedTransaction, Transaction } from "@solana/web3.js";
 import type { PublicKey } from "@solana/web3.js";
 import { EncryptedPosition, PositionStatus } from "../types";
+import { extractErrorMessage, isMissingAccountError } from "./account-errors";
 
 const ANCHOR_ENUM_MAP: Record<string, number> = {
   pending: 0, open: 1, closing: 2, closed: 3, liquidated: 4,
@@ -70,7 +71,7 @@ const ANCHOR_ERROR_OFFSET = 6000;
  * user-friendly `ArciumErrorInfo` object.
  */
 export function classifyArciumError(error: unknown): ArciumErrorInfo {
-  const msg = extractMessage(error);
+  const msg = extractErrorMessage(error);
   const code = extractErrorCode(error);
 
   // --- User-initiated cancellation ---
@@ -202,12 +203,7 @@ export function classifyArciumError(error: unknown): ArciumErrorInfo {
   }
 
   // --- Account not found / not initialized ---
-  if (
-    msg.includes("Account does not exist") ||
-    msg.includes("could not find account") ||
-    msg.includes("AccountNotFound") ||
-    msg.includes("has not been initialized")
-  ) {
+  if (isMissingAccountError(error)) {
     return {
       message: "Account not initialized",
       isRetryable: false,
@@ -499,12 +495,7 @@ export async function waitForPositionStatus(
       // Re-throw classified errors (like the abort detection above).
       if (err?.classified) throw err;
 
-      const message = typeof err?.message === "string" ? err.message : "";
-      const isMissingAccount =
-        message.includes("Account does not exist") ||
-        message.includes("could not find account") ||
-        message.includes("Account does not exist or has no data");
-      if (!isMissingAccount) {
+      if (!isMissingAccountError(err)) {
         throw err;
       }
     }
@@ -535,22 +526,6 @@ export async function waitForPositionStatus(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-function extractMessage(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object") {
-    const e = error as Record<string, any>;
-    if (typeof e.message === "string") return e.message;
-    if (typeof e.msg === "string") return e.msg;
-    if (e.logs && Array.isArray(e.logs)) return e.logs.join("\n");
-    try {
-      return JSON.stringify(error);
-    } catch {
-      return String(error);
-    }
-  }
-  return String(error);
-}
 
 function trimmedMessage(message: string): string {
   return message.length > 240 ? `${message.slice(0, 240)}...` : message;

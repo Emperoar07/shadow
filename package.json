@@ -28,6 +28,7 @@
     "session:relayer:close": "npx ts-node scripts/session-relayer.ts close",
     "session:relayer:revoke": "npx ts-node scripts/session-relayer.ts revoke",
     "session:relayer:smoke": "npx ts-node scripts/session-relayer.ts smoke",
+    "diag:open-contract": "npx ts-node scripts/diagnose-open-contract.ts",
     "hosting:start": "npx ts-node scripts/hosting-stack.ts start",
     "hosting:stop": "npx ts-node scripts/hosting-stack.ts stop",
     "hosting:status": "npx ts-node scripts/hosting-stack.ts status",

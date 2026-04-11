@@ -41,10 +41,11 @@ import {
   TradeSession,
   TradeSessionV2,
 } from "../types";
+import { isMissingAccountError } from "./account-errors";
 import { confirmWithPolling } from "./arcium-errors";
 
 export const DEFAULT_TRADE_SESSION_DURATION_SECONDS = 5 * 60 * 60;
-const DEFAULT_POSITION_STATUS_TIMEOUT_MS = 60_000;
+const DEFAULT_POSITION_STATUS_TIMEOUT_MS = 120_000;
 const DEFAULT_POSITION_STATUS_POLL_MS = 2_000;
 
 const ANCHOR_STATUS_MAP: Record<string, number> = {
@@ -1238,12 +1239,7 @@ export class ShadowPerpClient {
           return position;
         }
       } catch (error: any) {
-        const message = typeof error?.message === "string" ? error.message : "";
-        const isMissingAccount =
-          message.includes("Account does not exist") ||
-          message.includes("Account does not exist or has no data") ||
-          message.includes("could not find account");
-        if (!isMissingAccount) {
+        if (!isMissingAccountError(error)) {
           throw error;
         }
       }

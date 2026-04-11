@@ -4,6 +4,386 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Relay Reliability Hardening (2026-04-11 UTC)
+
+### What changed
+
+- Hardened relay/session account-miss detection with a shared helper:
+  - `app/src/lib/account-errors.ts`
+  - wired into:
+    - `app/src/pages/api/relay/open.ts`
+    - `app/src/pages/api/relay/session.ts`
+    - `app/src/pages/api/relay/deposit.ts`
+    - `app/src/pages/api/relay/withdraw.ts`
+    - `app/src/hooks/useArcium.ts`
+    - `app/src/lib/client.ts`
+    - `app/src/lib/arcium-errors.ts`
+- Increased callback wait windows to better match observed Arcium devnet timing:
+  - open wait in `app/src/hooks/useArcium.ts`
+  - generic position-status wait in `app/src/lib/client.ts`
+- Tightened relay open oracle behavior in `app/src/pages/api/relay/open.ts`:
+  - require 2/2 live sources from the route's pair-specific CoinGecko + Binance set before refreshing
+  - log warnings for degraded sources
+  - stop treating any `getMarginAccount` failure as "no collateral"
+  - fail explicitly when the oracle remains stale after attempted refresh
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+- exact-string account-miss checks are now removed from app/relay codepaths and centralized in `app/src/lib/account-errors.ts`
+- `npm run oracle:once` -> PASS
+  - publish tx `vzCURx77qczeT6eDMzzopsQV9wU9NJfYfQ2tYfZMiwLm4evo9SG5qTYSxsMzqz4i7WU1iHufde91tg9sZPY8T8A`
+- `npm run check:oracle` -> PASS
+- `npm run check:preflight` -> PASS after the oracle publish finalized on the active RPC
+- Hardened relay API smoke via local `/api/relay/open`:
+  - v2 session create tx `4ZNnjibri3tumqquXkQpqzjtAPgQjkupqZGYQLxKvgvN2uDJh4gTL82Hk5JZXyS1yi5gKpzaNAvBio6MQEtMavaH`
+  - relay open tx `3sQyX3jQDN6hyDpQ1RaBU6pZBpMSZjJtHvHaq6K2u9gHvoVoXh7uNzydabQkyWLjujZV6sj6egzpKD9NrLiUSaNp`
+  - position `H28KXancir6BCpDXTbtd6noJBAWgmPHgzNPDYetpKkLp`
+  - final observed status `Closed`
+
+### Current blocker
+
+- Main protocol blocker is still unchanged:
+  - the open lane continues to abort on devnet even in the tuple-only diagnostic probe
+  - the hardened relay path now confirms the same root issue without leaving the position stuck pending
+
+### Next safe step
+
+1. Commit the relay reliability hardening together with the diagnostic harness work.
+2. Send `docs/arcium-open-escalation-2026-04-11.md` to Arcium with the live probe packet plus the fresh relay-open repro above.
+3. Wait for Arcium guidance before spending more time on ruled-out margin/leverage branches.
+
+## Deep Audit + Escalation Packet (2026-04-11 UTC)
+
+### What changed
+
+- Re-ran a deep repo audit across the live open path:
+  - on-chain open / callback handlers
+  - delegated session flow
+  - relay open API
+  - frontend callback waiting path
+  - shared RPC transport helpers
+- Added a shareable Arcium escalation packet:
+  - `docs/arcium-open-escalation-2026-04-11.md`
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+- `cargo check -p shadowperp` -> PASS
+- `scripts/rpc.ts` now resolves aligned RPC + WS transport pairs for preferred endpoints:
+  - explicit ZAN preference resolves to ZAN RPC + ZAN WS, not a mixed QuickNode WS fallback
+
+### Audit findings
+
+1. The user-facing open wait window is still too short for the observed Arcium callback envelope:
+   - `app/src/hooks/useArcium.ts` waits only `45s`
+   - `app/src/lib/client.ts` defaults settlement polling to `60s`
+   - repo notes and live smoke history already show callback windows can run well beyond that
+2. Relay v2 -> v1 session fallback is still brittle:
+   - `app/src/pages/api/relay/open.ts`
+   - `app/src/pages/api/relay/session.ts`
+   - both depend on the exact error string `Account does not exist`
+   - provider-specific variants can wrongly skip fallback and reject valid v1 sessions
+3. The relay open route contains a looser oracle-refresh policy than the hardened feeder:
+   - it medianizes CoinGecko + Binance and accepts any positive fulfilled subset
+   - it silently swallows refresh failures
+   - this is operationally weaker than the hardened multi-source oracle path documented elsewhere in this repo
+
+### Current blocker
+
+- Main protocol blocker is unchanged:
+  - the open lane still aborts on devnet even in the tuple-only diagnostic probe
+
+### Next safe step
+
+1. Send the new escalation packet to Arcium with the three live probe txs and diagnostic PDAs.
+2. Independently harden the app/relay path:
+   - raise callback wait windows to match observed devnet timing
+   - replace exact-string session-miss detection with a shared account-missing classifier
+   - align relay oracle refresh policy with the hardened feeder rules
+
+## Full Open Probe Matrix (2026-04-11 UTC)
+
+### What changed
+
+- Re-ran the staged open-contract diagnostics after:
+  - deploying the diagnostic instructions live
+  - fixing the diagnostic PDA seed bug
+  - wiring local RPC fallback order to prefer QuickNode, then ZAN, Helius, Alchemy, and public devnet
+- Patched `scripts/rpc.ts` and `scripts/diagnose-open-contract.ts` so the diagnostic runner can use aligned RPC+WS transports from local env.
+
+### What was verified
+
+- QuickNode-first run succeeded far enough to show:
+  - `tuple-only` -> `aborted`
+  - `margin-check` -> `aborted`
+- ZAN-backed rerun completed the entire staged matrix:
+  - `tuple-only`
+    - tx `fWvsdb8dractFh4yQghxPTVn7MxFUEb5jUCxbauiVNvo2uqfgHjbx4yQFDpPVHZMGGPF2DfL6z1djviQsMv3VP3`
+    - diagnostic `AdUxoy4SimDBJbM1Joxqm39Naad9SA1KtVoci4sSzJfB`
+    - status `aborted`
+  - `margin-check`
+    - tx `VnSqfvgskHs5Gy1KfUhiVXYbEkaqgcXjiVNSsC9gpa9QRQEHFMcbC72hsitmkpGAkfae5njiQnxQsTYSivTo2KS`
+    - diagnostic `GGvxzs4jFq5tJ8hAjEatapBkKZY7bJMSS6NMkGmyL1qC`
+    - status `aborted`
+  - `full-check`
+    - tx `3shup8vhA4gQUwEXDHwBjFnLiMqqx171FSoU3WjszPNBvJ2ZfGXUaN2zCyheN25unoX6m5JGT7hnm7EGyvzpSUx9`
+    - diagnostic `61ZQYCxUqXPpCmzkTVFK8EcUoytwdJonnmv8QhZFsKJi`
+    - status `aborted`
+- All three stages returned result flags `[false, false, false, false]` because the callback path hit the abort branch before any positive outputs were verified.
+
+### Findings
+
+- The root abort is not introduced by:
+  - `requested_margin`
+  - `max_leverage`
+  - the fuller business-rule branch in `open_position_full_probe_v1`
+- The failure survives the entire staged simplification ladder.
+- Current evidence now points much more strongly toward:
+  - an Arcium/runtime issue tied to this fresh encrypted open tuple lane, or
+  - a lower-level contract mismatch that is already present before the extra plaintext checks matter
+
+### Current blocker
+
+- The staged diagnostics are now complete enough to answer the original isolation question.
+- The blocker is no longer "which branch causes the open abort?"
+- The blocker is now how to resolve or escalate an abort that reproduces in every open probe stage.
+
+### Next safe step
+
+1. Package the staged probe evidence for Arcium escalation:
+   - three live devnet probe txs
+   - three diagnostic PDAs
+   - same abort outcome at tuple-only, margin-check, and full-check
+2. Keep the local diagnostic harness in place for regression checks after any Arcium-side guidance or code change.
+3. Do not spend more cycles assuming the problem is only in margin/leverage business logic, because the staged matrix now rules that out.
+
+## RPC Fallback Priority Refresh (2026-04-11 UTC)
+
+### What changed
+
+- Updated the shared script RPC resolver in `scripts/rpc.ts` to auto-load local RPC env values from:
+  - `app/.env.local`
+  - repo-root `.env.local`
+- This lets repo scripts use the same local fallback list as the app without committing keyed RPC URLs into tracked source.
+- Updated `app/.env.example` comments to document the intended failover order:
+  - primary paid RPC first
+  - secondary paid RPCs next
+  - public devnet last
+- Updated local `app/.env.local` RPC ordering to:
+  1. QuickNode
+  2. ZAN
+  3. Helius
+  4. Alchemy
+  5. public devnet
+- Added aligned websocket fallback lists in local env for the same providers.
+
+### What was verified
+
+- `collectRpcCandidates()` now returns:
+  1. `https://ancient-autumn-sunset.solana-devnet.quiknode.pro/28a5d96c2894cc2c31d70709291285773cb2806e`
+  2. `https://api.zan.top/node/v1/solana/devnet/19ad9ecee1c340fdb1e14a5d1fb05cd2`
+  3. `https://devnet.helius-rpc.com/?api-key=b077c7fc-8625-488f-93fd-1daf8de886c1`
+  4. `https://solana-devnet.g.alchemy.com/v2/Nbazz1j8QfREnu7ryGLtGI03ubwKJJtt`
+  5. `https://api.devnet.solana.com`
+- `resolveRpcEndpoint({ requireHealthy: false })` now resolves to QuickNode by default when no explicit `--rpc` override is passed.
+
+### Current blocker
+
+- RPC priority is improved locally, but the larger Arcium circuit upload path may still require a websocket-capable endpoint with enough throughput to avoid `429` during large upload bursts.
+
+### Next safe step
+
+1. Retry the remaining diagnostic comp-def finalization using the new default QuickNode-first fallback path.
+2. If QuickNode degrades, let the shared resolver fall through to ZAN, then Helius, then Alchemy, then public devnet.
+
+## Open Diagnostic Live Probe Pass (2026-04-11 UTC)
+
+### What changed
+
+- Built the updated `shadowperp.so` + IDL through the WSL-safe Solana/Anchor lane after adding the open-position diagnostic instructions.
+- Deployed the updated program binary to the existing devnet program id:
+  - program `ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4`
+  - successful deploy tx: `3JnkDSXbJwaopVKXH3PKMXGxzGvWEh9QrajgGFto4UiFovTZ6zCYZRbCmVk1sE1mV2g1sxvGJT7Ya87px6x3xvHZ`
+- Fixed a local on-chain seed bug in the diagnostic handlers:
+  - `programs/shadowperp/src/handlers/open_position_diagnostics.rs`
+  - root cause: `#[instruction(...)]` listed only trailing args, so Anchor validated the diagnostic PDA seeds against the wrong instruction bytes
+- Redeployed again after the seed fix to the same program id.
+- Hardened `scripts/diagnose-open-contract.ts` so it can:
+  - detect missing deployed diagnostic instructions
+  - detect incomplete comp-defs
+  - attempt comp-def finalization from local circuit artifacts
+
+### What was verified
+
+- Post-redeploy, the diagnostic instruction is definitely live:
+  - devnet simulation reached `Instruction: RunOpenPositionTupleProbe`
+- `open_position_tuple_probe_v1` comp-def now exists and was finalized successfully enough to run the first tuple-only diagnostic lane.
+- Tuple-only diagnostic run succeeded in queueing and finalized with:
+  - diagnostic `8a6PKPifFaHYGUdL5QPsMnsDuLGYPfc5KDYYrVKq1i5d`
+  - queued tx `DgfJcmwbzvr5HD6D7MFWQj1EEcjkB3uG7NusKn1BwPzNvYW68Fp5Dt8BSRJnpF1XiNcQCbuZjsJnY52ymvgVDZg`
+  - status `aborted`
+  - results `[false, false, false, false]`
+- This is the strongest diagnostic signal so far:
+  - the open lane can abort even in the tuple-only probe, before reintroducing `requested_margin` or `max_leverage`
+
+### Findings
+
+- The prior PDA mismatch was local code, not chain state:
+  - once fixed and redeployed, the tuple-only probe executed
+- The tuple-only probe abort means the current root issue is earlier than the full business rule layer.
+- Current evidence now points more strongly toward:
+  - Arcium/runtime behavior around this specific fresh encrypted open tuple lane, or
+  - a subtle open-lane contract mismatch that still survives after stripping the logic down to tuple decryption + trivial output
+- `open_position_margin_probe_v1` and `open_position_full_probe_v1` are not yet fully finalized:
+  - on Alchemy, Arcium client upload/finalize hits missing `signatureSubscribe`
+  - on public devnet RPC, large circuit upload runs into `429 Too Many Requests`
+
+### Current blocker
+
+- The key root-cause lane is partially isolated now:
+  - tuple-only already aborts
+- Remaining blocker for completing the staged investigation:
+  - need a websocket-capable RPC with enough throughput to finalize the larger diagnostic comp-def uploads (`margin` / `full`) without `429` or subscription failures
+
+### Next safe step
+
+1. Keep the tuple-only result as the current root diagnostic fact: the abort is upstream of margin/leverage checks.
+2. Finalize the remaining diagnostic comp-defs using a higher-throughput websocket-capable RPC.
+3. Re-run `diag:open-contract` and record whether:
+   - margin-check also aborts, or
+   - full-check is the first stage that changes behavior.
+4. If RPC limits remain the blocker, escalate to Arcium with the tuple-only repro because it is already minimal and live.
+
+## Open Contract Diagnostic Harness (2026-04-10 UTC)
+
+### What changed
+
+- Added a devnet-safe Arcium diagnostic lane for the open-position contract:
+  - new confidential probes in `encrypted-ixs/src/open_position_diagnostics.rs`
+  - new diagnostic state account in `programs/shadowperp/src/state/open_position_diagnostic.rs`
+  - new queue + callback handlers in `programs/shadowperp/src/handlers/open_position_diagnostics.rs`
+  - new callback handlers in `programs/shadowperp/src/handlers/callbacks/open_position_diagnostic_callbacks.rs`
+  - new comp-def init entrypoints and program wiring in `programs/shadowperp/src/handlers/init_comp_defs.rs` and `programs/shadowperp/src/lib.rs`
+  - new runner script `scripts/diagnose-open-contract.ts`
+  - new upload entries in `scripts/upload-circuits.ts`
+- Built the new Arcium circuit artifacts with the existing WSL Arcium path:
+  - `build/open_position_tuple_probe_v1.*`
+  - `build/open_position_margin_probe_v1.*`
+  - `build/open_position_full_probe_v1.*`
+- Regenerated local IDL via WSL:
+  - `node scripts/build-idl.js --program-path programs/shadowperp --out target/idl/shadowperp.json`
+
+### What was verified
+
+- `cargo check -p shadowperp` -> PASS after the new probe artifacts were present.
+- `npx ts-node --transpile-only scripts/diagnose-open-contract.ts --rpc <Alchemy>` now starts successfully and reaches the first comp-def init transaction.
+- The runner now reports the live blocker clearly:
+  - `Deployed program ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4 does not include the open-position diagnostic instructions yet. Rebuild and redeploy this branch before running diag:open-contract.`
+- This came from on-chain simulation logs showing:
+  - `InstructionFallbackNotFound`
+  - meaning the local source + IDL have the new diagnostic instructions, but the currently deployed devnet program does not.
+
+### Findings
+
+- The new diagnostic harness is locally wired far enough to use after redeploy.
+- The current blocker for running the probes is no longer TypeScript or IDL drift.
+- The next gating step is deployment state:
+  - build the updated program binary
+  - deploy this branch to devnet
+  - then initialize the new probe comp-defs and run `diag:open-contract`
+- Windows native Anchor build remains flaky on this machine because the local SBF install path reports a corrupted toolchain during `npm run build:anchor:safe`.
+- WSL remains the more reliable build/IDL path for this repo at the moment.
+
+### Current blocker
+
+- The diagnostic instructions are not on the live devnet deployment yet, so the new open-contract probes cannot be executed against the current program address.
+
+### Next safe step
+
+1. Build the updated program binary through the repo's WSL-safe Anchor lane.
+2. Deploy the updated program to devnet.
+3. Upload/init the new diagnostic probe comp-defs if needed.
+4. Run `npm run diag:open-contract -- --rpc <Alchemy>` and capture which stage passes or aborts.
+
+## Arcium Investigation Pass (2026-04-10 UTC)
+
+### What changed
+
+- No product-code changes in this pass.
+- Ran a focused `arcium-program-development` investigation on the live `open_position_probe_b` abort path.
+- Compared:
+  - local circuit source
+  - queue ArgBuilder contract in direct and session-v2 paths
+  - generated local build artifacts
+  - callback output shapes
+  - direct account evidence from the latest failed position/computation
+
+### What was verified
+
+- `npm run check:preflight` remained PASS earlier in the same repo session.
+- Latest failed open repro still points at:
+  - position `5aBDinsLwftjjGB9vckfDPgwts2RfMMhKwK3n5g7CgUF`
+  - computation `FaVW6efZZCnnLWKc7FmeX98AFmCvH4MP4SvueRRYPgbn`
+- Direct account inspection confirms the deployed program still leaves this failed open in:
+  - `status = Pending`
+  - `pendingComputationAccount = FaVW6efZZCnnLWKc7FmeX98AFmCvH4MP4SvueRRYPgbn`
+- Position PDA history still shows repeated callback failures:
+  - `6010` on ShadowPerp callback txs
+- Computation PDA history still shows repeated Arcium failure-reclaim retries:
+  - `6301 InvalidArguments` during `ReclaimFailureRentIdempotent`
+- Local artifact/build contract still aligns with the known open comp-def signature:
+  - `build/open_position_probe_b.ts` shows inputs:
+    - `Enc<Shared, (u64, u64, u8, bool, u64)>`
+    - `u64`
+    - `u8`
+  - outputs:
+    - `bool`
+- Local generated IDL confirms callback output shape is correct:
+  - `OpenPositionProbeBOutput.field_0: bool`
+  - this is different from nested outputs like `SeedOpenInterestStateV3OutputStruct0`, so the open callback's flat `field_0` access is not the issue
+- Queue contracts remain aligned across paths:
+  - direct open in `programs/shadowperp/src/handlers/open_position.rs`
+  - delegated wallet-scoped open in `programs/shadowperp/src/handlers/session_trading.rs`
+  - app client tuple encryption in `app/src/lib/client.ts`
+  - smoke/canary tuple encryption in `scripts/smoke-test-devnet.ts` and `scripts/devnet-canary.ts`
+
+### Findings
+
+- The strongest "easy mismatch" candidates are now weaker:
+  - instruction naming alignment appears correct
+  - local callback output type/shape appears correct
+  - local ArgBuilder field order appears consistent with the generated build contract
+  - local artifact size/signature evidence previously matched the finalized comp-def metadata already logged in these notes
+- The open lane still differs from the other computations in a few important ways:
+  - it decrypts a fresh user-supplied `Enc<Shared, (u64, u64, u8, bool, u64)>` immediately rather than reading previously stored encrypted data
+  - it returns only a revealed `bool`
+  - it mixes the encrypted tuple with plaintext `requested_margin: u64` and `max_leverage: u8`
+- `close_position_v2` and `check_liquidation` share the same encrypted tuple type/order in local source, so the broad tuple layout itself is not obviously wrong from the code contract alone.
+- The repeated `6301 InvalidArguments` reclaim noise appears secondary to the failed computation path, not like the primary root cause.
+- The deployed program still has the separate cleanup bug that leaves failed opens in `Pending`; the local callback-cleanup patch should address that only after rebuild/deploy.
+
+### Current blocker
+
+- Main live protocol blocker remains unchanged:
+  - `open_position_probe_b` still aborts at Arcium verification time on devnet
+- Current evidence points more toward:
+  - an Arcium runtime/computation issue in the open lane, or
+  - a subtle contract mismatch not visible from name/count/type/shape inspection alone
+- Current evidence points less toward:
+  - simple callback output parsing bug
+  - simple instruction-name mismatch
+  - simple param-count drift
+
+### Next safe step
+
+1. Do not redeploy blindly just to chase the root abort.
+2. If protocol debugging continues, the best next experiment is to create a devnet-only diagnostic computation that isolates the open tuple contract:
+   - same encrypted tuple shape
+   - minimal/no business logic
+   - progressively add back `requested_margin` and `max_leverage`
+3. If we want operational safety first, deploy the already-prepared callback-cleanup patch separately so failed opens no longer remain stuck in `Pending`.
+
 ## Callback Failure Cleanup Patch (2026-04-10 UTC)
 
 ### What changed
@@ -1284,3 +1664,34 @@ Additional Arcium-side failure evidence:
 ### Next safe step
 1. Smoke the wallet popup activity tab and bottom-panel history tab against the new API route.
 2. If the output looks right, commit and push this indexed-history MVP.
+
+## Indexed History Smoke (2026-04-10 UTC)
+
+### What was checked
+- Browser smoke against the new history API route on localhost:
+  - `GET /api/history?wallet=5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt&limit=5&includePositions=true`
+- App shell smoke on `http://127.0.0.1:3000/app`
+
+### What happened
+- The history API returned `ok: true` with recent activity rows and a structured `historyPositions` list shape.
+- The app shell loaded normally and the bottom panel still rendered the `Trade History` tab with the new count badge.
+- Browser console noise was limited to normal dev-server/HMR / favicon noise, not a history-route failure.
+
+### Current blocker
+- `open_position_probe_b` remains unchanged and is still the main live protocol blocker.
+
+### Next safe step
+1. If you want to inspect the new history UI more deeply, do a wallet-connected smoke next.
+2. Otherwise, move on to the next product gap lane and keep the history MVP as the current baseline.
+## Audit Pass (2026-04-11 UTC)
+
+Verified live:
+- `npm run check:preflight` passed.
+- Oracle freshness was healthy during the audit window.
+
+Audit findings to keep in view:
+- `app/src/lib/server/history.ts` still resolves only the first RPC candidate, so the new history API can fail on a bad primary even when fallback RPCs are healthy.
+- `scripts/upload-circuits.ts` still uses `provider.sendAndConfirm(...)` for comp-def finalization, which leaves one operator helper on the old confirmation path.
+- `app/src/pages/api/history.ts` rate-limits by wallet query string only, so the expensive `includePositions=true` path is still easy to fan out across arbitrary wallet values.
+
+No code changes were made during this audit pass.

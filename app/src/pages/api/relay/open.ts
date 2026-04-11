@@ -12,64 +12,28 @@ import {
   RelayRuntimeSummary,
   summarizeRelayRuntime,
 } from "../../../lib/server/relay-client";
+import { extractErrorMessage, isMissingAccountError } from "../../../lib/account-errors";
 import { checkRateLimit } from "../../../lib/server/rate-limit";
 
-const OPEN_RATE_LIMIT = 10;   // max 10 open requests per owner per minute
+const OPEN_RATE_LIMIT = 10; // max 10 open requests per owner per minute
 const RATE_WINDOW_MS = 60_000;
 const ORACLE_MAX_AGE_SECONDS = 250; // refresh if older than this (contract requires < 300)
+const ORACLE_MIN_SOURCES = 2;
 const ALL_MARKETS_SESSION_KEY = "__all_markets__";
 
-// CoinGecko IDs and Binance symbols for each trading pair
 const PAIR_PRICE_SOURCES: Record<string, { coingeckoId: string; binanceSymbol: string }> = {
-  "SOL-USD": { coingeckoId: "solana",                   binanceSymbol: "SOLUSDT" },
-  "BTC-USD": { coingeckoId: "bitcoin",                  binanceSymbol: "BTCUSDT" },
-  "ETH-USD": { coingeckoId: "ethereum",                 binanceSymbol: "ETHUSDT" },
-  "JUP-USD": { coingeckoId: "jupiter-exchange-solana",  binanceSymbol: "JUPUSDT" },
-  "PYTH-USD": { coingeckoId: "pyth-network",            binanceSymbol: "PYTHUSDT" },
-  "ORCA-USD": { coingeckoId: "orca",                    binanceSymbol: "ORCAUSDT" },
+  "SOL-USD": { coingeckoId: "solana", binanceSymbol: "SOLUSDT" },
+  "BTC-USD": { coingeckoId: "bitcoin", binanceSymbol: "BTCUSDT" },
+  "ETH-USD": { coingeckoId: "ethereum", binanceSymbol: "ETHUSDT" },
+  "JUP-USD": { coingeckoId: "jupiter-exchange-solana", binanceSymbol: "JUPUSDT" },
+  "PYTH-USD": { coingeckoId: "pyth-network", binanceSymbol: "PYTHUSDT" },
+  "ORCA-USD": { coingeckoId: "orca", binanceSymbol: "ORCAUSDT" },
 };
 
-/** Fetch price for a specific pair from CoinGecko + Binance; return median. */
-async function fetchPairPrice(pairLabel: string): Promise<number> {
-  const sources = PAIR_PRICE_SOURCES[pairLabel];
-  if (!sources) throw new Error(`No price source configured for ${pairLabel}`);
-
-  const results = await Promise.allSettled([
-    fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${sources.coingeckoId}&vs_currencies=usd`)
-      .then((r) => r.json())
-      .then((d: any) => d?.[sources.coingeckoId]?.usd as number),
-    fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${sources.binanceSymbol}`)
-      .then((r) => r.json())
-      .then((d: any) => parseFloat(d?.price)),
-  ]);
-  const prices = results
-    .filter((r): r is PromiseFulfilledResult<number> => r.status === "fulfilled" && Number.isFinite(r.value) && r.value > 0)
-    .map((r) => r.value);
-  if (!prices.length) throw new Error(`No live price sources available for ${pairLabel}`);
-  prices.sort((a, b) => a - b);
-  return prices[Math.floor(prices.length / 2)];
-}
-
-/** Refresh oracle if stale. Returns silently on failure — the open tx will produce a clearer error. */
-async function ensureOracleFresh(relay: RelayRuntimeContext, marketAddress: PublicKey, pairLabel: string): Promise<void> {
-  try {
-    const market = await relay.client.getMarket(marketAddress);
-    const lastUpdate = Number(market.lastPriceUpdate?.toString?.() ?? "0");
-    const age = Math.floor(Date.now() / 1000) - lastUpdate;
-    if (age < ORACLE_MAX_AGE_SECONDS) return; // still fresh
-
-    const price = await fetchPairPrice(pairLabel);
-    const priceMicro = new BN(Math.round(price * 1_000_000));
-    await relay.client.updateOraclePrice(
-      marketAddress,
-      relay.relayer.publicKey,
-      priceMicro
-    );
-  } catch {
-    // Non-fatal: if the oracle is already fresh or the relayer isn't the price feeder,
-    // the open tx will either succeed or fail with StalePrice for the user to see.
-  }
-}
+type OracleQuote = {
+  source: string;
+  price: number;
+};
 
 type OpenRequestBody = {
   owner?: string;
@@ -80,7 +44,6 @@ type OpenRequestBody = {
   sizeRaw?: string;
   entryPriceRaw?: string;
   marginRaw?: string;
-  /** Trading pair label e.g. "SOL-USD", "BTC-USD". Defaults to SOL-USD. */
   pairLabel?: string;
   auth?: {
     action?: "open" | "deposit" | "withdraw";
@@ -102,6 +65,111 @@ type OpenResponse =
       debugId?: string;
       runtime?: RelayRuntimeSummary;
     };
+
+async function getOracleAgeSeconds(
+  relay: RelayRuntimeContext,
+  marketAddress: PublicKey
+): Promise<number> {
+  const market = await relay.client.getMarket(marketAddress);
+  const lastUpdate = Number(market.lastPriceUpdate?.toString?.() ?? "0");
+  return Math.floor(Date.now() / 1000) - lastUpdate;
+}
+
+async function fetchPairPrice(pairLabel: string): Promise<{
+  medianPrice: number;
+  quotes: OracleQuote[];
+  warnings: string[];
+}> {
+  const sources = PAIR_PRICE_SOURCES[pairLabel];
+  if (!sources) throw new Error(`No price source configured for ${pairLabel}`);
+
+  const results = await Promise.allSettled([
+    fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${sources.coingeckoId}&vs_currencies=usd`
+    )
+      .then((r) => r.json())
+      .then((d: any) => ({
+        source: "coingecko",
+        price: d?.[sources.coingeckoId]?.usd as number,
+      })),
+    fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${sources.binanceSymbol}`)
+      .then((r) => r.json())
+      .then((d: any) => ({
+        source: "binance",
+        price: parseFloat(d?.price),
+      })),
+  ]);
+
+  const quotes: OracleQuote[] = [];
+  const warnings: string[] = [];
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      if (Number.isFinite(result.value.price) && result.value.price > 0) {
+        quotes.push(result.value);
+      } else {
+        warnings.push(`${result.value.source}: invalid price ${String(result.value.price)}`);
+      }
+      continue;
+    }
+    warnings.push(extractErrorMessage(result.reason));
+  }
+
+  if (quotes.length < ORACLE_MIN_SOURCES) {
+    const details = warnings.length > 0 ? ` ${warnings.join(" | ")}` : "";
+    throw new Error(
+      `Insufficient oracle sources for ${pairLabel} (${quotes.length}/${ORACLE_MIN_SOURCES}).${details}`
+    );
+  }
+
+  const prices = quotes.map((quote) => quote.price).sort((a, b) => a - b);
+  return {
+    medianPrice: prices[Math.floor(prices.length / 2)],
+    quotes,
+    warnings,
+  };
+}
+
+async function ensureOracleFresh(
+  relay: RelayRuntimeContext,
+  marketAddress: PublicKey,
+  pairLabel: string
+): Promise<void> {
+  try {
+    const age = await getOracleAgeSeconds(relay, marketAddress);
+    if (age < ORACLE_MAX_AGE_SECONDS) return;
+
+    const composite = await fetchPairPrice(pairLabel);
+    if (composite.warnings.length > 0) {
+      console.warn("[relay/open:oracle]", {
+        market: marketAddress.toBase58(),
+        pairLabel,
+        warnings: composite.warnings,
+      });
+    }
+
+    const priceMicro = new BN(Math.round(composite.medianPrice * 1_000_000));
+    await relay.client.updateOraclePrice(
+      marketAddress,
+      relay.relayer.publicKey,
+      priceMicro
+    );
+
+    const refreshedAge = await getOracleAgeSeconds(relay, marketAddress);
+    if (refreshedAge < ORACLE_MAX_AGE_SECONDS) return;
+
+    throw new Error(
+      `Oracle remained stale for ${pairLabel} after refresh (${refreshedAge}s old).`
+    );
+  } catch (error) {
+    const latestAge = await getOracleAgeSeconds(relay, marketAddress).catch(() => null);
+    if (latestAge !== null && latestAge < ORACLE_MAX_AGE_SECONDS) {
+      return;
+    }
+    throw new Error(
+      `Oracle is stale for ${pairLabel} and automatic refresh failed: ${extractErrorMessage(error)}`
+    );
+  }
+}
 
 function parseU64Bn(name: string, value?: string): BN {
   if (!value || !/^\d+$/.test(value)) {
@@ -133,7 +201,7 @@ export default async function handler(
   } catch (error: any) {
     console.error("[relay/open:init]", {
       debugId,
-      error: typeof error?.message === "string" ? error.message : String(error),
+      error: extractErrorMessage(error),
     });
     res.status(503).json({
       ok: false,
@@ -173,7 +241,6 @@ export default async function handler(
     const entryPrice = parseU64Bn("entryPriceRaw", body.entryPriceRaw);
     const margin = parseU64Bn("marginRaw", body.marginRaw);
 
-    // Resolve market address for the requested pair
     const pairLabel = body.pairLabel ?? "SOL-USD";
     const marketAddress = relay.config.marketRegistry[pairLabel] ?? relay.config.marketAddress;
     if (!relay.config.marketRegistry[pairLabel]) {
@@ -203,9 +270,8 @@ export default async function handler(
       sessionUsedActions = session.usedActions;
       sessionMaxActions = session.maxActions;
       sessionMaxMarginPerAction = session.maxMarginPerAction;
-    } catch (v2Error: any) {
-      const message = typeof v2Error?.message === "string" ? v2Error.message : "";
-      if (!message.includes("Account does not exist")) {
+    } catch (v2Error) {
+      if (!isMissingAccountError(v2Error)) {
         throw v2Error;
       }
 
@@ -265,14 +331,18 @@ export default async function handler(
       throw new Error("Margin exceeds delegated session limit");
     }
 
-    // Verify margin account exists — it is created by the first deposit, not by open_position
     const marginAddress = relay.client.getMarginAccountAddress(marketAddress, owner);
-    const marginExists = await relay.client.getMarginAccount(marginAddress).then(() => true).catch(() => false);
+    const marginExists = await relay.client
+      .getMarginAccount(marginAddress)
+      .then(() => true)
+      .catch((error) => {
+        if (isMissingAccountError(error)) return false;
+        throw error;
+      });
     if (!marginExists) {
       throw new Error("No collateral deposited. Deposit collateral before opening a position.");
     }
 
-    // Auto-refresh oracle price if stale (contract requires < 300s freshness)
     await ensureOracleFresh(relay, marketAddress, pairLabel);
 
     const result =

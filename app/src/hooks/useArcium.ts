@@ -13,6 +13,7 @@ import {
   RELAY_SESSION_AUTH_SCOPE,
   uint8ToBase64,
 } from "../lib/relay-session-auth";
+import { isMissingAccountError } from "../lib/account-errors";
 import { PositionStatus } from "../types";
 
 /**
@@ -123,7 +124,7 @@ const SCALE_PRICE = 1_000_000;
 const SCALE_BASE_SIZE = 1_000_000_000;
 const SCALE_MARGIN = 1_000_000;
 const U64_MAX_BN = new BN("18446744073709551615");
-const OPEN_POSITION_CALLBACK_TIMEOUT_MS = 45_000;
+const OPEN_POSITION_CALLBACK_TIMEOUT_MS = 120_000;
 const OPEN_POSITION_CALLBACK_POLL_MS = 2_000;
 const OPEN_POSITION_CALLBACK_DIAG_POLL_MS = 6_000;
 
@@ -405,13 +406,7 @@ async function waitForOpenPositionCallback(
         );
       }
     } catch (error: any) {
-      const message =
-        typeof error?.message === "string" ? error.message : "";
-      const isMissingAccount =
-        message.includes("Account does not exist") ||
-        message.includes("Account does not exist or has no data") ||
-        message.includes("could not find account");
-      if (!isMissingAccount) {
+      if (!isMissingAccountError(error)) {
         throw error;
       }
     }

@@ -6,6 +6,7 @@ import {
   RelayRuntimeSummary,
   summarizeRelayRuntime,
 } from "../../../lib/server/relay-client";
+import { extractErrorMessage, isMissingAccountError } from "../../../lib/account-errors";
 
 type SessionResponse =
   | {
@@ -335,8 +336,7 @@ export default async function handler(
       });
       return;
     } catch (v2Error: any) {
-      const message = typeof v2Error?.message === "string" ? v2Error.message : "";
-      if (!message.includes("Account does not exist")) {
+      if (!isMissingAccountError(v2Error)) {
         throw v2Error;
       }
     }
@@ -365,8 +365,8 @@ export default async function handler(
       },
     });
   } catch (error: any) {
-    const message = typeof error?.message === "string" ? error.message : "Session lookup failed";
-    if (message.includes("Account does not exist")) {
+    const message = extractErrorMessage(error) || "Session lookup failed";
+    if (isMissingAccountError(error)) {
       res.status(200).json({
         ok: true,
         available: true,

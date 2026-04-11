@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import {
   Commitment,
   Connection,
@@ -22,6 +24,7 @@ type RpcAttempt = {
 
 export type RpcResolveResult = {
   rpcUrl: string;
+  wsUrl: string;
   candidates: string[];
   attempts: RpcAttempt[];
 };
@@ -40,6 +43,7 @@ type RetryRpcOptions = {
 };
 
 const DEFAULT_RPC = "https://api.devnet.solana.com";
+let localRpcEnvLoaded = false;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -83,7 +87,46 @@ function parseRpcList(raw?: string): string[] {
     .filter((item): item is string => Boolean(item));
 }
 
+function deriveWsEndpoint(rpcEndpoint: string): string {
+  try {
+    const url = new URL(rpcEndpoint);
+    if (url.protocol === "https:") url.protocol = "wss:";
+    else if (url.protocol === "http:") url.protocol = "ws:";
+    return url.toString();
+  } catch {
+    return rpcEndpoint.replace(/^https:/i, "wss:").replace(/^http:/i, "ws:");
+  }
+}
+
+function loadLocalRpcEnvOnce(): void {
+  if (localRpcEnvLoaded) return;
+  localRpcEnvLoaded = true;
+
+  const candidates = [
+    path.resolve(__dirname, "..", "app", ".env.local"),
+    path.resolve(__dirname, "..", ".env.local"),
+  ];
+
+  for (const envPath of candidates) {
+    if (!fs.existsSync(envPath)) continue;
+    const raw = fs.readFileSync(envPath, "utf8");
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const idx = trimmed.indexOf("=");
+      if (idx <= 0) continue;
+      const key = trimmed.slice(0, idx).trim();
+      const value = trimmed.slice(idx + 1).trim();
+      if (!key) continue;
+      if (!(key in process.env)) {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
 export function collectRpcCandidates(preferred?: string): string[] {
+  loadLocalRpcEnvOnce();
   const out: string[] = [];
   const seen = new Set<string>();
   const push = (url: string | null) => {
@@ -105,6 +148,41 @@ export function collectRpcCandidates(preferred?: string): string[] {
   return out;
 }
 
+export function collectWsCandidates(): string[] {
+  loadLocalRpcEnvOnce();
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (url: string | null) => {
+    if (!url) return;
+    if (seen.has(url)) return;
+    seen.add(url);
+    out.push(url);
+  };
+
+  for (const url of parseRpcList(process.env.SOLANA_WSS_URLS)) push(url);
+  for (const url of parseRpcList(process.env.NEXT_PUBLIC_SOLANA_WSS_URLS)) push(url);
+  push(normalizeRpcUrl(process.env.SOLANA_WSS_URL));
+  push(normalizeRpcUrl(process.env.NEXT_PUBLIC_SOLANA_WSS_URL));
+
+  return out;
+}
+
+export function resolveWsForRpc(rpcUrl: string, rpcCandidates: string[] = collectRpcCandidates()): string {
+  const wsCandidates = collectWsCandidates();
+  const canonicalRpcCandidates = collectRpcCandidates();
+  const canonicalIndex = canonicalRpcCandidates.findIndex((candidate) => candidate === rpcUrl);
+  if (canonicalIndex >= 0 && wsCandidates[canonicalIndex]) {
+    return wsCandidates[canonicalIndex];
+  }
+
+  const index = rpcCandidates.findIndex((candidate) => candidate === rpcUrl);
+  if (index >= 0 && wsCandidates[index]) {
+    return wsCandidates[index];
+  }
+
+  return deriveWsEndpoint(rpcUrl);
+}
+
 export async function resolveRpcEndpoint(
   options: RpcResolveOptions = {}
 ): Promise<RpcResolveResult> {
@@ -119,7 +197,7 @@ export async function resolveRpcEndpoint(
     try {
       await withTimeout(connection.getLatestBlockhash("processed"), timeoutMs, url);
       attempts.push({ url, ok: true });
-      return { rpcUrl: url, candidates, attempts };
+      return { rpcUrl: url, wsUrl: resolveWsForRpc(url, candidates), candidates, attempts };
     } catch (error: any) {
       attempts.push({
         url,
@@ -132,6 +210,7 @@ export async function resolveRpcEndpoint(
   if (!requireHealthy) {
     return {
       rpcUrl: candidates[0] ?? DEFAULT_RPC,
+      wsUrl: resolveWsForRpc(candidates[0] ?? DEFAULT_RPC, candidates),
       candidates,
       attempts,
     };

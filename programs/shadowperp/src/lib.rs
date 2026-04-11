@@ -12,6 +12,9 @@ use handlers::init_arcium_signer::__client_accounts_init_arcium_signer;
 use handlers::init_comp_defs::__client_accounts_init_close_position_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_liquidation_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_open_position_comp_def;
+use handlers::init_comp_defs::__client_accounts_init_open_position_full_probe_comp_def;
+use handlers::init_comp_defs::__client_accounts_init_open_position_margin_probe_comp_def;
+use handlers::init_comp_defs::__client_accounts_init_open_position_tuple_probe_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_seed_open_interest_comp_def;
 #[cfg(feature = "shielded-collateral")]
 use handlers::init_comp_defs::__client_accounts_init_lock_margin_private_comp_def;
@@ -25,6 +28,9 @@ use handlers::shielded_collateral::__client_accounts_verify_withdrawal_proof_req
 use handlers::private_orders::__client_accounts_execute_private_order;
 use handlers::initialize::__client_accounts_initialize;
 use handlers::open_position::__client_accounts_open_position;
+use handlers::open_position_diagnostics::__client_accounts_run_open_position_full_probe;
+use handlers::open_position_diagnostics::__client_accounts_run_open_position_margin_probe;
+use handlers::open_position_diagnostics::__client_accounts_run_open_position_tuple_probe;
 use handlers::private_orders::__client_accounts_add_private_order;
 use handlers::private_orders::__client_accounts_init_private_order_book;
 use handlers::seed_open_interest_state::__client_accounts_seed_open_interest_state;
@@ -61,6 +67,9 @@ use handlers::tpsl::__client_accounts_trigger_tp_sl;
 use handlers::callbacks::__client_accounts_check_liquidation_callback;
 use handlers::callbacks::__client_accounts_close_position_v2_callback;
 use handlers::callbacks::__client_accounts_execute_private_order_callback;
+use handlers::callbacks::__client_accounts_open_position_full_probe_v1_callback;
+use handlers::callbacks::__client_accounts_open_position_margin_probe_v1_callback;
+use handlers::callbacks::__client_accounts_open_position_tuple_probe_v1_callback;
 use handlers::callbacks::__client_accounts_open_position_probe_b_callback;
 use handlers::callbacks::__client_accounts_seed_open_interest_state_v3_callback;
 #[cfg(feature = "shielded-collateral")]
@@ -92,6 +101,11 @@ declare_id!("ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4");
 // In arcium v0.9.2 they live in the handler callback modules.
 use handlers::callbacks::close_position_callback::{ClosePositionV2Callback, ClosePositionV2Output};
 use handlers::callbacks::liquidation_callback::{CheckLiquidationCallback, CheckLiquidationOutput};
+use handlers::callbacks::open_position_diagnostic_callbacks::{
+    OpenPositionFullProbeV1Callback, OpenPositionFullProbeV1Output,
+    OpenPositionMarginProbeV1Callback, OpenPositionMarginProbeV1Output,
+    OpenPositionTupleProbeV1Callback, OpenPositionTupleProbeV1Output,
+};
 use handlers::callbacks::open_position_callback::{OpenPositionProbeBCallback, OpenPositionProbeBOutput};
 use handlers::callbacks::seed_open_interest_state_callback::{SeedOpenInterestStateV3Callback, SeedOpenInterestStateV3Output};
 
@@ -102,7 +116,8 @@ use handlers::deposit_collateral::DepositCollateral;
 use handlers::init_arcium_signer::InitArciumSigner;
 use handlers::init_comp_defs::{
     InitClosePositionCompDef, InitLiquidationCompDef, InitOpenPositionCompDef,
-    InitSeedOpenInterestCompDef,
+    InitOpenPositionFullProbeCompDef, InitOpenPositionMarginProbeCompDef,
+    InitOpenPositionTupleProbeCompDef, InitSeedOpenInterestCompDef,
 };
 #[cfg(feature = "shielded-collateral")]
 use handlers::init_comp_defs::{
@@ -112,6 +127,9 @@ use handlers::init_comp_defs::{
 use handlers::init_comp_defs::InitExecutePrivateOrderCompDef;
 use handlers::initialize::Initialize;
 use handlers::open_position::OpenPosition;
+use handlers::open_position_diagnostics::{
+    RunOpenPositionFullProbe, RunOpenPositionMarginProbe, RunOpenPositionTupleProbe,
+};
 use handlers::private_orders::{AddPrivateOrder, ExecutePrivateOrder, InitPrivateOrderBook};
 use handlers::seed_open_interest_state::SeedOpenInterestState;
 use handlers::shared_collateral::{AdoptSharedCollateralVault, MigrateLegacyMarginAccount};
@@ -166,6 +184,24 @@ pub mod shadowperp {
     /// Initialize computation definitions for MPC operations
     pub fn init_open_position_comp_def(ctx: Context<InitOpenPositionCompDef>) -> Result<()> {
         handlers::init_comp_defs::init_open_position_handler(ctx)
+    }
+
+    pub fn init_open_position_tuple_probe_comp_def(
+        ctx: Context<InitOpenPositionTupleProbeCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_open_position_tuple_probe_handler(ctx)
+    }
+
+    pub fn init_open_position_margin_probe_comp_def(
+        ctx: Context<InitOpenPositionMarginProbeCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_open_position_margin_probe_handler(ctx)
+    }
+
+    pub fn init_open_position_full_probe_comp_def(
+        ctx: Context<InitOpenPositionFullProbeCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_open_position_full_probe_handler(ctx)
     }
 
     pub fn init_close_position_comp_def(ctx: Context<InitClosePositionCompDef>) -> Result<()> {
@@ -395,6 +431,91 @@ pub mod shadowperp {
         )
     }
 
+    /// Diagnostic Arcium probe: only decrypt the open-position tuple.
+    pub fn run_open_position_tuple_probe(
+        ctx: Context<RunOpenPositionTupleProbe>,
+        encrypted_size: [u8; 32],
+        encrypted_entry_price: [u8; 32],
+        encrypted_leverage: [u8; 32],
+        encrypted_is_long: [u8; 32],
+        encrypted_margin: [u8; 32],
+        client_pubkey: [u8; 32],
+        nonce: u128,
+        run_id: u64,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::open_position_diagnostics::run_open_position_tuple_probe_handler(
+            ctx,
+            encrypted_size,
+            encrypted_entry_price,
+            encrypted_leverage,
+            encrypted_is_long,
+            encrypted_margin,
+            client_pubkey,
+            nonce,
+            run_id,
+            computation_offset,
+        )
+    }
+
+    /// Diagnostic Arcium probe: tuple decode + requested margin consistency.
+    pub fn run_open_position_margin_probe(
+        ctx: Context<RunOpenPositionMarginProbe>,
+        encrypted_size: [u8; 32],
+        encrypted_entry_price: [u8; 32],
+        encrypted_leverage: [u8; 32],
+        encrypted_is_long: [u8; 32],
+        encrypted_margin: [u8; 32],
+        client_pubkey: [u8; 32],
+        nonce: u128,
+        requested_margin: u64,
+        run_id: u64,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::open_position_diagnostics::run_open_position_margin_probe_handler(
+            ctx,
+            encrypted_size,
+            encrypted_entry_price,
+            encrypted_leverage,
+            encrypted_is_long,
+            encrypted_margin,
+            client_pubkey,
+            nonce,
+            requested_margin,
+            run_id,
+            computation_offset,
+        )
+    }
+
+    /// Diagnostic Arcium probe: tuple decode + margin consistency + leverage bounds.
+    pub fn run_open_position_full_probe(
+        ctx: Context<RunOpenPositionFullProbe>,
+        encrypted_size: [u8; 32],
+        encrypted_entry_price: [u8; 32],
+        encrypted_leverage: [u8; 32],
+        encrypted_is_long: [u8; 32],
+        encrypted_margin: [u8; 32],
+        client_pubkey: [u8; 32],
+        nonce: u128,
+        requested_margin: u64,
+        run_id: u64,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::open_position_diagnostics::run_open_position_full_probe_handler(
+            ctx,
+            encrypted_size,
+            encrypted_entry_price,
+            encrypted_leverage,
+            encrypted_is_long,
+            encrypted_margin,
+            client_pubkey,
+            nonce,
+            requested_margin,
+            run_id,
+            computation_offset,
+        )
+    }
+
     /// Create a wallet-scoped delegated trading session for all supported markets.
     pub fn create_trade_session_v2(
         ctx: Context<CreateTradeSessionV2>,
@@ -489,6 +610,30 @@ pub mod shadowperp {
         output: SignedComputationOutputs<OpenPositionProbeBOutput>,
     ) -> Result<()> {
         handlers::callbacks::open_position_callback::open_position_callback_handler(ctx, output)
+    }
+
+    #[arcium_callback(encrypted_ix = "open_position_tuple_probe_v1")]
+    pub fn open_position_tuple_probe_v1_callback(
+        ctx: Context<OpenPositionTupleProbeV1Callback>,
+        output: SignedComputationOutputs<OpenPositionTupleProbeV1Output>,
+    ) -> Result<()> {
+        handlers::callbacks::open_position_diagnostic_callbacks::open_position_tuple_probe_v1_callback_handler(ctx, output)
+    }
+
+    #[arcium_callback(encrypted_ix = "open_position_margin_probe_v1")]
+    pub fn open_position_margin_probe_v1_callback(
+        ctx: Context<OpenPositionMarginProbeV1Callback>,
+        output: SignedComputationOutputs<OpenPositionMarginProbeV1Output>,
+    ) -> Result<()> {
+        handlers::callbacks::open_position_diagnostic_callbacks::open_position_margin_probe_v1_callback_handler(ctx, output)
+    }
+
+    #[arcium_callback(encrypted_ix = "open_position_full_probe_v1")]
+    pub fn open_position_full_probe_v1_callback(
+        ctx: Context<OpenPositionFullProbeV1Callback>,
+        output: SignedComputationOutputs<OpenPositionFullProbeV1Output>,
+    ) -> Result<()> {
+        handlers::callbacks::open_position_diagnostic_callbacks::open_position_full_probe_v1_callback_handler(ctx, output)
     }
 
     #[arcium_callback(encrypted_ix = "seed_open_interest_state_v3")]
