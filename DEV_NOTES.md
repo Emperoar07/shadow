@@ -4,6 +4,52 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Deep Repo Audit (2026-04-11 UTC)
+
+### What changed
+
+- No product code changed in this pass.
+- Ran a deep repo audit across relay/API routes, dependency posture, price fallback handling, and automated test coverage.
+- Recorded the highest-signal gaps for the next engineer:
+  - delegated withdraw relay path currently enforces `max_margin_per_action` even though the documented protocol rule says withdraws are exempt
+  - app dependency posture still carries current `pnpm audit` findings (`next@15.5.14`, transitive `axios`, `defu`, `lodash`)
+  - market-data fallback can degrade to mock/cached values while the primary trading panel intentionally hides the warning channel
+  - automated coverage is still concentrated in `tests/shadowperp.ts` and does not cover relay/API/browser flows
+
+### What was verified
+
+- `git status --short` -> only untracked `previews/`
+- `npm run check:preflight` -> PASS on the active QuickNode devnet RPC
+- `pnpm --dir app audit --prod --json` -> current dependency advisories confirmed locally
+- Reviewed:
+  - `app/src/pages/api/relay/open.ts`
+  - `app/src/pages/api/relay/deposit.ts`
+  - `app/src/pages/api/relay/withdraw.ts`
+  - `app/src/pages/api/relay/session.ts`
+  - `app/src/pages/api/prices.ts`
+  - `app/src/pages/api/reference-depth.ts`
+  - `app/src/lib/prices.ts`
+  - `app/src/components/TradingPanel.tsx`
+  - `app/src/lib/server/relay-client.ts`
+  - `tests/shadowperp.ts`
+
+### Current blocker
+
+- Main protocol blocker is unchanged:
+  - the Arcium-backed open lane still does not finalize to `Open` on the active devnet namespace
+- Audit follow-ups now exist alongside that runtime blocker:
+  - delegated withdraw rule mismatch in the relay route
+  - dependency/security backlog in the app package
+  - hidden fake/cached market-data warning path in the trading panel
+  - missing browser/API integration coverage
+
+### Next safe step
+
+1. Fix the delegated withdraw relay cap check so it matches the documented/protocol session rule.
+2. Patch the app dependency set starting with `next`, wallet-adapter transitive exposure, and stale `lodash` override.
+3. Surface a visible market-data fallback warning anywhere mock/cached prices can reach the trade flow.
+4. Add at least one devnet-safe relay/API smoke path and one browser flow test for open/deposit/session lookup behavior.
+
 ## Open Finalization Semantics Pass (2026-04-11 UTC)
 
 ### What changed

@@ -12,8 +12,7 @@ const DARK_COLORS = {
   // Backgrounds
   paneBackground: "#0a0a0f",
   backgroundColor: "#0a0a0f",
-  // Grid / axes
-  gridColor: "#1a1a25",
+  // Axes
   vertLineColor: "#252530",
   horzLineColor: "#252530",
   // Candles
@@ -35,7 +34,6 @@ const DARK_COLORS = {
 const LIGHT_COLORS = {
   paneBackground: "#f7f9fc",
   backgroundColor: "#f7f9fc",
-  gridColor: "#e8ebf4",
   vertLineColor: "#d8dce8",
   horzLineColor: "#d8dce8",
   upColor: "#00b248",
@@ -116,8 +114,10 @@ export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProp
       overrides: {
         "paneProperties.background": colors.paneBackground,
         "paneProperties.backgroundType": "solid",
-        "paneProperties.vertGridProperties.color": colors.gridColor,
-        "paneProperties.horzGridProperties.color": colors.gridColor,
+        "paneProperties.vertGridProperties.color": colors.paneBackground,
+        "paneProperties.vertGridProperties.style": 0,
+        "paneProperties.horzGridProperties.color": colors.paneBackground,
+        "paneProperties.horzGridProperties.style": 0,
         "paneProperties.crossHairProperties.color": colors.crosshairColor,
         "scalesProperties.textColor": colors.textColor,
         "scalesProperties.lineColor": colors.scalesLineColor,

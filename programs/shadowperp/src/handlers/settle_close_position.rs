@@ -78,9 +78,13 @@ pub fn handler(ctx: Context<SettleClosePosition>) -> Result<()> {
     let base_settlement = position.margin;
 
     // Apply accrued funding if this position has a PositionFundingRef and a live FundingState.
-    // funding_delta_bps = current_cumulative_funding - entry_funding_rate (in bps * hours)
-    // funding_owed (in margin units) = base_settlement * |funding_delta_bps| / 10_000
-    // Positive delta (longs pay): reduce settlement. Negative delta: increase settlement.
+    //
+    // Convention (matches FundingState.funding_rate sign):
+    //   funding_delta > 0 → longs pay shorts over this period
+    //   funding_delta < 0 → shorts pay longs over this period
+    //
+    // funding_owed = base_settlement * |funding_delta_bps| / 10_000, capped at base_settlement.
+    let is_long = position.is_long();
     let settlement_amount = if let (Some(pos_ref), Some(fs)) = (
         ctx.accounts.pos_funding_ref.as_ref(),
         ctx.accounts.funding_state.as_ref(),
@@ -90,18 +94,20 @@ pub fn handler(ctx: Context<SettleClosePosition>) -> Result<()> {
             .saturating_sub(pos_ref.entry_funding_rate);
 
         if funding_delta != 0 {
-            // Scale: settlement * |bps| / 10_000, capped at settlement amount.
             let abs_delta = funding_delta.unsigned_abs();
             let adjustment = (base_settlement as u128)
                 .saturating_mul(abs_delta as u128)
                 / 10_000;
             let adjustment = adjustment.min(base_settlement as u128) as u64;
 
-            if funding_delta > 0 {
-                // Longs owe funding — reduce what they receive.
+            // Long pays when delta > 0; short pays when delta < 0.
+            // "pays" = receives less settlement; "receives" = gets more.
+            let long_pays = funding_delta > 0;
+            if is_long == long_pays {
+                // This side owes funding — reduce settlement.
                 base_settlement.saturating_sub(adjustment)
             } else {
-                // Shorts owe funding — longs receive more.
+                // This side is owed funding — increase settlement.
                 base_settlement.saturating_add(adjustment)
             }
         } else {

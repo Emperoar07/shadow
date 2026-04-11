@@ -424,6 +424,15 @@ async function main(): Promise<void> {
       throw new Error("market missing mxe_cluster");
     }
 
+    const fundingStatePda = PublicKey.findProgramAddressSync(
+      [Buffer.from("funding"), marketPk.toBuffer()],
+      programId
+    )[0];
+    const posFundingRefPda = PublicKey.findProgramAddressSync(
+      [Buffer.from("pos-funding"), positionPda.toBuffer()],
+      programId
+    )[0];
+
     await (program.methods as any)
       .openPosition(
         encSize,
@@ -433,6 +442,7 @@ async function main(): Promise<void> {
         encMargin,
         0,
         marginAmount,
+        true, // is_long plaintext flag
         Array.from(clientPubKey),
         new BN(nonceBytes, "le"),
         computationOffset
@@ -442,6 +452,8 @@ async function main(): Promise<void> {
         market: marketPk,
         marginAccount: marginPda,
         position: positionPda,
+        fundingState: fundingStatePda,
+        posFundingRef: posFundingRefPda,
         mxeAccount,
         compDefAccount: openCompDef,
         clusterAccount: marketCluster,

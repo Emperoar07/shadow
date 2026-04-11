@@ -17,7 +17,7 @@ import { checkRateLimit } from "../../../lib/server/rate-limit";
 
 const OPEN_RATE_LIMIT = 10; // max 10 open requests per owner per minute
 const RATE_WINDOW_MS = 60_000;
-const ORACLE_MAX_AGE_SECONDS = 250; // refresh if older than this (contract requires < 300)
+const ORACLE_MAX_AGE_SECONDS = 270; // refresh if older than this (contract requires < 300; 30s margin)
 const ALL_MARKETS_SESSION_KEY = "__all_markets__";
 
 function parsePositiveIntEnv(name: string, fallback: number): number {
@@ -36,7 +36,7 @@ function parseBooleanEnv(name: string, fallback: boolean): boolean {
   return fallback;
 }
 
-const ORACLE_MIN_SOURCES = parsePositiveIntEnv("ORACLE_MIN_SOURCES_REQUIRED", 2);
+const ORACLE_MIN_SOURCES = parsePositiveIntEnv("ORACLE_MIN_SOURCES_REQUIRED", 1);
 const ORACLE_FAILSAFE_ALLOW_SINGLE_SOURCE = parseBooleanEnv(
   "ORACLE_FAILSAFE_ALLOW_SINGLE_SOURCE",
   true
@@ -46,13 +46,13 @@ const ORACLE_FAILSAFE_MAX_MOVE_BPS = parsePositiveIntEnv(
   150
 );
 
-const PAIR_PRICE_SOURCES: Record<string, { coingeckoId: string; binanceSymbol: string }> = {
-  "SOL-USD": { coingeckoId: "solana", binanceSymbol: "SOLUSDT" },
-  "BTC-USD": { coingeckoId: "bitcoin", binanceSymbol: "BTCUSDT" },
-  "ETH-USD": { coingeckoId: "ethereum", binanceSymbol: "ETHUSDT" },
-  "JUP-USD": { coingeckoId: "jupiter-exchange-solana", binanceSymbol: "JUPUSDT" },
-  "PYTH-USD": { coingeckoId: "pyth-network", binanceSymbol: "PYTHUSDT" },
-  "ORCA-USD": { coingeckoId: "orca", binanceSymbol: "ORCAUSDT" },
+const PAIR_PRICE_SOURCES: Record<string, { coingeckoId: string; binanceSymbol: string; coinbaseSymbol: string }> = {
+  "SOL-USD": { coingeckoId: "solana", binanceSymbol: "SOLUSDT", coinbaseSymbol: "SOL-USD" },
+  "BTC-USD": { coingeckoId: "bitcoin", binanceSymbol: "BTCUSDT", coinbaseSymbol: "BTC-USD" },
+  "ETH-USD": { coingeckoId: "ethereum", binanceSymbol: "ETHUSDT", coinbaseSymbol: "ETH-USD" },
+  "JUP-USD": { coingeckoId: "jupiter-exchange-solana", binanceSymbol: "JUPUSDT", coinbaseSymbol: "JUP-USD" },
+  "PYTH-USD": { coingeckoId: "pyth-network", binanceSymbol: "PYTHUSDT", coinbaseSymbol: "PYTH-USD" },
+  "ORCA-USD": { coingeckoId: "orca", binanceSymbol: "ORCAUSDT", coinbaseSymbol: "ORCA-USD" },
 };
 
 type OracleQuote = {
@@ -125,18 +125,32 @@ function deviationBps(nextPrice: number, previousPrice: number): number {
   return (Math.abs(nextPrice - previousPrice) / previousPrice) * 10_000;
 }
 
+const PRICE_FETCH_TIMEOUT_MS = 5_000;
+
 async function fetchPriceJson(url: string, source: string): Promise<any> {
-  const response = await fetch(url, {
-    headers: { accept: "application/json" },
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    const trimmed = detail.replace(/\s+/g, " ").trim();
-    throw new Error(
-      `${source}: HTTP ${response.status}${trimmed ? ` ${trimmed.slice(0, 120)}` : ""}`
-    );
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PRICE_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      headers: { accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      const trimmed = detail.replace(/\s+/g, " ").trim();
+      throw new Error(
+        `${source}: HTTP ${response.status}${trimmed ? ` ${trimmed.slice(0, 120)}` : ""}`
+      );
+    }
+    return response.json();
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      throw new Error(`${source}: request timed out after ${PRICE_FETCH_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
-  return response.json();
 }
 
 async function fetchPairPrice(pairLabel: string): Promise<{
@@ -163,6 +177,14 @@ async function fetchPairPrice(pairLabel: string): Promise<{
       .then((d: any) => ({
         source: "binance",
         price: parseFloat(d?.price),
+      })),
+    fetchPriceJson(
+      `https://api.coinbase.com/v2/prices/${sources.coinbaseSymbol}/spot`,
+      "coinbase"
+    )
+      .then((d: any) => ({
+        source: "coinbase",
+        price: parseFloat(d?.data?.amount),
       })),
   ]);
 

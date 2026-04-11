@@ -420,6 +420,15 @@ async function main() {
           PROGRAM_ID
         )[0];
 
+        const fundingStatePda = PublicKey.findProgramAddressSync(
+          [Buffer.from("funding"), MARKET_ACCOUNT.toBuffer()],
+          PROGRAM_ID
+        )[0];
+        const posFundingRefPda = PublicKey.findProgramAddressSync(
+          [Buffer.from("pos-funding"), positionAddress.toBuffer()],
+          PROGRAM_ID
+        )[0];
+
         info("Sending openPosition tx...");
         const openTx = await program.methods
           .openPosition(
@@ -430,6 +439,7 @@ async function main() {
             Array.from(eMargin),
             0, // cross margin
             margin,
+            true, // is_long plaintext flag (hardcoded long for smoke test)
             Array.from(pubKey),
             nonceBN,
             computationOffset
@@ -439,6 +449,8 @@ async function main() {
             market: MARKET_ACCOUNT,
             marginAccount: marginPda,
             position: positionAddress,
+            fundingState: fundingStatePda,
+            posFundingRef: posFundingRefPda,
             mxeAccount,
             compDefAccount: market.openPositionCompDef,
             clusterAccount: clusterAddress,

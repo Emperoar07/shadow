@@ -206,6 +206,7 @@ pub fn revoke_trade_session_v2_handler(ctx: Context<RevokeTradeSessionV2>) -> Re
     encrypted_margin: [u8; 32],
     margin_mode: u8,
     margin: u64,
+    is_long: bool,
     client_pubkey: [u8; 32],
     nonce: u128,
     computation_offset: u64,
@@ -318,6 +319,7 @@ pub fn open_position_with_session_handler(
     encrypted_margin: [u8; 32],
     margin_mode: u8,
     margin: u64,
+    is_long: bool,
     client_pubkey: [u8; 32],
     nonce: u128,
     computation_offset: u64,
@@ -366,6 +368,7 @@ pub fn open_position_with_session_handler(
     position.index = next_position_index;
     position.bump = ctx.bumps.position;
     position.set_margin_mode_from_u8(margin_mode)?;
+    position.set_is_long(is_long);
     position.begin_pending_computation(
         ctx.accounts.computation_account.key(),
         Position::CALLBACK_KIND_OPEN,
@@ -864,6 +867,7 @@ pub fn withdraw_collateral_with_session_handler(
     encrypted_margin: [u8; 32],
     margin_mode: u8,
     margin: u64,
+    is_long: bool,
     client_pubkey: [u8; 32],
     nonce: u128,
     computation_offset: u64,
@@ -974,6 +978,7 @@ pub fn open_position_with_session_v2_handler(
     encrypted_margin: [u8; 32],
     margin_mode: u8,
     margin: u64,
+    is_long: bool,
     client_pubkey: [u8; 32],
     nonce: u128,
     computation_offset: u64,
@@ -1022,6 +1027,7 @@ pub fn open_position_with_session_v2_handler(
     position.index = next_position_index;
     position.bump = ctx.bumps.position;
     position.set_margin_mode_from_u8(margin_mode)?;
+    position.set_is_long(is_long);
     position.begin_pending_computation(
         ctx.accounts.computation_account.key(),
         Position::CALLBACK_KIND_OPEN,

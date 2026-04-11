@@ -862,6 +862,16 @@ export class ShadowPerpClient {
     );
 
     const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
+    const isLong = input.direction === "long";
+
+    const [fundingStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("funding"), market.toBuffer()],
+      this.config.programId
+    );
+    const [posFundingRefPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("pos-funding"), positionAddress.toBuffer()],
+      this.config.programId
+    );
 
     const tx = await this.program.methods
       .openPosition(
@@ -872,6 +882,7 @@ export class ShadowPerpClient {
         Array.from(encryptedMargin),
         marginModeFlag,
         input.margin,
+        isLong,
         Array.from(this.clientPublicKey!),
         nonceBN,
         computationOffset
@@ -881,6 +892,8 @@ export class ShadowPerpClient {
         market,
         marginAccount,
         position: positionAddress,
+        fundingState: fundingStatePda,
+        posFundingRef: posFundingRefPda,
         mxeAccount,
         compDefAccount,
         clusterAccount: this.config.clusterAddress,
@@ -945,6 +958,16 @@ export class ShadowPerpClient {
     );
 
     const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
+    const isLong = input.direction === "long";
+
+    const [fundingStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("funding"), market.toBuffer()],
+      this.config.programId
+    );
+    const [posFundingRefPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("pos-funding"), positionAddress.toBuffer()],
+      this.config.programId
+    );
 
     const tx = await this.program.methods
       .openPositionWithSession(
@@ -955,6 +978,7 @@ export class ShadowPerpClient {
         Array.from(encryptedMargin),
         marginModeFlag,
         input.margin,
+        isLong,
         Array.from(this.clientPublicKey!),
         nonceBN,
         computationOffset
@@ -966,6 +990,8 @@ export class ShadowPerpClient {
         session: sessionAddress,
         marginAccount,
         position: positionAddress,
+        fundingState: fundingStatePda,
+        posFundingRef: posFundingRefPda,
         mxeAccount,
         compDefAccount,
         clusterAccount: this.config.clusterAddress,
@@ -1023,12 +1049,22 @@ export class ShadowPerpClient {
     );
 
     const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
+    const isLong = input.direction === "long";
     const methods = (this.program as any).methods;
     if (!methods?.openPositionWithSessionV2) {
       throw new Error(
         "openPositionWithSessionV2 is unavailable in the loaded IDL. Rebuild/sync IDL first."
       );
     }
+
+    const [fundingStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("funding"), market.toBuffer()],
+      this.config.programId
+    );
+    const [posFundingRefPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("pos-funding"), positionAddress.toBuffer()],
+      this.config.programId
+    );
 
     const tx = await methods
       .openPositionWithSessionV2(
@@ -1039,6 +1075,7 @@ export class ShadowPerpClient {
         Array.from(encryptedMargin),
         marginModeFlag,
         input.margin,
+        isLong,
         Array.from(this.clientPublicKey!),
         nonceBN,
         computationOffset
@@ -1050,6 +1087,8 @@ export class ShadowPerpClient {
         session: sessionAddress,
         marginAccount,
         position: positionAddress,
+        fundingState: fundingStatePda,
+        posFundingRef: posFundingRefPda,
         mxeAccount,
         compDefAccount,
         clusterAccount: this.config.clusterAddress,
@@ -1373,6 +1412,15 @@ export class ShadowPerpClient {
       );
     }
 
+    const [fundingStatePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("funding"), market.toBuffer()],
+      this.config.programId
+    );
+    const [posFundingRefPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("pos-funding"), positionAddress.toBuffer()],
+      this.config.programId
+    );
+
     const tx = await methods
       .settleClosePosition()
       .accounts({
@@ -1382,6 +1430,8 @@ export class ShadowPerpClient {
         ownerTokenAccount,
         vault: marketAccount.vault,
         sharedVaultAuthority: this.getSharedVaultAuthorityAddress(marketAccount.collateralMint),
+        posFundingRef: posFundingRefPda,
+        fundingState: fundingStatePda,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .transaction();

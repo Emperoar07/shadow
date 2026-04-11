@@ -91,6 +91,8 @@ impl Position {
     const PENDING_CALLBACK_KIND_OFFSET: usize = 16;
     const PENDING_COMP_OFFSET_OFFSET: usize = 17;
     const MARGIN_MODE_OFFSET: usize = 25;
+    // [26] = is_long flag (1 = long, 0 = short/unknown). Written at open-instruction time.
+    const IS_LONG_OFFSET: usize = 26;
 
     pub const CALLBACK_KIND_NONE: u8 = 0;
     pub const CALLBACK_KIND_OPEN: u8 = 1;
@@ -183,6 +185,17 @@ impl Position {
         let mode = MarginMode::from_u8(value)?;
         self.set_margin_mode(mode);
         Ok(())
+    }
+
+    /// Returns true if this position is long. False means short or not yet set.
+    pub fn is_long(&self) -> bool {
+        self._reserved[Self::IS_LONG_OFFSET] == 1
+    }
+
+    /// Stores the direction flag. Called at open-instruction time — the user
+    /// trivially knows their own direction so this is not a privacy concern.
+    pub fn set_is_long(&mut self, long: bool) {
+        self._reserved[Self::IS_LONG_OFFSET] = if long { 1 } else { 0 };
     }
 
     pub const LEN: usize = 8 +   // discriminator
