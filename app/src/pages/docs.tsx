@@ -657,7 +657,11 @@ export default function DocsPage() {
 
             <h3>Is my data stored anywhere?</h3>
             <p>
-              Trading preferences, session info, and automation rules (limit orders, TP/SL) are stored in your browser's <Code>localStorage</Code>. Actual position data is read directly from the Solana blockchain. No personal data is sent to any server other than the relay, which only receives encrypted trade inputs.
+              Trading preferences, session info, automation rules, cached activity, layout preferences, and RPC settings
+              are stored in your browser's <Code>localStorage</Code>. Actual on chain position state is still read from
+              Solana, but the app also keeps a few local convenience snapshots so the interface can restore faster.
+              Server-backed features such as the relay and history routes may receive your public wallet address and
+              encrypted trade inputs when needed to fulfill the request.
             </p>
 
             <h3>Can I use ShadowPerp on mainnet?</h3>
@@ -674,17 +678,22 @@ export default function DocsPage() {
               <p>
                 ShadowPerp does not require account registration and does not collect personally identifiable information.
                 When you connect a wallet, your public key is used only to identify your on chain margin account and
-                trading session. We do not store wallet addresses on any server.
+                trading session. Some server-backed features, including relay requests and wallet history lookups, may
+                receive your public wallet address in order to fulfill the request, but the product does not create a
+                user profile or account around that data.
               </p>
               <p>
                 The relay server receives encrypted trade inputs and your session authorization signature. These are
-                used only to submit transactions on your behalf and are not retained after submission.
+                used only to submit transactions on your behalf. ShadowPerp is not designed to retain plaintext trade
+                inputs as application records, but normal operational logs and hosting telemetry may still capture
+                request metadata during debugging or incident handling.
               </p>
               <h3>Cookies and Local Storage</h3>
               <p>
-                ShadowPerp stores position metadata and session information in your browser's <Code>localStorage</Code>.
-                This data stays on your device except when specific relay requests require it. No third party tracking
-                cookies are used.
+                ShadowPerp stores session information, automation rules, theme and layout preferences, RPC preferences,
+                activity cache entries, and some UI convenience metadata in your browser's <Code>localStorage</Code>.
+                This data stays on your device unless a specific server-backed feature needs your public wallet address
+                or encrypted payload to complete the request. No third party tracking cookies are used.
               </p>
               <h3>Blockchain Data</h3>
               <p>
@@ -695,8 +704,8 @@ export default function DocsPage() {
               <h3>Third Party Services</h3>
               <p>
                 ShadowPerp uses Pyth Network for primary oracle price feeds, with public APIs from Coinbase and Binance for
-                reference data. No user data is sent to these services. Arcium processes encrypted trade inputs, and
-                individual MPC nodes do not get access to the plaintext data.
+                reference data. ShadowPerp does not intentionally send personal profile data to these services.
+                Arcium processes encrypted trade inputs, and individual MPC nodes do not get access to the plaintext data.
               </p>
               <h3>Contact</h3>
               <p>
@@ -775,6 +784,11 @@ export default function DocsPage() {
                     <td>Persistent</td>
                   </tr>
                   <tr>
+                    <td><Code>shadowperp:posviews:v1:*</Code></td>
+                    <td>UI convenience snapshots of decrypted position views keyed by wallet</td>
+                    <td>Persistent</td>
+                  </tr>
+                  <tr>
                     <td><Code>shadowperp-trading-settings</Code></td>
                     <td>Trading settings such as slippage and default leverage</td>
                     <td>Persistent</td>
@@ -783,6 +797,31 @@ export default function DocsPage() {
                     <td><Code>shadowperp-selected-pair</Code></td>
                     <td>Last selected trading pair</td>
                     <td>Persistent</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp.rpc.endpoints</Code></td>
+                    <td>Saved custom RPC endpoint list</td>
+                    <td>Persistent</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp.rpc.override</Code> / <Code>shadowperp.rpc.index</Code></td>
+                    <td>Active RPC override and selected endpoint preference</td>
+                    <td>Persistent</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp-panel-visibility</Code></td>
+                    <td>Layout panel visibility preferences</td>
+                    <td>Persistent</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp-layout-locked</Code> / <Code>shadowperp-layout-v7</Code></td>
+                    <td>Saved terminal layout lock state and grid arrangement</td>
+                    <td>Persistent</td>
+                  </tr>
+                  <tr>
+                    <td><Code>shadowperp:ui:activity:v2:*</Code></td>
+                    <td>Cached wallet activity labels used by the wallet popup</td>
+                    <td>Rolling local cache</td>
                   </tr>
                 </tbody>
               </table>

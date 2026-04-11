@@ -4,6 +4,39 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Privacy Docs Truth Pass (2026-04-11 UTC)
+
+### What changed
+
+- Tightened the legal/privacy copy in `app/src/pages/docs.tsx` so it matches current repo behavior more precisely:
+  - softened the claim that wallet addresses are never received by server-backed routes
+  - softened the claim that relay payloads are never retained in any form
+  - clarified that local browser persistence includes more than session info and automation rules
+  - expanded the Cookie Policy table to include RPC preferences, layout state, wallet activity cache, and local position-view convenience storage
+- Reviewed `README.md` for the same class of overclaim:
+  - no matching privacy-policy wording needed correction there in this pass
+
+### What was verified
+
+- Code references for browser persistence and server-backed wallet usage were checked in:
+  - `app/src/lib/runtime.ts`
+  - `app/src/components/layout/SettingsPanel.tsx`
+  - `app/src/components/WalletPopup.tsx`
+  - `app/src/lib/trade-automation.ts`
+  - `app/src/pages/api/history.ts`
+  - `app/src/pages/api/relay/open.ts`
+
+### Current blocker
+
+- Public privacy/legal wording is now closer to the real app behavior.
+- Main protocol blocker remains unchanged:
+  - the Arcium-backed open lane still does not finalize to `Open` on the active devnet namespace
+
+### Next safe step
+
+1. Run the app typecheck after this docs pass.
+2. If it passes, commit and push the privacy-docs correction as a small follow-up.
+
 ## Safe Repo Cleanup Pass (2026-04-11 UTC)
 
 ### What changed
