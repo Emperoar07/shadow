@@ -35,7 +35,7 @@ const STEPS: { key: TradeStep; label: string; sub: string }[] = [
 
 const PROGRESS_AUTO_MINIMIZE_MS  = 1200;
 const TERMINAL_AUTO_MINIMIZE_MS  = 1200;
-const TERMINAL_AUTO_DISMISS_MS   = 10_000;
+const TERMINAL_AUTO_DISMISS_MS   = 8_000;
 const QUEUED_PERSIST_KEY         = "shadow-queued-tx";
 
 function stepIndex(step: TradeStep): number {
@@ -308,6 +308,13 @@ export default function TradeConfirmationModal({
     if (isTerminal) scheduleDismiss();
   };
 
+  // On touch devices mouseLeave never fires after a tap, leaving isHovered stuck.
+  // Reset on touchEnd so the dismiss timer can resume.
+  const handleTouchEnd = () => {
+    setIsHovered(false);
+    if (isTerminal) scheduleDismiss();
+  };
+
   const handleRetry = () => {
     try { localStorage.removeItem(QUEUED_PERSIST_KEY); } catch {}
     onRetry?.();
@@ -323,6 +330,7 @@ export default function TradeConfirmationModal({
         onMouseLeave={handlePointerLeave}
         onFocus={handlePointerEnter}
         onBlur={handlePointerLeave}
+        onTouchEnd={handleTouchEnd}
         className={`pointer-events-auto relative flex min-w-[15rem] items-center gap-3 overflow-hidden rounded-2xl border border-shadow-500 bg-shadow-800/95 px-4 py-3 shadow-2xl backdrop-blur transition-all hover:-translate-y-0.5 ${
           isError ? "shadow-red-500/10" : isComplete ? "shadow-emerald-500/10" : "shadow-purple-500/10"
         }`}
@@ -370,6 +378,7 @@ export default function TradeConfirmationModal({
         onMouseLeave={handlePointerLeave}
         onFocus={handlePointerEnter}
         onBlur={handlePointerLeave}
+        onTouchEnd={handleTouchEnd}
         className={`pointer-events-auto w-[min(26rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-shadow-500/80 bg-shadow-800 shadow-2xl transition-all duration-300 ${
           visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-95 opacity-0"
         }`}
