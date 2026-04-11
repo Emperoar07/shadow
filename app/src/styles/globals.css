@@ -848,3 +848,79 @@ html.light .terminal-grid-container {
 .layout-locked .react-resizable-handle {
   display: none !important;
 }
+
+/* ── Light mode gap-fill: opacity variants & missing component classes ── */
+
+/* Generic opacity-variant backgrounds */
+html.light .bg-shadow-800\/50  { background-color: rgba(247,249,252,0.75) !important; }
+html.light .bg-shadow-800\/55  { background-color: rgba(247,249,252,0.80) !important; }
+html.light .bg-shadow-800\/60  { background-color: rgba(247,249,252,0.85) !important; }
+html.light .bg-shadow-800\/65  { background-color: rgba(247,249,252,0.88) !important; }
+html.light .bg-shadow-800\/80  { background-color: rgba(247,249,252,0.92) !important; }
+html.light .bg-shadow-800\/95  { background-color: rgba(247,249,252,0.97) !important; }
+html.light .bg-shadow-900\/60  { background-color: rgba(238,242,247,0.85) !important; }
+html.light .bg-shadow-900\/70  { background-color: rgba(238,242,247,0.90) !important; }
+html.light .bg-shadow-900\/90  { background-color: rgba(238,242,247,0.95) !important; }
+html.light .bg-shadow-700\/80  { background-color: rgba(233,237,245,0.95) !important; }
+html.light .bg-shadow-500      { background-color: #dde1ec !important; }
+
+/* Generic opacity-variant borders */
+html.light .border-shadow-700  { border-color: #d8dce8 !important; }
+html.light .border-shadow-600\/80 { border-color: rgba(216,220,232,0.90) !important; }
+html.light .border-shadow-500\/80 { border-color: rgba(216,220,232,0.90) !important; }
+html.light .border-shadow-500\/50 { border-color: rgba(216,220,232,0.70) !important; }
+html.light .border-shadow-400  { border-color: #c8d0de !important; }
+html.light .border-shadow-400\/60 { border-color: rgba(200,208,222,0.75) !important; }
+html.light .border-shadow-700\/40 { border-color: rgba(216,220,232,0.55) !important; }
+
+/* text-gray-100 already covered; add text-gray-700 for WalletPopup */
+html.light .text-gray-700 { color: #334155 !important; }
+
+/* WalletPopup popover */
+html.light .wallet-popup-panel {
+  background-color: #f8fafc !important;
+  border-color: #d8dce8 !important;
+}
+html.light .wallet-popup-panel .bg-shadow-800\/60 { background-color: rgba(241,243,249,0.85) !important; }
+html.light .wallet-popup-panel .bg-shadow-700\/80 { background-color: rgba(233,237,245,0.95) !important; }
+html.light .wallet-popup-panel .border-shadow-500\/50 { border-color: rgba(216,220,232,0.70) !important; }
+
+/* OrderConfirmModal */
+html.light .order-confirm-modal {
+  background-color: #f8fafc !important;
+  border-color: #d8dce8 !important;
+}
+html.light .order-confirm-modal .bg-shadow-900\/60 { background-color: rgba(238,242,247,0.85) !important; }
+html.light .order-confirm-modal .bg-shadow-800 { background-color: #f7f9fc !important; }
+html.light .order-confirm-modal .border-shadow-500\/80 { border-color: rgba(216,220,232,0.90) !important; }
+html.light .order-confirm-modal .border-shadow-600\/80 { border-color: rgba(216,220,232,0.90) !important; }
+html.light .order-confirm-modal .text-gray-400 { color: #64748b !important; }
+html.light .order-confirm-modal .text-gray-300 { color: #334155 !important; }
+
+/* TradeConfirmationModal */
+html.light .trade-confirmation-modal {
+  background-color: #f8fafc !important;
+  border-color: #d8dce8 !important;
+}
+html.light .trade-confirmation-modal .bg-shadow-800\/95 { background-color: rgba(247,249,252,0.97) !important; }
+html.light .trade-confirmation-modal .bg-shadow-900\/70 { background-color: rgba(238,242,247,0.90) !important; }
+html.light .trade-confirmation-modal .bg-shadow-500 { background-color: #dde1ec !important; }
+html.light .trade-confirmation-modal .border-shadow-500\/80 { border-color: rgba(216,220,232,0.90) !important; }
+html.light .trade-confirmation-modal .border-shadow-600\/80 { border-color: rgba(216,220,232,0.90) !important; }
+
+/* LeverageModal */
+html.light .leverage-modal-panel {
+  background-color: #f8fafc !important;
+  border-color: #d8dce8 !important;
+}
+html.light .leverage-modal-panel .bg-shadow-800\/50 { background-color: rgba(247,249,252,0.75) !important; }
+
+/* NetworkIndicator */
+html.light .bg-shadow-700\/50 { background-color: rgba(233,237,245,0.75) !important; }
+
+/* PairSelector dropdown */
+html.light .pair-dropdown .bg-shadow-800 { background-color: #f8fafc !important; }
+html.light .pair-dropdown .border-shadow-600 { border-color: #d8dce8 !important; }
+html.light .pair-dropdown .hover\:bg-shadow-700:hover { background-color: #f1f4fa !important; }
+html.light .pair-dropdown .border-shadow-400 { border-color: #c8d0de !important; }
+html.light .pair-dropdown .text-gray-400 { color: #64748b !important; }

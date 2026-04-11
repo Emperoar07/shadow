@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::errors::ShadowPerpError;
-use crate::state::{Market, Position, PositionClosed, PositionStatus};
+use crate::state::{FundingState, Market, Position, PositionClosed, PositionFundingRef, PositionStatus};
 
 #[derive(Accounts)]
 pub struct SettleClosePosition<'info> {
@@ -44,6 +44,24 @@ pub struct SettleClosePosition<'info> {
     )]
     pub shared_vault_authority: UncheckedAccount<'info>,
 
+    /// PositionFundingRef PDA for this position — optional.
+    /// If present, the funding delta is applied to the settlement amount and the account is
+    /// closed here to recover rent (returned to payer).
+    #[account(
+        mut,
+        seeds = [b"pos-funding", position.key().as_ref()],
+        bump,
+        close = payer,
+    )]
+    pub pos_funding_ref: Option<Account<'info, PositionFundingRef>>,
+
+    /// FundingState for this market — read-only. Required when pos_funding_ref is provided.
+    #[account(
+        seeds = [b"funding", market.key().as_ref()],
+        bump,
+    )]
+    pub funding_state: Option<Account<'info, FundingState>>,
+
     pub token_program: Program<'info, Token>,
 }
 
@@ -56,8 +74,42 @@ pub fn handler(ctx: Context<SettleClosePosition>) -> Result<()> {
         ShadowPerpError::InvalidAccountData
     );
 
-    // position.margin holds the settlement amount stored by the callback.
-    let settlement_amount = position.margin;
+    // position.margin holds the base settlement amount stored by the close callback.
+    let base_settlement = position.margin;
+
+    // Apply accrued funding if this position has a PositionFundingRef and a live FundingState.
+    // funding_delta_bps = current_cumulative_funding - entry_funding_rate (in bps * hours)
+    // funding_owed (in margin units) = base_settlement * |funding_delta_bps| / 10_000
+    // Positive delta (longs pay): reduce settlement. Negative delta: increase settlement.
+    let settlement_amount = if let (Some(pos_ref), Some(fs)) = (
+        ctx.accounts.pos_funding_ref.as_ref(),
+        ctx.accounts.funding_state.as_ref(),
+    ) {
+        let funding_delta = fs
+            .cumulative_funding
+            .saturating_sub(pos_ref.entry_funding_rate);
+
+        if funding_delta != 0 {
+            // Scale: settlement * |bps| / 10_000, capped at settlement amount.
+            let abs_delta = funding_delta.unsigned_abs();
+            let adjustment = (base_settlement as u128)
+                .saturating_mul(abs_delta as u128)
+                / 10_000;
+            let adjustment = adjustment.min(base_settlement as u128) as u64;
+
+            if funding_delta > 0 {
+                // Longs owe funding — reduce what they receive.
+                base_settlement.saturating_sub(adjustment)
+            } else {
+                // Shorts owe funding — longs receive more.
+                base_settlement.saturating_add(adjustment)
+            }
+        } else {
+            base_settlement
+        }
+    } else {
+        base_settlement
+    };
 
     let (shared_vault, _) = Pubkey::find_program_address(
         &[b"shared_vault", market.collateral_mint.as_ref()],

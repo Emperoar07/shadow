@@ -239,9 +239,6 @@ export default function BottomPositionsPanel({
   const [oraclePrice, setOraclePrice] = useState<number | null>(null);
   const [liqThreshold, setLiqThreshold] = useState(5);
   const [filterCurrentMarket, setFilterCurrentMarket] = useState(false);
-  const [dateFilterOpen, setDateFilterOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [pairPrices, setPairPrices] = useState<Record<string, number>>({});
   const [pairLiqThresholds, setPairLiqThresholds] = useState<Record<string, number>>({});
   const [balancesLoading, setBalancesLoading] = useState(false);
@@ -566,22 +563,13 @@ export default function BottomPositionsPanel({
   const historyPositions = indexedHistoryPositions ?? fallbackHistoryPositions;
 
   const filterPositions = useCallback((list: UiPosition[]) => {
-    let result = list;
     if (filterCurrentMarket && activePairLabel) {
-      result = result.filter((p) => p.pairLabel === activePairLabel);
+      return list.filter((p) => p.pairLabel === activePairLabel);
     }
-    if (dateFrom) {
-      const from = new Date(dateFrom).getTime();
-      result = result.filter((p) => p.openedAt.getTime() >= from);
-    }
-    if (dateTo) {
-      const to = new Date(dateTo).getTime() + 86400000; // inclusive end of day
-      result = result.filter((p) => p.openedAt.getTime() <= to);
-    }
-    return result;
-  }, [filterCurrentMarket, activePairLabel, dateFrom, dateTo]);
+    return list;
+  }, [filterCurrentMarket, activePairLabel]);
 
-  const hasActiveFilters = filterCurrentMarket || dateFrom !== "" || dateTo !== "";
+  const hasActiveFilters = filterCurrentMarket;
 
   const displayed = useMemo(() => {
     const base =
@@ -593,7 +581,6 @@ export default function BottomPositionsPanel({
     return filterPositions(base);
   }, [activeTab, openPositions, historyPositions, filterPositions]);
 
-  const hasEncryptedPositions = openPositions.some((position) => position.hasEncryptedData);
   const tradeActivity = useMemo(
     () =>
       activityRows.filter((row) =>
@@ -893,12 +880,6 @@ export default function BottomPositionsPanel({
           ))}
         </div>
         <div className="flex items-center gap-2">
-          {hasEncryptedPositions ? (
-            <span className="rounded-full bg-accent-purple/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent-purple">
-              Encrypted
-            </span>
-          ) : null}
-
           {/* Current Market toggle */}
           <label className="flex items-center gap-1.5 cursor-pointer select-none group">
             <input
@@ -912,26 +893,10 @@ export default function BottomPositionsPanel({
             </span>
           </label>
 
-          {/* Date filter button */}
-          <button
-            onClick={() => setDateFilterOpen((v) => !v)}
-            className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors ${
-              dateFilterOpen || dateFrom || dateTo
-                ? "bg-accent-purple/20 text-accent-purple"
-                : "text-gray-400 hover:text-gray-200 hover:bg-shadow-600"
-            }`}
-            title="Filter by date"
-          >
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5v-2z"/>
-            </svg>
-            Date
-          </button>
-
           {/* Clear all filters */}
           {hasActiveFilters && (
             <button
-              onClick={() => { setFilterCurrentMarket(false); setDateFrom(""); setDateTo(""); }}
+              onClick={() => setFilterCurrentMarket(false)}
               className="text-[11px] text-gray-500 hover:text-gray-200 transition-colors px-1"
               title="Clear filters"
             >
@@ -940,61 +905,6 @@ export default function BottomPositionsPanel({
           )}
         </div>
       </div>
-
-      {/* Date filter overlay */}
-      {dateFilterOpen && (
-        <div className="relative z-20 shrink-0">
-          <div
-            className="fixed inset-0"
-            onClick={() => setDateFilterOpen(false)}
-          />
-          <div className="absolute right-3 top-0 z-30 mt-1 w-72 rounded-lg border border-shadow-500 bg-shadow-800 shadow-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[12px] font-semibold text-gray-200 tracking-wide uppercase">Filter by Date</span>
-              <button
-                onClick={() => setDateFilterOpen(false)}
-                className="text-gray-500 hover:text-gray-200 transition-colors text-lg leading-none"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">From</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full rounded border border-shadow-500 bg-shadow-900 px-3 py-1.5 text-[12px] text-gray-200 focus:border-accent-purple/50 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">To</label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full rounded border border-shadow-500 bg-shadow-900 px-3 py-1.5 text-[12px] text-gray-200 focus:border-accent-purple/50 focus:outline-none"
-                />
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={() => { setDateFrom(""); setDateTo(""); }}
-                  className="flex-1 rounded border border-shadow-500 py-1.5 text-[11px] text-gray-400 hover:text-gray-200 hover:border-gray-400 transition-colors"
-                >
-                  Clear
-                </button>
-                <button
-                  onClick={() => setDateFilterOpen(false)}
-                  className="flex-1 rounded bg-accent-purple/20 border border-accent-purple/30 py-1.5 text-[11px] text-accent-purple hover:bg-accent-purple/30 transition-colors"
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Content */}
       <div className="overflow-x-auto flex-1 min-h-0">

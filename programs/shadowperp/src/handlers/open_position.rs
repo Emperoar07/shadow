@@ -7,7 +7,7 @@ use arcium_anchor::traits::CallbackCompAccs;
 use arcium_client::idl::arcium::types::CallbackAccount;
 
 use crate::errors::{ErrorCode, ShadowPerpError};
-use crate::state::{MarginAccount, Market, Position, PositionStatus};
+use crate::state::{FundingState, MarginAccount, Market, Position, PositionFundingRef, PositionStatus};
 
 use crate::handlers::callbacks::open_position_callback::OpenPositionProbeBCallback;
 
@@ -52,6 +52,26 @@ pub struct OpenPosition<'info> {
         bump
     )]
     pub position: Box<Account<'info, Position>>,
+
+    /// FundingState for this market — read-only. Optional: not all markets have one yet.
+    /// When present, cumulative_funding is snapshotted into pos_funding_ref at open time.
+    #[account(
+        seeds = [b"funding", market.key().as_ref()],
+        bump,
+    )]
+    pub funding_state: Option<Box<Account<'info, FundingState>>>,
+
+    /// PositionFundingRef PDA — created here (owner pays rent) to record entry_funding_rate.
+    /// Seeds: [b"pos-funding", position.key()].
+    /// Closed by settle_close_position once the position is fully settled.
+    #[account(
+        init,
+        payer = owner,
+        space = PositionFundingRef::LEN,
+        seeds = [b"pos-funding", position.key().as_ref()],
+        bump,
+    )]
+    pub pos_funding_ref: Box<Account<'info, PositionFundingRef>>,
 
     // --- Arcium accounts (populated by queue_computation_accounts macro) ---
     #[account(address = derive_mxe_pda!())]
@@ -217,6 +237,21 @@ pub fn handler(
         // max_leverage: only market field needed by the open-position circuit
         .plaintext_u8(market.max_leverage)
         .build();
+
+    // Snapshot the current cumulative funding rate so settle_close_position can compute
+    // the funding delta owed over the life of the position. Created here (not in the
+    // callback) because the user is the payer and signer; Arcium callbacks have no payer.
+    let entry_funding_rate = ctx
+        .accounts
+        .funding_state
+        .as_ref()
+        .map(|fs| fs.cumulative_funding)
+        .unwrap_or(0);
+    let pos_funding_ref = &mut ctx.accounts.pos_funding_ref;
+    pos_funding_ref.position = position.key();
+    pos_funding_ref.entry_funding_rate = entry_funding_rate;
+    pos_funding_ref.accrued_funding = 0;
+    pos_funding_ref.bump = ctx.bumps.pos_funding_ref;
 
     // Build callback instruction for when MPC completes
     let callback_accounts = vec![

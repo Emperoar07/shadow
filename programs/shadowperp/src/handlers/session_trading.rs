@@ -12,9 +12,9 @@ use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::handlers::callbacks::close_position_callback::ClosePositionV2Callback;
 use crate::handlers::callbacks::open_position_callback::OpenPositionProbeBCallback;
 use crate::state::{
-    CollateralDeposited, MarginAccount, Market, Position, PositionStatus, TradeSession,
-    TradeSessionCreated, TradeSessionRevoked, TradeSessionV2, TradeSessionV2Created,
-    TradeSessionV2Revoked,
+    CollateralDeposited, FundingState, MarginAccount, Market, Position, PositionFundingRef,
+    PositionStatus, TradeSession, TradeSessionCreated, TradeSessionRevoked, TradeSessionV2,
+    TradeSessionV2Created, TradeSessionV2Revoked,
 };
 
 #[derive(Accounts)]
@@ -250,6 +250,23 @@ pub struct OpenPositionWithSession<'info> {
     )]
     pub position: Box<Account<'info, Position>>,
 
+    /// FundingState for this market — read-only. Optional: not all markets have one yet.
+    #[account(
+        seeds = [b"funding", market.key().as_ref()],
+        bump,
+    )]
+    pub funding_state: Option<Box<Account<'info, FundingState>>>,
+
+    /// PositionFundingRef PDA — created here (relayer pays rent) to record entry_funding_rate.
+    #[account(
+        init,
+        payer = relayer,
+        space = PositionFundingRef::LEN,
+        seeds = [b"pos-funding", position.key().as_ref()],
+        bump,
+    )]
+    pub pos_funding_ref: Box<Account<'info, PositionFundingRef>>,
+
     // --- Arcium accounts (populated by queue_computation_accounts macro) ---
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
@@ -362,6 +379,19 @@ pub fn open_position_with_session_handler(
     encrypted_data[96..128].copy_from_slice(&encrypted_is_long);
     encrypted_data[128..160].copy_from_slice(&encrypted_margin);
     position.encrypted_data = encrypted_data;
+
+    // Snapshot entry funding rate — see open_position.rs for design rationale.
+    let entry_funding_rate = ctx
+        .accounts
+        .funding_state
+        .as_ref()
+        .map(|fs| fs.cumulative_funding)
+        .unwrap_or(0);
+    let pos_funding_ref = &mut ctx.accounts.pos_funding_ref;
+    pos_funding_ref.position = position.key();
+    pos_funding_ref.entry_funding_rate = entry_funding_rate;
+    pos_funding_ref.accrued_funding = 0;
+    pos_funding_ref.bump = ctx.bumps.pos_funding_ref;
 
     let args = ArgBuilder::new()
         .x25519_pubkey(client_pubkey)
@@ -877,6 +907,23 @@ pub struct OpenPositionWithSessionV2<'info> {
     )]
     pub position: Box<Account<'info, Position>>,
 
+    /// FundingState for this market — read-only. Optional: not all markets have one yet.
+    #[account(
+        seeds = [b"funding", market.key().as_ref()],
+        bump,
+    )]
+    pub funding_state: Option<Box<Account<'info, FundingState>>>,
+
+    /// PositionFundingRef PDA — created here (relayer pays rent) to record entry_funding_rate.
+    #[account(
+        init,
+        payer = relayer,
+        space = PositionFundingRef::LEN,
+        seeds = [b"pos-funding", position.key().as_ref()],
+        bump,
+    )]
+    pub pos_funding_ref: Box<Account<'info, PositionFundingRef>>,
+
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
     #[account(address = market.open_position_comp_def)]
@@ -988,6 +1035,19 @@ pub fn open_position_with_session_v2_handler(
     encrypted_data[96..128].copy_from_slice(&encrypted_is_long);
     encrypted_data[128..160].copy_from_slice(&encrypted_margin);
     position.encrypted_data = encrypted_data;
+
+    // Snapshot entry funding rate — see open_position.rs for design rationale.
+    let entry_funding_rate = ctx
+        .accounts
+        .funding_state
+        .as_ref()
+        .map(|fs| fs.cumulative_funding)
+        .unwrap_or(0);
+    let pos_funding_ref = &mut ctx.accounts.pos_funding_ref;
+    pos_funding_ref.position = position.key();
+    pos_funding_ref.entry_funding_rate = entry_funding_rate;
+    pos_funding_ref.accrued_funding = 0;
+    pos_funding_ref.bump = ctx.bumps.pos_funding_ref;
 
     let args = ArgBuilder::new()
         .x25519_pubkey(client_pubkey)
