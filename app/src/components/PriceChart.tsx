@@ -114,6 +114,7 @@ export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProp
       overrides: {
         "paneProperties.background": colors.paneBackground,
         "paneProperties.backgroundType": "solid",
+        // Grid lines — both axes match background exactly so they're invisible
         "paneProperties.vertGridProperties.color": colors.paneBackground,
         "paneProperties.vertGridProperties.style": 0,
         "paneProperties.horzGridProperties.color": colors.paneBackground,
@@ -133,6 +134,13 @@ export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProp
         // Bar chart (fallback style)
         "mainSeriesProperties.barStyle.upColor": colors.upColor,
         "mainSeriesProperties.barStyle.downColor": colors.downColor,
+      },
+      // Volume sub-pane grid also needs to be hidden
+      studies_overrides: {
+        "volume.volume.color.0": colors.downColor,
+        "volume.volume.color.1": colors.upColor,
+        "volume.volume ma.color": colors.crosshairColor,
+        "volume.show ma": false,
       },
     };
 
