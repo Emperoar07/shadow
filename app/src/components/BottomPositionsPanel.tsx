@@ -216,21 +216,10 @@ export default function BottomPositionsPanel({
     if (!showNotifications) return "";
     return toast.loading(...args);
   }, [showNotifications]) as typeof toast.loading;
-  const { publicKey } = useWallet();
+  const { publicKey, connecting, connected } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
-  const [positions, setPositions] = useState<UiPosition[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const lastKey = localStorage.getItem("shadow:positions:last");
-      if (!lastKey) return [];
-      const raw = localStorage.getItem(`shadow:positions:v1:${lastKey}`);
-      if (!raw) return [];
-      return JSON.parse(raw) as UiPosition[];
-    } catch {
-      return [];
-    }
-  });
+  const [positions, setPositions] = useState<UiPosition[]>([]);
   const [loading, setLoading] = useState(false);
   const [closingAddress, setClosingAddress] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<BottomTab>("positions");
@@ -269,8 +258,19 @@ export default function BottomPositionsPanel({
   const prevPublicKeyRef = useRef<string | null>(null);
   useEffect(() => {
     const current = publicKey?.toBase58() ?? null;
-    // Only clear data if a *different* wallet connects, not on reconnect of the same wallet
-    if (current !== null && prevPublicKeyRef.current !== null && current !== prevPublicKeyRef.current) {
+    const prev = prevPublicKeyRef.current;
+    if (current === null && !connecting && !connected) {
+      // Wallet fully disconnected — clear everything
+      setPositions([]);
+      setIndexedHistoryPositions(null);
+      setActivityRows([]);
+      setWalletSolBalance(null);
+      setWalletTokenBalances([]);
+      setAccountTotal(null);
+      setFreeCollateral(null);
+      setLockedCollateral(null);
+    } else if (current !== null && prev !== null && current !== prev) {
+      // Different wallet connected — clear so we don't show stale data
       setPositions([]);
       setIndexedHistoryPositions(null);
       setActivityRows([]);
@@ -281,6 +281,18 @@ export default function BottomPositionsPanel({
       setLockedCollateral(null);
     }
     prevPublicKeyRef.current = current;
+  }, [publicKey, connecting, connected]);
+
+  // Seed from cache as soon as wallet key is known, before first fetch completes
+  useEffect(() => {
+    if (!publicKey) return;
+    try {
+      const raw = localStorage.getItem(`shadow:positions:v1:${publicKey.toBase58()}`);
+      if (raw) {
+        const cached = JSON.parse(raw) as UiPosition[];
+        setPositions((prev) => (prev.length === 0 ? cached : prev));
+      }
+    } catch { /* ignore */ }
   }, [publicKey]);
 
   const loadPositions = useCallback(async () => {

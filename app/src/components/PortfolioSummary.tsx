@@ -51,22 +51,20 @@ function writeCachedPortfolio(walletKey: string, data: PortfolioData) {
 }
 
 export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSummaryProps = {}) {
-  const { publicKey } = useWallet();
+  const { publicKey, connecting, connected } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
   const { connection } = useConnection();
-  const [data, setData] = useState<PortfolioData | null>(() => {
-    if (typeof window === "undefined") return null;
-    // Try to read the most recently cached wallet key so data appears immediately on refresh
-    try {
-      const lastKey = localStorage.getItem(`${PORTFOLIO_CACHE_KEY}:last`);
-      if (lastKey) return readCachedPortfolio(lastKey);
-    } catch {
-      // ignore
-    }
-    return null;
-  });
+  const [data, setData] = useState<PortfolioData | null>(null);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
+
+  // Seed from cache as soon as the wallet key is known (autoconnect flash window)
+  useEffect(() => {
+    if (!publicKey) return;
+    const cached = readCachedPortfolio(publicKey.toBase58());
+    if (cached && !data) setData(cached);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicKey]);
   const {
     relayAvailable,
     relaySession,
@@ -86,7 +84,8 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
 
   const loadPortfolio = useCallback(async () => {
     if (!publicKey || !anchorWallet) {
-      // Don't clear data — keep showing cached values until wallet reconnects
+      // Wallet disconnected entirely — clear display
+      if (!connecting && !connected) setData(null);
       return;
     }
 
@@ -223,8 +222,8 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
   }, [data, onMarginReady]);
 
 
-  // If no wallet at all (never connected), hide the component
-  if (!publicKey && !data) return null;
+  // Hide when no wallet is connected (not even autoconnecting)
+  if (!publicKey && !connecting && !connected) return null;
 
   const healthColor =
     (data?.accountHealth ?? 0) > 70
