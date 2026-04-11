@@ -4,6 +4,38 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## In-App Voice Alignment Pass (2026-04-11 UTC)
+
+### What changed
+
+- Brought the terminal copy closer to the new trader-first product voice across:
+  - `app/src/components/WalletPopup.tsx`
+  - `app/src/components/CollateralModal.tsx`
+  - `app/src/components/TradeConfirmationModal.tsx`
+  - `app/src/components/PositionsList.tsx`
+  - `app/src/components/BottomPositionsPanel.tsx`
+  - `app/src/components/TradingPanel.tsx`
+  - `app/src/lib/server/history.ts`
+- Replaced more system-facing phrases such as "protected queue", "delegated trading session", and "encrypted order queued" with calmer trader-facing wording while keeping Arcium explicit where it still adds clarity.
+- Kept all execution behavior unchanged; this was a copy-and-status polish pass only.
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS after the terminal copy updates
+- Mobile smoke on `/app` at `390x844` -> terminal layout still fits the updated text cleanly
+- Console during the `/app` smoke showed no new product errors; remaining warnings were the existing Next dev HMR warning and Lit dev-mode warning
+
+### Current blocker
+
+- Product voice is now more consistent across landing, docs, and the in-app terminal.
+- Main protocol blocker remains unchanged:
+  - the Arcium-backed open lane still does not finalize to `Open` on the active devnet namespace
+
+### Next safe step
+
+1. Commit and push this in-app voice-alignment follow-up if we want the repo state published.
+2. If we keep polishing UX, the next best target is the wallet-connected mobile flow for collateral/session/settings interactions.
+
 ## Public Positioning Copy Pass (2026-04-11 UTC)
 
 ### What changed

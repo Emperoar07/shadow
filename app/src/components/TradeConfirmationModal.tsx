@@ -55,7 +55,7 @@ function normalizeTradeError(
     return {
       title: hasQueuedTx ? "Still resolving" : "Needs retry",
       body: hasQueuedTx
-        ? "The request reached the protected queue and is still waiting on final settlement."
+        ? "Your order was submitted and is still waiting on final settlement."
         : "The order could not be completed. Please try again.",
       compact: hasQueuedTx ? "Waiting on final settlement" : "Order needs retry",
     };
@@ -64,7 +64,7 @@ function normalizeTradeError(
   if (/callback already failed on-chain/i.test(message)) {
     return {
       title: "Callback failed on-chain",
-      body: "The order reached the protected queue, but the callback aborted before the position could open.",
+      body: "Your order was submitted, but the callback aborted before the position could open.",
       compact: "Callback failed before open",
       detail: message,
       followUp: "Retry after the underlying issue is fixed. Your wallet and collateral stay under your control.",
@@ -80,7 +80,7 @@ function normalizeTradeError(
     const marketLabel = staleOraclePair ?? "this market";
     return {
       title: "Market data is syncing again",
-      body: `Shadow needs fresh reference prices for ${marketLabel} before it can queue a protected order.`,
+      body: `Shadow needs fresh reference prices for ${marketLabel} before it can send the order.`,
       compact: "Waiting for fresh price feeds",
       detail: message,
       followUp: "Give it a few seconds and retry. This is a market-data freshness issue, not a wallet approval problem.",
@@ -90,7 +90,7 @@ function normalizeTradeError(
   if (hasQueuedTx) {
     return {
       title: "Queued but still resolving",
-      body: "The request was accepted for protected processing, but final settlement has not completed yet.",
+      body: "Your order was accepted for private processing, but final settlement has not completed yet.",
       compact: "Queued and still resolving",
       detail: message,
       followUp: "If the state does not update soon, check the explorer link for the queued transaction and then retry.",
@@ -214,7 +214,7 @@ export default function TradeConfirmationModal({
     ? normalizedError.compact
     : isComplete
     ? "Position opened."
-    : "Processing securely on Arcium.";
+    : "Working through Arcium.";
   const hasKnownOnChainCallbackFailure =
     isError && /callback already failed on-chain/i.test(errorMessage ?? "");
   const statusLabel = isError
@@ -456,7 +456,7 @@ export default function TradeConfirmationModal({
               </div>
               <div>
                 <p className="text-sm font-semibold text-accent-green">Position opened</p>
-                <p className="text-[11px] text-gray-500">Secured via Arcium MPC</p>
+                <p className="text-[11px] text-gray-500">Verified through Arcium MPC</p>
               </div>
             </div>
           )}
@@ -490,7 +490,7 @@ export default function TradeConfirmationModal({
               <svg className="h-2.5 w-2.5 text-accent-purple/50" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </svg>
-              Secured by Arcium MPC
+              Protected by Arcium MPC
             </div>
           )}
         </div>

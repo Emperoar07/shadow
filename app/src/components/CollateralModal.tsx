@@ -423,7 +423,7 @@ export default function CollateralModal({
     : QUICK_AMOUNTS.map((v) => `$${v}`);
   const actionHelperText =
     relayAvailable
-      ? "Shadow will use your delegated session when supported, otherwise it falls back to a normal wallet transaction."
+      ? "Shadow will use your trading session when it can. If not, it will fall back to a normal wallet transaction."
       : "This action will open a normal wallet transaction on Solana devnet.";
   const actionLabel = tab === "deposit" ? "Deposit to trading account" : "Withdraw to wallet";
   const actionButtonLabel = isBusy
@@ -470,7 +470,7 @@ export default function CollateralModal({
               Trading account
             </p>
             <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
-              Token transfers are public on Solana. Protected position state stays separate from the transfer itself.
+              Token transfers are public on Solana. Your position details stay separate and encrypted from the transfer itself.
             </p>
           </div>
         </div>
@@ -570,7 +570,7 @@ export default function CollateralModal({
           </button>
 
           <p className="text-center text-[10px] leading-relaxed text-gray-600">
-            Collateral is held on-chain in the Shadow vault while your trading flow stays protected by Arcium MPC.
+            Your USDC sits in the Shadow vault on-chain while trade details stay encrypted through Arcium MPC.
           </p>
           <div className="text-center mt-1">
             <a

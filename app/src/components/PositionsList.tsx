@@ -118,9 +118,9 @@ export default function PositionsList() {
         const { client } = createShadowPerpClient(connection, anchorWallet);
         const marketAddress = new PublicKey(position.marketAddress);
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(marketAddress);
-        toast.loading("Queuing close via Arcium MPC...", { id: position.address });
+        toast.loading("Submitting close...", { id: position.address });
         const tx = await client.closePosition(marketAddress, position.index);
-        toast.loading("Awaiting MPC callback and settlement...", { id: position.address });
+        toast.loading("Waiting for close to settle...", { id: position.address });
         const finalized = await client.finalizeClosePosition(
           marketAddress,
           publicKey,
@@ -135,7 +135,7 @@ export default function PositionsList() {
           <div>
             <p className="font-medium">Position closed and settled</p>
             <p className="mt-1 text-xs text-gray-400">
-              PnL was revealed by MPC and settlement completed on-chain
+              PnL finalized and settlement completed on-chain
             </p>
             <a
               href={txUrl}
@@ -206,7 +206,7 @@ export default function PositionsList() {
           <div className="py-8 text-center">
             <p className="text-gray-400">No open positions.</p>
             <p className="mt-1 text-xs text-gray-500">
-              Open a position to trade privately via Arcium MPC
+              Open a position to start trading privately
             </p>
           </div>
         ) : (
@@ -315,7 +315,7 @@ function PositionCard({
             />
           </svg>
           <span className="text-xs text-accent-purple">
-            Position data is encrypted via Arcium MPC and only the protected execution flow can reveal what is needed.
+            Position details stay encrypted while the trade is active. Settlement only reveals what is needed.
           </span>
         </div>
       )}
@@ -324,12 +324,12 @@ function PositionCard({
         <div className="flex items-center justify-between border-t border-shadow-500 pt-4">
           <span className="text-xs text-gray-500">
             {isPending
-              ? "Waiting for the encrypted callback to complete..."
+              ? "Waiting for trade confirmation..."
               : isSettling
-              ? "Settlement is finishing on-chain..."
+              ? "Finishing settlement on-chain..."
               : isClosing
-              ? "PnL callback is in progress..."
-              : "Close to reveal PnL through the protected settlement flow"}
+              ? "Closing the trade..."
+              : "Close to finalize PnL and settle the trade"}
           </span>
           <button
             onClick={onClose}
@@ -359,7 +359,7 @@ function PositionCard({
             />
           </svg>
           <span>
-            {position.status === "liquidated" ? "Liquidated" : "Resolved"} - only PnL was revealed, position details remain encrypted
+            {position.status === "liquidated" ? "Liquidated" : "Resolved"} - only the realized result is visible; position details stay encrypted
           </span>
         </div>
       )}

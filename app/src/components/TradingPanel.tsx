@@ -1091,7 +1091,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                Submitting protected order...
+                Submitting order...
               </span>
             ) : !isRelaySessionActive ? (
               `Approve Session & ${tradeIntentLabel}`
@@ -1176,7 +1176,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       <OrderConfirmModal
         isOpen={openConfirmPending}
         title={`Open ${direction.charAt(0).toUpperCase() + direction.slice(1)} Position`}
-        description="Review the protected order summary before sending it through Arcium MPC."
+        description="Review your order before Shadow sends it through Arcium MPC."
         variant="default"
         confirmLabel={`Open ${direction.charAt(0).toUpperCase() + direction.slice(1)}`}
         details={[

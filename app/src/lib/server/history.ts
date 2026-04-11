@@ -25,14 +25,14 @@ const INSTRUCTION_TYPE_MAP: Record<string, HistoryTxType> = {
   depositcollateralwithsession: { label: "Deposit Collateral", color: "text-accent-green", icon: "down" },
   withdrawcollateral: { label: "Withdraw Collateral", color: "text-accent-red", icon: "up" },
   withdrawcollateralwithsession: { label: "Withdraw Collateral", color: "text-accent-red", icon: "up" },
-  createtradesession: { label: "Start Session", color: "text-cyan-300", icon: "ref", detail: "Delegated trading session" },
-  revoketradesession: { label: "Revoke Session", color: "text-yellow-300", icon: "ref", detail: "Delegated trading session" },
+  createtradesession: { label: "Start Session", color: "text-cyan-300", icon: "ref", detail: "Trading session approved" },
+  revoketradesession: { label: "Revoke Session", color: "text-yellow-300", icon: "ref", detail: "Trading session closed" },
   openposition: { label: "Open Position", color: "text-accent-purple", icon: "open" },
   openpositionwithsession: { label: "Open Position", color: "text-accent-purple", icon: "open" },
   closeposition: { label: "Close Position", color: "text-yellow-400", icon: "close" },
   closepositionwithsession: { label: "Close Position", color: "text-yellow-400", icon: "close" },
-  addprivateorder: { label: "Private Order", color: "text-accent-purple", icon: "ref", detail: "Encrypted order queued" },
-  settleprivateposition: { label: "Settle Position", color: "text-yellow-300", icon: "close" },
+  addprivateorder: { label: "Order Submitted", color: "text-accent-purple", icon: "ref", detail: "Submitted through the private flow" },
+  settleprivateposition: { label: "Position Settled", color: "text-yellow-300", icon: "close" },
   liquidateposition: { label: "Liquidation", color: "text-accent-red", icon: "close" },
 };
 

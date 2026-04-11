@@ -90,9 +90,9 @@ const STATUS_LABELS: Record<UiStatus, string> = {
 };
 
 function getStatusDetail(status: UiStatus, isClosing: boolean): string | null {
-  if (isClosing || status === "closing") return "PnL callback in progress";
-  if (status === "pending") return "Waiting on encrypted callback";
-  if (status === "settling") return "Settlement finishing on-chain";
+  if (isClosing || status === "closing") return "Closing the trade";
+  if (status === "pending") return "Waiting for trade confirmation";
+  if (status === "settling") return "Finishing settlement on-chain";
   if (status === "closed") return "Close settled on-chain";
   return null;
 }
@@ -378,12 +378,12 @@ export default function BottomPositionsPanel({
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(
           marketAddress
         );
-        toastLoading("Queuing close via Arcium MPC...", { id: pos.address });
+        toastLoading("Submitting close...", { id: pos.address });
         const tx = await client.closePosition(
           marketAddress,
           pos.index
         );
-        toastLoading("Awaiting MPC callback and settlement...", { id: pos.address });
+        toastLoading("Waiting for close to settle...", { id: pos.address });
         const finalized = await client.finalizeClosePosition(
           marketAddress,
           publicKey,
@@ -393,7 +393,7 @@ export default function BottomPositionsPanel({
         toastSuccess(
           <div>
             <p className="font-medium">Position closed and settled</p>
-            <p className="text-xs text-gray-400 mt-0.5">PnL was revealed by MPC and settlement completed on-chain</p>
+            <p className="text-xs text-gray-400 mt-0.5">PnL finalized and settlement completed on-chain</p>
             <a
               href={getExplorerTxUrl(tx)}
               target="_blank"
@@ -1011,7 +1011,7 @@ export default function BottomPositionsPanel({
       <OrderConfirmModal
         isOpen={closeConfirmPos !== null}
         title="Close Position"
-        description="This will queue a close via Arcium MPC and settle on-chain."
+        description="This will send the close through Arcium MPC and finish settlement on-chain."
         variant="danger"
         confirmLabel="Close Position"
         details={closeConfirmPos ? [
