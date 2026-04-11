@@ -4,7 +4,7 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
-import { fetchPrices, getLastPriceMeta } from "../lib/prices";
+import { fetchPrices, getLastPriceMeta, type PriceQuality } from "../lib/prices";
 import type { ReferenceDepthSnapshot } from "../lib/reference-depth";
 import TradeConfirmationModal, { TradeStep } from "./TradeConfirmationModal";
 import OrderConfirmModal from "./OrderConfirmModal";
@@ -157,6 +157,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   const [tradeTxSig, setTradeTxSig] = useState<string | undefined>();
   const [tradeError, setTradeError] = useState<string | undefined>();
   const [clientInitError, setClientInitError] = useState<string | null>(null);
+  const [priceQuality, setPriceQuality] = useState<PriceQuality>("live");
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
   const refreshSeqRef = useRef(0);
   const handleSubmitRef = useRef<() => void>(() => undefined);
@@ -303,13 +304,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       return;
     }
     const requestSeq = ++refreshSeqRef.current;
-    const fallbackWarning = "Live price feed unavailable. Showing cached market data.";
-    const setWarning = (message: string | null) => {
-      // Price-source warnings are intentionally hidden in the UI.
-      // Keep this hook as a placeholder for internal logging/debug channels.
-      void requestSeq;
-      void message;
-    };
 
     const livePrices = await fetchPrices().catch(() => null);
     const livePairPrice = livePrices?.[activePair.label]?.price ?? null;
@@ -322,7 +316,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       setMarketPrice(fallbackPrice);
       setMarginBalance(null);
       setAvailableMarginBalance(null);
-      setWarning(hasLivePrice ? null : fallbackWarning);
+      setPriceQuality(priceMeta.quality);
       return;
     }
 
@@ -332,7 +326,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       setMarketPrice(fallbackPrice);
       setMarginBalance(null);
       setAvailableMarginBalance(null);
-      setWarning(hasLivePrice ? null : fallbackWarning);
+      setPriceQuality(priceMeta.quality);
       return;
     }
 
@@ -381,12 +375,12 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
         setAvailableMarginBalance(0);
       }
 
-      setWarning(usedFallbackPrice && !hasLivePrice ? fallbackWarning : null);
+      setPriceQuality(usedFallbackPrice ? priceMeta.quality : "live");
     } catch {
       if (requestSeq !== refreshSeqRef.current) return;
       setMarketPrice(fallbackPrice);
       setAvailableMarginBalance(null);
-      setWarning(hasLivePrice ? null : fallbackWarning);
+      setPriceQuality(priceMeta.quality);
     }
   }, [anchorWallet, publicKey, getClient, activePair]);
 
@@ -835,6 +829,18 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
 
 
 
+
+          {/* Price quality warning — shown when live feed is unavailable */}
+          {priceQuality !== "live" && (
+            <div className="flex items-center gap-1.5 rounded-md border border-yellow-500/30 bg-yellow-500/8 px-2.5 py-1.5">
+              <svg className="h-3 w-3 shrink-0 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <span className="text-[10px] text-yellow-300">
+                {priceQuality === "mock" ? "Live feed unavailable — showing estimated price" : "Showing cached price — feed may be delayed"}
+              </span>
+            </div>
+          )}
 
           {/* Keyboard shortcuts */}
           <div className="flex justify-between px-0.5 text-[9px] text-gray-500">

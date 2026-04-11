@@ -161,7 +161,8 @@ export default async function handler(
   const sessionIdRaw = first(req.query.sessionId);
   const pairParam = first(req.query.pair);
   if (pairParam && !relay.config.marketRegistry[pairParam]) {
-    throw new Error(`Unknown trading pair: ${pairParam}`);
+    res.status(400).json({ ok: false, available: false, error: `Unknown trading pair: ${pairParam}` });
+    return;
   }
   const pairLabel = pairParam ?? "SOL-USD";
   const marketAddress = relay.config.marketRegistry[pairLabel] ?? relay.config.marketAddress;
