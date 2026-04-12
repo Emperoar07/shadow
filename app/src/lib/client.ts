@@ -862,7 +862,6 @@ export class ShadowPerpClient {
     );
 
     const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
-    const isLong = input.direction === "long";
 
     const [fundingStatePda] = PublicKey.findProgramAddressSync(
       [Buffer.from("funding"), market.toBuffer()],
@@ -882,7 +881,6 @@ export class ShadowPerpClient {
         Array.from(encryptedMargin),
         marginModeFlag,
         input.margin,
-        isLong,
         Array.from(this.clientPublicKey!),
         nonceBN,
         computationOffset
@@ -958,7 +956,6 @@ export class ShadowPerpClient {
     );
 
     const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
-    const isLong = input.direction === "long";
 
     const [fundingStatePda] = PublicKey.findProgramAddressSync(
       [Buffer.from("funding"), market.toBuffer()],
@@ -978,7 +975,6 @@ export class ShadowPerpClient {
         Array.from(encryptedMargin),
         marginModeFlag,
         input.margin,
-        isLong,
         Array.from(this.clientPublicKey!),
         nonceBN,
         computationOffset
@@ -1049,7 +1045,6 @@ export class ShadowPerpClient {
     );
 
     const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
-    const isLong = input.direction === "long";
     const methods = (this.program as any).methods;
     if (!methods?.openPositionWithSessionV2) {
       throw new Error(
@@ -1075,7 +1070,6 @@ export class ShadowPerpClient {
         Array.from(encryptedMargin),
         marginModeFlag,
         input.margin,
-        isLong,
         Array.from(this.clientPublicKey!),
         nonceBN,
         computationOffset
