@@ -30,6 +30,7 @@ import { fetchPrices } from "../lib/prices";
 import { WALLET_DISPLAY_TOKENS } from "../lib/tokens";
 
 type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated" | "settling";
+type DirectionFilter = "all" | "active" | "long" | "short";
 type BottomTab =
   | "positions"
   | "openOrders"
@@ -239,6 +240,9 @@ export default function BottomPositionsPanel({
   const [oraclePrice, setOraclePrice] = useState<number | null>(null);
   const [liqThreshold, setLiqThreshold] = useState(5);
   const [filterCurrentMarket, setFilterCurrentMarket] = useState(false);
+  const [directionFilter, setDirectionFilter] = useState<DirectionFilter>("all");
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
   const [pairPrices, setPairPrices] = useState<Record<string, number>>({});
   const [pairLiqThresholds, setPairLiqThresholds] = useState<Record<string, number>>({});
   const [balancesLoading, setBalancesLoading] = useState(false);
@@ -599,13 +603,27 @@ export default function BottomPositionsPanel({
   const historyPositions = indexedHistoryPositions ?? fallbackHistoryPositions;
 
   const filterPositions = useCallback((list: UiPosition[]) => {
+    let result = list;
     if (filterCurrentMarket && activePairLabel) {
-      return list.filter((p) => p.pairLabel === activePairLabel);
+      result = result.filter((p) => p.pairLabel === activePairLabel);
     }
-    return list;
-  }, [filterCurrentMarket, activePairLabel]);
+    if (directionFilter === "active") {
+      result = result.filter((p) => p.status === "open" || p.status === "pending" || p.status === "closing" || p.status === "settling");
+    } else if (directionFilter === "long") {
+      result = result.filter((p) => {
+        const side = ownerPositionViews[p.address]?.side ?? positionRules[p.address]?.side ?? null;
+        return side === "long";
+      });
+    } else if (directionFilter === "short") {
+      result = result.filter((p) => {
+        const side = ownerPositionViews[p.address]?.side ?? positionRules[p.address]?.side ?? null;
+        return side === "short";
+      });
+    }
+    return result;
+  }, [filterCurrentMarket, activePairLabel, directionFilter, ownerPositionViews, positionRules]);
 
-  const hasActiveFilters = filterCurrentMarket;
+  const hasActiveFilters = filterCurrentMarket || directionFilter !== "all";
 
   const displayed = useMemo(() => {
     const base =
@@ -889,6 +907,18 @@ export default function BottomPositionsPanel({
     }
   }, []);
 
+  // Close filter dropdown on outside click
+  useEffect(() => {
+    if (!filterDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target as Node)) {
+        setFilterDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [filterDropdownOpen]);
+
   const tabs: { key: BottomTab; label: string; count?: number }[] = [
     { key: "positions", label: "Positions", count: openPositions.length },
     { key: "openOrders", label: "Open Orders", count: openOrders.length },
@@ -929,10 +959,53 @@ export default function BottomPositionsPanel({
             </span>
           </label>
 
+          {/* Direction filter dropdown */}
+          <div className="relative" ref={filterDropdownRef}>
+            <button
+              onClick={() => setFilterDropdownOpen((v) => !v)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors whitespace-nowrap ${
+                directionFilter !== "all"
+                  ? "bg-accent-purple/20 text-accent-purple"
+                  : "text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              Filter
+              <svg
+                className={`w-3 h-3 transition-transform ${filterDropdownOpen ? "rotate-180" : ""}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {filterDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-shadow-600 bg-shadow-800 py-1 shadow-lg">
+                {(["all", "active", "long", "short"] as DirectionFilter[]).map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => {
+                      setDirectionFilter(opt);
+                      setFilterDropdownOpen(false);
+                    }}
+                    className={`w-full px-3 py-1.5 text-left text-[11px] transition-colors capitalize ${
+                      directionFilter === opt
+                        ? "text-white bg-accent-purple/20"
+                        : "text-gray-400 hover:text-white hover:bg-shadow-700"
+                    }`}
+                  >
+                    {opt === "all" ? "All" : opt === "active" ? "Active" : opt === "long" ? "Long" : "Short"}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Clear all filters */}
           {hasActiveFilters && (
             <button
-              onClick={() => setFilterCurrentMarket(false)}
+              onClick={() => { setFilterCurrentMarket(false); setDirectionFilter("all"); }}
               className="text-[11px] text-gray-500 hover:text-gray-200 transition-colors px-1"
               title="Clear filters"
             >
