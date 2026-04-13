@@ -7,7 +7,6 @@ pub mod init_arcium_signer;
 pub mod init_comp_defs;
 pub mod initialize;
 pub mod open_position;
-pub mod open_position_diagnostics;
 pub mod private_orders;
 pub mod seed_open_interest_state;
 pub mod session_trading;
