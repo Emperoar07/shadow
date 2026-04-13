@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { usePrivy } from "@privy-io/react-auth";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
@@ -384,9 +385,55 @@ export default function TradingAppPage() {
 
 function ConnectWalletButton() {
   const { publicKey } = useWallet();
-  return publicKey
-    ? <WalletMultiButton />
-    : <WalletMultiButton>Connect Wallet</WalletMultiButton>;
+  const { ready, authenticated, login, logout, user } = usePrivy();
+
+  if (!ready) return null;
+
+  if (authenticated && publicKey) {
+    // Logged in via Privy and wallet connected — show disconnect
+    return (
+      <button
+        type="button"
+        onClick={() => logout()}
+        className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium bg-shadow-700/60 border border-shadow-500/50 text-gray-300 hover:text-white hover:bg-shadow-600/60 transition-colors"
+      >
+        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+        {publicKey.toBase58().slice(0, 4)}...{publicKey.toBase58().slice(-4)}
+      </button>
+    );
+  }
+
+  if (authenticated && !publicKey) {
+    // Privy logged in but wallet adapter not synced yet — show address from Privy
+    const solWallet = user?.linkedAccounts?.find(
+      (a: any) => a.type === "wallet" && a.walletClientType === "privy" && a.chainType === "solana"
+    ) as any;
+    const addr = solWallet?.address as string | undefined;
+    return (
+      <button
+        type="button"
+        onClick={() => logout()}
+        className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium bg-shadow-700/60 border border-shadow-500/50 text-gray-300 hover:text-white hover:bg-shadow-600/60 transition-colors"
+      >
+        <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
+        {addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : "Connected"}
+      </button>
+    );
+  }
+
+  // Not logged in — show Privy login, but also allow existing wallet users
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => login()}
+        className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-semibold bg-accent-purple/80 hover:bg-accent-purple text-white border border-accent-purple/50 transition-colors"
+      >
+        Sign In
+      </button>
+      <WalletMultiButton style={{ height: 32, fontSize: 12, padding: "0 12px" }} />
+    </div>
+  );
 }
 
 function ProtocolStatusDot() {

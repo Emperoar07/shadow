@@ -12,6 +12,7 @@ import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
+import { PrivyProvider } from "@privy-io/react-auth";
 import { Toaster } from "react-hot-toast";
 import ShadowLoader from "../components/ShadowLoader";
 import {
@@ -23,6 +24,8 @@ import {
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "../styles/globals.css";
+
+const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "cmnxlswsv00570bldco9er2py";
 
 if (typeof window !== "undefined" && !(globalThis as any).Buffer) {
   (globalThis as any).Buffer = Buffer;
@@ -165,26 +168,41 @@ export default function App({ Component, pageProps }: AppProps) {
   }, [router]);
 
   return (
-    <ConnectionProvider
-      endpoint={transport.rpc}
-      config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
+    <PrivyProvider
+      appId={PRIVY_APP_ID}
+      config={{
+        appearance: {
+          theme: "dark",
+          accentColor: "#7c3aed",
+          logo: "/shadow-logo.svg",
+        },
+        loginMethods: ["email", "google", "twitter", "wallet"],
+        embeddedWallets: {
+          solana: { createOnLogin: "users-without-wallets" },
+        },
+      }}
     >
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
-          <Toaster
-            position="bottom-right"
-            toastOptions={{
-              style: {
-                background: "#1a1a25",
-                color: "#fff",
-                border: "1px solid rgba(139, 92, 246, 0.3)",
-              },
-            }}
-          />
-          {pageLoading && <ShadowLoader fullScreen message="" />}
-          <Component {...pageProps} />
-        </WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+      <ConnectionProvider
+        endpoint={transport.rpc}
+        config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
+      >
+        <WalletProvider wallets={wallets} autoConnect>
+          <WalletModalProvider>
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: "#1a1a25",
+                  color: "#fff",
+                  border: "1px solid rgba(139, 92, 246, 0.3)",
+                },
+              }}
+            />
+            {pageLoading && <ShadowLoader fullScreen message="" />}
+            <Component {...pageProps} />
+          </WalletModalProvider>
+        </WalletProvider>
+      </ConnectionProvider>
+    </PrivyProvider>
   );
 }
