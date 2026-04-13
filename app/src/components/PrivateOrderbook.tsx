@@ -360,14 +360,8 @@ function SpreadRow({
   const percentLabel = snapshot?.spreadBps !== null && snapshot?.spreadBps !== undefined
     ? `${(snapshot.spreadBps / 100).toFixed(3)}%`
     : "--";
-  const mid =
-    snapshot?.lastTrade?.price ??
-    (snapshot?.bids?.[0]?.price && snapshot?.asks?.[0]?.price
-      ? (snapshot.bids[0].price + snapshot.asks[0].price) / 2
-      : referencePrice ?? null);
-
   return (
-    <div className="trade-orderbook-spread-row grid grid-cols-3 items-center px-2 py-[5px] border-y border-shadow-600 shrink-0 bg-shadow-800/60">
+    <div className="trade-orderbook-spread-row grid grid-cols-3 items-center px-2 py-[3px] border-y border-shadow-600 shrink-0 bg-shadow-800/60">
       <span className="text-center text-[10px] font-medium text-gray-300">Spread</span>
       <span className="text-center text-[11px] font-semibold text-white tabular-nums">
         {spreadLabel}
@@ -375,11 +369,6 @@ function SpreadRow({
       <span className="text-center text-[10px] text-gray-400 tabular-nums">
         {percentLabel}
       </span>
-      {mid && (
-        <span className="col-span-3 mt-1 text-center text-[9px] uppercase tracking-[0.08em] text-gray-500">
-          Mid {formatPrice(mid)}
-        </span>
-      )}
     </div>
   );
 }
