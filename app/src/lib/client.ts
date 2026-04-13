@@ -421,17 +421,27 @@ export class ShadowPerpClient {
     } catch (sendErr: any) {
       const msg: string = sendErr?.message ?? "";
       // Simulation reports the tx was already confirmed on a prior attempt.
-      // Extract the signature from the error and confirm it succeeded.
+      // The signature is the first 64 bytes of the serialized signed tx (base58-encoded).
       if (msg.includes("already been processed")) {
-        const match = msg.match(/([1-9A-HJ-NP-Za-km-z]{87,88})/);
-        if (match) {
-          signature = match[1];
-          const status = await connection.getSignatureStatus(signature);
-          if (status?.value?.err) {
-            throw new Error(`Transaction ${signature} was already processed but failed on-chain.`);
+        // Try to extract the signature from the error message first.
+        const matchInMsg = msg.match(/([1-9A-HJ-NP-Za-km-z]{87,88})/);
+        if (matchInMsg) {
+          signature = matchInMsg[1];
+        } else {
+          // Derive the signature from the serialized transaction bytes directly.
+          // The signature occupies bytes 1..65 of the wire format (after the sig count byte).
+          try {
+            const bs58 = await import("bs58");
+            signature = bs58.default.encode(serialized.slice(1, 65));
+          } catch {
+            throw sendErr;
           }
-          return signature;
         }
+        const status = await connection.getSignatureStatus(signature);
+        if (status?.value?.err) {
+          throw new Error(`Transaction ${signature} was already processed but failed on-chain.`);
+        }
+        return signature;
       }
       throw sendErr;
     }
