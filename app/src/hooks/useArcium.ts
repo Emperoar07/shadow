@@ -1073,14 +1073,37 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         setStatus("queued");
         setStatusMessage("Creating delegated session on-chain...");
 
-        const { txSignature, sessionAddress } = await client.createTradeSessionV2(
-          sessionId,
-          new PublicKey(relayInfo.relayer),
-          maxActions,
-          maxMarginPerAction,
-          new BN(expiresAt)
-        );
-        setLastSignature(txSignature);
+        const sessionAddress = client.getTradeSessionV2Address(publicKey, sessionId);
+        let txSignature: string;
+        try {
+          const result = await client.createTradeSessionV2(
+            sessionId,
+            new PublicKey(relayInfo.relayer),
+            maxActions,
+            maxMarginPerAction,
+            new BN(expiresAt)
+          );
+          txSignature = result.txSignature;
+        } catch (createErr: any) {
+          const msg: string = createErr?.message ?? "";
+          const alreadyExists =
+            msg.includes("already been processed") ||
+            msg.includes("already in use") ||
+            msg.includes("custom program error: 0x0");
+          if (!alreadyExists) throw createErr;
+          // Session PDA already on-chain — verify it's still usable before reusing.
+          const existing = await client.getTradeSessionV2(sessionAddress);
+          const nowSec = Math.floor(Date.now() / 1000);
+          if (
+            existing.revoked ||
+            Number(existing.expiresAt.toString()) <= nowSec ||
+            existing.usedActions >= existing.maxActions
+          ) {
+            throw new Error("Session already exists but is expired or exhausted. Try again.");
+          }
+          txSignature = "";
+        }
+        if (txSignature) setLastSignature(txSignature);
 
         const nextSession: SessionRelayInfo = {
           sessionVersion: "v2",
