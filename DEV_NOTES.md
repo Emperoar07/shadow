@@ -885,12 +885,12 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 ### What changed
 
 - No product-code changes in this pass.
-- Ran a live user-facing smoke against `https://shadowperp.vercel.app`.
+- Ran a live user-facing smoke against `https://shadowperpdex.xyz/app`.
 - Added a standing local reminder for future passes: every UI/product change should be checked on mobile as well as desktop before sign-off.
 
 ### What was verified
 
-- Live site reachable: `https://shadowperp.vercel.app` -> HTTP `200`
+- Live site reachable: `https://shadowperpdex.xyz/app` -> HTTP `200`
 - Captured fresh live screenshots into `output/playwright/`:
   - `live-desktop-home.png`
   - `live-mobile-home.png`

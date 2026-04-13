@@ -573,7 +573,10 @@ export function summarizeRelayRuntime(ctx: RelayRuntimeContext): RelayRuntimeSum
   };
 }
 
+let _cachedContext: RelayRuntimeContext | undefined;
+
 export async function createRelayRuntimeContext(): Promise<RelayRuntimeContext> {
+  if (_cachedContext) return _cachedContext;
   const programId = parsePublicKey(
     "SHADOWPERP_PROGRAM_ID",
     typeof shadowperpIdl.address === "string" ? shadowperpIdl.address : undefined
@@ -586,11 +589,12 @@ export async function createRelayRuntimeContext(): Promise<RelayRuntimeContext> 
     new Wallet(relayer),
     { commitment: "confirmed" }
   );
-  return {
+  _cachedContext = {
     client: new RelayShadowPerpClient(provider, config),
     config,
     relayer,
     rpcUrl,
     wsUrl,
   };
+  return _cachedContext;
 }
