@@ -702,7 +702,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
     }
   }, []);
 
-  const refreshRelaySession = useCallback(async (candidate?: SessionRelayInfo | null) => {
+  const refreshRelaySession = useCallback(async (candidate?: SessionRelayInfo | null, forceInvalidate = false) => {
     const current = candidate ?? relaySession;
     if (!current) return null;
     const currentOwner = current.owner;
@@ -736,8 +736,10 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       }
       if (payload.exists === false) {
         if (
-          isUsableRelaySession(current, currentOwner, currentMarket, nowSeconds) ||
-          wasLikelyJustCreated(current, nowSeconds)
+          !forceInvalidate && (
+            isUsableRelaySession(current, currentOwner, currentMarket, nowSeconds) ||
+            wasLikelyJustCreated(current, nowSeconds)
+          )
         ) {
           return current;
         }
@@ -1242,9 +1244,11 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       }
 
       setRelaySession(null);
+      setRelaySessionSeen(false);
+      setRelaySessionOptimisticUntil(0);
       clearStoredSession(current.owner, sessionStorageMarketKey(current));
-      // Force UI to reflect revoked state immediately
-      void refreshRelaySession(null);
+      // Re-check relay with forceInvalidate so the usability guard is bypassed
+      void refreshRelaySession(current, true);
     },
     [relaySession, getClient, resolveMarketAddress, refreshRelaySession]
   );
