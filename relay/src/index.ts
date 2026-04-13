@@ -300,7 +300,7 @@ app.post("/api/relay/open", async (req: Request, res: Response) => {
       return;
     }
 
-    const margin = parseU64Bn("margin", body.margin);
+    const margin = parseU64Bn("margin", body.marginRaw ?? body.margin);
     const { owner, sessionId, marketAddress, sessionVersion } = await validateSession(relay, body, "open", margin);
 
     if (sessionVersion !== "v2") throw new Error("openPositionWithSessionV2 requires a v2 session");
@@ -310,11 +310,12 @@ app.post("/api/relay/open", async (req: Request, res: Response) => {
       owner,
       sessionId,
       {
-        direction:    body.direction,
+        direction:    body.direction ?? body.side,
         margin:       margin,
-        leverage:     body.leverage,
-        entryPrice:   body.entryPrice,
+        leverage:     Number(body.leverage),
+        entryPrice:   parseU64Bn("entryPrice", body.entryPriceRaw ?? body.entryPrice),
         marginMode:   body.marginMode ?? "cross",
+        size:         body.sizeRaw ? parseU64Bn("size", body.sizeRaw) : undefined,
       }
     );
 
