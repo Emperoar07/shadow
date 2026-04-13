@@ -1243,14 +1243,14 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         }
       }
 
+      // On-chain tx confirmed — session is definitively gone. Clear all local state
+      // without querying the relay (relay may lag behind the confirmed tx).
       setRelaySession(null);
       setRelaySessionSeen(false);
       setRelaySessionOptimisticUntil(0);
       clearStoredSession(current.owner, sessionStorageMarketKey(current));
-      // Re-check relay with forceInvalidate so the usability guard is bypassed
-      void refreshRelaySession(current, true);
     },
-    [relaySession, getClient, resolveMarketAddress, refreshRelaySession]
+    [relaySession, getClient, resolveMarketAddress]
   );
 
   useEffect(() => {
