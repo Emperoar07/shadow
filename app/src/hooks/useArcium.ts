@@ -14,6 +14,7 @@ import {
   uint8ToBase64,
 } from "../lib/relay-session-auth";
 import { isMissingAccountError } from "../lib/account-errors";
+import { relayUrl } from "../lib/feature-flags";
 import { PositionStatus } from "../types";
 
 /**
@@ -677,7 +678,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
 
   const refreshRelayAvailability = useCallback(async () => {
     try {
-      const response = await fetch("/api/relay/session");
+      const response = await fetch(relayUrl("/api/relay/session"));
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload?.ok || !payload?.available) {
         setRelayAvailable(false);
@@ -727,7 +728,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       if (pair) {
         query.set("pair", pair);
       }
-      const response = await fetch(`/api/relay/session?${query.toString()}`);
+      const response = await fetch(relayUrl(`/api/relay/session?${query.toString()}`));
       const payload = await response.json().catch(() => null);
       const nowSeconds = Math.floor(Date.now() / 1000);
       if (!response.ok || !payload?.ok || !payload?.available) {
@@ -912,7 +913,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       try {
         const query = new URLSearchParams({ owner });
         if (pairLabel) query.set("pair", pairLabel);
-        const response = await fetch(`/api/relay/session?${query.toString()}`);
+        const response = await fetch(relayUrl(`/api/relay/session?${query.toString()}`));
         const payload = await response.json().catch(() => null);
         if (!response.ok || !payload?.ok || !payload?.available || payload.exists === false || !payload.session) {
           return null;
@@ -1529,7 +1530,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       setStatus("queued");
       setStatusMessage("Queued on Arcium cluster via delegated session...");
 
-      const response = await fetch("/api/relay/open", {
+      const response = await fetch(relayUrl("/api/relay/open"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

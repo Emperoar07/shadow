@@ -7,6 +7,7 @@ import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { classifyArciumError } from "../lib/arcium-errors";
+import { relayUrl } from "../lib/feature-flags";
 import type {
   EnsureRelaySessionOptions,
   SessionRelayInfo,
@@ -98,7 +99,7 @@ export default function CollateralModal({
 
   const submitDelegatedCollateral = useCallback(
     async (
-      endpoint: "/api/relay/deposit" | "/api/relay/withdraw",
+      endpoint: "deposit" | "withdraw",
       amountBN: BN,
       loadingMessage: string
     ): Promise<string> => {
@@ -108,7 +109,7 @@ export default function CollateralModal({
       const submitWithSession = async (session: SessionRelayInfo): Promise<string> => {
         const authExpiresAt = session.authExpiresAt ?? session.expiresAt;
         toast.loading(loadingMessage, { id: "collateral" });
-        const response = await fetch(endpoint, {
+        const response = await fetch(relayUrl(`/api/relay/${endpoint}`), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -117,7 +118,7 @@ export default function CollateralModal({
             amountRaw: amountBN.toString(),
             pairLabel,
             auth: {
-              action: endpoint === "/api/relay/deposit" ? "deposit" : "withdraw",
+              action: endpoint,
               expiresAt: authExpiresAt,
               signature: session.authSignature,
             },
@@ -127,16 +128,14 @@ export default function CollateralModal({
         if (!response.ok || !payload?.ok || !payload?.txSignature) {
           throw new Error(
             payload?.error ||
-              `Delegated ${
-                endpoint === "/api/relay/deposit" ? "deposit" : "withdraw"
-              } failed (${response.status}).`
+              `Delegated ${endpoint} failed (${response.status}).`
           );
         }
         return payload.txSignature as string;
       };
 
       let session = await ensureRelaySession({
-        reason: endpoint === "/api/relay/deposit" ? "deposit" : "withdraw",
+        reason: endpoint,
         userInitiated: true,
       });
       if (!session || session.owner !== owner) {
@@ -153,7 +152,7 @@ export default function CollateralModal({
         }
         invalidateRelaySession(session.owner, session.market);
         session = await ensureRelaySession({
-          reason: endpoint === "/api/relay/deposit" ? "deposit" : "withdraw",
+          reason: endpoint,
           userInitiated: true,
         });
         if (!session || session.owner !== owner) {
@@ -205,7 +204,7 @@ export default function CollateralModal({
       if (SESSION_DEPOSIT_ENABLED && relayAvailable) {
         try {
           const tx = await submitDelegatedCollateral(
-            "/api/relay/deposit",
+            "deposit",
             amountBN,
             "Depositing via delegated session..."
           );
@@ -313,7 +312,7 @@ export default function CollateralModal({
       if (relayAvailable) {
         try {
           const tx = await submitDelegatedCollateral(
-            "/api/relay/withdraw",
+            "withdraw",
             amountBN,
             "Withdrawing via delegated session..."
           );
