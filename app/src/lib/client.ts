@@ -427,21 +427,24 @@ export class ShadowPerpClient {
         const matchInMsg = msg.match(/([1-9A-HJ-NP-Za-km-z]{87,88})/);
         if (matchInMsg) {
           signature = matchInMsg[1];
-        } else {
-          // Derive the signature from the serialized transaction bytes directly.
-          // The signature occupies bytes 1..65 of the wire format (after the sig count byte).
-          try {
-            const bs58 = await import("bs58");
-            signature = bs58.default.encode(serialized.slice(1, 65));
-          } catch {
-            throw sendErr;
+          const status = await connection.getSignatureStatus(signature);
+          if (status?.value?.err) {
+            throw new Error(`Transaction ${signature} was already processed but failed on-chain.`);
           }
+          return signature;
         }
-        const status = await connection.getSignatureStatus(signature);
-        if (status?.value?.err) {
-          throw new Error(`Transaction ${signature} was already processed but failed on-chain.`);
+        // No signature in the error message — re-send with skipPreflight to get the sig,
+        // which will immediately confirm since the tx is already on-chain.
+        try {
+          signature = await connection.sendRawTransaction(serialized, {
+            preflightCommitment: "confirmed",
+            skipPreflight: true,
+            maxRetries: 0,
+          });
+          return signature;
+        } catch {
+          throw sendErr;
         }
-        return signature;
       }
       throw sendErr;
     }
