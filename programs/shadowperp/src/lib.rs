@@ -28,9 +28,6 @@ use handlers::shielded_collateral::__client_accounts_verify_withdrawal_proof_req
 use handlers::private_orders::__client_accounts_execute_private_order;
 use handlers::initialize::__client_accounts_initialize;
 use handlers::open_position::__client_accounts_open_position;
-use handlers::open_position_diagnostics::__client_accounts_run_open_position_full_probe;
-use handlers::open_position_diagnostics::__client_accounts_run_open_position_margin_probe;
-use handlers::open_position_diagnostics::__client_accounts_run_open_position_tuple_probe;
 use handlers::private_orders::__client_accounts_add_private_order;
 use handlers::private_orders::__client_accounts_init_private_order_book;
 use handlers::seed_open_interest_state::__client_accounts_seed_open_interest_state;

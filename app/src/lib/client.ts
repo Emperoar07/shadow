@@ -388,6 +388,18 @@ export class ShadowPerpClient {
     return new BN(nowSeconds + DEFAULT_TRADE_SESSION_DURATION_SECONDS);
   }
 
+  /** Returns the funding_state PDA if the account exists on-chain, otherwise null.
+   *  The on-chain account is Optional — passing a non-existent address causes
+   *  AccountNotInitialized (error 3012). */
+  private async resolveFundingStatePda(market: PublicKey): Promise<PublicKey | null> {
+    const [pda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("funding"), market.toBuffer()],
+      this.config.programId
+    );
+    const info = await this.provider.connection.getAccountInfo(pda);
+    return info ? pda : null;
+  }
+
   private async sendTransactionWithPolling(tx: Transaction): Promise<string> {
     const connection = this.provider.connection;
     const feePayer = this.provider.wallet.publicKey;
@@ -397,11 +409,32 @@ export class ShadowPerpClient {
     tx.recentBlockhash = blockhash;
 
     const signed = await this.provider.wallet.signTransaction(tx);
-    let signature = await connection.sendRawTransaction(signed.serialize(), {
-      preflightCommitment: "confirmed",
-      skipPreflight: false,
-      maxRetries: 3,
-    });
+    const serialized = signed.serialize();
+
+    let signature: string;
+    try {
+      signature = await connection.sendRawTransaction(serialized, {
+        preflightCommitment: "confirmed",
+        skipPreflight: false,
+        maxRetries: 3,
+      });
+    } catch (sendErr: any) {
+      const msg: string = sendErr?.message ?? "";
+      // Simulation reports the tx was already confirmed on a prior attempt.
+      // Extract the signature from the error and confirm it succeeded.
+      if (msg.includes("already been processed")) {
+        const match = msg.match(/([1-9A-HJ-NP-Za-km-z]{87,88})/);
+        if (match) {
+          signature = match[1];
+          const status = await connection.getSignatureStatus(signature);
+          if (status?.value?.err) {
+            throw new Error(`Transaction ${signature} was already processed but failed on-chain.`);
+          }
+          return signature;
+        }
+      }
+      throw sendErr;
+    }
 
     await confirmWithPolling(connection, signature, {
       timeoutMs: 90_000,
@@ -864,10 +897,7 @@ export class ShadowPerpClient {
     const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
     const isLong = input.direction === "long";
 
-    const [fundingStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("funding"), market.toBuffer()],
-      this.config.programId
-    );
+    const fundingStatePda = await this.resolveFundingStatePda(market);
     const [posFundingRefPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("pos-funding"), positionAddress.toBuffer()],
       this.config.programId
@@ -960,10 +990,7 @@ export class ShadowPerpClient {
     const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
     const isLong = input.direction === "long";
 
-    const [fundingStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("funding"), market.toBuffer()],
-      this.config.programId
-    );
+    const fundingStatePda = await this.resolveFundingStatePda(market);
     const [posFundingRefPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("pos-funding"), positionAddress.toBuffer()],
       this.config.programId
@@ -1057,10 +1084,7 @@ export class ShadowPerpClient {
       );
     }
 
-    const [fundingStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("funding"), market.toBuffer()],
-      this.config.programId
-    );
+    const fundingStatePda = await this.resolveFundingStatePda(market);
     const [posFundingRefPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("pos-funding"), positionAddress.toBuffer()],
       this.config.programId
@@ -1412,10 +1436,7 @@ export class ShadowPerpClient {
       );
     }
 
-    const [fundingStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("funding"), market.toBuffer()],
-      this.config.programId
-    );
+    const fundingStatePda = await this.resolveFundingStatePda(market);
     const [posFundingRefPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("pos-funding"), positionAddress.toBuffer()],
       this.config.programId
