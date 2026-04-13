@@ -1243,8 +1243,10 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
 
       setRelaySession(null);
       clearStoredSession(current.owner, sessionStorageMarketKey(current));
+      // Force UI to reflect revoked state immediately
+      void refreshRelaySession(null);
     },
-    [relaySession, getClient, resolveMarketAddress]
+    [relaySession, getClient, resolveMarketAddress, refreshRelaySession]
   );
 
   useEffect(() => {
