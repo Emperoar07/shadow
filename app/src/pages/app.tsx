@@ -142,15 +142,11 @@ export default function TradingAppPage() {
   const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
   const { publicKey } = useWallet();
   const { authenticated: privyAuthenticated } = usePrivy();
-  const { wallets: solanaWalletsMain } = useSolanaWallets();
-  // Embedded wallet = email/social user who signs directly — no session needed
-  // External wallet connected via Privy still needs sessions
-  const hasEmbeddedOnly =
-    privyAuthenticated &&
-    solanaWalletsMain.length > 0 &&
-    solanaWalletsMain.every((w) => w.walletClientType === "privy");
+  // Sessions only apply for external wallet users (wallet-adapter connected)
+  // Email/social users have Privy embedded wallet and sign directly — no session needed
+  const isEmbeddedWalletUser = privyAuthenticated && !publicKey;
   const { relaySession: rawRelaySession, revokeRelaySession } = useArciumPrivacy();
-  const relaySession = hasEmbeddedOnly ? null : rawRelaySession;
+  const relaySession = isEmbeddedWalletUser ? null : rawRelaySession;
   const isRelaySessionActive =
     !!relaySession &&
     relaySession.owner === (publicKey?.toBase58() ?? "") &&
@@ -405,8 +401,10 @@ function ConnectWalletButton() {
 
   if (!ready) return null;
 
-  if (authenticated) {
-    const addr = adapterPublicKey?.toBase58() ?? solanaWallets[0]?.address;
+  if (authenticated || adapterPublicKey) {
+    // External wallet via wallet-adapter takes priority; fall back to Privy embedded
+    const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
+    const addr = adapterPublicKey?.toBase58() ?? embeddedAddr;
     const short = addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connected";
 
     const handleCopy = () => {
@@ -591,7 +589,6 @@ const SESSION_DURATION_OPTIONS = [
 function SessionTimerChip() {
   const { publicKey } = useWallet();
   const { authenticated: privyAuthenticated } = usePrivy();
-  const { wallets: solanaWalletsChip } = useSolanaWallets();
   const { relaySession, relayAvailable, ensureRelaySession } = useArciumPrivacy();
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const [isTimerHovered, setIsTimerHovered] = useState(false);
@@ -639,12 +636,8 @@ function SessionTimerChip() {
     }
   }, [ensureRelaySession, isCreatingSession]);
 
-  // Email/social (embedded-only) users sign directly — no relay session needed
-  const isEmbeddedOnly =
-    privyAuthenticated &&
-    solanaWalletsChip.length > 0 &&
-    solanaWalletsChip.every((w) => w.walletClientType === "privy");
-  if (!publicKey || isEmbeddedOnly) return null;
+  // Email/social users have no wallet-adapter publicKey — they sign directly, no session
+  if (!publicKey || (privyAuthenticated && !publicKey)) return null;
 
   const isActive =
     !!relaySession &&

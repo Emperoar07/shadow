@@ -41,22 +41,18 @@ export function useAnchorWalletCompat(): AnchorCompatibleWallet | null {
       };
     }
 
-    // Fall back to any Privy-managed wallet (embedded or external like Phantom via Privy)
-    if (authenticated && solanaWallets.length > 0) {
-      // Prefer the first wallet that has signTransaction — external wallet first, then embedded
-      const privyWallet =
-        solanaWallets.find((w) => w.walletClientType !== "privy" && w.signTransaction) ??
-        solanaWallets.find((w) => w.signTransaction);
-
-      if (privyWallet?.address && privyWallet.signTransaction) {
+    // Fall back to Privy embedded wallet (email/social users only)
+    if (authenticated) {
+      const embedded = solanaWallets.find((w) => w.walletClientType === "privy");
+      if (embedded?.address && embedded.signTransaction) {
         let privyPublicKey: PublicKey;
         try {
-          privyPublicKey = new PublicKey(privyWallet.address);
+          privyPublicKey = new PublicKey(embedded.address);
         } catch {
           return null;
         }
 
-        const privySignTransaction = privyWallet.signTransaction as NonNullable<WalletContextState["signTransaction"]>;
+        const privySignTransaction = embedded.signTransaction as NonNullable<WalletContextState["signTransaction"]>;
         const safeSignAll: SignAllTransactions = async (txs) => {
           const out = [];
           for (const tx of txs) {
