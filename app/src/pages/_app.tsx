@@ -13,7 +13,6 @@ import {
   SolflareWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
 import { PrivyProvider } from "@privy-io/react-auth";
-import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { Toaster } from "react-hot-toast";
 import ShadowLoader from "../components/ShadowLoader";
 import {
@@ -118,7 +117,6 @@ export default function App({ Component, pageProps }: AppProps) {
     return () => clearInterval(interval);
   }, [autoSelectBestRpc, transports.length]);
 
-  const solanaConnectors = useMemo(() => toSolanaWalletConnectors({ shouldAutoConnect: true }), []);
   const wallets = useMemo(
     () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
     []
@@ -185,7 +183,6 @@ export default function App({ Component, pageProps }: AppProps) {
           noPromptOnSignature: true,
         },
         solanaClusters: [{ name: "devnet", rpcUrl: transport.rpc }],
-        externalWallets: { solana: { connectors: solanaConnectors } } as any,
       }}
     >
       <ConnectionProvider

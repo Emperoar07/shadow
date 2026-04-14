@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import BN from "bn.js";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
@@ -49,8 +49,8 @@ export default function CollateralModal({
   refreshRelaySession,
   pairLabel = "SOL-USD",
 }: CollateralModalProps) {
-  const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
+  const publicKey = anchorWallet?.publicKey ?? null;
   const { connection } = useConnection();
   const [tab, setTab] = useState<Tab>("deposit");
   const [amount, setAmount] = useState("");
