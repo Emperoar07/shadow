@@ -141,7 +141,10 @@ export default function TradingAppPage() {
   const { locked: layoutLocked, toggle: toggleLayoutLock } = useLayoutLocked();
   const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
   const { publicKey } = useWallet();
-  const { relaySession, revokeRelaySession } = useArciumPrivacy();
+  const { authenticated: privyAuthenticated } = usePrivy();
+  const { relaySession: rawRelaySession, revokeRelaySession } = useArciumPrivacy();
+  // Hide session UI entirely for Privy (email/social) users — they sign directly
+  const relaySession = privyAuthenticated ? null : rawRelaySession;
   const isRelaySessionActive =
     !!relaySession &&
     relaySession.owner === (publicKey?.toBase58() ?? "") &&
@@ -500,6 +503,7 @@ const SESSION_DURATION_OPTIONS = [
 
 function SessionTimerChip() {
   const { publicKey } = useWallet();
+  const { authenticated: privyAuthenticated } = usePrivy();
   const { relaySession, relayAvailable, ensureRelaySession } = useArciumPrivacy();
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const [isTimerHovered, setIsTimerHovered] = useState(false);
@@ -547,7 +551,8 @@ function SessionTimerChip() {
     }
   }, [ensureRelaySession, isCreatingSession]);
 
-  if (!publicKey) return null;
+  // Privy embedded wallet users sign directly — no relay session needed
+  if (!publicKey || privyAuthenticated) return null;
 
   const isActive =
     !!relaySession &&
