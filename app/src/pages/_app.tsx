@@ -176,7 +176,8 @@ export default function App({ Component, pageProps }: AppProps) {
         appearance: {
           theme: "dark",
           accentColor: "#7c3aed",
-          logo: "/shadow-logo.svg",
+          logo: "/favicon.svg",
+          landingHeader: "Log in to Shadow",
         },
         loginMethods: ["email", "google", "twitter", "wallet"],
         embeddedWallets: {

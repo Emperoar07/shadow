@@ -830,17 +830,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
 
 
 
-          {/* Price quality warning — shown when live feed is unavailable */}
-          {priceQuality !== "live" && (
-            <div className="flex items-center gap-1.5 rounded-md border border-yellow-500/30 bg-yellow-500/8 px-2.5 py-1.5">
-              <svg className="h-3 w-3 shrink-0 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
-              <span className="text-[10px] text-yellow-300">
-                {priceQuality === "mock" ? "Live feed unavailable — showing estimated price" : "Showing cached price — feed may be delayed"}
-              </span>
-            </div>
-          )}
 
           {/* Keyboard shortcuts */}
           <div className="flex justify-between px-0.5 text-[9px] text-gray-500">

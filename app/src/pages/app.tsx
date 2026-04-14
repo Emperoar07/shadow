@@ -31,13 +31,6 @@ const BottomPositionsPanel = dynamic(
   () => import("../components/BottomPositionsPanel"),
   { ssr: false, loading: () => <ShadowLoader size="sm" message="Loading positions..." /> }
 );
-const WalletMultiButton = dynamic(
-  () =>
-    import("@solana/wallet-adapter-react-ui").then(
-      (mod) => mod.WalletMultiButton
-    ),
-  { ssr: false }
-);
 const PriceChart = dynamic(() => import("../components/PriceChart"), {
   ssr: false,
   loading: () => <ShadowLoader size="sm" message="Loading chart..." />,
@@ -407,18 +400,15 @@ function ConnectWalletButton() {
     );
   }
 
-  // Not logged in — Privy login (email/social) + external wallet option
+  // Not logged in — single Sign In button, Privy handles email/social/wallet
   return (
-    <div className="flex items-center gap-1.5">
-      <button
-        type="button"
-        onClick={() => login()}
-        className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-semibold bg-accent-purple/80 hover:bg-accent-purple text-white border border-accent-purple/50 transition-colors"
-      >
-        Sign In
-      </button>
-      <WalletMultiButton style={{ height: 32, fontSize: 12, padding: "0 12px" }} />
-    </div>
+    <button
+      type="button"
+      onClick={() => login()}
+      className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-semibold bg-accent-purple/80 hover:bg-accent-purple text-white border border-accent-purple/50 transition-colors"
+    >
+      Sign In
+    </button>
   );
 }
 
