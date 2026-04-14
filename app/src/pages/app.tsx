@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useSolanaWallets } from "@privy-io/react-auth";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
@@ -385,12 +385,15 @@ export default function TradingAppPage() {
 
 function ConnectWalletButton() {
   const { publicKey } = useWallet();
-  const { ready, authenticated, login, logout, user } = usePrivy();
+  const { ready, authenticated, login, logout } = usePrivy();
+  const { wallets: solanaWallets } = useSolanaWallets();
 
   if (!ready) return null;
 
-  if (authenticated && publicKey) {
-    // Logged in via Privy and wallet connected — show disconnect
+  if (authenticated) {
+    // Use privy embedded wallet address, fall back to wallet-adapter publicKey
+    const embeddedWallet = solanaWallets.find((w) => w.walletClientType === "privy");
+    const addr = embeddedWallet?.address ?? publicKey?.toBase58();
     return (
       <button
         type="button"
@@ -398,30 +401,12 @@ function ConnectWalletButton() {
         className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium bg-shadow-700/60 border border-shadow-500/50 text-gray-300 hover:text-white hover:bg-shadow-600/60 transition-colors"
       >
         <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-        {publicKey.toBase58().slice(0, 4)}...{publicKey.toBase58().slice(-4)}
-      </button>
-    );
-  }
-
-  if (authenticated && !publicKey) {
-    // Privy logged in but wallet adapter not synced yet — show address from Privy
-    const solWallet = user?.linkedAccounts?.find(
-      (a: any) => a.type === "wallet" && a.walletClientType === "privy" && a.chainType === "solana"
-    ) as any;
-    const addr = solWallet?.address as string | undefined;
-    return (
-      <button
-        type="button"
-        onClick={() => logout()}
-        className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium bg-shadow-700/60 border border-shadow-500/50 text-gray-300 hover:text-white hover:bg-shadow-600/60 transition-colors"
-      >
-        <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
         {addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : "Connected"}
       </button>
     );
   }
 
-  // Not logged in — show Privy login, but also allow existing wallet users
+  // Not logged in — Privy login (email/social) + external wallet option
   return (
     <div className="flex items-center gap-1.5">
       <button

@@ -178,8 +178,10 @@ export default function App({ Component, pageProps }: AppProps) {
         },
         loginMethods: ["email", "google", "twitter", "wallet"],
         embeddedWallets: {
-          solana: { createOnLogin: "users-without-wallets" },
+          createOnLogin: "users-without-wallets",
+          noPromptOnSignature: true,
         },
+        solanaClusters: [{ name: "devnet", rpcUrl: transport.rpc }],
       }}
     >
       <ConnectionProvider
