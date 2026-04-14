@@ -382,44 +382,38 @@ export default function TradingAppPage() {
 
 function ConnectWalletButton() {
   const { publicKey } = useWallet();
-  const { ready, authenticated, login, logout } = usePrivy();
+  const { ready, authenticated, login } = usePrivy();
   const { wallets: solanaWallets } = useSolanaWallets();
 
   if (!ready) return null;
 
   if (authenticated) {
+    // Prefer external wallet address, fall back to embedded
+    const externalWallet = solanaWallets.find((w) => w.walletClientType !== "privy");
     const embeddedWallet = solanaWallets.find((w) => w.walletClientType === "privy");
-    const addr = embeddedWallet?.address ?? publicKey?.toBase58();
+    const addr = publicKey?.toBase58() ?? externalWallet?.address ?? embeddedWallet?.address;
+    const short = addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : "Connected";
+
     return (
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => login()}
-          className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium bg-shadow-700/60 border border-shadow-500/50 text-gray-300 hover:text-white hover:bg-shadow-600/60 transition-colors"
-        >
-          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-          {addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : "Connected"}
-        </button>
-        <button
-          type="button"
-          onClick={() => logout()}
-          className="px-2 py-1.5 rounded text-[11px] text-gray-500 hover:text-red-400 transition-colors"
-          title="Disconnect"
-        >
-          ✕
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => login()}
+        className="flex items-center gap-2 px-3 py-1.5 rounded border border-shadow-500/60 bg-shadow-800/80 text-[12px] font-medium text-gray-200 hover:border-accent-purple/50 hover:bg-shadow-700/80 transition-colors"
+      >
+        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" style={{ boxShadow: "0 0 6px rgba(52,211,153,0.7)" }} />
+        {short}
+      </button>
     );
   }
 
-  // Not logged in — single Sign In button, Privy handles email/social/wallet
+  // Not logged in — single button, Privy handles email/social/wallet picker
   return (
     <button
       type="button"
       onClick={() => login()}
-      className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-semibold bg-accent-purple/80 hover:bg-accent-purple text-white border border-accent-purple/50 transition-colors"
+      className="flex items-center gap-2 px-4 py-1.5 rounded border border-accent-purple/60 bg-accent-purple/15 text-[12px] font-semibold text-accent-purple hover:bg-accent-purple/25 hover:border-accent-purple/80 transition-colors"
     >
-      Sign In
+      Connect
     </button>
   );
 }
