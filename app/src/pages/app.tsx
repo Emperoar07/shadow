@@ -385,18 +385,27 @@ function ConnectWalletButton() {
   if (!ready) return null;
 
   if (authenticated) {
-    // Use privy embedded wallet address, fall back to wallet-adapter publicKey
     const embeddedWallet = solanaWallets.find((w) => w.walletClientType === "privy");
     const addr = embeddedWallet?.address ?? publicKey?.toBase58();
     return (
-      <button
-        type="button"
-        onClick={() => logout()}
-        className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium bg-shadow-700/60 border border-shadow-500/50 text-gray-300 hover:text-white hover:bg-shadow-600/60 transition-colors"
-      >
-        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-        {addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : "Connected"}
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => login()}
+          className="flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium bg-shadow-700/60 border border-shadow-500/50 text-gray-300 hover:text-white hover:bg-shadow-600/60 transition-colors"
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+          {addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : "Connected"}
+        </button>
+        <button
+          type="button"
+          onClick={() => logout()}
+          className="px-2 py-1.5 rounded text-[11px] text-gray-500 hover:text-red-400 transition-colors"
+          title="Disconnect"
+        >
+          ✕
+        </button>
+      </div>
     );
   }
 

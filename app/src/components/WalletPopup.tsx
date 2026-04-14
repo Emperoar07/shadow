@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { usePrivy } from "@privy-io/react-auth";
+import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Wallet, Clock, ExternalLink, ChevronDown, ArrowDownToLine, ArrowUpFromLine, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
@@ -309,7 +311,13 @@ async function enrichTxTypes(
 
 export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletPopupProps) {
   const { connection } = useConnection();
-  const { publicKey, connected } = useWallet();
+  const { publicKey: adapterPublicKey, connected } = useWallet();
+  const { authenticated } = usePrivy();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const privyEmbedded = solanaWallets.find((w) => w.walletClientType === "privy");
+  const privyPublicKey = privyEmbedded?.address ? (() => { try { return new PublicKey(privyEmbedded.address); } catch { return null; } })() : null;
+  const publicKey = adapterPublicKey ?? (authenticated ? privyPublicKey : null);
+  const isConnected = connected || (authenticated && !!privyPublicKey);
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [open, setOpen] = useState(false);
@@ -345,7 +353,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
 
   // Fetch SOL + SPL token balances
   useEffect(() => {
-    if (!publicKey || !connected || !open) {
+    if (!publicKey || !isConnected || !open) {
       setSolBalance(null);
       setTokenBalances([]);
       return;
@@ -391,7 +399,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
       cancelled = true;
       clearInterval(interval);
     };
-  }, [publicKey, connected, connection, open]);
+  }, [publicKey, isConnected, connection, open]);
 
   const loadRecentTxsDirect = async (limit: number, before?: string) => {
     if (!publicKey) return { txs: [] as RecentTx[], hasMore: false };
@@ -412,7 +420,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
 
   // Fetch recent transactions when activity tab is opened
   useEffect(() => {
-    if (activeTab !== "activity" || !publicKey || !connected) return;
+    if (activeTab !== "activity" || !publicKey || !isConnected) return;
     let cancelled = false;
     setTxsLoading(true);
     setRecentTxs([]);
@@ -443,7 +451,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
       }
     })();
     return () => { cancelled = true; };
-  }, [activeTab, publicKey, connected, connection]);
+  }, [activeTab, publicKey, isConnected, connection]);
 
   const loadMoreTxs = async () => {
     if (!publicKey || txsLoadingMore || recentTxs.length === 0) return;
@@ -471,7 +479,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
     }
   };
 
-  const hasBalances = connected && (solBalance !== null || tokenBalances.length > 0);
+  const hasBalances = isConnected && (solBalance !== null || tokenBalances.length > 0);
 
   const panelContent = (
     <>
@@ -522,7 +530,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
                 </div>
               ))}
             </div>
-          ) : connected ? (
+          ) : isConnected ? (
             <div className="px-3 py-3">
               <p className="text-[11px] leading-relaxed text-gray-500">No wallet balances detected yet.</p>
             </div>
@@ -567,7 +575,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
       {/* Activity tab */}
       {activeTab === "activity" && (
         <div className="flex flex-col">
-          {!connected ? (
+          {!isConnected ? (
             <div className="px-3 py-3">
               <p className="text-[11px] leading-relaxed text-gray-500">Connect your wallet to see on-chain activity.</p>
             </div>
