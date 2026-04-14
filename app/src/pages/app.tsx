@@ -121,17 +121,15 @@ function MockUsdcGate() {
     <div key="welcome" className="flex flex-col items-center text-center px-8 py-8">
       <div className="mb-5 relative">
         <div className="w-24 h-24 rounded-full bg-gradient-to-br from-accent-purple/30 to-accent-blue/20 border border-accent-purple/40 flex items-center justify-center">
-          <svg className="w-12 h-12 text-accent-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
+          <ShadowLogo className="w-14 h-14" />
         </div>
         <span className="absolute -top-1 -right-1 text-xs bg-accent-purple text-white px-2 py-0.5 rounded-full font-bold">Devnet</span>
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">Welcome to Shadow</h2>
-      <p className="text-gray-400 text-sm leading-relaxed mb-1 font-medium">You&apos;re early.</p>
+      <p className="text-gray-400 text-sm leading-relaxed mb-1 font-medium">You are early.</p>
       <p className="text-gray-500 text-[13px] leading-relaxed">
         Shadow is a private perpetual trading terminal on Solana with encrypted positions powered by Arcium MPC.
-        Trade with full privacy — your positions are never exposed on-chain.
+        Trade with full privacy. Your positions are never exposed on chain.
       </p>
       <button
         type="button"
@@ -149,14 +147,12 @@ function MockUsdcGate() {
     <div key="funds" className="flex flex-col items-center text-center px-8 py-8">
       <div className="mb-5">
         <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500/20 to-accent-purple/20 border border-emerald-500/30 flex items-center justify-center">
-          <svg className="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+          <ShadowLogo className="w-14 h-14" />
         </div>
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">Claim Test Funds</h2>
       <p className="text-gray-400 text-[13px] leading-relaxed mb-4">
-        We&apos;ll send you <span className="text-white font-semibold">20,000 mUSDC</span> so you can open trades and stress-test the engine without real funds.
+        We will send you <span className="text-white font-semibold">20,000 mUSDC</span> so you can open trades and stress test the engine without real funds.
         The faucet resets every 7 days.
       </p>
       <div className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 flex items-center justify-between mb-6">
@@ -181,29 +177,28 @@ function MockUsdcGate() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-            Claiming...
+            Sending mUSDC to your wallet...
           </>
-        ) : "Claim mUSDC & Continue"}
+        ) : "Claim mUSDC and Continue"}
       </button>
+      <p className="mt-3 text-[10px] text-gray-600">Funds are sent directly to your wallet. No signing required.</p>
     </div>,
 
-    // Step 2: Ready — deposit prompt
+    // Step 2: Ready
     <div key="enter" className="flex flex-col items-center text-center px-8 py-8">
       <div className="mb-5">
         <div className="w-24 h-24 rounded-full bg-gradient-to-br from-accent-purple/30 to-accent-blue/20 border border-accent-purple/40 flex items-center justify-center">
-          <svg className="w-12 h-12 text-accent-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
+          <ShadowLogo className="w-14 h-14" />
         </div>
       </div>
-      <h2 className="text-2xl font-bold text-white mb-2">Ready to Trade</h2>
+      <h2 className="text-2xl font-bold text-white mb-2">Ready When You Are</h2>
       <p className="text-gray-500 text-[13px] leading-relaxed mb-5">
         Your mUSDC is in your wallet. Deposit it into your Shadow trading account to open positions.
       </p>
       <div className="w-full space-y-2.5 mb-6 text-left">
         {[
-          { icon: "⚡", text: "Encrypted positions — no one sees your trades" },
-          { icon: "🔒", text: "Arcium MPC protects your strategy on-chain" },
+          { icon: "⚡", text: "Encrypted positions. No one sees your trades" },
+          { icon: "🔒", text: "Arcium MPC protects your strategy on chain" },
           { icon: "📈", text: "Up to 50x leverage with private margin" },
         ].map(({ icon, text }) => (
           <div key={text} className="flex items-center gap-3 rounded-lg bg-shadow-800/60 px-3 py-2.5">
