@@ -142,9 +142,15 @@ export default function TradingAppPage() {
   const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
   const { publicKey } = useWallet();
   const { authenticated: privyAuthenticated } = usePrivy();
+  const { wallets: solanaWalletsMain } = useSolanaWallets();
+  // Embedded wallet = email/social user who signs directly — no session needed
+  // External wallet connected via Privy still needs sessions
+  const hasEmbeddedOnly =
+    privyAuthenticated &&
+    solanaWalletsMain.length > 0 &&
+    solanaWalletsMain.every((w) => w.walletClientType === "privy");
   const { relaySession: rawRelaySession, revokeRelaySession } = useArciumPrivacy();
-  // Hide session UI entirely for Privy (email/social) users — they sign directly
-  const relaySession = privyAuthenticated ? null : rawRelaySession;
+  const relaySession = hasEmbeddedOnly ? null : rawRelaySession;
   const isRelaySessionActive =
     !!relaySession &&
     relaySession.owner === (publicKey?.toBase58() ?? "") &&
@@ -381,30 +387,119 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { publicKey } = useWallet();
-  const { ready, authenticated, login } = usePrivy();
+  const { publicKey: adapterPublicKey } = useWallet();
+  const { ready, authenticated, login, logout } = usePrivy();
   const { wallets: solanaWallets } = useSolanaWallets();
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
 
   if (!ready) return null;
 
   if (authenticated) {
-    // Any Privy-managed wallet — external (Phantom via Privy) first, then embedded
-    const addr = publicKey?.toBase58() ?? solanaWallets[0]?.address;
-    const short = addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : "Connected";
+    const addr = adapterPublicKey?.toBase58() ?? solanaWallets[0]?.address;
+    const short = addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connected";
+
+    const handleCopy = () => {
+      if (!addr) return;
+      navigator.clipboard.writeText(addr).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      });
+    };
+
+    const explorerUrl = addr
+      ? `https://explorer.solana.com/address/${addr}?cluster=devnet`
+      : null;
 
     return (
-      <button
-        type="button"
-        onClick={() => login()}
-        className="flex items-center gap-2 px-3 py-1.5 rounded border border-shadow-500/60 bg-shadow-800/80 text-[12px] font-medium text-gray-200 hover:border-accent-purple/50 hover:bg-shadow-700/80 transition-colors"
-      >
-        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" style={{ boxShadow: "0 0 6px rgba(52,211,153,0.7)" }} />
-        {short}
-      </button>
+      <div className="relative" ref={ref}>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded border border-shadow-500/60 bg-shadow-800/80 text-[12px] font-medium text-gray-200 hover:border-accent-purple/50 hover:bg-shadow-700/80 transition-colors"
+        >
+          <span
+            className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"
+            style={{ boxShadow: "0 0 6px rgba(52,211,153,0.7)" }}
+          />
+          {short}
+        </button>
+
+        {open && (
+          <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] overflow-hidden">
+            {/* Address row */}
+            <div className="px-4 py-3 border-b border-shadow-700/60">
+              <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Wallet</p>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[13px] font-semibold text-white font-mono truncate">
+                  {addr ? `${addr.slice(0, 8)}...${addr.slice(-6)}` : "—"}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="shrink-0 text-gray-500 hover:text-gray-200 transition-colors"
+                  title="Copy address"
+                >
+                  {copied ? (
+                    <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 16 16" fill="none">
+                      <path d="M3 8l3.5 3.5L13 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none">
+                      <rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                      <path d="M3 11V3h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="py-1">
+              {explorerUrl && (
+                <a
+                  href={explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-[12px] text-gray-300 hover:bg-shadow-800/80 hover:text-white transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
+                    <path d="M6 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M9 2h5m0 0v5m0-5L7 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Open in Explorer
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => { setOpen(false); logout(); }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-[12px] text-red-400 hover:bg-shadow-800/80 hover:text-red-300 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M10 11l3-3-3-3M13 8H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Disconnect
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
-  // Not logged in — single button, Privy handles email/social/wallet picker
+  // Not authenticated — single button
   return (
     <button
       type="button"
@@ -496,6 +591,7 @@ const SESSION_DURATION_OPTIONS = [
 function SessionTimerChip() {
   const { publicKey } = useWallet();
   const { authenticated: privyAuthenticated } = usePrivy();
+  const { wallets: solanaWalletsChip } = useSolanaWallets();
   const { relaySession, relayAvailable, ensureRelaySession } = useArciumPrivacy();
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const [isTimerHovered, setIsTimerHovered] = useState(false);
@@ -543,8 +639,12 @@ function SessionTimerChip() {
     }
   }, [ensureRelaySession, isCreatingSession]);
 
-  // Privy embedded wallet users sign directly — no relay session needed
-  if (!publicKey || privyAuthenticated) return null;
+  // Email/social (embedded-only) users sign directly — no relay session needed
+  const isEmbeddedOnly =
+    privyAuthenticated &&
+    solanaWalletsChip.length > 0 &&
+    solanaWalletsChip.every((w) => w.walletClientType === "privy");
+  if (!publicKey || isEmbeddedOnly) return null;
 
   const isActive =
     !!relaySession &&
