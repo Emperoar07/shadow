@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import BN from "bn.js";
 import { useConnection } from "@solana/wallet-adapter-react";
@@ -57,6 +57,56 @@ export default function CollateralModal({
   const [isBusy, setIsBusy] = useState(false);
   const [visible, setVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [nextClaimAt, setNextClaimAt] = useState<number | null>(null);
+  const faucetCooldownKey = publicKey ? `mockusdc_faucet_${publicKey.toBase58()}` : null;
+
+  // Load persisted cooldown from localStorage
+  useEffect(() => {
+    if (!faucetCooldownKey) return;
+    try {
+      const stored = localStorage.getItem(faucetCooldownKey);
+      if (stored) setNextClaimAt(parseInt(stored, 10));
+    } catch {}
+  }, [faucetCooldownKey]);
+
+  const handleClaimMockUsdc = useCallback(async () => {
+    if (!publicKey || isClaiming) return;
+    const now = Date.now();
+    if (nextClaimAt && now < nextClaimAt) return;
+    setIsClaiming(true);
+    const toastId = "faucet-claim";
+    toast.loading("Claiming 20,000 mUSDC...", { id: toastId });
+    try {
+      const res = await fetch("/api/faucet-mock-usdc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ wallet: publicKey.toBase58() }),
+      });
+      const data = await res.json() as { success: boolean; amount?: number; error?: string; nextClaimAt?: number };
+      if (data.success) {
+        toast.success(`Claimed ${data.amount?.toLocaleString()} mUSDC!`, { id: toastId });
+        const nextAt = now + 7 * 24 * 60 * 60 * 1000;
+        setNextClaimAt(nextAt);
+        if (faucetCooldownKey) {
+          try { localStorage.setItem(faucetCooldownKey, String(nextAt)); } catch {}
+        }
+        onSuccess();
+      } else {
+        if (data.nextClaimAt) {
+          setNextClaimAt(data.nextClaimAt);
+          if (faucetCooldownKey) {
+            try { localStorage.setItem(faucetCooldownKey, String(data.nextClaimAt)); } catch {}
+          }
+        }
+        toast.error(data.error ?? "Claim failed", { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? "Claim failed", { id: toastId });
+    } finally {
+      setIsClaiming(false);
+    }
+  }, [publicKey, isClaiming, nextClaimAt, faucetCooldownKey, onSuccess]);
   const availableCollateral = freeCollateral ?? marginBalance;
   const reservedCollateral =
     lockedCollateral ??
@@ -211,7 +261,7 @@ export default function CollateralModal({
           await refreshRelaySession();
           toast.success(
             <div>
-              <p className="font-medium">Deposited ${amt.toFixed(2)} USDC</p>
+              <p className="font-medium">Deposited ${amt.toFixed(2)} mUSDC</p>
               <a
                 href={getExplorerTxUrl(tx)}
                 target="_blank"
@@ -254,7 +304,7 @@ export default function CollateralModal({
       const tx = await client.depositCollateral(marketAddress, amountBN);
       toast.success(
         <div>
-          <p className="font-medium">Deposited ${amt.toFixed(2)} USDC</p>
+          <p className="font-medium">Deposited ${amt.toFixed(2)} mUSDC</p>
           <a
             href={getExplorerTxUrl(tx)}
             target="_blank"
@@ -319,7 +369,7 @@ export default function CollateralModal({
           await refreshRelaySession();
           toast.success(
             <div>
-              <p className="font-medium">Withdrew ${amt.toFixed(2)} USDC</p>
+              <p className="font-medium">Withdrew ${amt.toFixed(2)} mUSDC</p>
               <a
                 href={getExplorerTxUrl(tx)}
                 target="_blank"
@@ -364,7 +414,7 @@ export default function CollateralModal({
       const tx = await client.withdrawCollateral(marketAddress, amountBN);
       toast.success(
         <div>
-          <p className="font-medium">Withdrew ${amt.toFixed(2)} USDC</p>
+          <p className="font-medium">Withdrew ${amt.toFixed(2)} mUSDC</p>
           <a
             href={getExplorerTxUrl(tx)}
             target="_blank"
@@ -452,7 +502,7 @@ export default function CollateralModal({
             <div>
               <h3 className="text-base font-semibold text-white">Manage Collateral</h3>
               <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
-                Move USDC between your wallet and your Shadow trading account.
+                Move mUSDC between your wallet and your Shadow trading account.
               </p>
             </div>
             <button
@@ -513,7 +563,7 @@ export default function CollateralModal({
         <div className="px-5 py-5 space-y-4">
           <div>
             <label className="mb-1.5 block text-xs text-gray-400">
-              {actionLabel} (USDC)
+              {actionLabel} (mUSDC)
             </label>
             <div className="relative">
               <input
@@ -524,7 +574,7 @@ export default function CollateralModal({
                 className="w-full bg-shadow-700 border border-shadow-500 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:border-accent-purple transition-colors pr-14"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 pointer-events-none">
-                USDC
+                mUSDC
               </span>
             </div>
 
@@ -550,7 +600,7 @@ export default function CollateralModal({
             <div className="rounded-lg bg-shadow-700 px-3 py-2 text-xs text-gray-400">
               Free collateral after this withdrawal:{" "}
               <span className="text-white font-medium">
-                ${Math.max(0, availableCollateral - parseFloat(amount)).toFixed(2)} USDC
+                ${Math.max(0, availableCollateral - parseFloat(amount)).toFixed(2)} mUSDC
               </span>
             </div>
           )}
@@ -569,21 +619,37 @@ export default function CollateralModal({
           </button>
 
           <p className="text-center text-[10px] leading-relaxed text-gray-600">
-            Your USDC sits in the Shadow vault on-chain while trade details stay encrypted through Arcium MPC.
+            mUSDC is Shadow&apos;s devnet collateral token. Your position details stay encrypted through Arcium MPC.
           </p>
-          <div className="text-center mt-1">
-            <a
-              href="https://faucet.circle.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-accent-purple hover:text-accent-purple/80 transition-colors"
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
-              </svg>
-              Get USDC Faucet
-            </a>
-          </div>
+
+          {/* MockUSDC faucet claim */}
+          {publicKey && (() => {
+            const now = Date.now();
+            const canClaim = !nextClaimAt || now >= nextClaimAt;
+            const daysLeft = nextClaimAt
+              ? Math.ceil((nextClaimAt - now) / (1000 * 60 * 60 * 24))
+              : 0;
+            return (
+              <div className="rounded-xl border border-shadow-600/70 bg-shadow-800/50 px-4 py-3 text-center">
+                <p className="text-[10px] text-gray-500 mb-2">
+                  {canClaim
+                    ? "Claim free mUSDC to start trading"
+                    : `Next claim in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}`}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleClaimMockUsdc}
+                  disabled={!canClaim || isClaiming}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold bg-accent-purple/20 border border-accent-purple/40 text-accent-purple hover:bg-accent-purple/30 hover:border-accent-purple/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  {isClaiming ? "Claiming..." : canClaim ? "Claim 20,000 mUSDC" : "Already Claimed"}
+                </button>
+              </div>
+            );
+          })()}
 
         </div>
       </div>
@@ -605,7 +671,7 @@ function BalanceMetric({
     <div className="flex flex-col gap-0.5">
       <span className="text-[10px] uppercase tracking-[0.1em] text-gray-500">{label}</span>
       <span className={`text-sm font-semibold ${valueClass}`}>
-        {value} <span className="text-[10px] font-medium text-gray-500">USDC</span>
+        {value} <span className="text-[10px] font-medium text-gray-500">mUSDC</span>
       </span>
     </div>
   );

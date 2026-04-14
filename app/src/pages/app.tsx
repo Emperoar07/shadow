@@ -4,6 +4,8 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
+import { PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
@@ -43,7 +45,25 @@ const TerminalGrid = dynamic(
 function FaucetsDropdown() {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [nextClaimAt, setNextClaimAt] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const { publicKey: adapterPublicKey } = useWallet();
+  const { authenticated } = usePrivy();
+  const { wallets: solanaWallets } = useSolanaWallets();
+
+  // Resolve active wallet address (external or Privy embedded)
+  const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
+  const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null);
+
+  // Load persisted cooldown
+  useEffect(() => {
+    if (!walletAddr) return;
+    try {
+      const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
+      if (stored) setNextClaimAt(parseInt(stored, 10));
+    } catch {}
+  }, [walletAddr]);
 
   useEffect(() => {
     if (!open) return;
@@ -60,6 +80,44 @@ function FaucetsDropdown() {
     return () => setMounted(false);
   }, []);
 
+  const handleClaimMockUsdc = async () => {
+    if (!walletAddr || isClaiming) return;
+    const now = Date.now();
+    if (nextClaimAt && now < nextClaimAt) return;
+    setIsClaiming(true);
+    setOpen(false);
+    try {
+      const res = await fetch("/api/faucet-mock-usdc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ wallet: walletAddr }),
+      });
+      const data = await res.json() as { success: boolean; amount?: number; error?: string; nextClaimAt?: number };
+      if (data.success) {
+        toast.success(`Claimed ${data.amount?.toLocaleString()} mUSDC to your wallet!`);
+        const nextAt = now + 7 * 24 * 60 * 60 * 1000;
+        setNextClaimAt(nextAt);
+        try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
+      } else {
+        if (data.nextClaimAt) {
+          setNextClaimAt(data.nextClaimAt);
+          try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(data.nextClaimAt)); } catch {}
+        }
+        toast.error(data.error ?? "Claim failed");
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? "Claim failed");
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  const now = Date.now();
+  const canClaim = !!walletAddr && (!nextClaimAt || now >= nextClaimAt);
+  const daysLeft = nextClaimAt && nextClaimAt > now
+    ? Math.ceil((nextClaimAt - now) / (1000 * 60 * 60 * 24))
+    : 0;
+
   const panelContent = (
     <div className="py-1">
       <a
@@ -72,16 +130,22 @@ function FaucetsDropdown() {
         <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
         SOL Faucet
       </a>
-      <a
-        href="https://faucet.circle.com/"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-2 px-3 py-2 text-[11px] text-gray-300 hover:bg-shadow-700/60 transition-colors"
-        onClick={() => setOpen(false)}
+      <button
+        type="button"
+        disabled={!canClaim || isClaiming}
+        onClick={handleClaimMockUsdc}
+        className="flex w-full items-center gap-2 px-3 py-2 text-[11px] text-gray-300 hover:bg-shadow-700/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <div className="w-3 h-3 rounded-full shrink-0 bg-[#2775CA]" />
-        USDC Faucet
-      </a>
+        <div className="w-3 h-3 rounded-full shrink-0 bg-accent-purple" />
+        {isClaiming
+          ? "Claiming..."
+          : canClaim
+          ? "Claim 20,000 mUSDC"
+          : `mUSDC (${daysLeft}d cooldown)`}
+      </button>
+      {!walletAddr && (
+        <p className="px-3 py-1 text-[10px] text-gray-600">Connect wallet to claim mUSDC</p>
+      )}
     </div>
   );
 
@@ -119,6 +183,149 @@ function FaucetsDropdown() {
         </>
       )}
     </div>
+  );
+}
+
+const MOCKUSDC_MINT = process.env.NEXT_PUBLIC_MOCKUSDC_MINT ?? "";
+
+/**
+ * Detects zero mUSDC balance on connect and shows a blocking claim modal.
+ * Users must claim before they can trade. Cannot be dismissed without claiming.
+ */
+function MockUsdcGate() {
+  const { connection } = useConnection();
+  const { publicKey: adapterPublicKey } = useWallet();
+  const { authenticated } = usePrivy();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const [showGate, setShowGate] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Resolve active wallet address
+  const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
+  const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null);
+
+  useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
+
+  // Check mUSDC balance whenever wallet changes
+  useEffect(() => {
+    if (!walletAddr || !MOCKUSDC_MINT || claimed) return;
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        const mintPubkey = new PublicKey(MOCKUSDC_MINT);
+        const ownerPubkey = new PublicKey(walletAddr);
+        const ata = await getAssociatedTokenAddress(mintPubkey, ownerPubkey);
+        const acct = await getAccount(connection, ata).catch(() => null);
+        if (cancelled) return;
+        if (!acct || acct.amount === BigInt(0)) {
+          setShowGate(true);
+        } else {
+          setShowGate(false);
+        }
+      } catch {
+        // ATA doesn't exist — definitely zero balance
+        if (!cancelled) setShowGate(true);
+      }
+    };
+
+    void check();
+    return () => { cancelled = true; };
+  }, [walletAddr, connection, claimed]);
+
+  const handleClaim = async () => {
+    if (!walletAddr || isClaiming) return;
+    setIsClaiming(true);
+    try {
+      const res = await fetch("/api/faucet-mock-usdc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ wallet: walletAddr }),
+      });
+      const data = await res.json() as { success: boolean; amount?: number; error?: string };
+      if (data.success) {
+        toast.success(`Claimed ${data.amount?.toLocaleString()} mUSDC! You can start trading.`);
+        setClaimed(true);
+        setShowGate(false);
+        // Store so we don't re-check this session
+        try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(Date.now() + 7 * 24 * 60 * 60 * 1000)); } catch {}
+      } else {
+        // If they already claimed (cooldown) the balance check should've passed — just close
+        if (data.error?.includes("claim again")) {
+          setClaimed(true);
+          setShowGate(false);
+        } else {
+          toast.error(data.error ?? "Claim failed. Try again.");
+        }
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? "Claim failed");
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  if (!showGate || !walletAddr || !mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+      <div
+        className="w-full max-w-sm rounded-2xl border border-accent-purple/40 overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #1a1a25 0%, #12121a 100%)" }}
+      >
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-shadow-600/60 text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-accent-purple/15 border border-accent-purple/30">
+            <svg className="w-7 h-7 text-accent-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-white">Claim mUSDC to Start</h2>
+          <p className="mt-1 text-[12px] text-gray-400 leading-relaxed">
+            Shadow uses Mock USDC (mUSDC) as collateral on devnet.<br />
+            Claim your free 20,000 mUSDC to begin trading.
+          </p>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-4">
+          <div className="rounded-xl bg-accent-purple/10 border border-accent-purple/20 px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-gray-500">Free claim</p>
+              <p className="text-xl font-bold text-white mt-0.5">20,000 <span className="text-accent-purple text-sm font-semibold">mUSDC</span></p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-gray-500">Cooldown</p>
+              <p className="text-sm font-semibold text-gray-300">7 days</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleClaim}
+            disabled={isClaiming}
+            className="w-full py-3 rounded-xl font-bold text-sm bg-accent-purple hover:bg-accent-purple/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-white"
+          >
+            {isClaiming ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Claiming...
+              </span>
+            ) : "Claim 20,000 mUSDC"}
+          </button>
+
+          <p className="text-center text-[10px] text-gray-600">
+            mUSDC is a testnet token with no real monetary value.
+          </p>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -187,6 +394,7 @@ export default function TradingAppPage() {
           }
         `}</style>
         <DotGridBackground />
+        <MockUsdcGate />
 
         <div className="relative z-10 flex h-screen flex-col overflow-hidden">
 

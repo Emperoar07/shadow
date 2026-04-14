@@ -30,9 +30,12 @@ export const DEVNET_TOKENS: Record<string, TokenInfo> = {
     coingeckoId: "solana",
   },
   USDC: {
-    symbol: "USDC",
-    name: "USD Coin",
-    mint: new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"),
+    symbol: "mUSDC",
+    name: "Mock USDC (Shadow)",
+    // Use deployed MockUSDC mint; falls back to devnet USDC if env not set
+    mint: new PublicKey(
+      process.env.NEXT_PUBLIC_MOCKUSDC_MINT ?? "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+    ),
     decimals: 6,
     color: "#2775CA",
   },

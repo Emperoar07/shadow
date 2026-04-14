@@ -1,0 +1,9 @@
+{
+  "mint": "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6",
+  "decimals": 6,
+  "totalSupply": 5000000000,
+  "deployerAta": "FLdMNvBq4aAhHyBfuug9ke28Ar4cHRxuqxGXeXY7bhCq",
+  "mintAuthority": "5sqUgYEgKnsPiLTrQ78juUx1vWhMfEpsBUd4p8tWUHpt",
+  "deployedAt": "2026-04-14T09:24:16.721Z",
+  "note": "MockUSDC for ShadowPerp devnet — replace USDC collateral mint with this address"
+}

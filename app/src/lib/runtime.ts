@@ -12,7 +12,9 @@ import { TRADING_PAIRS } from "./tokens";
 
 const DEFAULT_CLUSTER_OFFSET = 456;
 const DEFAULT_RPC_ENDPOINT = "https://api.devnet.solana.com";
-const DEFAULT_COLLATERAL_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; // canonical devnet USDC
+const DEFAULT_COLLATERAL_MINT =
+  process.env.NEXT_PUBLIC_MOCKUSDC_MINT ??
+  "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; // MockUSDC mint (falls back to devnet USDC)
 const RPC_PREF_STORAGE_KEY = "shadowperp.rpc.index";
 const USER_RPC_OVERRIDE_KEY = "shadowperp.rpc.override";
 const USER_RPC_ENDPOINTS_KEY = "shadowperp.rpc.endpoints";

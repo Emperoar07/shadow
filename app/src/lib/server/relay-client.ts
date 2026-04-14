@@ -17,7 +17,9 @@ import { TRADING_PAIRS } from "../tokens";
 
 const DEFAULT_CLUSTER_OFFSET = 456;
 const DEFAULT_RPC_ENDPOINT = "https://api.devnet.solana.com";
-const DEFAULT_COLLATERAL_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+const DEFAULT_COLLATERAL_MINT =
+  process.env.NEXT_PUBLIC_MOCKUSDC_MINT ??
+  "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 type RpcTransport = { rpcUrl: string; wsUrl: string };
 export type RelayRuntimeSummary = {
   programId: string;
