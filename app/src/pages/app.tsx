@@ -51,44 +51,59 @@ const MOCKUSDC_MINT = process.env.NEXT_PUBLIC_MOCKUSDC_MINT ?? "";
  */
 function MockUsdcGate() {
   const { connection } = useConnection();
-  const { publicKey: adapterPublicKey } = useWallet();
-  const { authenticated } = usePrivy();
+  const { publicKey: adapterPublicKey, connected: adapterConnected } = useWallet();
+  const { authenticated, ready: privyReady } = usePrivy();
   const { wallets: solanaWallets } = useSolanaWallets();
   const [step, setStep] = useState(0); // 0=welcome, 1=funds, 2=enter
   const [showGate, setShowGate] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [checking, setChecking] = useState(false);
 
-  const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
-  const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null);
+  const embeddedWallet = solanaWallets.find((w) => w.walletClientType === "privy");
+  const embeddedAddr = embeddedWallet?.address;
+  const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated && embeddedAddr ? embeddedAddr : null);
+
+  // Consider wallet "ready" only when Privy is done loading and we have an address
+  const walletReady = adapterConnected || (privyReady && authenticated && !!embeddedAddr);
 
   useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
 
   // Reset step when wallet changes
-  useEffect(() => { setStep(0); }, [walletAddr]);
+  useEffect(() => { setStep(0); setShowGate(false); }, [walletAddr]);
 
   useEffect(() => {
-    if (!walletAddr || !MOCKUSDC_MINT) { setShowGate(false); return; }
-    // Check if already claimed this session
+    if (!walletReady || !walletAddr || !MOCKUSDC_MINT) { setShowGate(false); return; }
+
+    // Skip if already claimed within cooldown period
     try {
       const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
       if (stored && parseInt(stored, 10) > Date.now()) { setShowGate(false); return; }
     } catch {}
 
     let cancelled = false;
+    setChecking(true);
+
     const check = async () => {
       try {
-        const ata = await getAssociatedTokenAddress(new PublicKey(MOCKUSDC_MINT), new PublicKey(walletAddr));
+        const mintPk = new PublicKey(MOCKUSDC_MINT);
+        const ownerPk = new PublicKey(walletAddr);
+        const ata = await getAssociatedTokenAddress(mintPk, ownerPk);
         const acct = await getAccount(connection, ata).catch(() => null);
         if (cancelled) return;
+        // Show gate if no ATA or zero balance
         setShowGate(!acct || acct.amount === BigInt(0));
       } catch {
         if (!cancelled) setShowGate(true);
+      } finally {
+        if (!cancelled) setChecking(false);
       }
     };
-    void check();
-    return () => { cancelled = true; };
-  }, [walletAddr, connection]);
+
+    // Small delay to let RPC settle after wallet connect
+    const timer = setTimeout(() => { void check(); }, 800);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [walletReady, walletAddr, connection]);
 
   const handleClaim = async () => {
     if (!walletAddr || isClaiming) return;
@@ -114,7 +129,8 @@ function MockUsdcGate() {
     }
   };
 
-  if (!showGate || !walletAddr || !mounted) return null;
+  if (!mounted || !walletAddr) return null;
+  if (!showGate) return null;
 
   const steps = [
     // Step 0: Welcome
