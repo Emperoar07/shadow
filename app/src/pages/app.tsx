@@ -42,198 +42,53 @@ const TerminalGrid = dynamic(
   { ssr: false, loading: () => <ShadowLoader size="lg" message="Initializing terminal..." /> }
 );
 
-function FaucetsDropdown() {
-  const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [isClaiming, setIsClaiming] = useState(false);
-  const [nextClaimAt, setNextClaimAt] = useState<number | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
-  const { publicKey: adapterPublicKey } = useWallet();
-  const { authenticated } = usePrivy();
-  const { wallets: solanaWallets } = useSolanaWallets();
-
-  // Resolve active wallet address (external or Privy embedded)
-  const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
-  const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null);
-
-  // Load persisted cooldown
-  useEffect(() => {
-    if (!walletAddr) return;
-    try {
-      const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
-      if (stored) setNextClaimAt(parseInt(stored, 10));
-    } catch {}
-  }, [walletAddr]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (typeof window !== "undefined" && window.innerWidth < 640) return;
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
-
-  const handleClaimMockUsdc = async () => {
-    if (!walletAddr || isClaiming) return;
-    const now = Date.now();
-    if (nextClaimAt && now < nextClaimAt) return;
-    setIsClaiming(true);
-    setOpen(false);
-    try {
-      const res = await fetch("/api/faucet-mock-usdc", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ wallet: walletAddr }),
-      });
-      const data = await res.json() as { success: boolean; amount?: number; error?: string; nextClaimAt?: number };
-      if (data.success) {
-        toast.success(`Claimed ${data.amount?.toLocaleString()} mUSDC to your wallet!`);
-        const nextAt = now + 7 * 24 * 60 * 60 * 1000;
-        setNextClaimAt(nextAt);
-        try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
-      } else {
-        if (data.nextClaimAt) {
-          setNextClaimAt(data.nextClaimAt);
-          try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(data.nextClaimAt)); } catch {}
-        }
-        toast.error(data.error ?? "Claim failed");
-      }
-    } catch (err: any) {
-      toast.error(err?.message ?? "Claim failed");
-    } finally {
-      setIsClaiming(false);
-    }
-  };
-
-  const now = Date.now();
-  const canClaim = !!walletAddr && (!nextClaimAt || now >= nextClaimAt);
-  const daysLeft = nextClaimAt && nextClaimAt > now
-    ? Math.ceil((nextClaimAt - now) / (1000 * 60 * 60 * 24))
-    : 0;
-
-  const panelContent = (
-    <div className="py-1">
-      <a
-        href="https://faucet.solana.com/"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-2 px-3 py-2 text-[11px] text-gray-300 hover:bg-shadow-700/60 transition-colors"
-        onClick={() => setOpen(false)}
-      >
-        <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
-        SOL Faucet
-      </a>
-      <button
-        type="button"
-        disabled={!canClaim || isClaiming}
-        onClick={handleClaimMockUsdc}
-        className="flex w-full items-center gap-2 px-3 py-2 text-[11px] text-gray-300 hover:bg-shadow-700/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <div className="w-3 h-3 rounded-full shrink-0 bg-accent-purple" />
-        {isClaiming
-          ? "Claiming..."
-          : canClaim
-          ? "Claim 20,000 mUSDC"
-          : `mUSDC (${daysLeft}d cooldown)`}
-      </button>
-      {!walletAddr && (
-        <p className="px-3 py-1 text-[10px] text-gray-600">Connect wallet to claim mUSDC</p>
-      )}
-    </div>
-  );
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="trade-header-control inline-flex items-center gap-1 border border-shadow-500/50 bg-shadow-800/80 px-3 py-1.5 text-[11px] font-medium text-gray-400 transition-all hover:text-gray-200 hover:border-shadow-400/60 hover:bg-shadow-700/80"
-      >
-        Faucets
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`text-gray-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
-      {open && (
-        <>
-          <div className="trade-header-popover absolute right-0 top-full mt-2 hidden w-44 border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] sm:block">
-            {panelContent}
-          </div>
-          {mounted && createPortal(
-            <div
-              className="fixed inset-0 z-[450] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:hidden"
-              onClick={() => setOpen(false)}
-            >
-              <div
-                className="w-full max-w-xs overflow-hidden rounded-2xl border border-shadow-500 bg-shadow-900 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {panelContent}
-              </div>
-            </div>,
-            document.body
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
 const MOCKUSDC_MINT = process.env.NEXT_PUBLIC_MOCKUSDC_MINT ?? "";
 
+
 /**
- * Detects zero mUSDC balance on connect and shows a blocking claim modal.
- * Users must claim before they can trade. Cannot be dismissed without claiming.
+ * Full-screen onboarding gate shown when connected wallet has zero mUSDC.
+ * Multi-step: Welcome → Funds Allocated → Enter. Cannot be dismissed without claiming.
  */
 function MockUsdcGate() {
   const { connection } = useConnection();
   const { publicKey: adapterPublicKey } = useWallet();
   const { authenticated } = usePrivy();
   const { wallets: solanaWallets } = useSolanaWallets();
+  const [step, setStep] = useState(0); // 0=welcome, 1=funds, 2=enter
   const [showGate, setShowGate] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
-  const [claimed, setClaimed] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // Resolve active wallet address
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
   const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null);
 
   useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
 
-  // Check mUSDC balance whenever wallet changes
-  useEffect(() => {
-    if (!walletAddr || !MOCKUSDC_MINT || claimed) return;
-    let cancelled = false;
+  // Reset step when wallet changes
+  useEffect(() => { setStep(0); }, [walletAddr]);
 
+  useEffect(() => {
+    if (!walletAddr || !MOCKUSDC_MINT) { setShowGate(false); return; }
+    // Check if already claimed this session
+    try {
+      const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
+      if (stored && parseInt(stored, 10) > Date.now()) { setShowGate(false); return; }
+    } catch {}
+
+    let cancelled = false;
     const check = async () => {
       try {
-        const mintPubkey = new PublicKey(MOCKUSDC_MINT);
-        const ownerPubkey = new PublicKey(walletAddr);
-        const ata = await getAssociatedTokenAddress(mintPubkey, ownerPubkey);
+        const ata = await getAssociatedTokenAddress(new PublicKey(MOCKUSDC_MINT), new PublicKey(walletAddr));
         const acct = await getAccount(connection, ata).catch(() => null);
         if (cancelled) return;
-        if (!acct || acct.amount === BigInt(0)) {
-          setShowGate(true);
-        } else {
-          setShowGate(false);
-        }
+        setShowGate(!acct || acct.amount === BigInt(0));
       } catch {
-        // ATA doesn't exist — definitely zero balance
         if (!cancelled) setShowGate(true);
       }
     };
-
     void check();
     return () => { cancelled = true; };
-  }, [walletAddr, connection, claimed]);
+  }, [walletAddr, connection]);
 
   const handleClaim = async () => {
     if (!walletAddr || isClaiming) return;
@@ -245,20 +100,12 @@ function MockUsdcGate() {
         body: JSON.stringify({ wallet: walletAddr }),
       });
       const data = await res.json() as { success: boolean; amount?: number; error?: string };
-      if (data.success) {
-        toast.success(`Claimed ${data.amount?.toLocaleString()} mUSDC! You can start trading.`);
-        setClaimed(true);
-        setShowGate(false);
-        // Store so we don't re-check this session
-        try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(Date.now() + 7 * 24 * 60 * 60 * 1000)); } catch {}
+      if (data.success || data.error?.includes("claim again")) {
+        const nextAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
+        setStep(1); // move to "funds allocated" step
       } else {
-        // If they already claimed (cooldown) the balance check should've passed — just close
-        if (data.error?.includes("claim again")) {
-          setClaimed(true);
-          setShowGate(false);
-        } else {
-          toast.error(data.error ?? "Claim failed. Try again.");
-        }
+        toast.error(data.error ?? "Claim failed. Try again.");
       }
     } catch (err: any) {
       toast.error(err?.message ?? "Claim failed");
@@ -269,60 +116,134 @@ function MockUsdcGate() {
 
   if (!showGate || !walletAddr || !mounted) return null;
 
-  return createPortal(
-    <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div
-        className="w-full max-w-sm rounded-2xl border border-accent-purple/40 overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #1a1a25 0%, #12121a 100%)" }}
+  const steps = [
+    // Step 0: Welcome
+    <div key="welcome" className="flex flex-col items-center text-center px-8 py-8">
+      <div className="mb-5 relative">
+        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-accent-purple/30 to-accent-blue/20 border border-accent-purple/40 flex items-center justify-center">
+          <svg className="w-12 h-12 text-accent-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <span className="absolute -top-1 -right-1 text-xs bg-accent-purple text-white px-2 py-0.5 rounded-full font-bold">Devnet</span>
+      </div>
+      <h2 className="text-2xl font-bold text-white mb-2">Welcome to Shadow</h2>
+      <p className="text-gray-400 text-sm leading-relaxed mb-1 font-medium">You&apos;re early.</p>
+      <p className="text-gray-500 text-[13px] leading-relaxed">
+        Shadow is a private perpetual trading terminal on Solana with encrypted positions powered by Arcium MPC.
+        Trade with full privacy — your positions are never exposed on-chain.
+      </p>
+      <button
+        type="button"
+        onClick={() => setStep(1)}
+        className="mt-8 w-full py-3 rounded-xl font-bold text-sm bg-accent-purple hover:bg-accent-purple/85 text-white transition-colors flex items-center justify-center gap-2"
       >
-        {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-shadow-600/60 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-accent-purple/15 border border-accent-purple/30">
-            <svg className="w-7 h-7 text-accent-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+        Next
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+    </div>,
+
+    // Step 1: Claim funds
+    <div key="funds" className="flex flex-col items-center text-center px-8 py-8">
+      <div className="mb-5">
+        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500/20 to-accent-purple/20 border border-emerald-500/30 flex items-center justify-center">
+          <svg className="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+      <h2 className="text-2xl font-bold text-white mb-2">Claim Test Funds</h2>
+      <p className="text-gray-400 text-[13px] leading-relaxed mb-4">
+        We&apos;ll send you <span className="text-white font-semibold">20,000 mUSDC</span> so you can open trades and stress-test the engine without real funds.
+        The faucet resets every 7 days.
+      </p>
+      <div className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 flex items-center justify-between mb-6">
+        <div className="text-left">
+          <p className="text-[10px] uppercase tracking-widest text-gray-500">Free claim</p>
+          <p className="text-xl font-bold text-white mt-0.5">20,000 <span className="text-emerald-400 text-sm font-semibold">mUSDC</span></p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-gray-500">Cooldown</p>
+          <p className="text-sm font-semibold text-gray-300">7 days</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={handleClaim}
+        disabled={isClaiming}
+        className="w-full py-3 rounded-xl font-bold text-sm bg-accent-purple hover:bg-accent-purple/85 text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        {isClaiming ? (
+          <>
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-          </div>
-          <h2 className="text-lg font-bold text-white">Claim mUSDC to Start</h2>
-          <p className="mt-1 text-[12px] text-gray-400 leading-relaxed">
-            Shadow uses Mock USDC (mUSDC) as collateral on devnet.<br />
-            Claim your free 20,000 mUSDC to begin trading.
-          </p>
+            Claiming...
+          </>
+        ) : "Claim mUSDC & Continue"}
+      </button>
+    </div>,
+
+    // Step 2: Ready — deposit prompt
+    <div key="enter" className="flex flex-col items-center text-center px-8 py-8">
+      <div className="mb-5">
+        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-accent-purple/30 to-accent-blue/20 border border-accent-purple/40 flex items-center justify-center">
+          <svg className="w-12 h-12 text-accent-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
         </div>
-
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          <div className="rounded-xl bg-accent-purple/10 border border-accent-purple/20 px-4 py-3 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-gray-500">Free claim</p>
-              <p className="text-xl font-bold text-white mt-0.5">20,000 <span className="text-accent-purple text-sm font-semibold">mUSDC</span></p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] text-gray-500">Cooldown</p>
-              <p className="text-sm font-semibold text-gray-300">7 days</p>
-            </div>
+      </div>
+      <h2 className="text-2xl font-bold text-white mb-2">Ready to Trade</h2>
+      <p className="text-gray-500 text-[13px] leading-relaxed mb-5">
+        Your mUSDC is in your wallet. Deposit it into your Shadow trading account to open positions.
+      </p>
+      <div className="w-full space-y-2.5 mb-6 text-left">
+        {[
+          { icon: "⚡", text: "Encrypted positions — no one sees your trades" },
+          { icon: "🔒", text: "Arcium MPC protects your strategy on-chain" },
+          { icon: "📈", text: "Up to 50x leverage with private margin" },
+        ].map(({ icon, text }) => (
+          <div key={text} className="flex items-center gap-3 rounded-lg bg-shadow-800/60 px-3 py-2.5">
+            <span className="text-lg">{icon}</span>
+            <p className="text-[12px] text-gray-300">{text}</p>
           </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => setShowGate(false)}
+        className="w-full py-3 rounded-xl font-bold text-sm bg-accent-purple hover:bg-accent-purple/85 text-white transition-colors"
+      >
+        Enter Shadow
+      </button>
+    </div>,
+  ];
 
-          <button
-            type="button"
-            onClick={handleClaim}
-            disabled={isClaiming}
-            className="w-full py-3 rounded-xl font-bold text-sm bg-accent-purple hover:bg-accent-purple/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-white"
-          >
-            {isClaiming ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                Claiming...
-              </span>
-            ) : "Claim 20,000 mUSDC"}
-          </button>
+  const dots = [0, 1, 2];
 
-          <p className="text-center text-[10px] text-gray-600">
-            mUSDC is a testnet token with no real monetary value.
-          </p>
+  return createPortal(
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4"
+      style={{ background: "rgba(8,8,16,0.88)", backdropFilter: "blur(8px)" }}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl border border-shadow-500 overflow-hidden relative"
+        style={{ background: "linear-gradient(145deg, #1a1a28 0%, #10101a 100%)" }}
+      >
+        {/* Progress dots */}
+        <div className="flex justify-center gap-1.5 pt-5 pb-1">
+          {dots.map((i) => (
+            <div
+              key={i}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                i === step ? "w-6 bg-accent-purple" : i < step ? "w-1.5 bg-accent-purple/40" : "w-1.5 bg-shadow-600"
+              }`}
+            />
+          ))}
         </div>
+        {steps[step]}
       </div>
     </div>,
     document.body
@@ -415,7 +336,6 @@ export default function TradingAppPage() {
                 <div className="basis-full sm:basis-auto">
                   <SessionTimerChip />
                 </div>
-                <FaucetsDropdown />
                 <WalletPopup
                   marginBalance={marginBalance}
                   onOpenCollateral={openCollateralModal ?? undefined}
