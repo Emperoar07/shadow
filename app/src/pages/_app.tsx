@@ -12,8 +12,7 @@ import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
-import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
-import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
+import { PrivyProvider } from "@privy-io/react-auth";
 import { Toaster } from "react-hot-toast";
 import ShadowLoader from "../components/ShadowLoader";
 import {
@@ -28,19 +27,8 @@ import "../styles/globals.css";
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "cmnxlswsv00570bldco9er2py";
 
-// Solana connectors created once at module level — stable reference
-const solanaConnectors = toSolanaWalletConnectors({ shouldAutoConnect: false });
-
 if (typeof window !== "undefined" && !(globalThis as any).Buffer) {
   (globalThis as any).Buffer = Buffer;
-}
-
-// Gate rendering until Privy is ready so walletProxy is initialized
-// before toSolanaWalletConnectors tries to use it
-function PrivyReadyGate({ children }: { children: React.ReactNode }) {
-  const { ready } = usePrivy();
-  if (!ready) return null;
-  return <>{children}</>;
 }
 
 export default function App({ Component, pageProps }: AppProps) {
@@ -63,7 +51,6 @@ export default function App({ Component, pageProps }: AppProps) {
   const autoSelectBestRpc = useCallback(
     async (reason: "startup" | "interval") => {
       if (transports.length < 2) return;
-
       const checks = await Promise.all(
         transports.map(async ({ rpc }, idx) => {
           try {
@@ -74,10 +61,8 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         })
       );
-
       const healthy = checks.filter((c) => c.ok);
       if (healthy.length === 0) return;
-
       healthy.sort((a, b) => a.latencyMs - b.latencyMs);
       const best = healthy[0];
       const currentIndex = Math.max(
@@ -85,9 +70,7 @@ export default function App({ Component, pageProps }: AppProps) {
         transports.findIndex((entry) => entry.rpc === transport.rpc)
       );
       const current = checks[currentIndex];
-
       if (currentIndex === best.idx) return;
-
       const now = Date.now();
       const cooldownMs = 90_000;
       const inCooldown = now - lastSwitchAtRef.current < cooldownMs;
@@ -96,12 +79,9 @@ export default function App({ Component, pageProps }: AppProps) {
         current?.ok &&
         (current.latencyMs - best.latencyMs >= 250 ||
           current.latencyMs / Math.max(best.latencyMs, 1) >= 1.6);
-
       const shouldSwitch =
         reason === "startup" || currentUnhealthy || (!inCooldown && significantlyBetter);
-
       if (!shouldSwitch) return;
-
       setPreferredRpcIndex(best.idx);
       setTransport(transports[best.idx]);
       lastSwitchAtRef.current = now;
@@ -142,11 +122,9 @@ export default function App({ Component, pageProps }: AppProps) {
     const MIN_DISPLAY_MS = 600;
     const MAX_LOADER_MS = 10000;
     let safetyTimer: ReturnType<typeof setTimeout> | null = null;
-
     const clearSafety = () => {
       if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null; }
     };
-
     const handleStart = (url: string) => {
       const targetPath = url.split("?")[0].split("#")[0];
       const currentPath = router.asPath.split("?")[0].split("#")[0];
@@ -162,7 +140,6 @@ export default function App({ Component, pageProps }: AppProps) {
       const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
       setTimeout(() => setPageLoading(false), remaining);
     };
-
     router.events.on("routeChangeStart", handleStart);
     router.events.on("routeChangeComplete", handleDone);
     router.events.on("routeChangeError", handleDone);
@@ -184,39 +161,36 @@ export default function App({ Component, pageProps }: AppProps) {
           logo: "/favicon.svg",
           landingHeader: "Log in to Shadow",
         },
-        loginMethods: ["email", "google", "twitter", "wallet"],
+        // wallet login method triggers wallet-adapter modal via our ConnectWalletButton
+        loginMethods: ["email", "google", "twitter"],
         embeddedWallets: {
-          createOnLogin: "users-without-wallets",
+          createOnLogin: "all-users",
           noPromptOnSignature: true,
         },
         solanaClusters: [{ name: "devnet", rpcUrl: transport.rpc }],
-        externalWallets: { solana: { connectors: solanaConnectors } },
       }}
     >
-      {/* PrivyReadyGate ensures walletProxy is initialized before connectors mount */}
-      <PrivyReadyGate>
-        <ConnectionProvider
-          endpoint={transport.rpc}
-          config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
-        >
-          <WalletProvider wallets={wallets} autoConnect>
-            <WalletModalProvider>
-              <Toaster
-                position="bottom-right"
-                toastOptions={{
-                  style: {
-                    background: "#1a1a25",
-                    color: "#fff",
-                    border: "1px solid rgba(139, 92, 246, 0.3)",
-                  },
-                }}
-              />
-              {pageLoading && <ShadowLoader fullScreen message="" />}
-              <Component {...pageProps} />
-            </WalletModalProvider>
-          </WalletProvider>
-        </ConnectionProvider>
-      </PrivyReadyGate>
+      <ConnectionProvider
+        endpoint={transport.rpc}
+        config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
+      >
+        <WalletProvider wallets={wallets} autoConnect>
+          <WalletModalProvider>
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: "#1a1a25",
+                  color: "#fff",
+                  border: "1px solid rgba(139, 92, 246, 0.3)",
+                },
+              }}
+            />
+            {pageLoading && <ShadowLoader fullScreen message="" />}
+            <Component {...pageProps} />
+          </WalletModalProvider>
+        </WalletProvider>
+      </ConnectionProvider>
     </PrivyProvider>
   );
 }

@@ -41,9 +41,9 @@ export function useAnchorWalletCompat(): AnchorCompatibleWallet | null {
       };
     }
 
-    // Fall back to any Privy-managed wallet (embedded for email/social, or external via Privy)
+    // Fall back to Privy embedded wallet (email/social users — walletClientType === "privy")
     if (authenticated) {
-      const embedded = solanaWallets.find((w) => w.walletClientType === "privy") ?? solanaWallets[0];
+      const embedded = solanaWallets.find((w) => w.walletClientType === "privy");
       if (embedded?.address && embedded.signTransaction) {
         let privyPublicKey: PublicKey;
         try {

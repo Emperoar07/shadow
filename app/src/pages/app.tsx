@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useConnection } from "@solana/wallet-adapter-react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import dynamic from "next/dynamic";
@@ -383,7 +383,8 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { publicKey: adapterPublicKey } = useWallet();
+  const { publicKey: adapterPublicKey, disconnect: adapterDisconnect } = useWallet();
+  const { setVisible: openWalletModal } = useWalletModal();
   const { ready, authenticated, login, logout } = usePrivy();
   const { wallets: solanaWallets } = useSolanaWallets();
   const [open, setOpen] = useState(false);
@@ -401,23 +402,30 @@ function ConnectWalletButton() {
 
   if (!ready) return null;
 
-  if (authenticated || adapterPublicKey) {
-    // External wallet via wallet-adapter takes priority; fall back to Privy embedded
-    const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
-    const addr = adapterPublicKey?.toBase58() ?? embeddedAddr;
-    const short = addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connected";
+  // Connected state: Privy authenticated OR external wallet via wallet-adapter
+  const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
+  const addr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null);
+  const isConnected = !!addr;
+
+  if (isConnected) {
+    const short = `${addr!.slice(0, 4)}...${addr!.slice(-4)}`;
 
     const handleCopy = () => {
-      if (!addr) return;
-      navigator.clipboard.writeText(addr).then(() => {
+      navigator.clipboard.writeText(addr!).then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       });
     };
 
-    const explorerUrl = addr
-      ? `https://explorer.solana.com/address/${addr}?cluster=devnet`
-      : null;
+    const explorerUrl = `https://explorer.solana.com/address/${addr}?cluster=devnet`;
+
+    const handleDisconnect = () => {
+      setOpen(false);
+      // Disconnect wallet-adapter if external wallet
+      if (adapterPublicKey) adapterDisconnect().catch(() => {});
+      // Always logout Privy session
+      if (authenticated) logout();
+    };
 
     return (
       <div className="relative" ref={ref}>
@@ -435,12 +443,11 @@ function ConnectWalletButton() {
 
         {open && (
           <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] overflow-hidden">
-            {/* Address row */}
             <div className="px-4 py-3 border-b border-shadow-700/60">
               <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Wallet</p>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[13px] font-semibold text-white font-mono truncate">
-                  {addr ? `${addr.slice(0, 8)}...${addr.slice(-6)}` : "—"}
+                <span className="text-[13px] font-semibold text-white font-mono">
+                  {`${addr!.slice(0, 8)}...${addr!.slice(-6)}`}
                 </span>
                 <button
                   type="button"
@@ -461,27 +468,23 @@ function ConnectWalletButton() {
                 </button>
               </div>
             </div>
-
-            {/* Actions */}
             <div className="py-1">
-              {explorerUrl && (
-                <a
-                  href={explorerUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-[12px] text-gray-300 hover:bg-shadow-800/80 hover:text-white transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
-                    <path d="M6 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M9 2h5m0 0v5m0-5L7 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Open in Explorer
-                </a>
-              )}
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-[12px] text-gray-300 hover:bg-shadow-800/80 hover:text-white transition-colors"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M9 2h5m0 0v5m0-5L7 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Open in Explorer
+              </a>
               <button
                 type="button"
-                onClick={() => { setOpen(false); logout(); }}
+                onClick={handleDisconnect}
                 className="flex w-full items-center gap-3 px-4 py-2.5 text-[12px] text-red-400 hover:bg-shadow-800/80 hover:text-red-300 transition-colors"
               >
                 <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
@@ -497,15 +500,24 @@ function ConnectWalletButton() {
     );
   }
 
-  // Not authenticated — single button
+  // Not connected — two buttons: email/social via Privy, wallet via wallet-adapter modal
   return (
-    <button
-      type="button"
-      onClick={() => login()}
-      className="flex items-center gap-2 px-4 py-1.5 rounded border border-accent-purple/60 bg-accent-purple/15 text-[12px] font-semibold text-accent-purple hover:bg-accent-purple/25 hover:border-accent-purple/80 transition-colors"
-    >
-      Connect
-    </button>
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => openWalletModal(true)}
+        className="flex items-center gap-2 px-3 py-1.5 rounded border border-shadow-500/60 bg-shadow-800/80 text-[12px] font-medium text-gray-300 hover:text-white hover:border-shadow-400/60 hover:bg-shadow-700/80 transition-colors"
+      >
+        Wallet
+      </button>
+      <button
+        type="button"
+        onClick={() => login()}
+        className="flex items-center gap-2 px-4 py-1.5 rounded border border-accent-purple/60 bg-accent-purple/15 text-[12px] font-semibold text-accent-purple hover:bg-accent-purple/25 hover:border-accent-purple/80 transition-colors"
+      >
+        Sign In
+      </button>
+    </div>
   );
 }
 
