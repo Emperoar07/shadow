@@ -314,8 +314,9 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
   const { publicKey: adapterPublicKey, connected } = useWallet();
   const { authenticated } = usePrivy();
   const { wallets: solanaWallets } = useSolanaWallets();
-  const privyEmbedded = solanaWallets.find((w) => w.walletClientType === "privy");
-  const privyPublicKey = privyEmbedded?.address ? (() => { try { return new PublicKey(privyEmbedded.address); } catch { return null; } })() : null;
+  // Any Privy-managed wallet (embedded or external like Phantom connected via Privy)
+  const privyWallet = solanaWallets[0];
+  const privyPublicKey = privyWallet?.address ? (() => { try { return new PublicKey(privyWallet.address); } catch { return null; } })() : null;
   const publicKey = adapterPublicKey ?? (authenticated ? privyPublicKey : null);
   const isConnected = connected || (authenticated && !!privyPublicKey);
   const [solBalance, setSolBalance] = useState<number | null>(null);

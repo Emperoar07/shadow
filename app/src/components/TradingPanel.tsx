@@ -132,8 +132,10 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     if (!showNotifications) return "";
     return toast.loading(...args);
   }, [showNotifications]) as typeof toast.loading;
-  const { publicKey, signMessage } = useWallet();
+  const { publicKey: adapterPublicKey, signMessage } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
+  // Use Privy-aware publicKey — anchorWallet falls back to Privy embedded wallet
+  const publicKey = anchorWallet?.publicKey ?? adapterPublicKey;
   const { connection } = useConnection();
   const [direction, setDirection] = useState<Direction>("long");
   const [orderType, setOrderType] = useState<OrderType>("market");

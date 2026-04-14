@@ -187,7 +187,6 @@ export default function App({ Component, pageProps }: AppProps) {
         },
         solanaClusters: [{ name: "devnet", rpcUrl: transport.rpc }],
         externalWallets: { solana: { connectors: solanaConnectors } },
-        walletChainType: "solana-only",
       }}
     >
       <ConnectionProvider

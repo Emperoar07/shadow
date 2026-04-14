@@ -388,10 +388,8 @@ function ConnectWalletButton() {
   if (!ready) return null;
 
   if (authenticated) {
-    // Prefer external wallet address, fall back to embedded
-    const externalWallet = solanaWallets.find((w) => w.walletClientType !== "privy");
-    const embeddedWallet = solanaWallets.find((w) => w.walletClientType === "privy");
-    const addr = publicKey?.toBase58() ?? externalWallet?.address ?? embeddedWallet?.address;
+    // Any Privy-managed wallet — external (Phantom via Privy) first, then embedded
+    const addr = publicKey?.toBase58() ?? solanaWallets[0]?.address;
     const short = addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : "Connected";
 
     return (
