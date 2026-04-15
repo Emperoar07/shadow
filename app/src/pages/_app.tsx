@@ -162,7 +162,7 @@ export default function App({ Component, pageProps }: AppProps) {
         logo: "/favicon.svg",
         landingHeader: "Log in to Shadow",
       },
-      loginMethods: ["email", "google", "twitter"] as const,
+      loginMethods: ["email", "google", "twitter"] as ("email" | "google" | "twitter")[],
       embeddedWallets: {
         createOnLogin: "all-users" as const,
         noPromptOnSignature: true,
