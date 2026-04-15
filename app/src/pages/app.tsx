@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useCreateWallet } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
@@ -375,7 +375,23 @@ export default function TradingAppPage() {
   const { locked: layoutLocked, toggle: toggleLayoutLock } = useLayoutLocked();
   const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
   const { publicKey } = useWallet();
-  const { authenticated: privyAuthenticated } = usePrivy();
+  const { authenticated: privyAuthenticated, ready: privyReady } = usePrivy();
+  const { wallets: privySolanaWallets } = useSolanaWallets();
+  const { createWallet } = useCreateWallet();
+
+  // Auto-create embedded Solana wallet if Privy user has none yet.
+  // The CSP fix lets the iframe proxy load; this covers users who authenticated
+  // before createOnLogin was set, or edge cases where auto-create failed silently.
+  useEffect(() => {
+    if (!privyReady || !privyAuthenticated) return;
+    const hasEmbedded = privySolanaWallets.some((w) => w.walletClientType === "privy");
+    if (hasEmbedded) return;
+    const timer = setTimeout(() => {
+      createWallet({ createAdditional: false }).catch(() => {});
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [privyReady, privyAuthenticated, privySolanaWallets, createWallet]);
+
   // Sessions only apply for external wallet users (wallet-adapter connected)
   // Email/social users have Privy embedded wallet and sign directly — no session needed
   const isEmbeddedWalletUser = privyAuthenticated && !publicKey;

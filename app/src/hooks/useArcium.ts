@@ -1575,6 +1575,8 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
             message.includes("Authorization expiry exceeds session expiry") ||
             message.includes("Authorization action mismatch") ||
             message.includes("session has expired or was not created") ||
+            message.includes("Session revoked") ||
+            message.includes("session is revoked") ||
             message.includes("Account does not exist") ||
             message.includes("could not find account"))
         ) {

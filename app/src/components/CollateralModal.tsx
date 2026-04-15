@@ -622,8 +622,8 @@ export default function CollateralModal({
             mUSDC is Shadow&apos;s devnet collateral token. Your position details stay encrypted through Arcium MPC.
           </p>
 
-          {/* MockUSDC faucet claim */}
-          {publicKey && (() => {
+          {/* MockUSDC faucet claim — hide when margin balance is at or above the 10k trigger */}
+          {publicKey && (marginBalance === null || marginBalance < 10_000) && (() => {
             const now = Date.now();
             const canClaim = !nextClaimAt || now >= nextClaimAt;
             const daysLeft = nextClaimAt

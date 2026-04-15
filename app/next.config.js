@@ -3,6 +3,7 @@ const path = require("path");
 
 const nextConfig = {
   reactStrictMode: true,
+  output: "standalone",
   outputFileTracingRoot: path.join(__dirname),
   typescript: {
     ignoreBuildErrors: false,
@@ -18,12 +19,12 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           // Limit referrer information sent to third parties
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          // Restrict iframes to TradingView only; block all other embedding
+          // Restrict iframes to TradingView and Privy embedded wallet
           {
             key: "Content-Security-Policy",
             value: [
               "frame-ancestors 'none'",
-              "frame-src https://s.tradingview.com",
+              "frame-src https://s.tradingview.com https://auth.privy.io https://*.privy.io",
             ].join("; "),
           },
           // Disable access to sensitive browser features

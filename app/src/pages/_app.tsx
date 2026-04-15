@@ -151,24 +151,31 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, [router]);
 
+  // Stable Privy config — memoize so the PrivyProvider never remounts its
+  // iframe when the RPC auto-selector switches transports.
+  const initialRpcUrl = useRef(transport.rpc);
+  const privyConfig = useMemo(
+    () => ({
+      appearance: {
+        theme: "dark" as const,
+        accentColor: "#7c3aed",
+        logo: "/favicon.svg",
+        landingHeader: "Log in to Shadow",
+      },
+      loginMethods: ["email", "google", "twitter"] as const,
+      embeddedWallets: {
+        createOnLogin: "all-users" as const,
+        noPromptOnSignature: true,
+      },
+      solanaClusters: [{ name: "devnet", rpcUrl: initialRpcUrl.current }],
+    }),
+    [] // intentionally empty — config must stay stable for wallet proxy iframe
+  );
+
   return (
     <PrivyProvider
       appId={PRIVY_APP_ID}
-      config={{
-        appearance: {
-          theme: "dark",
-          accentColor: "#7c3aed",
-          logo: "/favicon.svg",
-          landingHeader: "Log in to Shadow",
-        },
-        // wallet login method triggers wallet-adapter modal via our ConnectWalletButton
-        loginMethods: ["email", "google", "twitter"],
-        embeddedWallets: {
-          createOnLogin: "all-users",
-          noPromptOnSignature: true,
-        },
-        solanaClusters: [{ name: "devnet", rpcUrl: transport.rpc }],
-      }}
+      config={privyConfig}
     >
       <ConnectionProvider
         endpoint={transport.rpc}

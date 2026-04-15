@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO="/mnt/c/Users/bolaj/projects/shadowperp"
-DEFAULT_SOLANA_BIN="$HOME/.local/share/solana-2.3.13/active_release/bin"
+DEFAULT_SOLANA_BIN="$HOME/.local/share/solana/install/releases/2.3.13/solana-release/bin"
 SOLANA_BIN="$(dirname "$(command -v cargo-build-sbf 2>/dev/null || true)")"
 if [ -z "$SOLANA_BIN" ] || [ "$SOLANA_BIN" = "." ]; then
   SOLANA_BIN="$DEFAULT_SOLANA_BIN"
