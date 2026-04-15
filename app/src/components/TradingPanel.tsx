@@ -587,7 +587,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       return;
     }
     if (positionValue > MAX_POSITION_NOTIONAL_USDC) {
-      toast.error(`Position value exceeds max $${MAX_POSITION_NOTIONAL_USDC.toLocaleString()} USDC`);
+      toast.error(`Position value exceeds max $${MAX_POSITION_NOTIONAL_USDC.toLocaleString()} mUSDC`);
       return;
     }
     if (!Number.isInteger(leverage) || leverage < 1 || leverage > 50) {
@@ -908,7 +908,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
                 className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 text-lg leading-none text-white transition-colors focus:border-accent-purple focus:outline-none pr-14"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
-                {sizeUnit === "usd" ? "USDC" : activePair.base.symbol}
+                {sizeUnit === "usd" ? "mUSDC" : activePair.base.symbol}
               </span>
             </div>
             <div className="mt-1">
@@ -982,7 +982,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
                   className="w-full rounded-lg border border-shadow-500 bg-shadow-700 px-3 py-1.5 text-base text-white transition-colors focus:border-accent-purple focus:outline-none pr-14"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
-                  USDC
+                  mUSDC
                 </span>
               </div>
             </div>

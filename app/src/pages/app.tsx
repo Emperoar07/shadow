@@ -4,8 +4,9 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
+import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
@@ -49,88 +50,116 @@ const MOCKUSDC_MINT = process.env.NEXT_PUBLIC_MOCKUSDC_MINT ?? "";
  * Full-screen onboarding gate shown when connected wallet has zero mUSDC.
  * Multi-step: Welcome → Funds Allocated → Enter. Cannot be dismissed without claiming.
  */
-function MockUsdcGate() {
+function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   const { connection } = useConnection();
-  const { publicKey: adapterPublicKey, connected: adapterConnected } = useWallet();
-  const { authenticated, ready: privyReady } = usePrivy();
+  const { publicKey: adapterPublicKey } = useWallet();
+  const { authenticated } = usePrivy();
   const { wallets: solanaWallets } = useSolanaWallets();
-  const [step, setStep] = useState(0); // 0=welcome, 1=funds, 2=enter
+  const anchorWallet = useAnchorWalletCompat();
+  const [step, setStep] = useState(0);
   const [showGate, setShowGate] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [checking, setChecking] = useState(false);
 
-  const embeddedWallet = solanaWallets.find((w) => w.walletClientType === "privy");
-  const embeddedAddr = embeddedWallet?.address;
-  const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated && embeddedAddr ? embeddedAddr : null);
-
-  // Consider wallet "ready" only when Privy is done loading and we have an address
-  const walletReady = adapterConnected || (privyReady && authenticated && !!embeddedAddr);
+  const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
+  const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null) ?? null;
 
   useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
-
-  // Reset step when wallet changes
   useEffect(() => { setStep(0); setShowGate(false); }, [walletAddr]);
 
   useEffect(() => {
-    if (!walletReady || !walletAddr || !MOCKUSDC_MINT) { setShowGate(false); return; }
+    if (!walletAddr || !MOCKUSDC_MINT) return;
 
-    // Skip if already claimed within cooldown period
+    // Skip check if already claimed within cooldown
     try {
       const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
-      if (stored && parseInt(stored, 10) > Date.now()) { setShowGate(false); return; }
+      if (stored && parseInt(stored, 10) > Date.now()) return;
     } catch {}
 
     let cancelled = false;
-    setChecking(true);
 
     const check = async () => {
       try {
-        const mintPk = new PublicKey(MOCKUSDC_MINT);
-        const ownerPk = new PublicKey(walletAddr);
-        const ata = await getAssociatedTokenAddress(mintPk, ownerPk);
+        const ata = await getAssociatedTokenAddress(
+          new PublicKey(MOCKUSDC_MINT),
+          new PublicKey(walletAddr)
+        );
         const acct = await getAccount(connection, ata).catch(() => null);
         if (cancelled) return;
-        // Show gate if no ATA or zero balance
-        setShowGate(!acct || acct.amount === BigInt(0));
+        if (!acct || acct.amount === BigInt(0)) setShowGate(true);
       } catch {
         if (!cancelled) setShowGate(true);
-      } finally {
-        if (!cancelled) setChecking(false);
       }
     };
 
-    // Small delay to let RPC settle after wallet connect
-    const timer = setTimeout(() => { void check(); }, 800);
+    // 1s delay — gives wallet-adapter / Privy time to settle after connect
+    const timer = setTimeout(() => { void check(); }, 1000);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [walletReady, walletAddr, connection]);
+  }, [walletAddr, connection]);
 
   const handleClaim = async () => {
-    if (!walletAddr || isClaiming) return;
+    if (!walletAddr || !anchorWallet || isClaiming) return;
     setIsClaiming(true);
     try {
+      // Step 1: get partially-signed tx from server
       const res = await fetch("/api/faucet-mock-usdc", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ wallet: walletAddr }),
       });
-      const data = await res.json() as { success: boolean; amount?: number; error?: string };
-      if (data.success || data.error?.includes("claim again")) {
-        const nextAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
-        try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
-        setStep(1); // move to "funds allocated" step
-      } else {
+      const data = await res.json() as {
+        success: boolean;
+        transaction?: string;
+        amount?: number;
+        error?: string;
+        nextClaimAt?: number;
+      };
+
+      if (!data.success) {
+        // Already claimed — still advance
+        if (data.error?.includes("claim again") || data.nextClaimAt) {
+          const nextAt = data.nextClaimAt ?? Date.now() + 7 * 24 * 60 * 60 * 1000;
+          try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
+          setStep(2);
+          return;
+        }
         toast.error(data.error ?? "Claim failed. Try again.");
+        return;
       }
+
+      if (!data.transaction) {
+        toast.error("No transaction returned from server.");
+        return;
+      }
+
+      // Step 2: deserialize, user signs, submit
+      const txBytes = Buffer.from(data.transaction, "base64");
+      const tx = Transaction.from(txBytes);
+
+      // User co-signs (covers depositCollateral instruction)
+      if (!anchorWallet.signTransaction) throw new Error("Wallet cannot sign transactions");
+      const signed = await anchorWallet.signTransaction(tx as any);
+
+      const sig = await connection.sendRawTransaction(signed.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+      });
+      await connection.confirmTransaction(sig, "confirmed");
+
+      const nextAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+      try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
+
+      toast.success(`${data.amount?.toLocaleString()} mUSDC deposited to your margin account!`);
+      setStep(2);
     } catch (err: any) {
-      toast.error(err?.message ?? "Claim failed");
+      const msg = typeof err?.message === "string" ? err.message.split("\n")[0] : "Claim failed";
+      toast.error(msg);
     } finally {
       setIsClaiming(false);
     }
   };
 
-  if (!mounted || !walletAddr) return null;
-  if (!showGate) return null;
+  if (!mounted || !showGate || !walletAddr) return null;
 
   const steps = [
     // Step 0: Welcome
@@ -168,8 +197,7 @@ function MockUsdcGate() {
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">Claim Test Funds</h2>
       <p className="text-gray-400 text-[13px] leading-relaxed mb-4">
-        We will send you <span className="text-white font-semibold">20,000 mUSDC</span> so you can open trades and stress test the engine without real funds.
-        The faucet resets every 7 days.
+        We will deposit <span className="text-white font-semibold">20,000 mUSDC</span> directly into your Shadow margin account so you can open trades right away. One signature, no extra steps.
       </p>
       <div className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 flex items-center justify-between mb-6">
         <div className="text-left">
@@ -197,7 +225,7 @@ function MockUsdcGate() {
           </>
         ) : "Claim mUSDC and Continue"}
       </button>
-      <p className="mt-3 text-[10px] text-gray-600">Funds are sent directly to your wallet. No signing required.</p>
+      <p className="mt-3 text-[10px] text-gray-600">One wallet signature deposits mUSDC straight into your margin account.</p>
     </div>,
 
     // Step 2: Ready
@@ -209,7 +237,7 @@ function MockUsdcGate() {
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">Ready When You Are</h2>
       <p className="text-gray-500 text-[13px] leading-relaxed mb-5">
-        Your mUSDC is in your wallet. Deposit it into your Shadow trading account to open positions.
+        20,000 mUSDC has been deposited directly into your Shadow margin account. You are ready to trade.
       </p>
       <div className="w-full space-y-2.5 mb-6 text-left">
         {[
@@ -326,7 +354,7 @@ export default function TradingAppPage() {
           }
         `}</style>
         <DotGridBackground />
-        <MockUsdcGate />
+        <MockUsdcGate onOpenDeposit={openCollateralModal ?? undefined} />
 
         <div className="relative z-10 flex h-screen flex-col overflow-hidden">
 

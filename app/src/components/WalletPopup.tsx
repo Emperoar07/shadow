@@ -332,7 +332,7 @@ export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletP
   const tradingAccountLabel =
     marginBalance !== null && marginBalance > 0
       ? "Collateral is ready for trading."
-      : "Deposit USDC to start trading.";
+      : "Deposit mUSDC to start trading.";
 
   // Close on outside click
   useEffect(() => {
