@@ -4,9 +4,11 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
+import { PublicKey } from "@solana/web3.js";
+import BN from "bn.js";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { createShadowPerpClient } from "../lib/create-client";
+import { getRuntimeConfig } from "../lib/runtime";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
@@ -43,8 +45,6 @@ const TerminalGrid = dynamic(
   { ssr: false, loading: () => <ShadowLoader size="lg" message="Initializing terminal..." /> }
 );
 
-const MOCKUSDC_MINT = process.env.NEXT_PUBLIC_MOCKUSDC_MINT ?? "";
-
 
 /**
  * Full-screen onboarding gate shown when connected wallet has zero mUSDC.
@@ -68,7 +68,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   useEffect(() => { setStep(0); setShowGate(false); }, [walletAddr]);
 
   useEffect(() => {
-    if (!walletAddr || !MOCKUSDC_MINT) return;
+    if (!walletAddr) return;
 
     // Skip check if already claimed within cooldown
     try {
@@ -80,13 +80,24 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
 
     const check = async () => {
       try {
-        const ata = await getAssociatedTokenAddress(
-          new PublicKey(MOCKUSDC_MINT),
-          new PublicKey(walletAddr)
+        // Check Shadow margin account balance — gate shows when margin is empty
+        const PROGRAM_ID = new PublicKey(
+          process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ?? "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
         );
-        const acct = await getAccount(connection, ata).catch(() => null);
+        const [marginPda] = PublicKey.findProgramAddressSync(
+          [Buffer.from("margin"), new PublicKey(walletAddr).toBuffer()],
+          PROGRAM_ID
+        );
+        const marginInfo = await connection.getAccountInfo(marginPda);
         if (cancelled) return;
-        if (!acct || acct.amount === BigInt(0)) setShowGate(true);
+        if (!marginInfo || marginInfo.data.length < 80) {
+          // Margin account doesn't exist — show gate
+          setShowGate(true);
+          return;
+        }
+        // balance is u64 at byte offset 72 (8 discriminator + 32 owner + 32 market)
+        const balance = marginInfo.data.readBigUInt64LE(72);
+        if (balance === BigInt(0)) setShowGate(true);
       } catch {
         if (!cancelled) setShowGate(true);
       }
@@ -98,10 +109,10 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   }, [walletAddr, connection]);
 
   const handleClaim = async () => {
-    if (!walletAddr || !anchorWallet || isClaiming) return;
+    if (!walletAddr || isClaiming) return;
     setIsClaiming(true);
     try {
-      // Step 1: get partially-signed tx from server
+      // Step 1: Server sends mUSDC to user wallet ATA
       const res = await fetch("/api/faucet-mock-usdc", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -109,14 +120,13 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       });
       const data = await res.json() as {
         success: boolean;
-        transaction?: string;
+        signature?: string;
         amount?: number;
         error?: string;
         nextClaimAt?: number;
       };
 
       if (!data.success) {
-        // Already claimed — still advance
         if (data.error?.includes("claim again") || data.nextClaimAt) {
           const nextAt = data.nextClaimAt ?? Date.now() + 7 * 24 * 60 * 60 * 1000;
           try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
@@ -127,29 +137,29 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         return;
       }
 
-      if (!data.transaction) {
-        toast.error("No transaction returned from server.");
-        return;
-      }
-
-      // Step 2: deserialize, user signs, submit
-      const txBytes = Buffer.from(data.transaction, "base64");
-      const tx = Transaction.from(txBytes);
-
-      // User co-signs (covers depositCollateral instruction)
-      if (!anchorWallet.signTransaction) throw new Error("Wallet cannot sign transactions");
-      const signed = await anchorWallet.signTransaction(tx as any);
-
-      const sig = await connection.sendRawTransaction(signed.serialize(), {
-        skipPreflight: false,
-        preflightCommitment: "confirmed",
-      });
-      await connection.confirmTransaction(sig, "confirmed");
-
+      const claimedAmount = data.amount ?? 20_000;
       const nextAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
       try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
 
-      toast.success(`${data.amount?.toLocaleString()} mUSDC deposited to your margin account!`);
+      // Step 2: Auto-deposit into Shadow margin account
+      if (anchorWallet) {
+        try {
+          const { client } = createShadowPerpClient(connection, anchorWallet);
+          const runtime = getRuntimeConfig();
+          const depositAmount = new BN(claimedAmount).mul(new BN(10 ** 6));
+          await client.depositCollateral(runtime.marketAddress, depositAmount);
+          toast.success(`${claimedAmount.toLocaleString()} mUSDC deposited into your Shadow margin!`);
+        } catch (depositErr: any) {
+          // Deposit failed — mUSDC is still in wallet, user can deposit manually
+          const msg = typeof depositErr?.message === "string"
+            ? depositErr.message.split("\n")[0]
+            : "Auto-deposit failed";
+          toast.error(`mUSDC claimed but deposit failed: ${msg}. Use Manage Collateral to deposit manually.`);
+        }
+      } else {
+        toast.success(`${claimedAmount.toLocaleString()} mUSDC sent to your wallet!`);
+      }
+
       setStep(2);
     } catch (err: any) {
       const msg = typeof err?.message === "string" ? err.message.split("\n")[0] : "Claim failed";
@@ -197,7 +207,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">Claim Test Funds</h2>
       <p className="text-gray-400 text-[13px] leading-relaxed mb-4">
-        We will deposit <span className="text-white font-semibold">20,000 mUSDC</span> directly into your Shadow margin account so you can open trades right away. One signature, no extra steps.
+        Claim <span className="text-white font-semibold">20,000 mUSDC</span> and we will auto deposit it straight into your Shadow margin so you can start trading immediately.
       </p>
       <div className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 flex items-center justify-between mb-6">
         <div className="text-left">
@@ -221,11 +231,11 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-            Sending mUSDC to your wallet...
+            Claiming and depositing...
           </>
-        ) : "Claim mUSDC and Continue"}
+        ) : "Claim & Deposit to Margin"}
       </button>
-      <p className="mt-3 text-[10px] text-gray-600">One wallet signature deposits mUSDC straight into your margin account.</p>
+      <p className="mt-3 text-[10px] text-gray-600">mUSDC is sent to your wallet and auto deposited into your Shadow margin.</p>
     </div>,
 
     // Step 2: Ready
@@ -237,16 +247,16 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">Ready When You Are</h2>
       <p className="text-gray-500 text-[13px] leading-relaxed mb-5">
-        20,000 mUSDC has been deposited directly into your Shadow margin account. You are ready to trade.
+        20,000 mUSDC is now in your Shadow margin account. You are ready to open your first trade.
       </p>
       <div className="w-full space-y-2.5 mb-6 text-left">
         {[
-          { icon: "⚡", text: "Encrypted positions. No one sees your trades" },
-          { icon: "🔒", text: "Arcium MPC protects your strategy on chain" },
-          { icon: "📈", text: "Up to 50x leverage with private margin" },
-        ].map(({ icon, text }) => (
+          "Encrypted positions. No one sees your trades",
+          "Arcium MPC protects your strategy on chain",
+          "Up to 50x leverage with private margin",
+        ].map((text) => (
           <div key={text} className="flex items-center gap-3 rounded-lg bg-shadow-800/60 px-3 py-2.5">
-            <span className="text-lg">{icon}</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-purple shrink-0" />
             <p className="text-[12px] text-gray-300">{text}</p>
           </div>
         ))}

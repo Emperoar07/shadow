@@ -31,8 +31,9 @@ const PROGRAM_ID = new PublicKey(
     "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
 );
 const COLLATERAL_MINT = new PublicKey(
+  process.env.NEXT_PUBLIC_MOCKUSDC_MINT ||
   process.env.NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT ||
-    "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+    "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6"
 );
 const ARCIUM_CLUSTER_OFFSET = Number(
   process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET || "456"
