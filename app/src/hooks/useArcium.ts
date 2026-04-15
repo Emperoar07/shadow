@@ -95,7 +95,7 @@ export const RELAY_SESSION_STORAGE_KEY = "shadowperp.relay.session.v1";
 export const RELAY_SESSION_UPDATED_EVENT = "shadowperp:relay-session-updated";
 export const RELAY_SESSION_RENEW_BEFORE_SECONDS = 15;
 const DEFAULT_SESSION_MAX_ACTIONS = 200;
-const DEFAULT_SESSION_MAX_MARGIN_USDC = 1_000;
+const DEFAULT_SESSION_MAX_MARGIN_USDC = 100_000;
 const RELAY_SESSION_OPTIMISTIC_HOLD_MS = 15_000;
 const ALL_MARKETS_SESSION_KEY = "__all_markets__";
 
