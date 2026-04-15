@@ -4,7 +4,6 @@ import {
   Keypair,
   PublicKey,
   SystemProgram,
-  clusterApiUrl,
 } from "@solana/web3.js";
 import {
   buildFinalizeCompDefTx,
@@ -64,6 +63,26 @@ const COMP_DEFS = [
     methodName: "initSeedOpenInterestCompDef",
     marketField: "seedOpenInterestCompDef",
   },
+  {
+    circuit: "execute_private_order",
+    methodName: "initExecutePrivateOrderCompDef",
+    marketField: null,
+  },
+  {
+    circuit: "open_position_tuple_probe_v1",
+    methodName: "initOpenPositionTupleProbeCompDef",
+    marketField: null,
+  },
+  {
+    circuit: "open_position_margin_probe_v1",
+    methodName: "initOpenPositionMarginProbeCompDef",
+    marketField: null,
+  },
+  {
+    circuit: "open_position_full_probe_v1",
+    methodName: "initOpenPositionFullProbeCompDef",
+    marketField: null,
+  },
 ] as const;
 
 function parseArgs(): InitArgs {
@@ -80,7 +99,7 @@ function parseArgs(): InitArgs {
   const marketRaw =
     readArg("market") || process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT;
   const rpcUrl =
-    readArg("rpc") || process.env.NEXT_PUBLIC_SOLANA_RPC_URL || clusterApiUrl("devnet");
+    readArg("rpc") || process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.devnet.solana.com";
 
   if (!programIdRaw) {
     throw new Error("Missing program id. Pass --program or set NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID.");
@@ -516,7 +535,7 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
       addressLookupTable,
       arciumProgramId: args.arciumProgramId,
       mxeProgramId: args.mxeProgramId,
-      arciumProgram,
+      arciumProgram: arciumProgram,
     });
   }
 
@@ -535,19 +554,29 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
   console.log("check_liquidation:", liqCompDefPk.toBase58());
   console.log("seed_open_interest_state_v3:", seedOiCompDefPk.toBase58());
 
-  const compDefs = [
-    { label: "open_position_probe_b", pk: openCompDefPk },
-    { label: "close_position_v2", pk: closeCompDefPk },
-    { label: "check_liquidation", pk: liqCompDefPk },
-    { label: "seed_open_interest_state_v3", pk: seedOiCompDefPk },
+  // Include all circuits (including those not stored on market account)
+  const allCircuits = [
+    "open_position_probe_b",
+    "close_position_v2",
+    "check_liquidation",
+    "seed_open_interest_state_v3",
+    "execute_private_order",
+    "open_position_tuple_probe_v1",
+    "open_position_margin_probe_v1",
+    "open_position_full_probe_v1",
   ];
+  const arciumProg = getArciumProgram(provider);
   console.log("\nComputation definition completion:");
-  for (const comp of compDefs) {
-    const account = await (arciumProgram.account as any).computationDefinitionAccount.fetch(
-      comp.pk
-    );
-    const isCompleted = isCompDefCompleted(account);
-    console.log(`- ${comp.label}: ${isCompleted ? "completed" : "pending upload/finalize"}`);
+  for (const circuit of allCircuits) {
+    const offset = readCompDefOffset(circuit);
+    const compDefPk = getCompDefAccAddress(args.mxeProgramId, offset);
+    try {
+      const account = await (arciumProg.account as any).computationDefinitionAccount.fetch(compDefPk);
+      const isCompleted = isCompDefCompleted(account);
+      console.log(`- ${circuit}: ${isCompleted ? "completed" : "pending upload/finalize"}`);
+    } catch {
+      console.log(`- ${circuit}: not initialized`);
+    }
   }
 }
 

@@ -20,6 +20,9 @@ use handlers::init_comp_defs::__client_accounts_init_settle_private_position_com
 #[cfg(feature = "shielded-collateral")]
 use handlers::init_comp_defs::__client_accounts_init_verify_withdrawal_proof_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_execute_private_order_comp_def;
+use handlers::init_comp_defs::__client_accounts_init_open_position_tuple_probe_comp_def;
+use handlers::init_comp_defs::__client_accounts_init_open_position_margin_probe_comp_def;
+use handlers::init_comp_defs::__client_accounts_init_open_position_full_probe_comp_def;
 #[cfg(feature = "shielded-collateral")]
 use handlers::shielded_collateral::__client_accounts_verify_withdrawal_proof_request;
 use handlers::private_orders::__client_accounts_execute_private_order;
@@ -103,6 +106,8 @@ use handlers::init_arcium_signer::InitArciumSigner;
 use handlers::init_comp_defs::{
     InitClosePositionCompDef, InitLiquidationCompDef, InitOpenPositionCompDef,
     InitSeedOpenInterestCompDef,
+    InitOpenPositionTupleProbeCompDef, InitOpenPositionMarginProbeCompDef,
+    InitOpenPositionFullProbeCompDef,
 };
 #[cfg(feature = "shielded-collateral")]
 use handlers::init_comp_defs::{
@@ -207,6 +212,24 @@ pub mod shadowperp {
         ctx: Context<InitExecutePrivateOrderCompDef>,
     ) -> Result<()> {
         handlers::init_comp_defs::init_execute_private_order_handler(ctx)
+    }
+
+    pub fn init_open_position_tuple_probe_comp_def(
+        ctx: Context<InitOpenPositionTupleProbeCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_open_position_tuple_probe_handler(ctx)
+    }
+
+    pub fn init_open_position_margin_probe_comp_def(
+        ctx: Context<InitOpenPositionMarginProbeCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_open_position_margin_probe_handler(ctx)
+    }
+
+    pub fn init_open_position_full_probe_comp_def(
+        ctx: Context<InitOpenPositionFullProbeCompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_open_position_full_probe_handler(ctx)
     }
 
     /// Initialize shielded collateral scaffolding accounts (feature-gated).
