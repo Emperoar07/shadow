@@ -158,7 +158,7 @@ export default function App({ Component, pageProps }: AppProps) {
     () => ({
       appearance: {
         theme: "dark" as const,
-        accentColor: "#7c3aed",
+        accentColor: "#7c3aed" as const,
         logo: "/favicon.svg",
         landingHeader: "Log in to Shadow",
       },
