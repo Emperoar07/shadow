@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useCreateWallet } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
@@ -584,7 +584,7 @@ export default function TradingAppPage() {
           </main>
 
           {/* ── Footer ── */}
-          <footer className="sticky bottom-0 border-t border-shadow-600 shrink-0 bg-shadow-900 relative z-[190]">
+          <footer className="sticky bottom-0 border-t-[5px] border-shadow-600 shrink-0 bg-shadow-900 relative z-[190]">
             <div className="max-w-[1600px] mx-auto px-4 py-2.5 flex flex-col gap-2 text-center text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between sm:text-left">
               {/* Status indicator */}
               <div className="flex items-center justify-center gap-4 sm:justify-start">
@@ -623,9 +623,28 @@ function ConnectWalletButton() {
   const { setVisible: openWalletModal } = useWalletModal();
   const { ready, authenticated, login, logout } = usePrivy();
   const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
+  const { createWallet } = useCreateWallet();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const walletCreateAttempted = useRef(false);
+
+  // Safety net: auto-create embedded Solana wallet if Privy user has none yet.
+  // createOnLogin should handle this, but covers edge cases where it fails.
+  useEffect(() => {
+    if (!ready || !authenticated || adapterPublicKey) return;
+    if (walletCreateAttempted.current) return;
+    const hasEmbedded = solanaWallets.some((w) => w.walletClientType === "privy");
+    if (hasEmbedded) return;
+    walletCreateAttempted.current = true;
+    const timer = setTimeout(() => {
+      createWallet({ createAdditional: false }).catch((err) => {
+        console.warn("[Shadow] auto-create embedded wallet failed:", err);
+        walletCreateAttempted.current = false;
+      });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [ready, authenticated, adapterPublicKey, solanaWallets, createWallet]);
 
   useEffect(() => {
     if (!open) return;
