@@ -169,7 +169,8 @@ export default function App({ Component, pageProps }: AppProps) {
       },
       solanaClusters: [{ name: "devnet", rpcUrl: initialRpcUrl.current }],
     }),
-    [] // intentionally empty — config must stay stable for wallet proxy iframe
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally empty: config must stay stable for wallet proxy iframe
+    []
   );
 
   return (

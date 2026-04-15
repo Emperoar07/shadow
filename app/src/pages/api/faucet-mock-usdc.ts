@@ -28,9 +28,11 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const CAP_USDC      = 20_000;           // target balance after top-up
-const TRIGGER_USDC  = 10_000;           // only top up when below this
-const DECIMALS      = 6;
+import { FAUCET_CAP_USDC, FAUCET_TRIGGER_USDC, MUSDC_DECIMALS } from "../../lib/faucet-constants";
+
+const CAP_USDC      = FAUCET_CAP_USDC;
+const TRIGGER_USDC  = FAUCET_TRIGGER_USDC;
+const DECIMALS      = MUSDC_DECIMALS;
 const COOLDOWN_MS   = 7 * 24 * 60 * 60 * 1000;
 
 const PROGRAM_ID = new PublicKey(

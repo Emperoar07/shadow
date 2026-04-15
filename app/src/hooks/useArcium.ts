@@ -13,6 +13,7 @@ import {
   RELAY_SESSION_AUTH_SCOPE,
   uint8ToBase64,
 } from "../lib/relay-session-auth";
+import { isSessionInvalidError } from "../lib/session-errors";
 import { isMissingAccountError } from "../lib/account-errors";
 import { relayUrl } from "../lib/feature-flags";
 import { PositionStatus } from "../types";
@@ -1570,15 +1571,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         }
         if (
           typeof message === "string" &&
-          (message.includes("Invalid session authorization signature") ||
-            message.includes("Session authorization expired") ||
-            message.includes("Authorization expiry exceeds session expiry") ||
-            message.includes("Authorization action mismatch") ||
-            message.includes("session has expired or was not created") ||
-            message.includes("Session revoked") ||
-            message.includes("session is revoked") ||
-            message.includes("Account does not exist") ||
-            message.includes("could not find account"))
+          isSessionInvalidError(message)
         ) {
           invalidateRelaySession(activeRelaySession.owner, activeRelaySession.market);
           throw new Error(

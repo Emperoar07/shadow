@@ -7,6 +7,8 @@ import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { classifyArciumError } from "../lib/arcium-errors";
+import { isSessionInvalidError } from "../lib/session-errors";
+import { FAUCET_TRIGGER_USDC } from "../lib/faucet-constants";
 import { relayUrl } from "../lib/feature-flags";
 import type {
   EnsureRelaySessionOptions,
@@ -139,12 +141,7 @@ export default function CollateralModal({
   }, []);
 
   const isSessionAuthError = useCallback((rawMessage: string) => {
-    return (
-      rawMessage.includes("Invalid session authorization signature") ||
-      rawMessage.includes("Session authorization expired") ||
-      rawMessage.includes("Authorization expiry exceeds session expiry") ||
-      rawMessage.includes("Authorization action mismatch")
-    );
+    return isSessionInvalidError(rawMessage);
   }, []);
 
   const submitDelegatedCollateral = useCallback(
@@ -622,8 +619,8 @@ export default function CollateralModal({
             mUSDC is Shadow&apos;s devnet collateral token. Your position details stay encrypted through Arcium MPC.
           </p>
 
-          {/* MockUSDC faucet claim — hide when margin balance is at or above the 10k trigger */}
-          {publicKey && (marginBalance === null || marginBalance < 10_000) && (() => {
+          {/* MockUSDC faucet claim */}
+          {publicKey && marginBalance !== null && marginBalance < FAUCET_TRIGGER_USDC && (() => {
             const now = Date.now();
             const canClaim = !nextClaimAt || now >= nextClaimAt;
             const daysLeft = nextClaimAt

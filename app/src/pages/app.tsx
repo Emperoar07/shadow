@@ -9,6 +9,7 @@ import BN from "bn.js";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { createShadowPerpClient } from "../lib/create-client";
 import { getRuntimeConfig } from "../lib/runtime";
+import { FAUCET_TRIGGER_USDC, FAUCET_CAP_USDC, MUSDC_DECIMALS } from "../lib/faucet-constants";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
@@ -65,8 +66,8 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   const [topUpAmount, setTopUpAmount] = useState<number>(20_000);
   const isTopUpMode = currentBalanceRaw !== null && BigInt(currentBalanceRaw) > BigInt(0);
 
-  const TRIGGER_RAW = BigInt(10_000) * BigInt(10 ** 6); // 10,000 mUSDC in raw units
-  const CAP_USDC    = 20_000;
+  const TRIGGER_RAW = BigInt(FAUCET_TRIGGER_USDC) * BigInt(10 ** MUSDC_DECIMALS);
+  const CAP_USDC    = FAUCET_CAP_USDC;
 
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
   const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null) ?? null;
@@ -378,16 +379,22 @@ export default function TradingAppPage() {
   const { authenticated: privyAuthenticated, ready: privyReady } = usePrivy();
   const { wallets: privySolanaWallets } = useSolanaWallets();
   const { createWallet } = useCreateWallet();
+  const walletCreateAttempted = useRef(false);
 
   // Auto-create embedded Solana wallet if Privy user has none yet.
-  // The CSP fix lets the iframe proxy load; this covers users who authenticated
-  // before createOnLogin was set, or edge cases where auto-create failed silently.
+  // Covers users who authenticated before createOnLogin was set,
+  // or edge cases where auto-create failed silently.
   useEffect(() => {
     if (!privyReady || !privyAuthenticated) return;
+    if (walletCreateAttempted.current) return;
     const hasEmbedded = privySolanaWallets.some((w) => w.walletClientType === "privy");
     if (hasEmbedded) return;
+    walletCreateAttempted.current = true;
     const timer = setTimeout(() => {
-      createWallet({ createAdditional: false }).catch(() => {});
+      createWallet({ createAdditional: false }).catch((err) => {
+        console.warn("[Shadow] auto-create embedded wallet failed:", err);
+        walletCreateAttempted.current = false; // allow retry on next mount
+      });
     }, 2000);
     return () => clearTimeout(timer);
   }, [privyReady, privyAuthenticated, privySolanaWallets, createWallet]);
