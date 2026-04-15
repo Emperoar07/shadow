@@ -12,7 +12,7 @@ import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
-import { PrivyProvider } from "@privy-io/react-auth";
+import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
 import { Toaster } from "react-hot-toast";
 import ShadowLoader from "../components/ShadowLoader";
 import {
@@ -154,17 +154,17 @@ export default function App({ Component, pageProps }: AppProps) {
   // Stable Privy config — memoize so the PrivyProvider never remounts its
   // iframe when the RPC auto-selector switches transports.
   const initialRpcUrl = useRef(transport.rpc);
-  const privyConfig = useMemo(
+  const privyConfig = useMemo<PrivyClientConfig>(
     () => ({
       appearance: {
-        theme: "dark" as const,
-        accentColor: "#7c3aed" as const,
+        theme: "dark",
+        accentColor: "#7c3aed",
         logo: "/favicon.svg",
         landingHeader: "Log in to Shadow",
       },
-      loginMethods: ["email", "google", "twitter"] as ("email" | "google" | "twitter")[],
+      loginMethods: ["email", "google", "twitter"],
       embeddedWallets: {
-        createOnLogin: "all-users" as const,
+        createOnLogin: "all-users",
         noPromptOnSignature: true,
       },
       solanaClusters: [{ name: "devnet", rpcUrl: initialRpcUrl.current }],
