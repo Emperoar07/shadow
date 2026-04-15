@@ -109,7 +109,7 @@ export default function TerminalGrid({
           const content = panelMap[item.i as keyof typeof panelMap];
           if (!content) return null;
           return (
-            <div key={item.i} style={item.i === "marketinfo" ? { overflow: "visible", zIndex: 10 } : undefined}>
+            <div key={item.i} style={item.i === "marketinfo" ? { overflow: "visible", zIndex: 10 } : undefined} className={item.i === "marketinfo" ? "border-b border-shadow-600" : undefined}>
               <DraggablePanel locked={layoutLocked} allowOverflow={item.i === "marketinfo"}>
                 {content}
               </DraggablePanel>
