@@ -13,8 +13,8 @@ const nextConfig = {
       {
         source: "/(.*)",
         headers: [
-          // Prevent clickjacking — no iframe embedding of the wallet-signing UI
-          { key: "X-Frame-Options", value: "DENY" },
+          // Prevent clickjacking — allow same-origin framing for Privy wallet proxy
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
           // Prevent MIME-type sniffing
           { key: "X-Content-Type-Options", value: "nosniff" },
           // Limit referrer information sent to third parties
@@ -23,8 +23,8 @@ const nextConfig = {
           {
             key: "Content-Security-Policy",
             value: [
-              "frame-ancestors 'none'",
-              "frame-src https://s.tradingview.com https://auth.privy.io https://*.privy.io",
+              "frame-ancestors 'self'",
+              "frame-src blob: https://s.tradingview.com https://auth.privy.io https://*.privy.io",
             ].join("; "),
           },
           // Disable access to sensitive browser features

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { usePrivy, useCreateWallet } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
@@ -376,28 +376,7 @@ export default function TradingAppPage() {
   const { locked: layoutLocked, toggle: toggleLayoutLock } = useLayoutLocked();
   const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
   const { publicKey } = useWallet();
-  const { authenticated: privyAuthenticated, ready: privyReady } = usePrivy();
-  const { wallets: privySolanaWallets } = useSolanaWallets();
-  const { createWallet } = useCreateWallet();
-  const walletCreateAttempted = useRef(false);
-
-  // Auto-create embedded Solana wallet if Privy user has none yet.
-  // Covers users who authenticated before createOnLogin was set,
-  // or edge cases where auto-create failed silently.
-  useEffect(() => {
-    if (!privyReady || !privyAuthenticated) return;
-    if (walletCreateAttempted.current) return;
-    const hasEmbedded = privySolanaWallets.some((w) => w.walletClientType === "privy");
-    if (hasEmbedded) return;
-    walletCreateAttempted.current = true;
-    const timer = setTimeout(() => {
-      createWallet({ createAdditional: false }).catch((err) => {
-        console.warn("[Shadow] auto-create embedded wallet failed:", err);
-        walletCreateAttempted.current = false; // allow retry on next mount
-      });
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [privyReady, privyAuthenticated, privySolanaWallets, createWallet]);
+  const { authenticated: privyAuthenticated } = usePrivy();
 
   // Sessions only apply for external wallet users (wallet-adapter connected)
   // Email/social users have Privy embedded wallet and sign directly — no session needed
@@ -643,7 +622,7 @@ function ConnectWalletButton() {
   const { publicKey: adapterPublicKey, disconnect: adapterDisconnect } = useWallet();
   const { setVisible: openWalletModal } = useWalletModal();
   const { ready, authenticated, login, logout } = usePrivy();
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -739,6 +718,23 @@ function ConnectWalletButton() {
                 </svg>
                 Open in Explorer
               </a>
+              {/* Export key — only for embedded wallet users (email/social login) */}
+              {embeddedAddr && !adapterPublicKey && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    exportWallet({ address: embeddedAddr }).catch(() => {});
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-[12px] text-gray-300 hover:bg-shadow-800/80 hover:text-white transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 2v8m0 0l-3-3m3 3l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  Export Private Key
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleDisconnect}
