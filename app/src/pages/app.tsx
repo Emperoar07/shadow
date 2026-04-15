@@ -60,27 +60,27 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   const [showGate, setShowGate] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // null = first-time (no/zero balance), number = top-up (low balance, shows delta)
+  const [currentBalanceRaw, setCurrentBalanceRaw] = useState<string | null>(null);
+  const [topUpAmount, setTopUpAmount] = useState<number>(20_000);
+  const isTopUpMode = currentBalanceRaw !== null && BigInt(currentBalanceRaw) > BigInt(0);
+
+  const TRIGGER_RAW = BigInt(10_000) * BigInt(10 ** 6); // 10,000 mUSDC in raw units
+  const CAP_USDC    = 20_000;
 
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
   const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null) ?? null;
 
   useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
-  useEffect(() => { setStep(0); setShowGate(false); }, [walletAddr]);
+  useEffect(() => { setStep(0); setShowGate(false); setCurrentBalanceRaw(null); }, [walletAddr]);
 
   useEffect(() => {
     if (!walletAddr) return;
-
-    // Skip check if already claimed within cooldown
-    try {
-      const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
-      if (stored && parseInt(stored, 10) > Date.now()) return;
-    } catch {}
 
     let cancelled = false;
 
     const check = async () => {
       try {
-        // Check Shadow margin account balance — gate shows when margin is empty
         const PROGRAM_ID = new PublicKey(
           process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ?? "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
         );
@@ -90,21 +90,43 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         );
         const marginInfo = await connection.getAccountInfo(marginPda);
         if (cancelled) return;
+
+        // No margin account — first-time user, show welcome flow
         if (!marginInfo || marginInfo.data.length < 80) {
-          // Margin account doesn't exist — show gate
+          setCurrentBalanceRaw(null);
+          setTopUpAmount(CAP_USDC);
           setShowGate(true);
           return;
         }
+
         // balance is u64 at byte offset 72 (8 discriminator + 32 owner + 32 market)
         const balance = marginInfo.data.readBigUInt64LE(72);
-        if (balance === BigInt(0)) setShowGate(true);
+
+        if (balance < TRIGGER_RAW) {
+          // Check cooldown — only gate returning users if cooldown has elapsed
+          if (balance > BigInt(0)) {
+            try {
+              const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
+              if (stored && parseInt(stored, 10) > Date.now()) return; // cooldown active, skip
+            } catch {}
+          }
+          const balanceUsdc = Number(balance) / 10 ** 6;
+          const delta = CAP_USDC - Math.floor(balanceUsdc);
+          setCurrentBalanceRaw(balance.toString());
+          setTopUpAmount(delta);
+          setShowGate(true);
+        }
       } catch {
-        if (!cancelled) setShowGate(true);
+        if (!cancelled) {
+          setCurrentBalanceRaw(null);
+          setTopUpAmount(CAP_USDC);
+          setShowGate(true);
+        }
       }
     };
 
-    // 1s delay — gives wallet-adapter / Privy time to settle after connect
-    const timer = setTimeout(() => { void check(); }, 1000);
+    // 800ms delay — gives wallet-adapter / Privy time to settle after connect
+    const timer = setTimeout(() => { void check(); }, 800);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [walletAddr, connection]);
 
@@ -112,11 +134,13 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
     if (!walletAddr || isClaiming) return;
     setIsClaiming(true);
     try {
-      // Step 1: Server sends mUSDC to user wallet ATA
+      const body: Record<string, string> = { wallet: walletAddr };
+      if (currentBalanceRaw !== null) body.currentBalanceRaw = currentBalanceRaw;
+
       const res = await fetch("/api/faucet-mock-usdc", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ wallet: walletAddr }),
+        body: JSON.stringify(body),
       });
       const data = await res.json() as {
         success: boolean;
@@ -127,9 +151,8 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       };
 
       if (!data.success) {
-        if (data.error?.includes("claim again") || data.nextClaimAt) {
-          const nextAt = data.nextClaimAt ?? Date.now() + 7 * 24 * 60 * 60 * 1000;
-          try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
+        if (data.nextClaimAt) {
+          try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(data.nextClaimAt)); } catch {}
           setStep(2);
           return;
         }
@@ -137,11 +160,11 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         return;
       }
 
-      const claimedAmount = data.amount ?? 20_000;
+      const claimedAmount = data.amount ?? topUpAmount;
       const nextAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
       try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
 
-      // Step 2: Auto-deposit into Shadow margin account
+      // Auto-deposit into Shadow margin account
       if (anchorWallet) {
         try {
           const { client } = createShadowPerpClient(connection, anchorWallet);
@@ -150,7 +173,6 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
           await client.depositCollateral(runtime.marketAddress, depositAmount);
           toast.success(`${claimedAmount.toLocaleString()} mUSDC deposited into your Shadow margin!`);
         } catch (depositErr: any) {
-          // Deposit failed — mUSDC is still in wallet, user can deposit manually
           const msg = typeof depositErr?.message === "string"
             ? depositErr.message.split("\n")[0]
             : "Auto-deposit failed";
@@ -172,7 +194,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   if (!mounted || !showGate || !walletAddr) return null;
 
   const steps = [
-    // Step 0: Welcome
+    // Step 0: Welcome / Low balance notice
     <div key="welcome" className="flex flex-col items-center text-center px-8 py-8">
       <div className="mb-5 relative">
         <div className="w-24 h-24 rounded-full bg-gradient-to-br from-accent-purple/30 to-accent-blue/20 border border-accent-purple/40 flex items-center justify-center">
@@ -180,22 +202,45 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         </div>
         <span className="absolute -top-1 -right-1 text-xs bg-accent-purple text-white px-2 py-0.5 rounded-full font-bold">Devnet</span>
       </div>
-      <h2 className="text-2xl font-bold text-white mb-2">Welcome to Shadow</h2>
-      <p className="text-gray-400 text-sm leading-relaxed mb-1 font-medium">You are early.</p>
-      <p className="text-gray-500 text-[13px] leading-relaxed">
-        Shadow is a private perpetual trading terminal on Solana with encrypted positions powered by Arcium MPC.
-        Trade with full privacy. Your positions are never exposed on chain.
-      </p>
+      {isTopUpMode ? (
+        <>
+          <h2 className="text-2xl font-bold text-white mb-2">Your margin is running low</h2>
+          <p className="text-gray-400 text-sm leading-relaxed mb-1 font-medium">
+            Balance below 10,000 mUSDC.
+          </p>
+          <p className="text-gray-500 text-[13px] leading-relaxed">
+            Top up your Shadow margin to keep trading. We will send exactly what you need to reach 20,000 mUSDC.
+          </p>
+        </>
+      ) : (
+        <>
+          <h2 className="text-2xl font-bold text-white mb-2">Welcome to Shadow</h2>
+          <p className="text-gray-400 text-sm leading-relaxed mb-1 font-medium">You are early.</p>
+          <p className="text-gray-500 text-[13px] leading-relaxed">
+            Shadow is a private perpetual trading terminal on Solana with encrypted positions powered by Arcium MPC.
+            Trade with full privacy. Your positions are never exposed on chain.
+          </p>
+        </>
+      )}
       <button
         type="button"
         onClick={() => setStep(1)}
         className="mt-8 w-full py-3 rounded-xl font-bold text-sm bg-accent-purple hover:bg-accent-purple/85 text-white transition-colors flex items-center justify-center gap-2"
       >
-        Next
+        {isTopUpMode ? "Top Up Margin" : "Next"}
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
       </button>
+      {isTopUpMode && (
+        <button
+          type="button"
+          onClick={() => setShowGate(false)}
+          className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+        >
+          Dismiss for now
+        </button>
+      )}
     </div>,
 
     // Step 1: Claim funds
@@ -205,14 +250,23 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
           <ShadowLogo className="w-14 h-14" />
         </div>
       </div>
-      <h2 className="text-2xl font-bold text-white mb-2">Claim Test Funds</h2>
+      <h2 className="text-2xl font-bold text-white mb-2">
+        {isTopUpMode ? "Top Up Test Funds" : "Claim Test Funds"}
+      </h2>
       <p className="text-gray-400 text-[13px] leading-relaxed mb-4">
-        Claim <span className="text-white font-semibold">20,000 mUSDC</span> and we will auto deposit it straight into your Shadow margin so you can start trading immediately.
+        {isTopUpMode
+          ? <>Top up <span className="text-white font-semibold">{topUpAmount.toLocaleString()} mUSDC</span> and we will auto deposit it straight into your Shadow margin.</>
+          : <>Claim <span className="text-white font-semibold">20,000 mUSDC</span> and we will auto deposit it straight into your Shadow margin so you can start trading immediately.</>
+        }
       </p>
       <div className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 flex items-center justify-between mb-6">
         <div className="text-left">
-          <p className="text-[10px] uppercase tracking-widest text-gray-500">Free claim</p>
-          <p className="text-xl font-bold text-white mt-0.5">20,000 <span className="text-emerald-400 text-sm font-semibold">mUSDC</span></p>
+          <p className="text-[10px] uppercase tracking-widest text-gray-500">
+            {isTopUpMode ? "Top-up amount" : "Free claim"}
+          </p>
+          <p className="text-xl font-bold text-white mt-0.5">
+            {topUpAmount.toLocaleString()} <span className="text-emerald-400 text-sm font-semibold">mUSDC</span>
+          </p>
         </div>
         <div className="text-right">
           <p className="text-[10px] text-gray-500">Cooldown</p>
@@ -231,9 +285,9 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-            Claiming and depositing...
+            {isTopUpMode ? "Topping up..." : "Claiming and depositing..."}
           </>
-        ) : "Claim & Deposit to Margin"}
+        ) : isTopUpMode ? `Top Up ${topUpAmount.toLocaleString()} mUSDC` : "Claim & Deposit to Margin"}
       </button>
       <p className="mt-3 text-[10px] text-gray-600">mUSDC is sent to your wallet and auto deposited into your Shadow margin.</p>
     </div>,
@@ -247,7 +301,10 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">Ready When You Are</h2>
       <p className="text-gray-500 text-[13px] leading-relaxed mb-5">
-        20,000 mUSDC is now in your Shadow margin account. You are ready to open your first trade.
+        {isTopUpMode
+          ? `Your margin has been topped up to 20,000 mUSDC. You are ready to keep trading.`
+          : `20,000 mUSDC is now in your Shadow margin account. You are ready to open your first trade.`
+        }
       </p>
       <div className="w-full space-y-2.5 mb-6 text-left">
         {[

@@ -1,11 +1,17 @@
 /**
  * POST /api/faucet-mock-usdc
  *
- * Sends 20,000 mUSDC directly to the requesting wallet (server-side transfer).
- * Creates the user's ATA if needed. Faucet pays all fees.
- * Rate-limited to once every 7 days per wallet.
+ * Top-up logic:
+ *   - Cap balance: 20,000 mUSDC in Shadow margin account
+ *   - Trigger threshold: below 10,000 mUSDC
+ *   - Sends exactly the amount needed to bring the margin back to 20,000
+ *   - Cooldown: 7 days per wallet, enforced server-side
+ *   - First-time wallets (no margin account) get the full 20,000
  *
- * Body:   { wallet: string }
+ * Body:   { wallet: string; currentBalanceRaw?: string }
+ *   currentBalanceRaw — raw u64 margin balance (scaled by 1e6). If omitted the
+ *   server fetches it directly.
+ *
  * Response:
  *   { success: true; signature: string; amount: number }
  *   { success: false; error: string; nextClaimAt?: number }
@@ -22,10 +28,17 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const CLAIM_AMOUNT = 20_000;
-const CLAIM_DECIMALS = 6;
-const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const CAP_USDC      = 20_000;           // target balance after top-up
+const TRIGGER_USDC  = 10_000;           // only top up when below this
+const DECIMALS      = 6;
+const COOLDOWN_MS   = 7 * 24 * 60 * 60 * 1000;
 
+const PROGRAM_ID = new PublicKey(
+  process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ??
+  "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
+);
+
+// In-memory cooldown store (survives across requests in the same server process)
 const cooldowns = new Map<string, number>();
 
 function getRpcUrl(): string {
@@ -59,6 +72,25 @@ function getFaucetKeypair(): Keypair {
   );
 }
 
+/** Fetch the Shadow margin balance (in raw u64, scaled by 1e6) for a wallet. */
+async function fetchMarginBalanceRaw(
+  connection: Connection,
+  owner: PublicKey
+): Promise<bigint> {
+  try {
+    const [marginPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("margin"), owner.toBuffer()],
+      PROGRAM_ID
+    );
+    const info = await connection.getAccountInfo(marginPda);
+    if (!info || info.data.length < 80) return BigInt(0);
+    // u64 at byte offset 72 (8 discriminator + 32 owner + 32 market)
+    return info.data.readBigUInt64LE(72);
+  } catch {
+    return BigInt(0);
+  }
+}
+
 type FaucetResponse =
   | { success: true; signature: string; amount: number }
   | { success: false; error: string; nextClaimAt?: number };
@@ -71,7 +103,11 @@ export default async function handler(
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const { wallet } = req.body as { wallet?: string };
+  const { wallet, currentBalanceRaw } = req.body as {
+    wallet?: string;
+    currentBalanceRaw?: string;
+  };
+
   if (!wallet || typeof wallet !== "string") {
     return res.status(400).json({ success: false, error: "wallet address required" });
   }
@@ -90,9 +126,10 @@ export default async function handler(
     const elapsed = now - lastClaim;
     if (elapsed < COOLDOWN_MS) {
       const nextClaimAt = lastClaim + COOLDOWN_MS;
+      const daysLeft = Math.ceil((COOLDOWN_MS - elapsed) / (1000 * 60 * 60 * 24));
       return res.status(429).json({
         success: false,
-        error: `You can claim again in ${Math.ceil((COOLDOWN_MS - elapsed) / (1000 * 60 * 60 * 24))} day(s).`,
+        error: `You can top up again in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
         nextClaimAt,
       });
     }
@@ -100,15 +137,38 @@ export default async function handler(
 
   try {
     const connection = new Connection(getRpcUrl(), "confirmed");
+
+    // Determine current margin balance
+    let balanceRaw: bigint;
+    if (currentBalanceRaw && /^\d+$/.test(currentBalanceRaw)) {
+      balanceRaw = BigInt(currentBalanceRaw);
+    } else {
+      balanceRaw = await fetchMarginBalanceRaw(connection, recipientPubkey);
+    }
+
+    const balanceUsdc = Number(balanceRaw) / 10 ** DECIMALS;
+
+    // Only top up if below the trigger threshold
+    if (balanceUsdc >= TRIGGER_USDC) {
+      return res.status(400).json({
+        success: false,
+        error: `Balance is ${Math.floor(balanceUsdc).toLocaleString()} mUSDC — no top-up needed until it falls below ${TRIGGER_USDC.toLocaleString()}.`,
+      });
+    }
+
+    // Send exactly enough to reach the cap
+    const topUpUsdc = CAP_USDC - Math.floor(balanceUsdc);
+    const topUpRaw  = BigInt(topUpUsdc) * BigInt(10 ** DECIMALS);
+
     const mintAddress = getMockUsdcMint();
     const faucet = getFaucetKeypair();
 
-    const faucetAta = await getAssociatedTokenAddress(mintAddress, faucet.publicKey);
+    const faucetAta    = await getAssociatedTokenAddress(mintAddress, faucet.publicKey);
     const recipientAta = await getAssociatedTokenAddress(mintAddress, recipientPubkey);
 
     const tx = new Transaction();
 
-    // Create recipient ATA if it doesn't exist (faucet pays rent)
+    // Create recipient ATA if it does not exist (faucet pays rent)
     const recipientAtaInfo = await connection.getAccountInfo(recipientAta);
     if (!recipientAtaInfo) {
       tx.add(
@@ -121,14 +181,12 @@ export default async function handler(
       );
     }
 
-    // Transfer mUSDC
-    const transferAmount = BigInt(CLAIM_AMOUNT) * BigInt(10 ** CLAIM_DECIMALS);
     tx.add(
       createTransferInstruction(
         faucetAta,
         recipientAta,
         faucet.publicKey,
-        transferAmount,
+        topUpRaw,
         [],
         TOKEN_PROGRAM_ID
       )
@@ -136,7 +194,7 @@ export default async function handler(
 
     const { blockhash } = await connection.getLatestBlockhash("confirmed");
     tx.recentBlockhash = blockhash;
-    tx.feePayer = faucet.publicKey;
+    tx.feePayer        = faucet.publicKey;
     tx.sign(faucet);
 
     const signature = await connection.sendRawTransaction(tx.serialize(), {
@@ -147,7 +205,7 @@ export default async function handler(
 
     cooldowns.set(wallet, now);
 
-    return res.status(200).json({ success: true, signature, amount: CLAIM_AMOUNT });
+    return res.status(200).json({ success: true, signature, amount: topUpUsdc });
   } catch (err: any) {
     console.error("[faucet-mock-usdc]", err);
     const message =

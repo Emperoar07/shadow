@@ -1,0 +1,7 @@
+{
+  "build": {
+    "install": "npm install",
+    "build": "npm run build"
+  },
+  "start": "node dist/index.js"
+}
