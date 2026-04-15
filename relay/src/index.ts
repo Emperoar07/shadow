@@ -248,7 +248,11 @@ app.post("/api/relay/deposit", async (req: Request, res: Response) => {
 
     res.json({ ok: true, txSignature, relayMode: "session" });
   } catch (error: any) {
-    res.status(400).json({ ok: false, error: error?.message ?? "Relay deposit failed" });
+    const msg: string = error?.message ?? "Relay deposit failed";
+    const userMessage = isMissingAccountError(error)
+      ? "Your trading session has expired or was not created on-chain. Please revoke and start a new session."
+      : msg;
+    res.status(400).json({ ok: false, error: userMessage });
   }
 });
 
@@ -278,7 +282,11 @@ app.post("/api/relay/withdraw", async (req: Request, res: Response) => {
 
     res.json({ ok: true, txSignature, relayMode: "session" });
   } catch (error: any) {
-    res.status(400).json({ ok: false, error: error?.message ?? "Relay withdraw failed" });
+    const msg: string = error?.message ?? "Relay withdraw failed";
+    const userMessage = isMissingAccountError(error)
+      ? "Your trading session has expired or was not created on-chain. Please revoke and start a new session."
+      : msg;
+    res.status(400).json({ ok: false, error: userMessage });
   }
 });
 
@@ -321,7 +329,12 @@ app.post("/api/relay/open", async (req: Request, res: Response) => {
 
     res.json({ ok: true, txSignature: result.txSignature, positionAddress: result.positionAddress.toBase58(), relayMode: "session" });
   } catch (error: any) {
-    res.status(400).json({ ok: false, error: error?.message ?? "Relay open failed" });
+    const msg: string = error?.message ?? "Relay open failed";
+    const isSessionMissing = isMissingAccountError(error) || msg.includes("Session");
+    const userMessage = isSessionMissing
+      ? "Your trading session has expired or was not created on-chain. Please revoke and start a new session."
+      : msg;
+    res.status(400).json({ ok: false, error: userMessage });
   }
 });
 

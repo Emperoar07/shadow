@@ -1573,11 +1573,14 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
           (message.includes("Invalid session authorization signature") ||
             message.includes("Session authorization expired") ||
             message.includes("Authorization expiry exceeds session expiry") ||
-            message.includes("Authorization action mismatch"))
+            message.includes("Authorization action mismatch") ||
+            message.includes("session has expired or was not created") ||
+            message.includes("Account does not exist") ||
+            message.includes("could not find account"))
         ) {
           invalidateRelaySession(activeRelaySession.owner, activeRelaySession.market);
           throw new Error(
-            "Delegated session expired or invalid. Please sign a new session."
+            "Your trading session is no longer valid. Please start a new session and try again."
           );
         }
         throw attachRelayOpenContext(new Error(message), {

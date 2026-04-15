@@ -306,33 +306,34 @@ export default function DocsPage() {
           <div className="docs-header">
             <h1>ShadowPerp Documentation</h1>
             <p>
-              ShadowPerp is a private perpetual trading app on Solana. It combines encrypted positions, delegated
-              session trading, and Arcium Multi Party Computation so traders can operate without exposing order details
-              on chain by default.
+              ShadowPerp is a private perpetual trading app on Solana. It brings together encrypted positions,
+              delegated session trading, and Arcium Multi Party Computation so your order details stay off the
+              public ledger by default.
             </p>
           </div>
 
           <Section id="overview" title="Overview">
             <p>
-              ShadowPerp enables private perpetual futures trading on Solana. Trade size, direction, leverage, and
-              margin are encrypted before they reach the on chain program. Sensitive calculations run through Arcium's
-              MPC network rather than being exposed in plaintext on the ledger.
+              ShadowPerp lets you trade perpetual futures on Solana without broadcasting your position details to the
+              world. Trade size, direction, leverage, and margin are encrypted before they reach the on chain program.
+              Sensitive calculations run through Arcium's MPC network rather than being exposed in plaintext on the ledger.
             </p>
             <p>
-              Only the minimum public state required for settlement is written on chain. The protocol is designed
-              to prevent position data from becoming exploitable public information.
+              Only the minimum public state required for settlement is written on chain. The protocol is designed so
+              that position data does not become exploitable public information.
             </p>
             <p>
-              ShadowPerp supports <strong>6 trading pairs</strong>: SOL-USD, BTC-USD, ETH-USD, JUP-USD, PYTH-USD, and ORCA-USD. Each pair routes to its own on-chain market PDA, while delegated sessions and shared collateral keep execution reusable across supported markets. The selected pair persists across page refreshes.
+              ShadowPerp supports <strong>6 trading pairs</strong>: SOL/USD, BTC/USD, ETH/USD, JUP/USD, PYTH/USD, and ORCA/USD.
+              Each pair routes to its own on chain market account. Delegated sessions and shared collateral keep execution
+              reusable across supported markets. Your selected pair persists across page refreshes.
             </p>
             <Note>
               ShadowPerp is currently deployed on <strong>Solana Devnet</strong> at program ID <Code>ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4</Code>. All balances are test funds.
             </Note>
             <Note>
-              Current live status: delegated sessions, delegated collateral actions, shared-collateral migration flows,
-              shielded-collateral base flows, and the hardened relay/runtime stack are working on devnet. The remaining
-              blocker is the Arcium-backed open-position lane, which still fails before reaching a stable <Code>Open</Code> state
-              on the current namespace.
+              Current live status: delegated sessions, delegated collateral actions, shared collateral migration flows,
+              shielded collateral base flows, and the hardened relay and runtime stack are all working on devnet. The
+              remaining blocker is the Arcium backed open position lane, which is still being resolved on the current namespace.
             </Note>
           </Section>
 
@@ -340,44 +341,44 @@ export default function DocsPage() {
             <p>Each trade follows the same core path:</p>
             <ol>
               <li>
-                <strong>Encrypt</strong> | Your browser encrypts sensitive trade inputs including size, price, leverage,
+                <strong>Encrypt</strong> — Your browser encrypts sensitive trade inputs including size, price, leverage,
                 direction, and margin before submission.
               </li>
               <li>
-                <strong>Queue</strong> | The encrypted payload is submitted to the Solana program, which queues an
+                <strong>Queue</strong> — The encrypted payload is submitted to the Solana program, which queues an
                 Arcium MPC computation.
               </li>
               <li>
-                <strong>Compute</strong> | Arcium's MPC network evaluates trade logic, margin checks, PnL, and
+                <strong>Compute</strong> — Arcium's MPC network evaluates trade logic, margin checks, PnL, and
                 liquidation conditions without exposing raw inputs to any single node.
               </li>
               <li>
-                <strong>Callback</strong> | Arcium returns a verified, replay hardened result to the Solana program.
+                <strong>Callback</strong> — Arcium returns a verified, replay hardened result to the Solana program.
               </li>
               <li>
-                <strong>Settle</strong> | ShadowPerp updates the margin account and position state from the verified output.
+                <strong>Settle</strong> — ShadowPerp updates the margin account and position state from the verified output.
               </li>
             </ol>
             <p>
-              After your session is approved, the relay submits trades on your behalf. You sign once for the session
-              instead of approving a wallet prompt for every action.
+              Once your session is active, the relay submits trades on your behalf. You sign once for the session
+              instead of approving a wallet popup for every action.
             </p>
             <Note>
-              ShadowPerp now keeps longer callback wait windows and surfaces on-chain callback failures more directly.
-              That improves diagnosis and keeps failed opens from looking like indefinite pending states, but it does not
-              change the current devnet open-lane blocker itself.
+              ShadowPerp keeps longer callback wait windows and surfaces on chain callback failures more directly.
+              That makes it easier to diagnose what happened and prevents failed opens from looking like indefinite
+              pending states.
             </Note>
           </Section>
 
           <Section id="session-trading" title="Session Trading">
             <p>
-              ShadowPerp uses a <strong>delegated session</strong> model to keep the trading experience seamless. Here is what
+              ShadowPerp uses a <strong>delegated session</strong> model to keep the trading experience smooth. Here is what
               happens when you start a session:
             </p>
             <ol>
               <li>
-                You sign a <strong>CreateTradeSessionV2</strong> transaction by default. This creates a wallet scoped
-                session PDA tied to your wallet and the relay, and reusable across supported markets.
+                You sign a <strong>CreateTradeSession</strong> transaction. This creates a wallet scoped session account
+                tied to your wallet and the relay. It is reusable across supported markets.
               </li>
               <li>
                 You sign a short <strong>authorization message</strong>. This is not a transaction. It simply proves
@@ -399,7 +400,7 @@ export default function DocsPage() {
               <tbody>
                 <tr>
                   <td>Session duration</td>
-                  <td>Default 5 hours, up to 48 hours</td>
+                  <td>5 hours by default, up to 48 hours</td>
                 </tr>
                 <tr>
                   <td>Max actions</td>
@@ -407,22 +408,24 @@ export default function DocsPage() {
                 </tr>
                 <tr>
                   <td>Max margin per action</td>
-                  <td>1,000 USDC</td>
+                  <td>100,000 mUSDC</td>
                 </tr>
                 <tr>
                   <td>Revocable</td>
-                  <td>Yes, anytime on chain</td>
+                  <td>Yes, at any time on chain</td>
                 </tr>
               </tbody>
             </table>
             <Note>
-              The session authorization signature is tied to a specific session ID, scope, and expiry. With the default
+              The session authorization signature is tied to a specific session ID, scope, and expiry. With the
               wallet scoped session model, the same session can be reused across supported markets until it expires or
-              is revoked. Older market scoped sessions remain supported for backward compatibility.
+              is revoked.
             </Note>
             <h3>Revoking a Session</h3>
             <p>
-              You can revoke your active session at any time from the Settings panel. Open Settings, go to the Trading tab, and click Revoke Session. This submits a transaction that invalidates the session on chain immediately. The relay will reject all further requests from that session the moment the transaction confirms.
+              You can revoke your active session at any time from the Settings panel. Open Settings, go to the Trading
+              tab, and click Revoke Session. This submits a transaction that invalidates the session on chain immediately.
+              The relay rejects all further requests from that session the moment the transaction confirms.
             </p>
           </Section>
 
@@ -432,63 +435,67 @@ export default function DocsPage() {
               <a href="https://www.arcium.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa" }}>
                 Arcium
               </a>
-              {" "}as the privacy layer behind trading. Here is the practical boundary between what stays private and what
-              remains visible:
+              {" "}as the privacy layer behind every trade. Here is the practical boundary between what stays private and what
+              remains visible on chain:
             </p>
             <h3>What is private</h3>
             <ul>
               <li>Position size</li>
               <li>Entry price</li>
               <li>Leverage</li>
-              <li>Direction</li>
+              <li>Direction (long or short)</li>
               <li>Margin amount</li>
               <li>Unrealized PnL</li>
             </ul>
             <h3>What is public</h3>
             <ul>
-              <li>Your wallet address, which is used for the margin account and session</li>
-              <li>Token transfers to and from the vault (Solana constraint)</li>
-              <li>The fact that a trade was queued, but not the details</li>
+              <li>Your wallet address, used for the margin account and session</li>
+              <li>Token transfers to and from the vault (a Solana constraint)</li>
+              <li>The fact that a trade was queued, but none of the details</li>
               <li>Session creation and revocation</li>
             </ul>
-            <h3>What is becoming private (shielded collateral)</h3>
+            <h3>What is becoming private through shielded collateral</h3>
             <ul>
               <li>Internal collateral ownership and allocation</li>
               <li>Margin lock and release transitions</li>
-              <li>Per-user balance within the protocol</li>
+              <li>Per user balance within the protocol</li>
             </ul>
             <Note>
-              The reference orderbook pulls live market depth from external venues including Binance, Coinbase, Bybit, and Gate.io depending on the selected pair. Provider selection happens through the server-side reference depth pipeline, with cached client state used as a graceful fallback when a provider is temporarily unreachable. The orderbook provides market context only and does not represent ShadowPerp's own venue liquidity. It does not reveal other traders' positions.
+              The reference orderbook pulls live market depth from Binance, Coinbase, Bybit, and Gate.io depending
+              on your selected pair. Provider selection runs through the server side reference depth pipeline with
+              cached client state as a graceful fallback when a provider is temporarily unreachable. The orderbook
+              provides market context only and does not represent ShadowPerp's own liquidity. It does not reveal
+              other traders' positions.
             </Note>
           </Section>
 
           <Section id="margin" title="Margin and Leverage">
             <p>ShadowPerp supports two margin modes and leverage up to <strong>50x</strong>.</p>
             <p>
-              The current devnet namespace now uses a <strong>migration-backed shared collateral model</strong> for adopted
-              markets. After your wallet is migrated from any legacy per-market margin accounts, one owner scoped collateral
-              balance can back positions across supported pairs instead of requiring a separate funding bucket per market.
+              The devnet namespace uses a shared collateral model for adopted markets. Once your wallet is migrated
+              from any legacy per-market margin accounts, a single owner scoped collateral balance can back positions
+              across supported pairs instead of requiring a separate funding bucket per market.
             </p>
             <h3>Cross Margin</h3>
             <p>
-              Your full margin balance is shared across all cross margin positions. If one position loses, the rest of
-              the balance absorbs it, which can reduce liquidation risk on a single position but exposes more of your
-              account to aggregate losses.
+              Your full margin balance is shared across all open positions in cross margin mode. If one position loses,
+              the rest of the balance absorbs it. This can reduce the chance of a single position getting liquidated
+              in isolation, but it also means aggregate losses can draw down the full account.
             </p>
             <h3>Isolated Margin</h3>
             <p>
               A fixed amount of margin is assigned to one position. If that position is liquidated, only that isolated
-              margin is at risk and the rest of your balance stays untouched.
+              amount is at risk. The rest of your balance stays untouched.
             </p>
             <h3>Leverage</h3>
             <p>
-              Leverage increases both upside and downside relative to your margin. Available range: <Code>1x</Code> to{" "}
-              <Code>50x</Code>.
+              Leverage amplifies both upside and downside relative to your margin. Available range is <Code>1x</Code> to{" "}
+              <Code>50x</Code>. Higher leverage means a smaller adverse move can trigger liquidation.
             </p>
             <Note>
-              Shared collateral across pairs is active on adopted markets, but it is not automatic for every wallet. If you
-              have legacy per-market balances, you still need the migration runbook before treating your collateral as one
-              global pool.
+              Shared collateral is active on adopted markets but is not automatic for every wallet. If you have legacy
+              per-market balances, you will need to run the migration before your collateral behaves as one pool
+              across all supported pairs.
             </Note>
             <table className="docs-table">
               <thead>
@@ -532,30 +539,29 @@ export default function DocsPage() {
             <h3>Limit Order</h3>
             <p>
               A limit order is queued in the browser and triggered when the market price crosses your chosen level.
-              When that happens, the relay submits the order for you.
+              When that happens, the relay submits the order automatically.
             </p>
             <Note>
-              Limit orders currently run in the browser. That means the tab needs to stay open for them to trigger.
-              Also note that market-order queueing is working on devnet, but end-to-end open finalization is still under
-              active investigation on the current namespace.
+              Limit orders run in the browser right now, which means the tab needs to stay open for them to fire.
+              Market order submission is working on devnet and end-to-end open finalization is under active investigation.
             </Note>
           </Section>
 
-          <Section id="tp-sl" title="Take Profit / Stop Loss">
-            <p>Each open position can have optional TP and SL rules. These are stored locally and monitored by the client.</p>
+          <Section id="tp-sl" title="Take Profit and Stop Loss">
+            <p>Each open position can carry optional take profit and stop loss rules. These are stored locally and monitored by the client.</p>
             <ul>
-              <li><strong>Take Profit (TP)</strong> | closes the position when price reaches your target.</li>
-              <li><strong>Stop Loss (SL)</strong> | closes the position when price reaches your protection level.</li>
+              <li><strong>Take Profit</strong> closes the position when price reaches your upside target.</li>
+              <li><strong>Stop Loss</strong> closes the position when price hits your downside protection level.</li>
             </ul>
             <p>
-              You can set TP and SL in the trading panel before opening a position, or edit them later from the
-              position row. Use the <Code>Save</Code> action to keep the rule.
+              You can set take profit and stop loss in the trading panel before opening a position, or edit them later
+              from the position row. Use the <Code>Save</Code> action to confirm the rule.
             </p>
             <h3>Validation Rules</h3>
             <ul>
-              <li>For <strong>long</strong> positions, TP must be above entry and SL must be below entry.</li>
-              <li>For <strong>short</strong> positions, TP must be below entry and SL must be above entry.</li>
-              <li>TP and SL must be at least <Code>0.10%</Code> away from entry price.</li>
+              <li>For <strong>long</strong> positions, take profit must be above entry and stop loss must be below entry.</li>
+              <li>For <strong>short</strong> positions, take profit must be below entry and stop loss must be above entry.</li>
+              <li>Both levels must be at least <Code>0.10%</Code> away from entry price.</li>
             </ul>
           </Section>
 
@@ -576,39 +582,39 @@ export default function DocsPage() {
               Health = (Equity / Maintenance Margin) x 100%
             </p>
             <ul>
-              <li><strong>Liquidation threshold</strong>: set per market in basis points, enforced by the on-chain program</li>
-              <li><strong>Liquidation penalty</strong>: 5% to the liquidator, with the remainder returned to the trader</li>
+              <li><strong>Liquidation threshold</strong> is set per market in basis points and enforced by the on chain program.</li>
+              <li><strong>Liquidation penalty</strong> is 5% to the liquidator with the remainder returned to the trader.</li>
             </ul>
             <p>
-              In cross margin mode, your full balance acts as equity. In isolated mode, only the position's allocated
-              margin counts.
+              In cross margin mode, your full balance acts as equity. In isolated mode, only the allocated margin for
+              that position counts.
             </p>
             <Note>
-              Liquidation is enforced on chain through Arcium's MPC network. The liquidator never sees
-              your plaintext position details.
+              Liquidation is enforced on chain through Arcium's MPC network. The liquidator never sees your plaintext
+              position details.
             </Note>
           </Section>
 
           <Section id="shielded-collateral" title="Shielded Collateral">
             <p>
-              ShadowPerp already has the base shielded collateral flow deployed on devnet. Deposits, private withdrawal
-              requests, proof verification callbacks, and delayed finalization are live. The remaining work is private
-              margin lock and private position settlement through Arcium MPC.
+              ShadowPerp has the base shielded collateral flow deployed on devnet. Deposits, private withdrawal requests,
+              proof verification callbacks, and delayed finalization are all live. The remaining work is private margin
+              lock and private position settlement through Arcium MPC.
             </p>
             <h3>How it works</h3>
             <ol>
               <li>
-                <strong>Deposit</strong> | You deposit USDC to the vault. The token transfer is public (Solana
-                constraint), but the protocol creates a private commitment in a Merkle tree instead of updating
-                a plaintext balance.
+                <strong>Deposit</strong> — You deposit collateral to the vault. The token transfer is public because
+                that is a Solana constraint, but the protocol records a private commitment in a Merkle tree instead
+                of updating a plaintext balance.
               </li>
               <li>
-                <strong>Trade</strong> | Margin lock and release transitions happen through Arcium MPC, consuming
-                and producing commitments without revealing your internal balance.
+                <strong>Trade</strong> — Margin lock and release transitions happen through Arcium MPC, consuming and
+                producing commitments without revealing your internal balance to anyone.
               </li>
               <li>
-                <strong>Withdraw</strong> | You first create a pending withdrawal, then queue an Arcium MPC proof check,
-                and only finalize after the callback marks that withdrawal as verified and the delay window has passed.
+                <strong>Withdraw</strong> — You first create a pending withdrawal, then queue an Arcium MPC proof check.
+                Finalization only happens after the callback marks the withdrawal as verified and the delay window has passed.
               </li>
             </ol>
             <h3>What stays private</h3>
@@ -619,15 +625,15 @@ export default function DocsPage() {
             </ul>
             <h3>What remains public</h3>
             <ul>
-              <li>USDC transfers to and from the vault (Solana L1 constraint)</li>
+              <li>Token transfers to and from the vault (a Solana L1 constraint)</li>
               <li>The fact that a deposit or withdrawal happened</li>
-              <li>Timestamps of transactions</li>
+              <li>Transaction timestamps</li>
             </ul>
             <Note>
               Shielded collateral deposit, withdrawal request, proof verification callback, and finalization are deployed
-              on devnet. The current withdrawal proof is a simplified additive-binding MPC check over the claimed amount,
-              commitment secret, and nullifier preimage. It is not yet a full private Merkle-membership proof of note
-              ownership. Private margin lock and settle transitions are still in progress.
+              on devnet. The current withdrawal proof is a simplified additive binding MPC check over the claimed amount,
+              commitment secret, and nullifier preimage. A full private Merkle membership proof of note ownership is not
+              yet implemented. Private margin lock and settle transitions are still in progress.
             </Note>
           </Section>
 
@@ -635,39 +641,44 @@ export default function DocsPage() {
             <h3>Do I need to keep the browser open?</h3>
             <p>
               For market orders, the relay and callback path continue after submission, so you do not need to keep the
-              tab open just to keep the request alive. For limit orders and TP and SL automation, yes. Those flows still
-              run in the browser and need the tab to stay open.
+              tab open just to keep the request alive. For limit orders, take profit, and stop loss automation, yes.
+              Those flows still run in the browser and need the tab to stay open.
             </p>
 
             <h3>How do I deposit collateral?</h3>
             <p>
-              Click <strong>Collateral</strong> in the trading panel, or use the deposit button in the portfolio summary. You must deposit USDC before you can open a position. For devnet testing, use a devnet USDC faucet to fund your wallet with the correct test mint.
+              Click <strong>Collateral</strong> in the trading panel, or use the deposit button in the portfolio summary.
+              You need to deposit collateral before opening a position. On devnet, you can claim test mUSDC from the
+              onboarding flow when you first connect your wallet. It goes straight into your Shadow margin account.
             </p>
 
-            <h3>Why does my position show "Queued" or "Finalizing"?</h3>
+            <h3>Why does my position show Queued or Finalizing?</h3>
             <p>
-              Those states mean the trade was submitted successfully and is moving through the protected callback path. <strong>Queued</strong> means Shadow is still waiting for the Arcium MPC callback to return. <strong>Finalizing</strong> means the callback completed and the remaining on-chain settlement steps are finishing. On devnet this typically takes 30 to 120 seconds depending on cluster load. If it takes longer, the cluster may be temporarily delayed, but your collateral remains safe and the position will either resolve once settlement completes or fail into a terminal state if the callback aborts on chain.
+              Both states mean the trade was submitted successfully and is moving through the protected callback path.
+              <strong> Queued</strong> means Shadow is waiting for the Arcium MPC callback to return.
+              <strong> Finalizing</strong> means the callback completed and the remaining on chain settlement steps are
+              finishing. On devnet this typically takes 30 to 120 seconds depending on cluster load. If it takes longer,
+              the cluster may be temporarily delayed. Your collateral stays safe and the position will either resolve once
+              settlement completes or move to a terminal state if the callback aborts on chain.
             </p>
             <Note>
               Current devnet status: wallet scoped delegated sessions and delegated collateral actions are working across
-              supported markets. The open position callback path is still being debugged on the current namespace. A new
-              staged diagnostic harness now shows the abort survives tuple-only, margin-check, and full-check probes, so
-              the current evidence points away from simple margin or leverage business logic drift.
+              supported markets. The open position callback path is still being debugged on the current namespace.
             </Note>
 
             <h3>Is my data stored anywhere?</h3>
             <p>
               Trading preferences, session info, automation rules, cached activity, layout preferences, and RPC settings
-              are stored in your browser's <Code>localStorage</Code>. Actual on chain position state is still read from
-              Solana, but the app also keeps a few local convenience snapshots so the interface can restore faster.
-              Server-backed features such as the relay and history routes may receive your public wallet address and
-              encrypted trade inputs when needed to fulfill the request.
+              are stored in your browser's <Code>localStorage</Code>. On chain position state is always read directly from
+              Solana, but the app keeps a few local convenience snapshots so the interface can restore faster.
+              Server-backed features like the relay and history routes may receive your public wallet address and
+              encrypted trade inputs when needed to fulfill a request.
             </p>
 
             <h3>Can I use ShadowPerp on mainnet?</h3>
             <p>
-              Not yet. ShadowPerp is currently devnet only. Mainnet deployment depends on a fully verified open and close flow,
-              production operational confidence, and a comprehensive audit.
+              Not yet. ShadowPerp is devnet only for now. Mainnet deployment depends on a fully verified open and close
+              flow, production operational confidence, and a comprehensive audit.
             </p>
           </Section>
 
@@ -678,7 +689,7 @@ export default function DocsPage() {
               <p>
                 ShadowPerp does not require account registration and does not collect personally identifiable information.
                 When you connect a wallet, your public key is used only to identify your on chain margin account and
-                trading session. Some server-backed features, including relay requests and wallet history lookups, may
+                trading session. Some server-backed features including relay requests and wallet history lookups may
                 receive your public wallet address in order to fulfill the request, but the product does not create a
                 user profile or account around that data.
               </p>
