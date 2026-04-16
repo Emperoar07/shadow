@@ -628,6 +628,39 @@ function ConnectWalletButton() {
   const ref = useRef<HTMLDivElement>(null);
   const walletCreateAttempted = useRef(false);
 
+  const formatPrivyLoginError = useCallback((error: unknown): string => {
+    const code =
+      typeof error === "object" && error && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : "";
+    const message =
+      typeof error === "object" && error && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : "";
+
+    if (code === "invalid_origin" || message.toLowerCase().includes("invalid_origin")) {
+      return "Privy blocked this domain. Add the exact Shadow site URL to Allowed Origins in the Privy dashboard.";
+    }
+
+    if (code === "linked_to_another_user" || message.toLowerCase().includes("linked_to_another_user")) {
+      return "This login method is already linked to a different Privy user. Try the original method or enable login method transfer in Privy.";
+    }
+
+    if (message.trim().length > 0) {
+      return `Privy login failed: ${message}`;
+    }
+
+    return "Privy login failed. Check Allowed Origins and enabled login methods in the Privy dashboard.";
+  }, []);
+
+  const handlePrivyLogin = useCallback(() => {
+    setOpen(false);
+    Promise.resolve(login()).catch((error) => {
+      console.error("[Shadow][Privy login]", error);
+      toast.error(formatPrivyLoginError(error), { duration: 7000 });
+    });
+  }, [login, formatPrivyLoginError]);
+
   // Safety net: auto-create embedded Solana wallet if Privy user has none yet.
   // createOnLogin should handle this, but covers edge cases where it fails.
   useEffect(() => {
@@ -790,7 +823,7 @@ function ConnectWalletButton() {
           {/* Email / Social via Privy */}
           <button
             type="button"
-            onClick={() => { setOpen(false); login(); }}
+            onClick={handlePrivyLogin}
             className="flex w-full items-center gap-3 px-4 py-3 text-[12px] font-medium text-gray-200 hover:bg-shadow-800/80 hover:text-white transition-colors"
           >
             <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-accent-purple/20 border border-accent-purple/30">

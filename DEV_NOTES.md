@@ -2271,3 +2271,23 @@ No code changes were made during this audit pass.
    - open one encrypted position directly
    - verify no session chip or session settings appear anywhere
 2. Separately run one external-wallet smoke to confirm delegated session UX still behaves exactly as before.
+
+## Railway Root Deploy Guard (2026-04-16 UTC)
+
+### What changed
+- Added a repo-root `railway.toml` that explicitly builds and starts the Node relay from `relay/`.
+- This is meant to protect Railway deployments that are accidentally pointed at the monorepo root, where Railpack otherwise detects the top-level Rust workspace via `Cargo.toml` and fails with `No start command detected`.
+
+### What was verified
+- Confirmed the relay already had its own nested Railway config in `relay/railway.toml`, but root deploys would not pick that up automatically.
+- Confirmed there was no repo-root `railway.toml` before this patch.
+
+### Current blocker
+- Railway still needs either:
+  - the service root directory set to `relay`, or
+  - the new repo-root `railway.toml` committed and deployed from the repo root.
+
+### Next safe step
+1. Commit the root `railway.toml`.
+2. In Railway, either keep the service pointed at the repo root and redeploy, or set the service root directory to `relay`.
+3. Verify the deploy starts with `node dist/index.js` from the relay build output instead of Rust autodetection.
