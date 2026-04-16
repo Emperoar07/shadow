@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import BN from "bn.js";
 import { createShadowPerpClient } from "../lib/create-client";
-import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
 import { fetchPrices } from "../lib/prices";
 import {
   getOwnerPositionViews,
@@ -51,8 +51,10 @@ function writeCachedPortfolio(walletKey: string, data: PortfolioData) {
 }
 
 export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSummaryProps = {}) {
-  const { publicKey, connecting, connected } = useWallet();
+  const { connecting, connected } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
+  const walletExecutionMode = useWalletExecutionMode();
+  const publicKey = anchorWallet?.publicKey ?? null;
   const { connection } = useConnection();
   const [data, setData] = useState<PortfolioData | null>(null);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
@@ -73,6 +75,7 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
     refreshRelaySession,
   } = useArciumPrivacy();
   const isRelaySessionActive =
+    walletExecutionMode === "external" &&
     !!relaySession &&
     relaySession.owner === publicKey?.toBase58() &&
     relaySession.usedActions < relaySession.maxActions &&
@@ -293,8 +296,8 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
       marginBalance={data?.marginBalance ?? null}
       freeCollateral={data?.freeCollateral ?? null}
       lockedCollateral={data?.lockedCollateral ?? null}
-      relayAvailable={relayAvailable}
-      relaySession={relaySession}
+      relayAvailable={walletExecutionMode === "external" ? relayAvailable : false}
+      relaySession={walletExecutionMode === "external" ? relaySession : null}
       isRelaySessionActive={isRelaySessionActive}
       ensureRelaySession={ensureRelaySession}
       invalidateRelaySession={invalidateRelaySession}

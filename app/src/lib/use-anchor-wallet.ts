@@ -8,16 +8,33 @@ import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import type { Transaction } from "@solana/web3.js";
 
+export type WalletExecutionMode = "external" | "embedded" | "none";
+
 export type AnchorCompatibleWallet = {
   publicKey: WalletContextState["publicKey"];
   signTransaction: WalletContextState["signTransaction"];
   signAllTransactions: WalletContextState["signAllTransactions"];
+  signMessage?: WalletContextState["signMessage"];
 };
 
 type SignAllTransactions = NonNullable<WalletContextState["signAllTransactions"]>;
 
+export function useWalletExecutionMode(): WalletExecutionMode {
+  const { publicKey } = useWallet();
+  const { authenticated } = usePrivy();
+  const { wallets: solanaWallets } = useSolanaWallets();
+
+  return useMemo(() => {
+    if (publicKey) return "external";
+    if (authenticated && solanaWallets.some((wallet) => wallet.walletClientType === "privy")) {
+      return "embedded";
+    }
+    return "none";
+  }, [publicKey, authenticated, solanaWallets]);
+}
+
 export function useAnchorWalletCompat(): AnchorCompatibleWallet | null {
-  const { publicKey, signTransaction, signAllTransactions } = useWallet();
+  const { publicKey, signTransaction, signAllTransactions, signMessage } = useWallet();
   const { authenticated } = usePrivy();
   const { wallets: solanaWallets } = useSolanaWallets();
 
@@ -38,6 +55,7 @@ export function useAnchorWalletCompat(): AnchorCompatibleWallet | null {
         publicKey,
         signTransaction,
         signAllTransactions: safeSignAll as SignAllTransactions,
+        signMessage,
       };
     }
 
@@ -65,10 +83,14 @@ export function useAnchorWalletCompat(): AnchorCompatibleWallet | null {
           publicKey: privyPublicKey,
           signTransaction: privySignTransaction,
           signAllTransactions: safeSignAll,
+          signMessage:
+            typeof embedded.signMessage === "function"
+              ? (embedded.signMessage as NonNullable<WalletContextState["signMessage"]>)
+              : undefined,
         };
       }
     }
 
     return null;
-  }, [publicKey, signTransaction, signAllTransactions, authenticated, solanaWallets]);
+  }, [publicKey, signTransaction, signAllTransactions, signMessage, authenticated, solanaWallets]);
 }

@@ -6,7 +6,7 @@ import { usePrivy, useCreateWallet } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
-import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
 import { createShadowPerpClient } from "../lib/create-client";
 import { getRuntimeConfig } from "../lib/runtime";
 import { FAUCET_TRIGGER_USDC, FAUCET_CAP_USDC, MUSDC_DECIMALS } from "../lib/faucet-constants";
@@ -375,14 +375,11 @@ export default function TradingAppPage() {
   const { visibility: panelVisibility, update: updateVisibility } = useVisibility();
   const { locked: layoutLocked, toggle: toggleLayoutLock } = useLayoutLocked();
   const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
-  const { publicKey } = useWallet();
-  const { authenticated: privyAuthenticated } = usePrivy();
+  const anchorWallet = useAnchorWalletCompat();
+  const walletExecutionMode = useWalletExecutionMode();
+  const publicKey = anchorWallet?.publicKey ?? null;
 
-  // Sessions only apply for external wallet users (wallet-adapter connected)
-  // Email/social users have Privy embedded wallet and sign directly — no session needed
-  const isEmbeddedWalletUser = privyAuthenticated && !publicKey;
-  const { relaySession: rawRelaySession, revokeRelaySession } = useArciumPrivacy();
-  const relaySession = isEmbeddedWalletUser ? null : rawRelaySession;
+  const { relaySession, revokeRelaySession } = useArciumPrivacy();
   const isRelaySessionActive =
     !!relaySession &&
     relaySession.owner === (publicKey?.toBase58() ?? "") &&
@@ -441,9 +438,11 @@ export default function TradingAppPage() {
                 <NetworkIndicator mode="network" />
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <div className="basis-full sm:basis-auto">
-                  <SessionTimerChip />
-                </div>
+                {walletExecutionMode === "external" && (
+                  <div className="basis-full sm:basis-auto">
+                    <SessionTimerChip />
+                  </div>
+                )}
                 <WalletPopup
                   marginBalance={marginBalance}
                   onOpenCollateral={openCollateralModal ?? undefined}
@@ -456,9 +455,9 @@ export default function TradingAppPage() {
                   onResetTradingSettings={resetTradingSettings}
                   layoutLocked={layoutLocked}
                   onToggleLayoutLock={toggleLayoutLock}
-                  relaySession={relaySession}
-                  isRelaySessionActive={isRelaySessionActive}
-                  revokeRelaySession={revokeRelaySession}
+                  relaySession={walletExecutionMode === "external" ? relaySession : null}
+                  isRelaySessionActive={walletExecutionMode === "external" ? isRelaySessionActive : false}
+                  revokeRelaySession={walletExecutionMode === "external" ? revokeRelaySession : undefined}
                 />
                 <ConnectWalletButton />
               </div>
@@ -910,8 +909,9 @@ const SESSION_DURATION_OPTIONS = [
 ] as const;
 
 function SessionTimerChip() {
-  const { publicKey } = useWallet();
-  const { authenticated: privyAuthenticated } = usePrivy();
+  const anchorWallet = useAnchorWalletCompat();
+  const walletExecutionMode = useWalletExecutionMode();
+  const publicKey = anchorWallet?.publicKey ?? null;
   const { relaySession, relayAvailable, ensureRelaySession } = useArciumPrivacy();
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const [isTimerHovered, setIsTimerHovered] = useState(false);
@@ -959,8 +959,7 @@ function SessionTimerChip() {
     }
   }, [ensureRelaySession, isCreatingSession]);
 
-  // Email/social users have no wallet-adapter publicKey — they sign directly, no session
-  if (!publicKey || (privyAuthenticated && !publicKey)) return null;
+  if (!publicKey || walletExecutionMode !== "external") return null;
 
   const isActive =
     !!relaySession &&

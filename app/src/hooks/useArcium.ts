@@ -2,10 +2,10 @@
 import BN from "bn.js";
 import { PublicKey } from "@solana/web3.js";
 import type { Connection } from "@solana/web3.js";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { createShadowPerpClient } from "../lib/create-client";
 import { PositionDirection } from "../types";
-import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
 import { DEFAULT_TRADE_SESSION_DURATION_SECONDS } from "../lib/client";
 import {
   buildRelaySessionAuthMessage,
@@ -565,7 +565,10 @@ function attachRelayOpenContext(
 export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => {
   const { connection } = useConnection();
   const anchorWallet = useAnchorWalletCompat();
-  const { publicKey, signMessage } = useWallet();
+  const walletExecutionMode = useWalletExecutionMode();
+  const isEmbeddedWalletMode = walletExecutionMode === "embedded";
+  const publicKey = anchorWallet?.publicKey ?? null;
+  const signMessage = anchorWallet?.signMessage;
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
 
   const [status, setStatus] = useState<PrivacyStatus>("idle");
@@ -678,6 +681,11 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
   }, []);
 
   const refreshRelayAvailability = useCallback(async () => {
+    if (isEmbeddedWalletMode) {
+      setRelayAvailable(false);
+      setRelayError(null);
+      return null;
+    }
     try {
       const response = await fetch(relayUrl("/api/relay/session"));
       const payload = await response.json().catch(() => null);
@@ -701,9 +709,13 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       );
       return null;
     }
-  }, []);
+  }, [isEmbeddedWalletMode]);
 
   const refreshRelaySession = useCallback(async (candidate?: SessionRelayInfo | null, forceInvalidate = false) => {
+    if (isEmbeddedWalletMode) {
+      setRelaySession(null);
+      return null;
+    }
     const current = candidate ?? relaySession;
     if (!current) return null;
     const currentOwner = current.owner;
@@ -790,7 +802,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
     } finally {
       setRelaySessionRecovering(false);
     }
-  }, [getClient, publicKey, relaySession, resolveMarketAddress, resolvePairLabelForMarket]);
+  }, [getClient, publicKey, relaySession, resolveMarketAddress, resolvePairLabelForMarket, isEmbeddedWalletMode]);
 
   const invalidateRelaySession = useCallback(
     (owner?: string, market?: string) => {
@@ -903,6 +915,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
 
   const recoverLatestRelaySession = useCallback(
     async (userInitiatedAuth = false): Promise<SessionRelayInfo | null> => {
+      if (isEmbeddedWalletMode) return null;
       if (!publicKey) return null;
       const ctx = getClient();
       if (!ctx) return null;
@@ -1002,11 +1015,16 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         setRelaySessionRecovering(false);
       }
     },
-    [publicKey, getClient, resolveMarketAddress, pairLabel, ensureRelaySessionAuth]
+    [publicKey, getClient, resolveMarketAddress, pairLabel, ensureRelaySessionAuth, isEmbeddedWalletMode]
   );
 
   const createRelaySession = useCallback(
     async (options?: EnsureRelaySessionOptions) => {
+      if (isEmbeddedWalletMode) {
+        throw new Error(
+          "Privy embedded wallets sign directly and do not use delegated trading sessions."
+        );
+      }
       setRelaySessionCreating(true);
       try {
         if (!publicKey) {
@@ -1153,11 +1171,17 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       relaySession,
       ensureRelaySessionAuth,
       maybeEnsureCollateralForReason,
+      isEmbeddedWalletMode,
     ]
   );
 
   const ensureRelaySession = useCallback(
     async (options?: EnsureRelaySessionOptions) => {
+      if (isEmbeddedWalletMode) {
+        throw new Error(
+          "Privy embedded wallets sign directly and do not use delegated trading sessions."
+        );
+      }
       const ctx = getClient();
       const owner = publicKey?.toBase58();
       const resolvedCtxMarket = ctx ? resolveMarketAddress(ctx) : null;
@@ -1221,6 +1245,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       refreshRelaySession,
       recoverLatestRelaySession,
       relaySession,
+      isEmbeddedWalletMode,
     ]
   );
 
@@ -1262,6 +1287,11 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
     let cancelled = false;
     setRelaySessionHydrated(false);
     const ctx = getClient();
+    if (isEmbeddedWalletMode) {
+      setRelaySession(null);
+      setRelaySessionHydrated(true);
+      return;
+    }
     if (!publicKey || !ctx) {
       setRelaySession(null);
       setRelaySessionHydrated(true);
@@ -1303,7 +1333,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
     return () => {
       cancelled = true;
     };
-  }, [getClient, publicKey, recoverLatestRelaySession]);
+  }, [getClient, publicKey, recoverLatestRelaySession, isEmbeddedWalletMode]);
 
   useEffect(() => {
     if (relaySession) {
@@ -1336,6 +1366,12 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
     if (!publicKey) {
       setRelaySessionState("idle");
       setRelaySessionMessage("Connect wallet to start delegated session");
+      return;
+    }
+
+    if (isEmbeddedWalletMode) {
+      setRelaySessionState("idle");
+      setRelaySessionMessage("Embedded wallet signs directly");
       return;
     }
 
@@ -1379,6 +1415,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
     relaySessionOptimisticUntil,
     relaySessionSeen,
     relayAvailable,
+    isEmbeddedWalletMode,
   ]);
 
   useEffect(() => {
@@ -1477,6 +1514,57 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       const requiredMarginUi = (order.sizeUi * resolvedEntryPriceUi) / order.leverage;
       requireFinitePositive(requiredMarginUi, "required margin");
       const marginBase = toScaledPositiveBn(requiredMarginUi, SCALE_MARGIN, "required margin");
+
+      if (isEmbeddedWalletMode) {
+        setStatus("queued");
+        setStatusMessage("Queued on Arcium cluster...");
+
+        const { txSignature, positionAddress } = await client.openPosition(orderMarket, {
+          size: sizeBase,
+          entryPrice,
+          leverage: order.leverage,
+          direction: order.side,
+          margin: marginBase,
+          marginMode: order.marginMode ?? "cross",
+        });
+
+        const positionAddressBase58 = positionAddress.toBase58();
+        setLastSignature(txSignature);
+        options?.onProgress?.({
+          stage: "queued",
+          txSignature,
+          positionAddress: positionAddressBase58,
+        });
+
+        setStatus("verifying");
+        setStatusMessage("Awaiting MPC callback finalization...");
+        try {
+          await waitForOpenPositionCallback(
+            connection,
+            client,
+            positionAddress,
+            ctx.runtime.clusterOffset
+          );
+        } catch (error: any) {
+          const message =
+            error instanceof Error
+              ? error
+              : new Error(
+                  typeof error?.message === "string"
+                    ? error.message
+                    : "Queued transaction did not finalize."
+                );
+          throw attachTxContext(message, txSignature, positionAddressBase58);
+        }
+        setStatus("verified");
+        setStatusMessage("MPC callback finalized. Position opened.");
+
+        return {
+          txSignature,
+          positionAddress: positionAddressBase58,
+          usedPrivatePath: true,
+        };
+      }
 
       const nowSeconds = Math.floor(Date.now() / 1000);
       let activeRelaySession: SessionRelayInfo | null =
@@ -1633,7 +1721,7 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
         usedPrivatePath: true,
       };
     },
-    [getClient, resolveMarketAddress, relaySession, anchorWallet, ensureRelaySession, invalidateRelaySession, connection]
+    [getClient, resolveMarketAddress, relaySession, anchorWallet, ensureRelaySession, invalidateRelaySession, connection, isEmbeddedWalletMode]
   );
 
   const setError = useCallback((message: string) => {

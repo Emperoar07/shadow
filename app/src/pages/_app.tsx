@@ -25,7 +25,7 @@ import {
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "../styles/globals.css";
 
-const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "cmnxlswsv00570bldco9er2py";
+const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
 
 if (typeof window !== "undefined" && !(globalThis as any).Buffer) {
   (globalThis as any).Buffer = Buffer;
@@ -172,6 +172,32 @@ export default function App({ Component, pageProps }: AppProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally empty: config must stay stable for wallet proxy iframe
     []
   );
+
+  if (!PRIVY_APP_ID) {
+    return (
+      <div className="min-h-screen bg-shadow-950 text-white">
+        <div className="mx-auto flex min-h-screen w-full max-w-2xl items-center justify-center px-6 py-12">
+          <div className="w-full rounded-2xl border border-red-500/30 bg-shadow-900/95 p-6 shadow-2xl">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-red-300">
+              Missing Hosted Config
+            </p>
+            <h1 className="mt-3 text-2xl font-semibold text-white">
+              Privy is not configured for this deployment
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Shadow now expects a real Privy app ID for email and social sign-in.
+              Set <code className="rounded bg-shadow-800 px-1.5 py-0.5 text-xs text-red-200">NEXT_PUBLIC_PRIVY_APP_ID</code>
+              in this environment, then redeploy.
+            </p>
+            <p className="mt-4 text-sm leading-6 text-gray-400">
+              This guard is intentional so the app does not silently boot against the wrong
+              Privy tenant after the hosting move.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <PrivyProvider

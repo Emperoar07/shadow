@@ -4,6 +4,105 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Privy Hosted Config Guard (2026-04-16 UTC)
+
+### What changed
+
+- Hardened the Privy boot path in `app/src/pages/_app.tsx`:
+  - removed the hardcoded fallback Privy app ID
+  - added a visible hosted-config guard when `NEXT_PUBLIC_PRIVY_APP_ID` is missing
+- Hardened the relay-base runtime in `app/src/lib/feature-flags.ts`:
+  - hosted deployments are now expected to set `NEXT_PUBLIC_RELAY_URL`
+  - same-origin relay fallback is now treated as localhost-only behavior
+  - hosted origins without a relay base now emit a visible console warning instead of silently behaving like the legacy Next API layout
+- Updated `app/.env.example` to mark `NEXT_PUBLIC_PRIVY_APP_ID` as required for hosted deployments now that email/social sign-in is part of the intended product path.
+ - Updated `app/.env.example` to mark `NEXT_PUBLIC_RELAY_URL` as required for hosted relay deployments.
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS after the hosted config guards
+- Vercel project `shadow` now has hosted env values set for:
+  - `NEXT_PUBLIC_PRIVY_APP_ID`
+  - `NEXT_PUBLIC_RELAY_URL`
+  - the active Solana/Arcium devnet runtime vars used by the current stack
+
+### Current blocker
+
+- Hosted login can no longer silently attach to the wrong Privy tenant.
+- The real `NEXT_PUBLIC_PRIVY_APP_ID` is now set in the active Vercel project.
+- Hosted relay calls now point more explicitly at the Railway split and no longer rely on the old same-origin assumption in product code.
+
+### Next safe step
+
+1. Redeploy the active `shadow` Vercel project so the updated hosted env values are picked up by a fresh build.
+2. Confirm email/social login creates or reuses the embedded Solana wallet as expected.
+3. Confirm the app is reaching the Railway relay at `https://shadow-production-366b.up.railway.app`.
+
+## Deep Repo Audit (2026-04-16 UTC)
+
+### What changed
+
+- No product code changed in this pass.
+- Ran a fresh repo-wide audit across Arcium wiring, relay/runtime boundaries, frontend state flow, dependency posture, and deployment/config drift after the hosting move.
+- Recorded the highest-signal gaps for the next engineer:
+  - frontend relay fallback still assumes same-origin `/api/relay/*` routes even though active relay handling now lives in the standalone `relay/` service
+  - delegated withdraw relay validation still applies `max_margin_per_action` despite protocol/docs saying withdraws are exempt
+  - position history remains reconstructed from current position accounts rather than a durable event-backed history source, which explains rows disappearing without a refresh
+  - app boot/runtime still carries silent public fallbacks (`NEXT_PUBLIC_RELAY_URL`, `NEXT_PUBLIC_PRIVY_APP_ID`, default program IDs/RPCs) that can mask env drift after account/hosting changes
+  - dependency backlog remains concentrated in wallet/Privy transitive packages even after the recent Next/Arcium alignment
+
+### What was verified
+
+- `git status --short` -> dirty worktree only in:
+  - `app/src/components/MarketInfo.tsx`
+  - `app/src/components/layout/DraggablePanel.tsx`
+- `npm run check:preflight` -> FAIL on 2026-04-16:
+  - oracle stale (`age=113756s`, max 300)
+  - collateral mint mismatch flagged in preflight
+- `npm run oracle:once` -> FAIL on 2026-04-16:
+  - insufficient oracle sources (`1/2`)
+  - timed out against upstream reference providers
+- `pnpm --dir app audit --prod` -> 17 advisories currently visible in app dependency tree:
+  - 2 critical
+  - 6 high
+  - 7 moderate
+  - 2 low
+- Reviewed:
+  - `app/src/lib/feature-flags.ts`
+  - `app/.env.example`
+  - `relay/src/index.ts`
+  - `relay/src/relay-client.ts`
+  - `app/src/hooks/useArcium.ts`
+  - `app/src/lib/client.ts`
+  - `app/src/components/BottomPositionsPanel.tsx`
+  - `app/src/lib/server/history.ts`
+  - `app/src/pages/api/history.ts`
+  - `app/src/pages/_app.tsx`
+  - `app/src/lib/runtime.ts`
+  - `ARCHITECTURE.md`
+  - `DATA_FLOW.md`
+  - `README.md`
+
+### Current blocker
+
+- Main runtime blocker remains unchanged:
+  - the Arcium-backed open lane still does not finalize reliably to `Open` on the active devnet namespace
+- Operational/deployment blockers are now also clear:
+  - oracle freshness is currently unhealthy in the checked environment
+  - relay deployment now depends on explicit standalone Railway relay env wiring after the hosting/account move
+  - Privy is now part of the intended email/social sign-in path, so stale fallback app IDs are no longer a harmless convenience default
+  - docs/handoff still reference removed `app/src/pages/api/relay/*` paths in multiple places
+
+### Next safe step
+
+1. Fix relay-base deployment assumptions:
+   - require and verify `NEXT_PUBLIC_RELAY_URL` anywhere standalone relay is the intended path
+   - remove stale same-origin relay comments/docs
+2. Fix delegated withdraw validation in `relay/src/index.ts` so withdraws are exempt from `max_margin_per_action`, matching protocol/docs.
+3. Rework wallet history/position history to come from a durable history source instead of current closed/liquidated account scans.
+4. Clean up public runtime fallbacks that can silently point the app at the wrong tenant/program after host migration, starting with `NEXT_PUBLIC_PRIVY_APP_ID` and relay base URL expectations.
+5. Triage the `pnpm audit` backlog, starting with wallet/Privy transitive packages that currently drag in vulnerable `axios`, `lodash`, `picomatch`, and related chains.
+
 ## Deep Repo Audit (2026-04-11 UTC)
 
 ### What changed
@@ -2102,3 +2201,73 @@ No code changes were made during this audit pass.
 ### Next safe step
 1. Do one browser QA pass on the new lower-panel tabs to check spacing, scrolling, and empty states.
 2. If the UI feels right, commit this pass separately from any unrelated landing-page or layout work already sitting in the tree.
+
+## Privy Embedded Wallet Compatibility Pass (2026-04-16 UTC)
+
+### What changed
+- `app/src/lib/use-anchor-wallet.ts`
+  - extended the compat wallet wrapper to expose `signMessage` for both wallet-adapter wallets and Privy embedded wallets when the provider supports it
+- `app/src/hooks/useArcium.ts`
+  - moved session-auth identity and message signing onto `useAnchorWalletCompat()` instead of raw `useWallet()`
+- `app/src/components/TradingPanel.tsx`
+  - switched encrypted automation persistence unlocks to the compat wallet so Privy email/social users can use the same signed persistence path as external wallets
+- `app/src/pages/app.tsx`
+  - stopped treating embedded-wallet users as sessionless
+  - session ownership and the session timer chip now use the compat wallet public key, so delegated sessions can show up for Privy users too
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit --incremental false` passed on April 16, 2026.
+
+### Current blocker
+- This pass fixes the code-path assumptions, but it does not prove live Privy behavior by itself.
+- A real devnet smoke is still needed for:
+  - email/social login
+  - delegated session creation
+  - collateral deposit
+  - one delegated open request through the Railway relay
+
+### Next safe step
+1. Redeploy the current frontend so the hosted Privy and Railway relay envs are active together.
+2. Run one live Privy devnet smoke from the browser and confirm:
+   - session creation succeeds
+   - collateral deposit works
+   - order submission reaches the same queue/finalize path as external wallets
+3. If that smoke passes, commit only the Privy/relay hardening files separately from unrelated UI work already in the tree.
+
+## Embedded Wallet Direct Path Split (2026-04-16 UTC)
+
+### What changed
+- Adopted an explicit wallet execution model:
+  - `external` wallets use delegated session trading
+  - `embedded` Privy wallets sign and submit directly without relay/session dependency
+- `app/src/lib/use-anchor-wallet.ts`
+  - added `useWalletExecutionMode()` to centralize the external vs embedded decision
+- `app/src/hooks/useArcium.ts`
+  - embedded-wallet mode now skips relay availability/session recovery entirely
+  - `ensureRelaySession()` and `createRelaySession()` now reject for embedded Privy wallets instead of silently routing them into delegated flow
+  - `submitPrivateOrder()` now uses direct `client.openPosition(...)` for embedded wallets while preserving the same callback-finalization wait path
+- `app/src/pages/app.tsx`
+  - session timer chip is shown only for external wallets
+  - settings session controls are hidden for embedded wallets
+- `app/src/components/PortfolioSummary.tsx`
+  - embedded users now resolve account state from the compat wallet and do not pass relay affordances into collateral UI
+- `app/src/components/BottomPositionsPanel.tsx`
+  - main lower panel now treats embedded Privy wallets as connected via the compat wallet instead of wallet-adapter-only state
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit --incremental false` passed on April 16, 2026 after the execution-mode split.
+
+### Current blocker
+- The product rule is now encoded in the frontend, but the embedded-wallet direct path still needs a live browser smoke to confirm Privy signing works end to end on:
+  - direct encrypted open
+  - direct deposit
+  - direct withdraw
+
+### Next safe step
+1. Run one embedded-wallet browser smoke on devnet:
+   - sign in with email/social
+   - confirm embedded wallet auto-creation
+   - deposit collateral directly
+   - open one encrypted position directly
+   - verify no session chip or session settings appear anywhere
+2. Separately run one external-wallet smoke to confirm delegated session UX still behaves exactly as before.

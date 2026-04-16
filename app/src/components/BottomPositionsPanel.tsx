@@ -6,7 +6,7 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { fetchWalletHistory, type IndexedRecentTx } from "../lib/history";
-import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
@@ -217,8 +217,10 @@ export default function BottomPositionsPanel({
     if (!showNotifications) return "";
     return toast.loading(...args);
   }, [showNotifications]) as typeof toast.loading;
-  const { publicKey, connecting, connected } = useWallet();
+  const { connecting, connected } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
+  const walletExecutionMode = useWalletExecutionMode();
+  const publicKey = anchorWallet?.publicKey ?? null;
   const { connection } = useConnection();
   const [positions, setPositions] = useState<UiPosition[]>([]);
   const [loading, setLoading] = useState(false);
@@ -263,7 +265,8 @@ export default function BottomPositionsPanel({
   useEffect(() => {
     const current = publicKey?.toBase58() ?? null;
     const prev = prevPublicKeyRef.current;
-    if (current === null && !connecting && !connected) {
+    const walletConnected = walletExecutionMode !== "none" || connecting || connected;
+    if (current === null && !walletConnected) {
       // Wallet fully disconnected — clear everything
       setPositions([]);
       setIndexedHistoryPositions(null);
@@ -285,7 +288,7 @@ export default function BottomPositionsPanel({
       setLockedCollateral(null);
     }
     prevPublicKeyRef.current = current;
-  }, [publicKey, connecting, connected]);
+  }, [publicKey, connecting, connected, walletExecutionMode]);
 
   // Seed from cache as soon as wallet key is known, before first fetch completes
   useEffect(() => {

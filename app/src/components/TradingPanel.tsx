@@ -1,6 +1,6 @@
 ﻿import { useState, useCallback, useEffect, useRef } from "react";
 import BN from "bn.js";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
@@ -132,10 +132,9 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     if (!showNotifications) return "";
     return toast.loading(...args);
   }, [showNotifications]) as typeof toast.loading;
-  const { publicKey: adapterPublicKey, signMessage } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
-  // anchorWallet?.publicKey covers both wallet-adapter (external) and Privy embedded
-  const publicKey = anchorWallet?.publicKey ?? adapterPublicKey ?? null;
+  const publicKey = anchorWallet?.publicKey ?? null;
+  const signMessage = anchorWallet?.signMessage;
   const { connection } = useConnection();
   const [direction, setDirection] = useState<Direction>("long");
   const [orderType, setOrderType] = useState<OrderType>("market");
