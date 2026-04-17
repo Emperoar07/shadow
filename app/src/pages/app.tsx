@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { usePrivy, useCreateWallet, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
@@ -593,13 +593,11 @@ function ConnectWalletButton() {
   const { ready, authenticated, logout, connectOrCreateWallet } = usePrivy();
   const { wallets } = useWallets();
   const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
-  const { createWallet } = useCreateWallet();
-  const { address: connectedAddress } = useWalletConnectionState();
+  const { address: connectedAddress, signerReady } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const walletCreateAttempted = useRef(false);
 
   const handlePrivyLogin = useCallback(() => {
     setOpen(false);
@@ -613,23 +611,6 @@ function ConnectWalletButton() {
     }
   }, [connectOrCreateWallet]);
 
-  // Safety net: auto-create embedded Solana wallet if Privy user has none yet.
-  // createOnLogin should handle this, but covers edge cases where it fails.
-  useEffect(() => {
-    if (!ready || !authenticated || connectedAddress) return;
-    if (walletCreateAttempted.current) return;
-    const hasEmbedded = solanaWallets.some((w) => w.walletClientType === "privy");
-    if (hasEmbedded) return;
-    walletCreateAttempted.current = true;
-    const timer = setTimeout(() => {
-      createWallet({ createAdditional: false }).catch((err) => {
-        console.warn("[Shadow] auto-create embedded wallet failed:", err);
-        walletCreateAttempted.current = false;
-      });
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [ready, authenticated, connectedAddress, solanaWallets, createWallet]);
-
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -642,8 +623,8 @@ function ConnectWalletButton() {
   if (!ready) return null;
 
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
-  const addr = connectedAddress ?? (authenticated ? embeddedAddr ?? null : null);
-  const isConnected = !!addr;
+  const addr = signerReady ? connectedAddress : null;
+  const isConnected = !!addr && signerReady;
 
   if (isConnected) {
     const short = `${addr!.slice(0, 4)}...${addr!.slice(-4)}`;

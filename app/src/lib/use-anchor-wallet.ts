@@ -81,6 +81,7 @@ export function useWalletConnectionState() {
       ready,
       authenticated,
       connected: !!publicKey,
+      signerReady: !!publicKey && typeof activeWallet?.signTransaction === "function",
       address: publicKey?.toBase58() ?? null,
       publicKey,
       walletClientType: activeWallet?.walletClientType ?? null,
