@@ -129,13 +129,10 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
     if (!walletAddr || isClaiming) return;
     setIsClaiming(true);
     try {
-      const body: Record<string, string> = { wallet: walletAddr };
-      if (currentBalanceRaw !== null) body.currentBalanceRaw = currentBalanceRaw;
-
       const res = await fetch("/api/faucet-mock-usdc", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ wallet: walletAddr }),
       });
       const data = await res.json() as {
         success: boolean;
