@@ -154,7 +154,7 @@ export default function App({ Component, pageProps }: AppProps) {
         walletChainType: "solana-only",
         showWalletLoginFirst: true,
       },
-      loginMethods: ["wallet", "email", "google", "twitter"],
+      loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
           connectors: toSolanaWalletConnectors({

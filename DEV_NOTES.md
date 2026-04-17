@@ -4,6 +4,39 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Privy Email-Only Login Tightening (2026-04-17 UTC)
+
+### What changed
+
+- Tightened Privy login options in `app/src/pages/_app.tsx`:
+  - removed `google`
+  - removed `twitter`
+  - kept only `wallet` and `email`
+- Switched the terminal connect CTA in `app/src/pages/app.tsx` away from the plain `login()` helper and back to Privy's unified `connectOrCreateWallet()` flow so one button can open wallet-or-email sign-in without tripping the "already logged in, use link" path.
+- Hardened wallet detection in `app/src/lib/use-anchor-wallet.ts`:
+  - now prefers Privy's `useActiveWallet()` before falling back to wallet lists
+  - this should let a successful Privy connection immediately surface as a connected Solana wallet inside Shadow instead of waiting on secondary wallet list state
+
+### What was verified
+
+- `npm run check:preflight` -> FAIL only on stale oracle freshness at start of session
+- `npm run oracle:once` -> PASS with guarded single-source publish on 2026-04-17
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS after the Privy auth changes
+
+### Current blocker
+
+- Needs fresh browser verification on the deployed app:
+  - wallet connect should now show as connected in the header and unlock market-panel actions
+  - Privy modal should now offer wallet + email only
+- Remaining noisy console logs from extensions, TradingView telemetry/adblock, and injected `window.ethereum` collisions still need to be treated separately from actual Shadow auth state
+
+### Next safe step
+
+1. Redeploy and test the Sign in button on the hosted site.
+2. Verify the modal only shows wallet and email.
+3. Verify a successful wallet or email flow updates the header into a connected state and enables the market-panel actions.
+4. If email still fails, inspect Allowed Origins / Privy dashboard settings next before changing app code again.
+
 ## Privy Hosted Config Guard (2026-04-16 UTC)
 
 ### What changed

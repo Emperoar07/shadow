@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { usePrivy, useCreateWallet, useWallets, useLogin } from "@privy-io/react-auth";
+import { usePrivy, useCreateWallet, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
@@ -595,7 +595,7 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { ready, authenticated, logout } = usePrivy();
+  const { ready, authenticated, logout, connectOrCreateWallet } = usePrivy();
   const { wallets } = useWallets();
   const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
   const { createWallet } = useCreateWallet();
@@ -606,42 +606,17 @@ function ConnectWalletButton() {
   const ref = useRef<HTMLDivElement>(null);
   const walletCreateAttempted = useRef(false);
 
-  const formatPrivyLoginError = useCallback((error: unknown): string => {
-    const code =
-      typeof error === "object" && error && "code" in error
-        ? String((error as { code?: unknown }).code ?? "")
-        : "";
-    const message =
-      typeof error === "object" && error && "message" in error
-        ? String((error as { message?: unknown }).message ?? "")
-        : "";
-
-    if (code === "invalid_origin" || message.toLowerCase().includes("invalid_origin")) {
-      return "Privy blocked this domain. Add the exact Shadow site URL to Allowed Origins in the Privy dashboard.";
-    }
-
-    if (code === "linked_to_another_user" || message.toLowerCase().includes("linked_to_another_user")) {
-      return "This login method is already linked to a different Privy user. Try the original method or enable login method transfer in Privy.";
-    }
-
-    if (message.trim().length > 0) {
-      return `Privy login failed: ${message}`;
-    }
-
-    return "Privy login failed. Check Allowed Origins and enabled login methods in the Privy dashboard.";
-  }, []);
-
-  const { login } = useLogin({
-    onError: (error) => {
-      console.error("[Shadow][Privy login]", error);
-      toast.error(formatPrivyLoginError(error), { duration: 7000 });
-    },
-  });
-
   const handlePrivyLogin = useCallback(() => {
     setOpen(false);
-    login();
-  }, [login]);
+    try {
+      connectOrCreateWallet();
+    } catch (error) {
+      console.error("[Shadow][Privy connect]", error);
+      toast.error("Privy sign-in could not open. Check the configured app ID, allowed origins, and wallet/email methods.", {
+        duration: 7000,
+      });
+    }
+  }, [connectOrCreateWallet]);
 
   // Safety net: auto-create embedded Solana wallet if Privy user has none yet.
   // createOnLogin should handle this, but covers edge cases where it fails.

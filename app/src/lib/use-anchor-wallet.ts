@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { type WalletContextState } from "@solana/wallet-adapter-react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useActiveWallet, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import type { Transaction } from "@solana/web3.js";
@@ -34,10 +34,15 @@ function isConnectedSolanaWalletLike(value: unknown): value is ConnectedSolanaWa
 }
 
 export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
+  const { wallet: activeWallet } = useActiveWallet();
   const { wallets } = useWallets();
   const { wallets: embeddedWallets } = useSolanaWallets();
 
   return useMemo(() => {
+    if (isConnectedSolanaWalletLike(activeWallet)) {
+      return activeWallet;
+    }
+
     const connected = wallets.filter(isConnectedSolanaWalletLike);
     const externalWallet = connected.find((wallet) => wallet.walletClientType !== "privy");
     if (externalWallet) return externalWallet;
@@ -52,7 +57,7 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
     );
 
     return fallbackEmbedded ?? null;
-  }, [wallets, embeddedWallets]);
+  }, [activeWallet, wallets, embeddedWallets]);
 }
 
 export function useWalletConnectionState() {
