@@ -4,6 +4,65 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Gas Sponsorship + Privy Config + Circuit Math (2026-04-18 UTC)
+
+### What changed
+
+**Gas sponsorship wired end-to-end:**
+- Generated a new Solana fee-payer keypair (`2n34BAiHCcKfs63dSy8jv9pvirEXA8adJSbrPQQpw93d`) and funded it with 2 devnet SOL from faucet.solana.com
+- Set the following env vars in Vercel (Production only):
+  - `NEXT_PUBLIC_SOLANA_GAS_SPONSOR_ENABLED=1`
+  - `SOLANA_GAS_SPONSOR_ENABLED=1`
+  - `NEXT_PUBLIC_SOLANA_GAS_SPONSOR_PUBKEY=2n34BAiHCcKfs63dSy8jv9pvirEXA8adJSbrPQQpw93d`
+  - `SOLANA_GAS_SPONSOR_SECRET_KEY=[...64-byte array...]` — marked Sensitive
+- The existing `/api/sponsor-solana` server route handles fee co-signing with Privy bearer token auth and rate limiting — no code changes needed
+- The existing `canUseGasSponsorship()` / `sendTransactionWithPolling()` client path routes through the sponsor when the env vars are set
+
+**Privy config updated (`app/src/pages/_app.tsx`):**
+- Added `"google"` to `loginMethods` (was `["wallet", "email"]`, now `["wallet", "email", "google"]`)
+- Migrated `embeddedWallets.createOnLogin` from flat format to nested SDK format:
+  - `embeddedWallets.solana.createOnLogin: "users-without-wallets"`
+  - `embeddedWallets.ethereum.createOnLogin: "off"`
+
+**Privy dashboard confirmed healthy:**
+- `www.shadowperpdex.xyz` HttpOnly cookie domain status: **Ready**
+- Allowed origins: both `https://www.shadowperpdex.xyz` and `https://shadowperpdex.xyz` present
+- "Allow key export from Privy Home": **ON**
+
+**Arcium circuit math fixes (committed in same batch as `be887de`):**
+- `encrypted-ixs/src/close_position.rs` — fixed precision loss (A-1) and dropped direction sign (A-2): uses i128 intermediate with correct `direction: i64 = if pos.3 { 1 } else { -1 }` and `BASE_SCALE = 1_000_000_000`
+- `encrypted-ixs/src/liquidation_check.rs` — fixed scale mismatch (A-3): removed double-scaling, fixed operator precedence in maintenance margin formula using parenthesized chain
+- `encrypted-ixs/src/settle_private_position.rs` — same arithmetic fix applied: removed incorrect leverage reapplication and entry-price normalization
+- `encrypted-ixs/src/execute_private_order.rs` — added comment (A-6) explaining why `false` sentinel is always revealed when not triggered (prevents direction leak via is_long bit)
+- Program-side handler cleanup: removed dangling unused `let market` bindings from `init_comp_defs.rs` and `seed_open_interest_state.rs` (no behavior change)
+- `Market` account layout kept at original `_reserved: [u8; 16]` — no migration needed, A-4/A-5 deferred
+
+**Faucet security hardening (committed in `bba2d4e`):**
+- S-1: Replaced in-memory cooldown Map with HMAC-signed HttpOnly cookie (`faucet_cd`) — requires `FAUCET_COOLDOWN_SECRET` env var in Vercel
+- S-3: Server now always fetches balance from chain — client no longer supplies `currentBalanceRaw`
+- S-4: RPC errors now throw instead of silently passing
+- S-6: Removed filesystem keypair fallback — throws if `FAUCET_WALLET_SECRET_KEY` not set
+
+**Wallet external priority fix (committed in `fd24b29`):**
+- `app/src/lib/use-anchor-wallet.ts`: `useConnectedSolanaWallet` now checks `useWallets()` for external (non-Privy) wallet first before falling back to `useActiveWallet()` — fixes Phantom appearing connected in Privy modal but app still acting as embedded wallet
+
+### Outstanding env vars still needed in Vercel
+
+- `FAUCET_COOLDOWN_SECRET` — random secret for HMAC faucet cooldown cookie (run `openssl rand -hex 32`)
+
+### What was verified
+
+- Working tree clean, all stashes cleared
+- `git push origin master` → up to date (changes in `be887de`)
+- Vercel env vars set for gas sponsor keypair
+
+### Next safe steps
+
+1. Add `FAUCET_COOLDOWN_SECRET` to Vercel and redeploy
+2. Test Google login on the hosted app
+3. Test gas sponsorship: connect email wallet, open a position — tx fee should be covered by sponsor wallet
+4. Monitor sponsor wallet SOL balance — refill when low
+
 ## Arcium Circuit Integrity Pass (2026-04-18 UTC)
 
 ### What changed
