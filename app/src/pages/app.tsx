@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { usePrivy, useCreateWallet, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useCreateWallet, useWallets, useLogin } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
@@ -595,7 +595,7 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { ready, authenticated, login, logout } = usePrivy();
+  const { ready, authenticated, logout } = usePrivy();
   const { wallets } = useWallets();
   const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
   const { createWallet } = useCreateWallet();
@@ -631,13 +631,17 @@ function ConnectWalletButton() {
     return "Privy login failed. Check Allowed Origins and enabled login methods in the Privy dashboard.";
   }, []);
 
-  const handlePrivyLogin = useCallback(() => {
-    setOpen(false);
-    Promise.resolve(login()).catch((error) => {
+  const { login } = useLogin({
+    onError: (error) => {
       console.error("[Shadow][Privy login]", error);
       toast.error(formatPrivyLoginError(error), { duration: 7000 });
-    });
-  }, [login, formatPrivyLoginError]);
+    },
+  });
+
+  const handlePrivyLogin = useCallback(() => {
+    setOpen(false);
+    login();
+  }, [login]);
 
   // Safety net: auto-create embedded Solana wallet if Privy user has none yet.
   // createOnLogin should handle this, but covers edge cases where it fails.
