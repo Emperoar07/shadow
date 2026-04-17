@@ -93,7 +93,9 @@ async function validateSession(
   if (authExpiresAt > sessionExpiry!) throw new Error("Authorization expiry exceeds session expiry");
   if (authExpiresAt <= nowSeconds) throw new Error("Session authorization expired");
   if (sessionUsedActions! >= sessionMaxActions!) throw new Error("Session action limit reached");
-  if (amount.gt(sessionMaxMarginPerAction!)) throw new Error("Amount exceeds delegated session limit");
+  if (action !== "withdraw" && amount.gt(sessionMaxMarginPerAction!)) {
+    throw new Error("Amount exceeds delegated session limit");
+  }
 
   const message = buildRelaySessionAuthMessage({
     owner:     owner.toBase58(),

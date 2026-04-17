@@ -595,7 +595,7 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { ready, authenticated, login, logout, connectWallet } = usePrivy();
+  const { ready, authenticated, login, logout } = usePrivy();
   const { wallets } = useWallets();
   const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
   const { createWallet } = useCreateWallet();
@@ -784,58 +784,17 @@ function ConnectWalletButton() {
     <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={handlePrivyLogin}
         className="flex items-center gap-2 px-4 py-1.5 rounded border border-accent-purple/60 bg-accent-purple/15 text-[12px] font-semibold text-accent-purple hover:bg-accent-purple/25 hover:border-accent-purple/80 transition-colors"
       >
+        <span className="flex items-center justify-center w-4 h-4 rounded-full bg-accent-purple/20">
+          <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none">
+            <path d="M2 4l6 5 6-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            <rect x="1.25" y="3" width="13.5" height="10" rx="2" stroke="currentColor" strokeWidth="1.4"/>
+          </svg>
+        </span>
         Connect
       </button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-60 rounded-xl border border-shadow-500 bg-shadow-900 shadow-2xl z-[400] overflow-hidden">
-          <div className="px-4 pt-3 pb-2">
-            <p className="text-[10px] uppercase tracking-widest text-gray-500">Connect to Shadow</p>
-          </div>
-          <button
-            type="button"
-            onClick={handlePrivyLogin}
-            className="flex w-full items-center gap-3 px-4 py-3 text-[12px] font-medium text-gray-200 hover:bg-shadow-800/80 hover:text-white transition-colors"
-          >
-            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-accent-purple/20 border border-accent-purple/30">
-              <svg className="w-3.5 h-3.5 text-accent-purple" viewBox="0 0 16 16" fill="none">
-                <path d="M2 4l6 5 6-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-              </svg>
-            </span>
-            <div className="text-left">
-              <p className="font-semibold text-[12px]">Email / Social</p>
-              <p className="text-[10px] text-gray-500">Google, Twitter or email</p>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              connectWallet();
-            }}
-            className="flex w-full items-center gap-3 px-4 py-3 text-[12px] font-medium text-gray-200 hover:bg-shadow-800/80 hover:text-white transition-colors border-t border-shadow-700/40"
-          >
-            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-shadow-700/60 border border-shadow-600/60">
-              <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 16 16" fill="none">
-                <rect x="1" y="4" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M1 7h14" stroke="currentColor" strokeWidth="1.5"/>
-                <circle cx="11.5" cy="10.5" r="1" fill="currentColor"/>
-              </svg>
-            </span>
-            <div className="text-left">
-              <p className="font-semibold text-[12px]">Phantom / Solflare</p>
-              <p className="text-[10px] text-gray-500">Connect through Privy</p>
-            </div>
-          </button>
-          <div className="px-4 py-2 border-t border-shadow-700/40">
-            <p className="text-[9px] text-gray-600">Email login creates a Solana wallet automatically</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

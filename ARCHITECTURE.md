@@ -7,9 +7,15 @@ For the private collateral redesign plan, read `PRIVATE_COLLATERAL_SPEC.md`.
 
 ## System Overview
 
-ShadowPerp is a confidential execution stack for Solana perps, wallets, and bots with privacy-preserving trade logic through Arcium MPC.
+ShadowPerp is a privacy-first perpetual trading app on Solana with Arcium MPC-backed confidential trade logic.
 
-- Frontend: `app/` (Next.js + wallet adapter + Arcium client bindings)
+Current product state:
+
+- the live frontend uses a direct-wallet signing model
+- Privy is the wallet entry layer for both embedded and external Solana wallets
+- relay and delegated session code still exists in the repo for compatibility, diagnostics, and future optional flows, but it is not the primary live UX path
+
+- Frontend: `app/` (Next.js + Privy + Solana wallet compatibility layer + Arcium client bindings)
 - Program: `programs/shadowperp/` (Anchor + Arcium macros)
 - MPC circuits: `encrypted-ixs/` (Arcis instructions compiled to `build/*.arcis`)
 - DevOps scripts: `scripts/` (deploy, comp-def init, oracle feeder, preflight, faucet)
@@ -30,11 +36,12 @@ Main files:
 
 Responsibilities:
 
-- wallet connect and chain session
+- wallet connection and direct transaction signing
 - client-side encryption context for Arcium calls
 - order entry UX (market/limit + TP/SL)
 - collateral management UX
 - multi-RPC selection: up to 5 custom named endpoints saved to localStorage, with fallback to public devnet. No env var edits required for users to switch RPCs.
+- direct-wallet activity, balances, history, and position views for embedded and external Solana wallets
 
 ### 2. On-Chain Program (Anchor)
 
@@ -51,10 +58,10 @@ Main handlers:
 - `init_liquidation_comp_def`
 - `sync_comp_defs`
 - `open_position`
-- `open_position_with_session` (delegated relayer path)
+- `open_position_with_session` (delegated relayer path, not the default live frontend path)
 - `open_position_v2_callback`
 - `close_position`
-- `close_position_with_session` (delegated relayer path)
+- `close_position_with_session` (delegated relayer path, not the default live frontend path)
 - `close_position_callback`
 - `check_liquidation`
 - `check_liquidation_callback`
@@ -63,7 +70,7 @@ Main handlers:
 - `deposit_collateral`
 - `withdraw_collateral`
 - `update_price`
-- delegated session controls:
+- delegated session controls (retained in protocol/runtime, not primary live frontend UX):
   - `create_trade_session`
   - `revoke_trade_session`
   - `create_trade_session_v2`
@@ -84,7 +91,7 @@ State accounts:
 - `Position`
 - `LiquidationSettlement` (authorized liquidator binding for deferred liquidation settlement)
 - `TradeSession` (market-scoped owner-approved relayer window with action/margin caps + expiry)
-- `TradeSessionV2` (wallet-scoped owner-approved relayer window reusable across supported markets; deployed and smoke-verified for delegated collateral across multiple markets on devnet)
+- `TradeSessionV2` (wallet-scoped owner-approved relayer window reusable across supported markets; deployed and smoke-verified for delegated collateral across multiple markets on devnet, but no longer the primary frontend trading path)
 - `SharedCollateral` migration-backed custody model (deployed on devnet; each owner with legacy balances still needs migration):
   - shared vault PDA per collateral mint
   - owner-scoped `MarginAccount` PDA (`[b"margin", owner]`)
@@ -123,19 +130,29 @@ Arcium-related account pointers are stored in market state and validated in call
 - Sensitive trade details: encrypted payloads and MPC outputs
 - Oracle: on-chain price feeder authority updates market price with freshness checks and future-date guard
 
+### Direct Wallet Boundary
+
+- The live app signs trading and collateral instructions directly from the connected Solana wallet.
+- Privy provides:
+  - embedded wallets for email/social users
+  - external Solana wallet connectors for wallets such as Phantom or Solflare
+- Shadow still encrypts sensitive trade payloads client-side before queueing Arcium computation.
+- Collateral transfer paths remain public on Solana; encrypted trade internals remain on the Arcium path.
+
 ### Delegated Session Boundary
 
-- Owner signs once to create a `TradeSession` PDA scoped to:
+- Delegated session accounts remain part of the on-chain and relay architecture.
+- They define an owner-approved relayer window scoped by:
   - owner
-  - market
   - relayer pubkey
   - action cap
   - per-open margin cap
   - expiry timestamp
-- Relayer can then submit multiple encrypted open/close queue transactions without additional owner signatures.
-- Session can be revoked by owner at any time.
+- They are still relevant for:
+  - relay diagnostics
+  - legacy flows
+  - future optional delegated execution
 - `max_margin_per_action` applies to open/deposit actions only, not withdrawals.
-- Collateral transfer path remains public; only position internals remain on Arcium encrypted flow.
 
 ### Shared Collateral Boundary
 

@@ -2,6 +2,12 @@
 
 This document describes the live request/response flow across UI, Solana, and Arcium.
 
+Current product note:
+
+- the live frontend is direct-wallet first
+- embedded and external Solana wallets both sign directly through the app
+- delegated session flows remain documented below because the protocol and relay still support them, but they are no longer the primary user path
+
 ## 1. Open Position Flow
 
 ### Input
@@ -12,7 +18,7 @@ This document describes the live request/response flow across UI, Solana, and Ar
 ### Execution Path
 
 1. UI builds encrypted order payload client-side
-2. UI sends `open_position` instruction to program
+2. Connected wallet signs and submits `open_position`
 3. Program validates basic guards:
    - margin availability
    - oracle freshness
@@ -27,7 +33,7 @@ This document describes the live request/response flow across UI, Solana, and Ar
 - margin lock updates occur in margin account
 - market open interest encrypted aggregates update from callback output
 
-### Delegated Open (Session Path)
+### Delegated Open (Session Path, legacy/optional)
 
 1. Owner creates `TradeSession` once (`create_trade_session`)
 2. Relayer submits `open_position_with_session` (owner not signer)
@@ -39,7 +45,7 @@ This document describes the live request/response flow across UI, Solana, and Ar
 4. Program queues Arcium computation exactly like direct open path
 5. Callback finalizes `Pending -> Open`
 
-### Delegated Open (Wallet-Scoped Session V2 Path)
+### Delegated Open (Wallet-Scoped Session V2 Path, legacy/optional)
 
 1. Owner creates `TradeSessionV2` once (`create_trade_session_v2`)
 2. Relayer submits `open_position_with_session_v2`
@@ -55,20 +61,20 @@ This document describes the live request/response flow across UI, Solana, and Ar
 ## 2. Close Position Flow
 
 1. UI requests close for open position
-2. Program queues `close_position` computation
+2. Connected wallet signs and submits `close_position`
 3. Arcium computes settlement outputs
 4. Callback verifies output, updates balances, and moves the position to `ClosedPendingSettlement`
-5. Client/relayer submits `settle_close_position`
+5. Client submits `settle_close_position`
 6. Program transfers settlement from vault to owner and marks the position `Closed`
 
-### Delegated Close (Session Path)
+### Delegated Close (Session Path, legacy/optional)
 
 1. Relayer submits `close_position_with_session` under active session
 2. Program validates session and consumes one action
 3. Program queues Arcium close computation
 4. Callback verifies output, then relayer submits `settle_close_position`
 
-### Delegated Close (Wallet-Scoped Session V2 Path)
+### Delegated Close (Wallet-Scoped Session V2 Path, legacy/optional)
 
 1. Relayer submits `close_position_with_session_v2` under active wallet-scoped session
 2. Program validates session and consumes one action
@@ -147,7 +153,16 @@ Note:
 - Privacy target is internal collateral ownership, allocation, and margin transitions.
 - Full design in `PRIVATE_COLLATERAL_SPEC.md`.
 
-## 4.1 Session Lifecycle Flow
+## 4.1 Direct Wallet Lifecycle
+
+1. User connects through Privy with either:
+   - an embedded Solana wallet
+   - an external Solana wallet connector
+2. User signs trading and collateral transactions directly from that wallet
+3. The app encrypts sensitive order inputs before queueing Arcium computation
+4. Callback and settlement complete on-chain without a delegated relayer being required in the primary frontend path
+
+## 4.2 Delegated Session Lifecycle
 
 1. `create_trade_session`: owner signs once, defines relayer + limits
 2. `open_position_with_session` / `close_position_with_session`: relayer executes within limits
@@ -158,6 +173,7 @@ Note:
 
 Note:
 
+- The delegated lifecycle remains part of the protocol and relay surface, but it is not the primary live frontend UX anymore.
 - `TradeSessionV2` is deployed on devnet and reflected in the generated IDL.
 - One wallet-scoped delegated session has been smoke-tested across multiple markets for delegated collateral actions.
 - The separate `open_position_probe_b` callback issue remains an independent blocker and is not part of the v2 session smoke proof.

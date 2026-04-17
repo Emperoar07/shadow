@@ -86,6 +86,24 @@ function resolveHistoryRpcUrl(): string {
   return collectRpcCandidates()[0] ?? DEFAULT_RPC_ENDPOINT;
 }
 
+async function withHistoryConnection<T>(
+  fn: (connection: Connection, rpcUrl: string) => Promise<T>
+): Promise<T> {
+  const candidates = collectRpcCandidates();
+  let lastError: unknown = null;
+
+  for (const rpcUrl of candidates) {
+    const connection = new Connection(rpcUrl, "confirmed");
+    try {
+      return await fn(connection, rpcUrl);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error("No healthy history RPC endpoint available.");
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -233,77 +251,77 @@ async function loadHistorySnapshot(
   owner: PublicKey,
   options: { limit: number; before?: string; includePositions: boolean }
 ): Promise<WalletHistorySnapshot> {
-  const rpcUrl = resolveHistoryRpcUrl();
-  const connection = new Connection(rpcUrl, "confirmed");
   const cacheKey = `${owner.toBase58()}:${options.limit}:${options.before ?? ""}:${options.includePositions ? 1 : 0}`;
   const cached = historyCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.payload;
-
-  const sigs = await connection.getSignaturesForAddress(owner, {
-    limit: options.limit,
-    before: options.before,
-  });
-  const activityBase: IndexedRecentTx[] = sigs.map((s) => ({
-    sig: s.signature,
-    slot: s.slot,
-    err: s.err !== null,
-    blockTime: s.blockTime ?? null,
-    memo: s.memo ?? null,
-  }));
-
-  const parsed = await fetchParsedTransactionsResilient(
-    connection,
-    activityBase.map((tx) => tx.sig)
-  );
-  const activity = activityBase.map((tx, index) => {
-    const ptx = parsed[index];
-    if (!ptx) return tx;
-    return { ...tx, txType: buildTxType(ptx, owner) };
-  });
-
-  const historyPositions: IndexedHistoryPosition[] = [];
-  if (options.includePositions) {
-    const runtime = getRuntimeConfig();
-    const provider = new AnchorProvider(connection, getDummyWallet(owner), {
-      commitment: "confirmed",
+  const snapshot = await withHistoryConnection(async (connection) => {
+    const sigs = await connection.getSignaturesForAddress(owner, {
+      limit: options.limit,
+      before: options.before,
     });
-    const client = new ShadowPerpClient(provider, runtime);
-    const markets = Array.from(
-      new Set(Object.values(runtime.marketRegistry).map((market) => market.toBase58()))
-    ).map((address) => new PublicKey(address));
-    const positions = await client.getUserPositionAccountsAcrossMarkets(markets, owner);
-    const labelByMarket = new Map(
-      Object.entries(runtime.marketRegistry).map(([label, address]) => [address.toBase58(), label] as const)
+    const activityBase: IndexedRecentTx[] = sigs.map((s) => ({
+      sig: s.signature,
+      slot: s.slot,
+      err: s.err !== null,
+      blockTime: s.blockTime ?? null,
+      memo: s.memo ?? null,
+    }));
+
+    const parsed = await fetchParsedTransactionsResilient(
+      connection,
+      activityBase.map((tx) => tx.sig)
     );
+    const activity = activityBase.map((tx, index) => {
+      const ptx = parsed[index];
+      if (!ptx) return tx;
+      return { ...tx, txType: buildTxType(ptx, owner) };
+    });
 
-    for (const entry of positions) {
-      const account = entry.account as any;
-      const status = normalizePositionStatus(account.status);
-      if (status !== 3 && status !== 4) continue;
-      const encData: number[] | Uint8Array = account.encryptedData ?? [];
-      const marketAddress = new PublicKey(account.market).toBase58();
-      historyPositions.push({
-        address: entry.publicKey.toBase58(),
-        marketAddress,
-        pairLabel: labelByMarket.get(marketAddress) ?? "SOL-USD",
-        index: account.index?.toString?.() ?? "0",
-        status,
-        margin: Number(account.margin.toString()) / 1_000_000,
-        openedAt: Number(account.openedAt.toString()) * 1000,
-        realizedPnl: Number(account.realizedPnl.toString()) / 1_000_000,
-        hasEncryptedData: Array.from(encData).some((b: number) => b !== 0),
+    const historyPositions: IndexedHistoryPosition[] = [];
+    if (options.includePositions) {
+      const runtime = getRuntimeConfig();
+      const provider = new AnchorProvider(connection, getDummyWallet(owner), {
+        commitment: "confirmed",
       });
-    }
-    historyPositions.sort((a, b) => b.openedAt - a.openedAt);
-  }
+      const client = new ShadowPerpClient(provider, runtime);
+      const markets = Array.from(
+        new Set(Object.values(runtime.marketRegistry).map((market) => market.toBase58()))
+      ).map((address) => new PublicKey(address));
+      const positions = await client.getUserPositionAccountsAcrossMarkets(markets, owner);
+      const labelByMarket = new Map(
+        Object.entries(runtime.marketRegistry).map(([label, address]) => [address.toBase58(), label] as const)
+      );
 
-  const snapshot: WalletHistorySnapshot = {
-    activity,
-    historyPositions,
-    nextBefore: sigs.at(-1)?.signature ?? null,
-    hasMore: sigs.length >= options.limit,
-    fetchedAt: Date.now(),
-  };
+      for (const entry of positions) {
+        const account = entry.account as any;
+        const status = normalizePositionStatus(account.status);
+        if (status !== 3 && status !== 4) continue;
+        const encData: number[] | Uint8Array = account.encryptedData ?? [];
+        const marketAddress = new PublicKey(account.market).toBase58();
+        historyPositions.push({
+          address: entry.publicKey.toBase58(),
+          marketAddress,
+          pairLabel: labelByMarket.get(marketAddress) ?? "SOL-USD",
+          index: account.index?.toString?.() ?? "0",
+          status,
+          margin: Number(account.margin.toString()) / 1_000_000,
+          openedAt: Number(account.openedAt.toString()) * 1000,
+          realizedPnl: Number(account.realizedPnl.toString()) / 1_000_000,
+          hasEncryptedData: Array.from(encData).some((b: number) => b !== 0),
+        });
+      }
+      historyPositions.sort((a, b) => b.openedAt - a.openedAt);
+    }
+
+    return {
+      activity,
+      historyPositions,
+      nextBefore: sigs.at(-1)?.signature ?? null,
+      hasMore: sigs.length >= options.limit,
+      fetchedAt: Date.now(),
+    } satisfies WalletHistorySnapshot;
+  });
+
   historyCache.set(cacheKey, {
     expiresAt: Date.now() + HISTORY_CACHE_TTL_MS,
     payload: snapshot,

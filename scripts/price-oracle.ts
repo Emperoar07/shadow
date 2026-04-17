@@ -175,44 +175,84 @@ function loadEnvFile(filePath: string): void {
   }
 }
 
+function normalizeValue(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  let out = raw.trim();
+  if (!out) return undefined;
+  if (out.startsWith("<") && out.endsWith(">")) {
+    out = out.slice(1, -1).trim();
+  }
+  if (
+    (out.startsWith('"') && out.endsWith('"')) ||
+    (out.startsWith("'") && out.endsWith("'"))
+  ) {
+    out = out.slice(1, -1).trim();
+  }
+  return out || undefined;
+}
+
+function parsePublicKey(name: string, value?: string): PublicKey {
+  const normalized = normalizeValue(value);
+  if (!normalized) {
+    throw new Error(`Missing required value: ${name}`);
+  }
+  return new PublicKey(normalized);
+}
+
 function logMetrics(metrics: OracleMetrics): void {
   console.log(`[${ts()}] METRIC ${JSON.stringify(metrics)}`);
 }
 
 async function fetchJson(url: string, headers?: Record<string, string>): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const req = https.get(
-      url,
-      {
-        headers: {
-          "User-Agent": "shadowperp-oracle/3.0",
-          Accept: "application/json",
-          ...(headers ?? {}),
-        },
-      },
-      (res) => {
-        let body = "";
-        res.on("data", (chunk: Buffer) => {
-          body += chunk.toString();
-        });
-        res.on("end", () => {
-          if (res.statusCode !== 200) {
-            reject(new Error(`HTTP ${res.statusCode}: ${body.slice(0, 200)}`));
-            return;
+  const attempts = 3;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await new Promise((resolve, reject) => {
+        const req = https.get(
+          url,
+          {
+            headers: {
+              "User-Agent": "shadowperp-oracle/3.0",
+              Accept: "application/json",
+              ...(headers ?? {}),
+            },
+          },
+          (res) => {
+            let body = "";
+            res.on("data", (chunk: Buffer) => {
+              body += chunk.toString();
+            });
+            res.on("end", () => {
+              if (res.statusCode !== 200) {
+                reject(new Error(`HTTP ${res.statusCode}: ${body.slice(0, 200)}`));
+                return;
+              }
+              try {
+                resolve(JSON.parse(body));
+              } catch (error) {
+                reject(new Error(`Failed to parse JSON: ${(error as Error).message}`));
+              }
+            });
           }
-          try {
-            resolve(JSON.parse(body));
-          } catch (error) {
-            reject(new Error(`Failed to parse JSON: ${(error as Error).message}`));
-          }
+        );
+        req.on("error", (error) => {
+          reject(error instanceof Error ? error : new Error(String(error)));
         });
+        req.setTimeout(10_000, () => {
+          req.destroy(new Error("Request timed out after 10s"));
+        });
+      });
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < attempts) {
+        await sleep(300 * attempt);
       }
-    );
-    req.on("error", reject);
-    req.setTimeout(10_000, () => {
-      req.destroy(new Error("Request timed out after 10s"));
-    });
-  });
+    }
+  }
+
+  throw new Error(lastError?.message || `Request failed after ${attempts} attempts`);
 }
 
 async function postJson(url: string, payload: Record<string, unknown>): Promise<void> {
@@ -287,6 +327,26 @@ async function fetchCoinbaseSolUsd(): Promise<number> {
   return price;
 }
 
+async function fetchKrakenSolUsd(): Promise<number> {
+  const data = (await fetchJson(
+    "https://api.kraken.com/0/public/Ticker?pair=SOLUSD"
+  )) as {
+    error?: string[];
+    result?: Record<string, { c?: [string, string] }>;
+  };
+
+  if (Array.isArray(data?.error) && data.error.length > 0) {
+    throw new Error(`Kraken error: ${data.error.join(", ")}`);
+  }
+
+  const ticker = data?.result ? Object.values(data.result)[0] : undefined;
+  const price = Number(ticker?.c?.[0]);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error(`Unexpected Kraken response: ${JSON.stringify(data)}`);
+  }
+  return price;
+}
+
 async function fetchCoinMarketCapSolUsd(apiKey: string): Promise<number> {
   const data = (await fetchJson(
     "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol=SOL&convert=USD",
@@ -307,6 +367,7 @@ async function fetchCompositePrice(
     { name: "coingecko", fetcher: fetchCoinGeckoSolUsd },
     { name: "binance", fetcher: fetchBinanceSolUsd },
     { name: "coinbase", fetcher: fetchCoinbaseSolUsd },
+    { name: "kraken", fetcher: fetchKrakenSolUsd },
   ];
   if (cmcApiKey) {
     sources.push({ name: "coinmarketcap", fetcher: () => fetchCoinMarketCapSolUsd(cmcApiKey) });
@@ -362,11 +423,11 @@ async function main(): Promise<void> {
 
   const programIdRaw =
     process.env.SHADOWPERP_PROGRAM_ID || process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID;
-  if (!programIdRaw) {
+  if (!normalizeValue(programIdRaw)) {
     throw new Error("Missing SHADOWPERP_PROGRAM_ID / NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID");
   }
   const marketRaw = process.env.SHADOWPERP_MARKET || process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT;
-  if (!marketRaw) {
+  if (!normalizeValue(marketRaw)) {
     throw new Error("Missing SHADOWPERP_MARKET / NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT");
   }
   const walletPath =
@@ -388,6 +449,16 @@ async function main(): Promise<void> {
     process.env.ORACLE_MAX_DEVIATION_BPS,
     500,
     "ORACLE_MAX_DEVIATION_BPS"
+  );
+  const staleRecoverySeconds = parsePositiveInt(
+    process.env.ORACLE_STALE_RECOVERY_SECONDS,
+    900,
+    "ORACLE_STALE_RECOVERY_SECONDS"
+  );
+  const staleRecoveryMaxMoveBps = parsePositiveInt(
+    process.env.ORACLE_STALE_RECOVERY_MAX_MOVE_BPS,
+    2500,
+    "ORACLE_STALE_RECOVERY_MAX_MOVE_BPS"
   );
   const minSourcesRequired = parsePositiveInt(
     process.env.ORACLE_MIN_SOURCES_REQUIRED,
@@ -424,8 +495,14 @@ async function main(): Promise<void> {
   const walletKeypair = Keypair.fromSecretKey(
     new Uint8Array(JSON.parse(fs.readFileSync(walletPath, "utf-8")))
   );
-  const programId = new PublicKey(programIdRaw);
-  const marketPda = new PublicKey(marketRaw);
+  const programId = parsePublicKey(
+    "NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID",
+    programIdRaw
+  );
+  const marketPda = parsePublicKey(
+    "NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT",
+    marketRaw
+  );
 
   const idlPathCandidates = [
     path.resolve(__dirname, "..", "target", "idl", "shadowperp.json"),
@@ -570,6 +647,7 @@ async function main(): Promise<void> {
   console.log(`  Heartbeat:          ${heartbeatSeconds}s`);
   console.log(`  Move threshold:     ${minMoveBps} bps`);
   console.log(`  Max deviation:      ${maxDeviationBps} bps`);
+  console.log(`  Stale recovery:     ${staleRecoverySeconds}s <= ${staleRecoveryMaxMoveBps} bps`);
   console.log(`  Safety mode:        ${safetyModeEnabled ? "enabled" : "disabled"}`);
   console.log(`  Source disagree:    ${sourceDisagreeLimitBps} bps`);
   console.log(`  Min sources:        ${minSourcesRequired}`);
@@ -680,6 +758,20 @@ async function main(): Promise<void> {
     }
 
     if (manualPriceUsd === null && lastAcceptedPriceUi !== null && maxDeviationBps > 0 && moveBps > maxDeviationBps) {
+      const staleRecoveryActive =
+        ageSeconds >= staleRecoverySeconds &&
+        quotes.length >= minSourcesRequired &&
+        disagreeBps <= sourceDisagreeLimitBps &&
+        moveBps <= staleRecoveryMaxMoveBps;
+
+      if (staleRecoveryActive) {
+        console.warn(
+          `[${ts()}] Stale-recovery override active: age=${ageSeconds}s move=${fmt(
+            moveBps,
+            2
+          )}bps disagreement=${fmt(disagreeBps, 2)}bps`
+        );
+      } else {
       const note = `Circuit breaker: move ${fmt(moveBps, 2)} bps > ${maxDeviationBps} bps`;
       consecutiveFailures += 1;
       await emitAlert("oracle-circuit-breaker", note, {
@@ -703,6 +795,7 @@ async function main(): Promise<void> {
       });
       if (onceMode) throw new Error(note);
       return;
+      }
     }
 
     const shouldPublish =

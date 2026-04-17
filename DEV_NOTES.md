@@ -2414,3 +2414,56 @@ No code changes were made during this audit pass.
 1. Run a live browser smoke on devnet for embedded and external Privy wallet paths.
 2. Fix the invalid base58 env/program value so `npm run check:preflight` can pass again.
 3. After that, do a final audit for any remaining direct-wallet documentation or code comments that still imply delegated sessions are active.
+
+## Audit Fix Pass + Privy Connect Cleanup (2026-04-17 UTC)
+
+### What changed
+- Fixed `scripts/stable-preflight.ts` public-key parsing so it now normalizes quoted or wrapped env values the same way the frontend runtime already does.
+- Fixed the relay delegated-withdraw validator in `relay/src/index.ts` so `max_margin_per_action` is no longer enforced for withdraw requests.
+- Hardened `app/src/lib/server/history.ts` to iterate across configured RPC candidates instead of always pinning wallet history to the first endpoint only.
+- Updated `ARCHITECTURE.md` and `DATA_FLOW.md` so the root repo docs reflect the current direct-wallet / Privy-first product path while still documenting delegated session flows as legacy or optional.
+- Simplified the disconnected wallet CTA in `app/src/pages/app.tsx` to a single Privy-owned connect button instead of a split email/social vs external-wallet chooser.
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit --incremental false` passed on April 17, 2026 after the audit fix pass.
+- `npm run check:preflight` now gets past env parsing and program/account checks successfully.
+- Current remaining preflight failure is now a real operational issue:
+  - oracle freshness failed with stale age on the current namespace
+  - this replaced the earlier misleading `Non-base58 character` blocker
+
+### Current blocker
+- The repo baseline is no longer blocked on malformed env parsing, but devnet oracle freshness is currently stale and still keeps `check:preflight` from going fully green.
+- Relay local typecheck still depends on the relay workspace dependencies being installed in this checkout.
+
+### Next safe step
+1. Run `npm run oracle:once` or bring the feeder back to a healthy state, then rerun `npm run check:preflight`.
+2. Smoke the unified Privy connect button for:
+   - email/social login
+   - external Solana wallet connection
+3. If we want relay verification locally too, install the relay workspace deps and run its TypeScript check again.
+
+## Oracle Recovery Hardening (2026-04-17 UTC)
+
+### What changed
+- Hardened `scripts/price-oracle.ts` so it now normalizes quoted or wrapped public-key env values before constructing `PublicKey`, matching the safer parsing already used by preflight.
+- Added retry-backed HTTP fetching for external price sources so transient upstream resets do not collapse the composite feed on the first network blip.
+- Added Kraken as an extra public reference source for SOL-USD.
+- Added a guarded stale-recovery override in `scripts/price-oracle.ts`:
+  - normal circuit-breaker protection still applies for fresh markets
+  - if the on-chain oracle is already badly stale, at least the minimum source count is healthy, and source disagreement stays low, the feeder can now repair the oracle even when the catch-up move is larger than the normal 500 bps breaker
+
+### What was verified
+- `npm run oracle:once` passed on April 17, 2026 and published a fresh SOL oracle update on devnet.
+- `npm run check:preflight` passed on April 17, 2026 after the oracle repair.
+- `pnpm --dir app exec tsc --noEmit --incremental false` remained green after the oracle-script hardening.
+
+### Current blocker
+- Baseline repo health is back to green for preflight, but the new unified Privy connect path still needs a real browser smoke on devnet.
+- There are still unrelated local edits in the worktree that should stay out of this commit unless explicitly requested.
+
+### Next safe step
+1. Browser-smoke the single Privy connect CTA for:
+   - email/social login
+   - external Solana wallet login through Privy
+2. Commit only the audit-fix, oracle-hardening, doc-alignment, and connect-button files.
+3. Leave the unrelated local UI/layout edits untouched until they are reviewed separately.
