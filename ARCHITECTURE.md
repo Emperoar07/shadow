@@ -40,6 +40,9 @@ Responsibilities:
 - client-side encryption context for Arcium calls
 - order entry UX (market/limit + TP/SL)
 - collateral management UX
+- truthful runtime states for the live app:
+  - market orders do not use mock pair prices as tradable fallback input
+  - reconstructed position history is labeled as such in the UI
 - multi-RPC selection: up to 5 custom named endpoints saved to localStorage, with fallback to public devnet. No env var edits required for users to switch RPCs.
 - direct-wallet activity, balances, history, and position views for embedded and external Solana wallets
 

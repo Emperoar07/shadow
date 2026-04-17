@@ -78,9 +78,8 @@ pub fn settle_private_position_callback_handler(
         }
     };
 
-    // Callback must be bound to this market's configured Arcium cluster.
-    // The comp-def account itself is already pinned by the callback account address
-    // constraint because Market does not currently persist this auxiliary comp-def.
+    // Callback must be bound to this market's configured Arcium cluster and
+    // the fixed settle_private_position comp-def PDA.
     require!(
         ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
         ShadowPerpError::Unauthorized

@@ -10,25 +10,25 @@ This repository contains the devnet product: frontend, on-chain program, Arcium 
 
 ## Features
 
-- **Encrypted positions** — Size, side, leverage, entry price, and liquidation thresholds stay encrypted instead of being exposed as plaintext position data.
-- **Direct wallet trading** — Shadow signs directly from the connected Solana wallet. Privy embedded wallets and external Solana wallets share the same trading path.
-- **Private order flow** — Orders do not broadcast the usual pre-trade signals before execution.
-- **6 trading pairs** — SOL/USD, BTC/USD, ETH/USD, JUP/USD, PYTH/USD, and ORCA/USD.
-- **Cross and isolated margin** — Choose shared account risk or isolated position risk, with leverage from 1x to 50x.
-- **Shared collateral** — Adopted markets resolve to a shared collateral vault per owner on devnet.
-- **Live reference orderbook** — Market depth from external venues for context, with graceful fallback handling.
-- **Privy support** — Email, social, embedded wallets, and external Solana wallet connections are supported in the app.
-- **Shielded collateral base flows** — `deposit_to_shielded`, `request_withdraw_private`, and `finalize_withdraw` are deployed on devnet.
+- **Encrypted positions** - Size, side, leverage, entry price, and liquidation thresholds stay encrypted instead of being exposed as plaintext position data.
+- **Direct wallet trading** - Shadow signs directly from the connected Solana wallet. Privy embedded wallets and external Solana wallets share the same trading path.
+- **Private order flow** - Orders do not broadcast the usual pre-trade signals before execution.
+- **6 trading pairs** - SOL/USD, BTC/USD, ETH/USD, JUP/USD, PYTH/USD, and ORCA/USD.
+- **Cross and isolated margin** - Choose shared account risk or isolated position risk, with leverage from 1x to 50x.
+- **Shared collateral** - Adopted markets resolve to a shared collateral vault per owner on devnet.
+- **Live reference orderbook** - Market depth from external venues for context, with graceful fallback handling.
+- **Privy support** - Email login, embedded Solana wallets, and external Solana wallet connections are supported in the app.
+- **Shielded collateral base flows** - `deposit_to_shielded`, `request_withdraw_private`, and `finalize_withdraw` are deployed on devnet.
 
 ## Architecture
 
 ShadowPerp follows an encrypt, compute, and settle model:
 
-1. **Encrypt** — The client encrypts sensitive trade inputs in the browser.
-2. **Queue** — The Solana program receives the encrypted payload and queues an Arcium computation.
-3. **Compute** — Arcium MPC evaluates trade logic, margin checks, PnL, and liquidation conditions without exposing raw inputs.
-4. **Callback** — Arcium returns a verified result to the Solana program through a replay-hardened callback.
-5. **Settle** — The program updates position and margin state from the verified output.
+1. **Encrypt** - The client encrypts sensitive trade inputs in the browser.
+2. **Queue** - The Solana program receives the encrypted payload and queues an Arcium computation.
+3. **Compute** - Arcium MPC evaluates trade logic, margin checks, PnL, and liquidation conditions without exposing raw inputs.
+4. **Callback** - Arcium returns a verified result to the Solana program through a replay-hardened callback.
+5. **Settle** - The program updates position and margin state from the verified output.
 
 ### Privacy Boundary
 
@@ -127,7 +127,7 @@ ShadowPerp is deployed on Solana devnet as an active prototype for private perpe
 
 - Program deployment and upgrade on devnet
 - Direct wallet signing for trading and collateral actions
-- Privy embedded wallet support for email and social sign-in
+- Privy embedded wallet support for email sign-in
 - External Solana wallet support through Privy connectors
 - All 6 market accounts initialized on chain with synced computation definition pointers
 - Shared collateral custody model deployed on devnet with adoption and migration scripts
@@ -143,6 +143,8 @@ ShadowPerp is deployed on Solana devnet as an active prototype for private perpe
 - Shielded collateral pool with `deposit_to_shielded`, `request_withdraw_private`, and `finalize_withdraw` deployed and active on devnet
 - Staged open-position diagnostic harness for the Arcium callback path
 - Callback-aware UI and SDK behavior so queued no longer looks like final success
+- Market-order submission blocks when no trusted price is available instead of silently falling back to mock pair pricing
+- Position history is labeled as reconstructed account-scan data rather than presented as a durable trade ledger
 
 **Known devnet limitations**
 
@@ -152,6 +154,7 @@ ShadowPerp is deployed on Solana devnet as an active prototype for private perpe
 - Shared collateral is active only for adopted markets and migrated owners
 - Limit orders and TP/SL are browser-local automation, not venue-side persistence
 - Oracle updates are protected by a circuit breaker, so manual intervention is still required when price freshness drifts too far
+- Position history is still reconstructed from current closed/liquidated account state rather than a durable ledger
 
 **In progress**
 

@@ -367,8 +367,6 @@ pub struct InitLockMarginPrivateCompDef<'info> {
 pub fn init_lock_margin_private_handler(ctx: Context<InitLockMarginPrivateCompDef>) -> Result<()> {
     init_comp_def(ctx.accounts, None, None)?;
 
-    let market = &mut ctx.accounts.market;
-    // Comp def address stored in the comp_def_account PDA itself
     msg!("lock_margin_private comp def: {}", ctx.accounts.comp_def_account.key());
 
     Ok(())
@@ -418,7 +416,6 @@ pub fn init_settle_private_position_handler(
 ) -> Result<()> {
     init_comp_def(ctx.accounts, None, None)?;
 
-    let market = &mut ctx.accounts.market;
     msg!("settle_private_position comp def: {}", ctx.accounts.comp_def_account.key());
 
     Ok(())

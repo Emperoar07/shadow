@@ -157,7 +157,7 @@ export default function App({ Component, pageProps }: AppProps) {
       },
       walletConnectCloudProjectId:
         process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
-      loginMethods: ["wallet", "email"],
+      loginMethods: ["wallet", "email", "google"],
       externalWallets: {
         solana: {
           connectors: toSolanaWalletConnectors({
@@ -166,7 +166,12 @@ export default function App({ Component, pageProps }: AppProps) {
         },
       },
       embeddedWallets: {
-        createOnLogin: "users-without-wallets",
+        solana: {
+          createOnLogin: "users-without-wallets",
+        },
+        ethereum: {
+          createOnLogin: "off",
+        },
         noPromptOnSignature: true,
       },
       solanaClusters: [{ name: "devnet", rpcUrl: initialRpcUrl.current }],

@@ -361,7 +361,7 @@ export default function DocsPage() {
             </ol>
             <p>
               Shadow signs directly with your connected Solana wallet. That includes Privy embedded wallets for
-              email and social users, and external Solana wallets connected through Privy.
+              email users and external Solana wallets connected through Privy.
             </p>
             <Note>
               ShadowPerp keeps longer callback wait windows and surfaces on chain callback failures more directly.
@@ -377,7 +377,7 @@ export default function DocsPage() {
             </p>
             <ol>
               <li>
-                You can log in with email or social through Privy, which creates an embedded Solana wallet for you.
+                You can log in with email through Privy, which creates or reuses an embedded Solana wallet for you.
               </li>
               <li>
                 You can also connect an external Solana wallet such as Phantom or Solflare through Privy.
@@ -634,6 +634,12 @@ export default function DocsPage() {
               onboarding flow when you first connect your wallet. It goes straight into your Shadow margin account.
             </p>
 
+            <h3>Why does the app sometimes say price unavailable?</h3>
+            <p>
+              ShadowPerp now blocks market-order submission when it does not have a trusted live or cached reference
+              price. It does this on purpose instead of silently falling back to mock pair pricing in the trade path.
+            </p>
+
             <h3>Why does my position show Queued or Finalizing?</h3>
             <p>
               Both states mean the trade was submitted successfully and is moving through the protected callback path.
@@ -655,6 +661,13 @@ export default function DocsPage() {
               Solana, but the app keeps a few local convenience snapshots so the interface can restore faster.
               Server-backed features like history routes and market data helpers may receive your public wallet address
               when needed to fulfill a request.
+            </p>
+
+            <h3>Is position history a full ledger yet?</h3>
+            <p>
+              Not yet. The current position history panel is reconstructed from current closed and liquidated position
+              accounts and is labeled that way in the UI. It is useful for reviewing recent closed state, but it is not
+              a complete durable trade ledger yet.
             </p>
 
             <h3>Can I use ShadowPerp on mainnet?</h3>

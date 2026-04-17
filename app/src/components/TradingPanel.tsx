@@ -293,26 +293,25 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
 
     const livePrices = await fetchPrices().catch(() => null);
     const livePairPrice = livePrices?.[activePair.label]?.price ?? null;
-    const fallbackPrice = livePairPrice ?? activePair.mockPrice;
     const priceMeta = getLastPriceMeta();
-    const hasLivePrice = priceMeta.quality === "live";
+    const trustedFallbackPrice = priceMeta.quality === "mock" ? null : livePairPrice;
 
     if (!anchorWallet) {
       if (requestSeq !== refreshSeqRef.current) return;
-      setMarketPrice(fallbackPrice);
+      setMarketPrice(trustedFallbackPrice);
       setMarginBalance(null);
       setAvailableMarginBalance(null);
-      setPriceQuality(priceMeta.quality);
+      setPriceQuality(trustedFallbackPrice != null ? priceMeta.quality : "mock");
       return;
     }
 
     const ctx = getClient();
     if (!ctx) {
       if (requestSeq !== refreshSeqRef.current) return;
-      setMarketPrice(fallbackPrice);
+      setMarketPrice(trustedFallbackPrice);
       setMarginBalance(null);
       setAvailableMarginBalance(null);
-      setPriceQuality(priceMeta.quality);
+      setPriceQuality(trustedFallbackPrice != null ? priceMeta.quality : "mock");
       return;
     }
 
@@ -331,7 +330,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
 
       if (requestSeq !== refreshSeqRef.current) return;
 
-      let usedFallbackPrice = livePairPrice === null;
+      let usedFallbackPrice = trustedFallbackPrice != null;
       if (marketResult.status === "fulfilled") {
         const oraclePrice =
           new BN(marketResult.value.oraclePrice.toString()).toNumber() / 1_000_000;
@@ -339,14 +338,14 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
           setMarketPrice(oraclePrice);
           usedFallbackPrice = false;
         } else {
-          setMarketPrice(fallbackPrice);
+          setMarketPrice(trustedFallbackPrice);
         }
         const thresh = marketResult.value.liquidationThreshold;
         if (thresh != null) {
           setLiqThreshold(Number(thresh) / 100);
         }
       } else {
-        setMarketPrice(fallbackPrice);
+        setMarketPrice(trustedFallbackPrice);
       }
 
       if (marginResult.status === "fulfilled") {
@@ -364,9 +363,9 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       setPriceQuality(usedFallbackPrice ? priceMeta.quality : "live");
     } catch {
       if (requestSeq !== refreshSeqRef.current) return;
-      setMarketPrice(fallbackPrice);
+      setMarketPrice(trustedFallbackPrice);
       setAvailableMarginBalance(null);
-      setPriceQuality(priceMeta.quality);
+      setPriceQuality(trustedFallbackPrice != null ? priceMeta.quality : "mock");
     }
   }, [anchorWallet, publicKey, getClient, activePair]);
 
@@ -1001,7 +1000,8 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
               isSubmitting ||
               !size ||
               sizeInBase <= 0 ||
-              (orderType === "limit" && !parsedLimitPrice)
+              (orderType === "limit" && !parsedLimitPrice) ||
+              (orderType === "market" && !marketPrice)
             }
             className={`mb-0.5 w-full rounded-lg py-2 text-sm font-semibold transition-all btn-press ${
               direction === "long"
@@ -1082,7 +1082,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
         direction={direction}
         size={size || "0"}
         leverage={leverage}
-        entryPrice={entryPrice ?? activePair.mockPrice}
+        entryPrice={entryPrice}
         errorMessage={tradeError}
         txSignature={tradeTxSig}
         onClose={() => setModalOpen(false)}

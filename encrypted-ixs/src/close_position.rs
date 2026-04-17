@@ -28,38 +28,31 @@ mod close_position_circuit {
     ) -> (i64, u64, u64, u64) {
         let pos = position.to_arcis();
 
-        // Calculate price delta
         let entry = pos.1 as i64;
-        let exit = exit_price as i64;
-        let price_delta = exit - entry;
+        let price_delta = exit_price as i64 - entry;
+        let direction: i64 = if pos.3 { 1 } else { -1 };
+        // Size is stored in base units scaled to 1e9. Prices and margins are
+        // stored in quote-token units scaled to 1e6.
+        const BASE_SCALE: i128 = 1_000_000_000;
 
-        // Calculate raw PnL based on direction
-        let raw_pnl = if pos.3 {
-            price_delta * (pos.0 as i64)
-        } else {
-            -price_delta * (pos.0 as i64)
-        };
+        let pnl_num = (price_delta as i128)
+            .wrapping_mul(pos.0 as i128)
+            .wrapping_mul(direction as i128);
+        let realized_pnl = (pnl_num / BASE_SCALE) as i64;
 
-        // Apply leverage to PnL
-        let leveraged_pnl = raw_pnl * (pos.2 as i64);
+        let position_value = (pos.0 as u128)
+            .wrapping_mul(exit_price as u128)
+            / BASE_SCALE as u128;
+        let fee = ((position_value * trading_fee_bps as u128) / 10000) as u64;
 
-        // Normalize PnL (divide by entry price to get actual dollar value)
-        let realized_pnl = leveraged_pnl / entry;
-
-        // Trading fee on position value
-        let position_value = pos.0 * exit_price;
-        let fee = (position_value * trading_fee_bps as u64) / 10000;
-
-        // Settlement = margin + pnl - fees
+        // Settlement = margin + pnl - fees (clamped to 0)
         let margin_i64 = pos.4 as i64;
         let fee_i64 = fee as i64;
-        let settlement_i64 = margin_i64 + realized_pnl - fee_i64;
-
-        // Clamp to zero (can't have negative settlement)
+        let settlement_i64 = margin_i64.wrapping_add(realized_pnl).wrapping_sub(fee_i64);
         let settlement_amount = if settlement_i64 > 0 {
             settlement_i64 as u64
         } else {
-            0
+            0u64
         };
 
         (

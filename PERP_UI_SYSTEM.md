@@ -75,6 +75,8 @@ Practical examples:
 - prevent duplicate submissions during async tx flow
 - preserve user input on async failure
 - show deterministic error copy (what failed + what to do next)
+- do not present mock pair prices as executable market price
+- label reconstructed position-history data clearly when a durable ledger is not yet available
 
 ## Visual System
 

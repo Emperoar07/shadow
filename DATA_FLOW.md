@@ -212,6 +212,8 @@ Use this sequence before real testing:
    - open
    - callback progression
    - close
+   - market-order submit blocks cleanly when no trusted price is available
+   - position-history reconstructed-data notice renders when history rows are shown
 
 Canary scope:
 

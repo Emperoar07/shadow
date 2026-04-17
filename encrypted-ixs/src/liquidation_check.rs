@@ -25,34 +25,29 @@ mod liquidation_check_circuit {
         let pos = position.to_arcis();
 
         let entry = pos.1 as i64;
-        let mark = mark_price as i64;
-        let price_delta = mark - entry;
+        let price_delta = mark_price as i64 - entry;
+        let direction: i64 = if pos.3 { 1 } else { -1 };
+        const BASE_SCALE: i128 = 1_000_000_000;
 
-        // Calculate unrealized PnL based on direction
-        let unrealized_pnl = if pos.3 {
-            price_delta * (pos.0 as i64)
+        let pnl_num = (price_delta as i128)
+            .wrapping_mul(pos.0 as i128)
+            .wrapping_mul(direction as i128);
+        let unrealized_pnl = (pnl_num / BASE_SCALE) as i64;
+
+        let equity = (pos.4 as i64).wrapping_add(unrealized_pnl);
+
+        let maintenance_u128 = ((pos.0 as u128)
+            .wrapping_mul(mark_price as u128)
+            / BASE_SCALE as u128)
+            .wrapping_mul(liquidation_threshold_bps as u128)
+            / 10000;
+        let maintenance_margin = if maintenance_u128 > i64::MAX as u128 {
+            i64::MAX
         } else {
-            -price_delta * (pos.0 as i64)
+            maintenance_u128 as i64
         };
 
-        // Apply leverage
-        let leveraged_pnl = unrealized_pnl * (pos.2 as i64);
-
-        // Normalize
-        let pnl = leveraged_pnl / entry;
-
-        // Equity = margin + unrealized PnL
-        let margin_i64 = pos.4 as i64;
-        let equity = margin_i64 + pnl;
-
-        // Position value at current price
-        let position_value = pos.0 * mark_price;
-
-        // Maintenance margin = position_value * threshold / 10000
-        let maintenance_margin = (position_value * liquidation_threshold_bps as u64) / 10000;
-
-        // Position should be liquidated if equity < maintenance margin
-        let should_liquidate = equity < (maintenance_margin as i64);
+        let should_liquidate = equity < maintenance_margin;
 
         let revealed_margin = if should_liquidate { pos.4 } else { 0 };
         let liquidation_price = if should_liquidate { mark_price } else { 0 };

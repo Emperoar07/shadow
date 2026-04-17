@@ -45,6 +45,10 @@ mod execute_private_order_circuit {
 
         let out_size = if triggered { size } else { 0 };
         let out_price = if triggered { mark_price } else { 0 };
+        // Always reveal the same sentinel (false) when not triggered so that
+        // repeated calls at different prices cannot leak direction via the
+        // is_long output changing from false→true at the threshold.
+        // The caller must only act on is_long when triggered=true.
         let out_long = if triggered { is_long } else { false };
 
         (

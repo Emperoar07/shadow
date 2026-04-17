@@ -4,6 +4,112 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Arcium Circuit Integrity Pass (2026-04-18 UTC)
+
+### What changed
+
+- Repaired the confidential close/liquidation math to match the live frontend encoding contract:
+  - `encrypted-ixs/src/close_position.rs`
+  - `encrypted-ixs/src/liquidation_check.rs`
+  - `encrypted-ixs/src/settle_private_position.rs`
+- The fixed unit model now treats:
+  - size as base units scaled to `1e9`
+  - price and margin as quote-token units scaled to `1e6`
+- Removed incorrect leverage reapplication and entry-price normalization from the close/liquidation/settlement circuits.
+- Restored correct short-direction handling in the confidential close/liquidation paths.
+- Removed unsafe market-state / comp-def bookkeeping that did not belong in live market account storage:
+  - `programs/shadowperp/src/handlers/seed_open_interest_state.rs`
+  - `programs/shadowperp/src/handlers/init_comp_defs.rs`
+  - `programs/shadowperp/src/handlers/callbacks/settle_private_position_callback.rs`
+- Kept the live `Market` layout backward-compatible instead of introducing a risky account-size migration path.
+
+### What was verified
+
+- `git status --short` reviewed at session start
+- `npm run check:preflight` -> initially FAIL only on stale oracle freshness
+- `npm run oracle:once` -> PASS on 2026-04-18
+- `npm run check:preflight` -> PASS after oracle refresh
+- `wsl bash -lc "cd /mnt/c/Users/bolaj/projects/shadowperp && ./scripts/wsl-arcium-build.sh"` -> PASS
+  - generated fresh `build/*.arcis` artifacts for the confidential instructions
+- `wsl bash -lc "cd /mnt/c/Users/bolaj/projects/shadowperp && cargo check -p shadowperp"` -> PASS
+  - Anchor program compiles successfully against the generated Arcium artifacts
+
+### Current blocker
+
+- The local Arcium/program verification is green, but the patched confidential instruction artifacts have not yet been rolled forward on-chain in this pass.
+- That means devnet comp-defs may still point at the previous circuit behavior until the upload / comp-def refresh flow is run intentionally.
+- Browser/devnet smoke is still needed after any comp-def refresh for:
+  - open position
+  - close position
+  - liquidation path sanity
+
+### Next safe step
+
+1. Upload the refreshed confidential artifacts and rotate the affected comp-defs on devnet intentionally:
+   - `close_position_v2`
+   - `check_liquidation`
+   - `settle_private_position` if the shielded settlement lane is active in the target environment
+2. Run a devnet smoke that proves the patched math through the real callback path.
+3. Commit the Arcium integrity fixes together with the updated operational notes once the deploy decision is confirmed.
+
+## Audit Truthfulness + Docs Alignment (2026-04-17 UTC)
+
+### What changed
+
+- Fixed the live trade path to stop using `mockPrice` as an execution-facing fallback:
+  - `app/src/components/TradingPanel.tsx`
+  - market orders now block when no trusted price is available
+  - the trade confirmation modal now handles missing prices explicitly instead of substituting mock pair pricing
+- Fixed position-history truthfulness:
+  - `app/src/lib/server/history.ts`
+  - `app/src/lib/history.ts`
+  - `app/src/components/BottomPositionsPanel.tsx`
+  - history now carries an explicit notice that the current data is reconstructed from closed/liquidated account scans and is not a durable trade ledger yet
+- Reduced stale live relay/frontend surface:
+  - removed the unused relay URL helper from `app/src/lib/feature-flags.ts`
+- Tightened app dependency posture in `app/package.json` and refreshed `app/pnpm-lock.yaml`
+  - removed unused wallet-adapter packages from direct dependencies
+  - added safer overrides for current transitive advisory hotspots where possible
+- Updated repo and product docs to match the live product state:
+  - `README.md`
+  - `ARCHITECTURE.md`
+  - `DATA_FLOW.md`
+  - `PERP_UI_SYSTEM.md`
+  - `app/src/pages/docs.tsx`
+  - `app/src/pages/index.tsx`
+
+### What was verified
+
+- `pnpm --dir app install` -> PASS
+- `pnpm --dir app exec tsc --noEmit` -> PASS
+- `pnpm --dir app audit --prod` -> reduced to 4 visible advisories:
+  - `bigint-buffer` via `@solana/spl-token`
+  - `yaml` via Privy/react-native transitives
+  - low `web3-core-subscriptions`
+  - low `elliptic`
+- `pnpm --dir app build`
+  - compiles successfully
+  - generates static pages successfully
+  - reaches `Collecting build traces ...`
+  - then stalls on this machine instead of exiting cleanly
+
+### Current blocker
+
+- The repo is now more truthful about pricing and history behavior, but two follow-ups remain:
+  - browser smoke is still needed for the live Privy wallet/email flows after these changes
+  - Next production build appears to hang at trace collection in this local environment even though compile/static generation complete
+
+### Next safe step
+
+1. Run a browser smoke on the hosted app for:
+   - email login
+   - external Solana wallet connection through Privy
+   - collateral deposit
+   - market-order blocked state when no trusted price exists
+   - position-history notice rendering
+2. Investigate the local `next build` stall at `Collecting build traces ...` if a clean local production build is required before shipping.
+3. Commit and push this audit-fix + docs-alignment batch once the smoke pass is complete or explicitly accepted.
+
 ## Privy Wallet State Cleanup + Sponsor Auth Guard (2026-04-17 UTC)
 
 ### What changed

@@ -36,27 +36,20 @@ mod settle_private_position_circuit {
         let pos = position.to_arcis();
         let rem_balance = remaining_balance.to_arcis();
 
-        // Calculate price delta
         let entry = pos.1 as i64;
-        let exit = exit_price as i64;
-        let price_delta = exit - entry;
+        let price_delta = exit_price as i64 - entry;
+        let direction: i64 = if pos.3 { 1 } else { -1 };
+        const BASE_SCALE: i128 = 1_000_000_000;
 
-        // Calculate raw PnL based on direction
-        let raw_pnl = if pos.3 {
-            price_delta * (pos.0 as i64)
-        } else {
-            -price_delta * (pos.0 as i64)
-        };
+        let pnl_num = (price_delta as i128)
+            .wrapping_mul(pos.0 as i128)
+            .wrapping_mul(direction as i128);
+        let realized_pnl = (pnl_num / BASE_SCALE) as i64;
 
-        // Apply leverage to PnL
-        let leveraged_pnl = raw_pnl * (pos.2 as i64);
-
-        // Normalize PnL (divide by entry price to get actual dollar value)
-        let realized_pnl = leveraged_pnl / entry;
-
-        // Trading fee on position value
-        let position_value = pos.0 * exit_price;
-        let fee = (position_value * trading_fee_bps as u64) / 10000;
+        let position_value = (pos.0 as u128)
+            .wrapping_mul(exit_price as u128)
+            / BASE_SCALE as u128;
+        let fee = ((position_value * trading_fee_bps as u128) / 10000) as u64;
 
         // Settlement = margin + pnl - fees
         let margin_i64 = pos.4 as i64;

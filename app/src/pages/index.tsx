@@ -738,7 +738,7 @@ export default function LandingPage() {
                 </div>
                 <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
               </div>
-                      <div className="lp-ac-body"><p className="lp-ac-desc">Email users get an embedded wallet automatically. Existing Solana users connect the wallet they already trust.</p></div>
+                      <div className="lp-ac-body"><p className="lp-ac-desc">Email users get an embedded Solana wallet automatically. Existing Solana users connect the wallet they already trust through the same direct signing flow.</p></div>
             </div>
             <div className="lp-ac-item">
               <div className="lp-ac-header">

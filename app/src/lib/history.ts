@@ -31,6 +31,8 @@ export interface IndexedHistoryPosition {
 export interface WalletHistorySnapshot {
   activity: IndexedRecentTx[];
   historyPositions: IndexedHistoryPosition[];
+  historyPositionsSource: "current-scan";
+  historyPositionsNotice?: string;
   nextBefore: string | null;
   hasMore: boolean;
   fetchedAt: number;

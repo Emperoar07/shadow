@@ -238,6 +238,7 @@ export default function BottomPositionsPanel({
   const [indexedHistoryPositions, setIndexedHistoryPositions] = useState<UiPosition[] | null>(
     null
   );
+  const [historyPositionsNotice, setHistoryPositionsNotice] = useState<string | null>(null);
   const [activityRows, setActivityRows] = useState<IndexedRecentTx[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [ruleDrafts, setRuleDrafts] = useState<Record<string, RuleDraft>>({});
@@ -274,6 +275,7 @@ export default function BottomPositionsPanel({
       // Wallet fully disconnected — clear everything
       setPositions([]);
       setIndexedHistoryPositions(null);
+      setHistoryPositionsNotice(null);
       setActivityRows([]);
       setWalletSolBalance(null);
       setWalletTokenBalances([]);
@@ -284,6 +286,7 @@ export default function BottomPositionsPanel({
       // Different wallet connected — clear so we don't show stale data
       setPositions([]);
       setIndexedHistoryPositions(null);
+      setHistoryPositionsNotice(null);
       setActivityRows([]);
       setWalletSolBalance(null);
       setWalletTokenBalances([]);
@@ -603,11 +606,7 @@ export default function BottomPositionsPanel({
     () => limitOrders.filter((o) => ["filled", "failed", "cancelled"].includes(o.status)),
     [limitOrders]
   );
-  const fallbackHistoryPositions = useMemo(
-    () => positions.filter((p) => ["closed", "liquidated"].includes(p.status)),
-    [positions]
-  );
-  const historyPositions = indexedHistoryPositions ?? fallbackHistoryPositions;
+  const historyPositions = indexedHistoryPositions ?? [];
 
   const filterPositions = useCallback((list: UiPosition[]) => {
     let result = list;
@@ -801,6 +800,7 @@ export default function BottomPositionsPanel({
         if (!cancelled) {
           setActivityRows(snapshot.activity);
           setIndexedHistoryPositions(mapped);
+          setHistoryPositionsNotice(snapshot.historyPositionsNotice ?? null);
         }
       } catch {
         // On error keep existing data — don't blank the list
@@ -1354,7 +1354,13 @@ export default function BottomPositionsPanel({
               : "No closed positions yet"}
           </div>
         ) : (
-          <table className={PANEL_TABLE_CLASS} style={PANEL_TABLE_STYLE}>
+          <div className="space-y-2">
+            {activeTab === "positionHistory" && historyPositionsNotice ? (
+              <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/8 px-3 py-2 text-[11px] text-yellow-200/90">
+                {historyPositionsNotice}
+              </div>
+            ) : null}
+            <table className={PANEL_TABLE_CLASS} style={PANEL_TABLE_STYLE}>
             <thead className="sticky top-0 z-10 bg-shadow-900">
               <tr className="text-[10px] uppercase tracking-wider text-gray-500">
                 <th className="px-3 py-1.5 text-left font-medium">Pair</th>
@@ -1519,7 +1525,8 @@ export default function BottomPositionsPanel({
                 );
               })}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
       </div>
       </div>

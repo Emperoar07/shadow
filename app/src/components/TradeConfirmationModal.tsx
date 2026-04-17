@@ -18,7 +18,7 @@ interface TradeConfirmationModalProps {
   direction: "long" | "short";
   size: string;
   leverage: number;
-  entryPrice: number;
+  entryPrice: number | null;
   errorMessage?: string;
   txSignature?: string;
   onClose: () => void;
@@ -263,8 +263,16 @@ export default function TradeConfirmationModal({
   const isTerminal    = isError || isComplete;
   const hasQueuedTx   = Boolean(txSignature);
   const isLong        = direction === "long";
-  const priceStr      = entryPrice < 0.01 ? entryPrice.toFixed(8) : entryPrice.toFixed(2);
-  const tradeLabel    = `${direction.toUpperCase()} ${size} @ $${priceStr}`;
+  const priceStr =
+    entryPrice == null
+      ? "Price unavailable"
+      : entryPrice < 0.01
+      ? entryPrice.toFixed(8)
+      : entryPrice.toFixed(2);
+  const tradeLabel =
+    entryPrice == null
+      ? `${direction.toUpperCase()} ${size}`
+      : `${direction.toUpperCase()} ${size} @ $${priceStr}`;
   const normalizedError = normalizeTradeError(errorMessage, hasQueuedTx);
   const canRetry      = isError && isRetryableError(errorMessage) && Boolean(onRetry);
 

@@ -16,6 +16,8 @@ const HISTORY_CACHE_TTL_MS = 20_000;
 const HISTORY_PAGE_SIZE = 12;
 const PARSED_TX_BATCH_SIZE = 3;
 const PARSED_TX_RETRIES = 2;
+const CURRENT_SCAN_NOTICE =
+  "Position history is reconstructed from current closed and liquidated accounts. It is not a durable trade ledger yet.";
 const MINT_SYMBOLS = new Map<string, string>(
   Object.values(DEVNET_TOKENS).map((token) => [token.mint.toBase58(), token.symbol])
 );
@@ -316,6 +318,8 @@ async function loadHistorySnapshot(
     return {
       activity,
       historyPositions,
+      historyPositionsSource: "current-scan",
+      historyPositionsNotice: options.includePositions ? CURRENT_SCAN_NOTICE : undefined,
       nextBefore: sigs.at(-1)?.signature ?? null,
       hasMore: sigs.length >= options.limit,
       fetchedAt: Date.now(),
