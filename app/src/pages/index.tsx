@@ -666,37 +666,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* WALLET CALLOUT */}
-        <div id="wallets" className="lp-session-callout lp-reveal" style={{ paddingTop: "80px" }}>
-          <div className="lp-session-card">
-            <div className="lp-session-copy">
-              <p className="lp-session-label">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                Wallet Connection
-              </p>
-              <h3 className="lp-session-title">Connect once.<br />Trade directly.</h3>
-              <p className="lp-session-desc">
-                Use email, social, an embedded wallet, or your existing Solana wallet. Shadow now routes trading
-                through the connected wallet directly, so the product feels simpler and the behavior is easier to trust.
-              </p>
-            </div>
-            <div className="lp-session-stats">
-              <div className="lp-session-stat">
-                <div className="lp-session-stat-val">Email</div>
-                <div className="lp-session-stat-lbl">Privy login</div>
-              </div>
-              <div className="lp-session-stat">
-                <div className="lp-session-stat-val">Social</div>
-                <div className="lp-session-stat-lbl">Embedded wallet</div>
-              </div>
-              <div className="lp-session-stat">
-                <div className="lp-session-stat-val">Wallet</div>
-                <div className="lp-session-stat-lbl">External Solana</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* FEATURES */}
         <div id="features" className="lp-section lp-reveal">
           <p className="lp-section-tag">Features</p>
