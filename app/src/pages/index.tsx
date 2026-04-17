@@ -152,6 +152,25 @@ export default function LandingPage() {
     };
   }, [isLight]);
 
+  // ── Features accordion ───────────────────────────────────────
+  useEffect(() => {
+    const headers = document.querySelectorAll<HTMLElement>(".lp-ac-header");
+    const onClick = (h: HTMLElement) => () => {
+      const item = h.closest<HTMLElement>(".lp-ac-item");
+      if (!item) return;
+      const isOpen = item.classList.contains("open");
+      document.querySelectorAll(".lp-ac-item").forEach((i) => i.classList.remove("open"));
+      if (!isOpen) item.classList.add("open");
+    };
+    const handlers: Array<{ h: HTMLElement; fn: () => void }> = [];
+    headers.forEach((h) => {
+      const fn = onClick(h);
+      h.addEventListener("click", fn);
+      handlers.push({ h, fn });
+    });
+    return () => { handlers.forEach(({ h, fn }) => h.removeEventListener("click", fn)); };
+  }, []);
+
   // ── Mouse motion effects ─────────────────────────────────────
   useEffect(() => {
     const glow = cursorGlowRef.current;
@@ -387,22 +406,41 @@ export default function LandingPage() {
           .lp-step-title { font-size:16px;font-weight:700;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:8px }
           .lp-step-desc { font-size:13px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.7 }
           /* FEATURES */
-          .lp-features-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:48px }
-          .lp-feat-card {
-            background:${dark ? "rgba(255,255,255,.02)" : "#ffffff"};
+          .lp-features-accordion { display:flex;flex-direction:column;gap:2px;margin-top:40px;max-width:680px }
+          .lp-ac-item {
             border:1px solid ${dark ? "rgba(255,255,255,.06)" : "#dde2ee"};
-            border-radius:16px;padding:28px 24px;transition:border-color .25s,box-shadow .25s,transform .2s;
-            cursor:default;position:relative;overflow:hidden;
-            transform-style:preserve-3d;will-change:transform;display:flex;flex-direction:column;gap:0;
+            border-radius:10px;overflow:hidden;
+            background:${dark ? "rgba(255,255,255,.02)" : "#ffffff"};
+            transition:border-color .2s,background .2s;
           }
-          .lp-feat-card::before {
-            content:'';position:absolute;inset:0;border-radius:16px;
-            background:linear-gradient(135deg,rgba(139,92,246,.07),transparent);opacity:0;transition:opacity .25s;
+          .lp-ac-item.open {
+            border-color:rgba(139,92,246,.35);
+            background:${dark ? "rgba(139,92,246,.05)" : "rgba(139,92,246,.04)"};
           }
-          .lp-feat-card:hover { border-color:rgba(139,92,246,.35);box-shadow:0 8px 32px rgba(139,92,246,.12);transform:translateY(-2px) }
-          .lp-feat-card:hover::before { opacity:1 }
-.lp-feat-title { font-size:15px;font-weight:700;color:${dark ? "#e2e8f0" : "#0f172a"};margin-bottom:8px }
-          .lp-feat-desc { font-size:13px;color:${dark ? "#94a3b8" : "#475569"};font-weight:500;line-height:1.7 }
+          .lp-ac-header {
+            display:flex;align-items:center;justify-content:space-between;
+            padding:14px 18px;cursor:pointer;user-select:none;gap:14px;
+          }
+          .lp-ac-left { display:flex;align-items:center;gap:13px }
+          .lp-ac-icon {
+            width:34px;height:34px;border-radius:9px;flex-shrink:0;
+            background:linear-gradient(135deg,rgba(139,92,246,.18),rgba(59,130,246,.10));
+            box-shadow:inset 0 0 0 1px rgba(139,92,246,.25);
+            display:flex;align-items:center;justify-content:center;
+            transition:box-shadow .2s,background .2s;
+          }
+          .lp-ac-item.open .lp-ac-icon {
+            background:linear-gradient(135deg,rgba(139,92,246,.28),rgba(59,130,246,.16));
+            box-shadow:inset 0 0 0 1px rgba(139,92,246,.5),0 0 12px rgba(139,92,246,.18);
+          }
+          .lp-ac-icon svg { width:15px;height:15px;fill:none;stroke:#a78bfa;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;transition:stroke .2s }
+          .lp-ac-item.open .lp-ac-icon svg { stroke:#c4b5fd }
+          .lp-ac-title { font-size:13px;font-weight:700;color:${dark ? "#e2e8f0" : "#0f172a"} }
+          .lp-ac-chevron { width:14px;height:14px;flex-shrink:0;stroke:#475569;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;transition:transform .22s ease,stroke .2s }
+          .lp-ac-item.open .lp-ac-chevron { transform:rotate(180deg);stroke:#8b5cf6 }
+          .lp-ac-body { max-height:0;overflow:hidden;transition:max-height .28s ease }
+          .lp-ac-item.open .lp-ac-body { max-height:120px }
+          .lp-ac-desc { padding:0 18px 15px 65px;font-size:12.5px;color:${dark ? "#94a3b8" : "#475569"};line-height:1.7 }
           /* PRIVACY */
           .lp-privacy-section {
             position:relative;z-index:1;padding:80px 24px;
@@ -670,14 +708,77 @@ export default function LandingPage() {
         <div id="features" className="lp-section lp-reveal">
           <p className="lp-section-tag">Features</p>
           <div className="lp-section-title">Built for private trading</div>
-          <div className="lp-features-grid">
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Confidential Order Flow</div><p className="lp-feat-desc">Orders do not broadcast the usual signals before execution. Size, direction, leverage, and liquidation details stay off the public ledger entirely.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Confidential Liquidations</div><p className="lp-feat-desc">Liquidation thresholds are hidden from observers. Traders are not forced to reveal one of the most exploitable parts of any open position.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Human Wallet UX</div><p className="lp-feat-desc">Shadow is built to feel like a real trading product. Email and social users get an embedded wallet, while existing Solana users can connect the wallet they already trust.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Arcium MPC</div><p className="lp-feat-desc">Trade validation runs through Arcium's MPC network with replay hardened callbacks. The chain receives a verified outcome rather than a plaintext view into your position.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Trader First UX</div><p className="lp-feat-desc">Shadow is built to feel like a trading product first. Faster repeated actions, cleaner state handling, and privacy that stays in the background until you want to look at it.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Safer Oracle Handling</div><p className="lp-feat-desc">Staleness checks, fallback handling, and circuit breakers are designed to fail loudly rather than pretend everything is fine when price freshness drifts.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Shared Collateral</div><p className="lp-feat-desc">On adopted devnet markets, one owner scoped balance can fund multiple pairs. Free and locked collateral stay visible separately so the numbers always make sense.</p></div>
+          <div className="lp-features-accordion" id="lpAcc">
+            <div className="lp-ac-item">
+              <div className="lp-ac-header">
+                <div className="lp-ac-left">
+                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg></div>
+                  <span className="lp-ac-title">Confidential Order Flow</span>
+                </div>
+                <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div className="lp-ac-body"><p className="lp-ac-desc">Orders do not broadcast the usual signals before execution. Size, direction, leverage, and liquidation details stay off the public ledger entirely.</p></div>
+            </div>
+            <div className="lp-ac-item">
+              <div className="lp-ac-header">
+                <div className="lp-ac-left">
+                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="15" x2="12" y2="17"/></svg></div>
+                  <span className="lp-ac-title">Confidential Liquidations</span>
+                </div>
+                <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div className="lp-ac-body"><p className="lp-ac-desc">Liquidation thresholds are hidden from observers. Traders are not forced to reveal one of the most exploitable parts of any open position.</p></div>
+            </div>
+            <div className="lp-ac-item">
+              <div className="lp-ac-header">
+                <div className="lp-ac-left">
+                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg></div>
+                  <span className="lp-ac-title">Human Wallet UX</span>
+                </div>
+                <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div className="lp-ac-body"><p className="lp-ac-desc">Email and social users get an embedded wallet. Existing Solana users connect the wallet they already trust.</p></div>
+            </div>
+            <div className="lp-ac-item">
+              <div className="lp-ac-header">
+                <div className="lp-ac-left">
+                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="11" x2="17" y2="6"/><line x1="7" y1="13" x2="17" y2="18"/></svg></div>
+                  <span className="lp-ac-title">Arcium MPC</span>
+                </div>
+                <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div className="lp-ac-body"><p className="lp-ac-desc">Trade validation runs through Arcium&apos;s MPC network with replay hardened callbacks. The chain receives a verified outcome rather than a plaintext view into your position.</p></div>
+            </div>
+            <div className="lp-ac-item">
+              <div className="lp-ac-header">
+                <div className="lp-ac-left">
+                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><polyline points="2 12 6 12 9 4 13 20 16 12 18 12 22 12"/></svg></div>
+                  <span className="lp-ac-title">Safer Oracle Handling</span>
+                </div>
+                <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div className="lp-ac-body"><p className="lp-ac-desc">Staleness checks, fallback handling, and circuit breakers are designed to fail loudly rather than pretend everything is fine when price freshness drifts.</p></div>
+            </div>
+            <div className="lp-ac-item">
+              <div className="lp-ac-header">
+                <div className="lp-ac-left">
+                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 12 12 17 22 12"/><polyline points="2 17 12 22 22 17"/></svg></div>
+                  <span className="lp-ac-title">Shared Collateral</span>
+                </div>
+                <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div className="lp-ac-body"><p className="lp-ac-desc">On adopted devnet markets, one owner scoped balance can fund multiple pairs. Free and locked collateral stay visible separately so the numbers always make sense.</p></div>
+            </div>
+            <div className="lp-ac-item">
+              <div className="lp-ac-header">
+                <div className="lp-ac-left">
+                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+                  <span className="lp-ac-title">Trader First UX</span>
+                </div>
+                <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div className="lp-ac-body"><p className="lp-ac-desc">Faster repeated actions, cleaner state handling, and privacy that stays in the background until you want to look at it.</p></div>
+            </div>
           </div>
         </div>
 
