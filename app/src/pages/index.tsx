@@ -209,7 +209,7 @@ export default function LandingPage() {
     <>
       <Head>
         <title>ShadowPerp | Private Perps on Solana</title>
-        <meta name="description" content="ShadowPerp is a private perpetual trading app on Solana. Trade with encrypted positions, session-based execution, and Arcium MPC protection on devnet." />
+        <meta name="description" content="ShadowPerp is a private perpetual trading app on Solana. Trade with encrypted positions, direct wallet signing, and Arcium MPC protection on devnet." />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </Head>
 
@@ -557,7 +557,7 @@ export default function LandingPage() {
           <div className="lp-nav-links">
             <a href="#privacy" className="lp-nav-link">Privacy</a>
             <a href="#features" className="lp-nav-link">Features</a>
-            <a href="#session" className="lp-nav-link">Session Trading</a>
+            <a href="#wallets" className="lp-nav-link">Wallets</a>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <button
@@ -621,8 +621,8 @@ export default function LandingPage() {
           <div className="lp-steps">
             <div className="lp-step lp-reveal lp-delay-1 lp-tilt">
               <div className="lp-step-num">01</div>
-              <div className="lp-step-title">Encrypt and Delegate</div>
-              <p className="lp-step-desc">Size, direction, leverage, and margin are encrypted in your browser. Approve a session once and the relay handles repeated actions without interrupting every trade with another wallet popup.</p>
+              <div className="lp-step-title">Encrypt in the Browser</div>
+              <p className="lp-step-desc">Size, direction, leverage, and margin are encrypted before the trade leaves your browser. Shadow keeps the sensitive parts private from the start.</p>
             </div>
             <div className="lp-step lp-reveal lp-delay-2 lp-tilt">
               <div className="lp-step-num">02</div>
@@ -658,7 +658,7 @@ export default function LandingPage() {
                 <div className="lp-pv-row"><span className="lp-pv-label">Entry Price</span><span className="lp-pv-enc">0xb29f...11da</span><span className="lp-pv-lock">encrypted</span></div>
                 <div className="lp-pv-row"><span className="lp-pv-label">Leverage</span><span className="lp-pv-enc">0x7a5e...0c83</span><span className="lp-pv-lock">encrypted</span></div>
                 <div className="lp-pv-row"><span className="lp-pv-label">Liq. Price</span><span className="lp-pv-enc">0xe3c1...9f62</span><span className="lp-pv-lock">encrypted</span></div>
-                <div className="lp-pv-row"><span className="lp-pv-label">Session Key</span><span className="lp-pv-enc">0xa12f...d44e</span><span className="lp-pv-lock-blue">delegated</span></div>
+                <div className="lp-pv-row"><span className="lp-pv-label">Wallet Signer</span><span className="lp-pv-plain">direct</span><span className="lp-pv-lock-blue">wallet</span></div>
                 <div className="lp-pv-row"><span className="lp-pv-label">PnL</span><span className="lp-pv-plain">+$142.30</span><span className="lp-pv-lock-green">revealed on close</span></div>
                 <div className="lp-pv-hint">hover blur to reveal &uarr;</div>
               </div>
@@ -666,33 +666,32 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* SESSION TRADING CALLOUT */}
-        <div id="session" className="lp-session-callout lp-reveal" style={{ paddingTop: "80px" }}>
+        {/* WALLET CALLOUT */}
+        <div id="wallets" className="lp-session-callout lp-reveal" style={{ paddingTop: "80px" }}>
           <div className="lp-session-card">
             <div className="lp-session-copy">
               <p className="lp-session-label">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                Session Trading
+                Wallet Connection
               </p>
-              <h3 className="lp-session-title">One approval.<br />Fast repeated trades.</h3>
+              <h3 className="lp-session-title">Connect once.<br />Trade directly.</h3>
               <p className="lp-session-desc">
-                Create a delegated trading session, sign once, and let the relay execute within the limits you set.
-                It is a calmer flow for active traders without giving up control over expiry, action caps, or
-                margin limits.
+                Use email, social, an embedded wallet, or your existing Solana wallet. Shadow now routes trading
+                through the connected wallet directly, so the product feels simpler and the behavior is easier to trust.
               </p>
             </div>
             <div className="lp-session-stats">
               <div className="lp-session-stat">
-                <div className="lp-session-stat-val">1x</div>
-                <div className="lp-session-stat-lbl">Wallet sign</div>
+                <div className="lp-session-stat-val">Email</div>
+                <div className="lp-session-stat-lbl">Privy login</div>
               </div>
               <div className="lp-session-stat">
-                <div className="lp-session-stat-val">200</div>
-                <div className="lp-session-stat-lbl">Trades max</div>
+                <div className="lp-session-stat-val">Social</div>
+                <div className="lp-session-stat-lbl">Embedded wallet</div>
               </div>
               <div className="lp-session-stat">
-                <div className="lp-session-stat-val">48h</div>
-                <div className="lp-session-stat-lbl">Session max</div>
+                <div className="lp-session-stat-val">Wallet</div>
+                <div className="lp-session-stat-lbl">External Solana</div>
               </div>
             </div>
           </div>
@@ -705,10 +704,10 @@ export default function LandingPage() {
           <div className="lp-features-grid">
             <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Confidential Order Flow</div><p className="lp-feat-desc">Orders do not broadcast the usual signals before execution. Size, direction, leverage, and liquidation details stay off the public ledger entirely.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Confidential Liquidations</div><p className="lp-feat-desc">Liquidation thresholds are hidden from observers. Traders are not forced to reveal one of the most exploitable parts of any open position.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Delegated Execution</div><p className="lp-feat-desc">Approve a bounded session once and keep moving. It is faster for active trading and transparent about exactly what the relay is allowed to do on your behalf.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Human Wallet UX</div><p className="lp-feat-desc">Shadow is built to feel like a real trading product. Email and social users get an embedded wallet, while existing Solana users can connect the wallet they already trust.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-2 lp-tilt"><div className="lp-feat-title">Arcium MPC</div><p className="lp-feat-desc">Trade validation runs through Arcium's MPC network with replay hardened callbacks. The chain receives a verified outcome rather than a plaintext view into your position.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-3 lp-tilt"><div className="lp-feat-title">Trader First UX</div><p className="lp-feat-desc">Shadow is built to feel like a trading product first. Faster repeated actions, cleaner state handling, and privacy that stays in the background until you want to look at it.</p></div>
-            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Safer Oracle Handling</div><p className="lp-feat-desc">Relay side refreshes, staleness checks, and circuit breakers are designed to fail loudly rather than pretend everything is fine when price freshness drifts.</p></div>
+            <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Safer Oracle Handling</div><p className="lp-feat-desc">Staleness checks, fallback handling, and circuit breakers are designed to fail loudly rather than pretend everything is fine when price freshness drifts.</p></div>
             <div className="lp-feat-card lp-reveal lp-delay-1 lp-tilt"><div className="lp-feat-title">Shared Collateral</div><p className="lp-feat-desc">On adopted devnet markets, one owner scoped balance can fund multiple pairs. Free and locked collateral stay visible separately so the numbers always make sense.</p></div>
           </div>
         </div>
@@ -718,7 +717,7 @@ export default function LandingPage() {
           <div className="lp-cta-glow" />
           <p className="lp-section-tag" style={{ textAlign: "center" }}>Ready?</p>
           <h2 className="lp-cta-title">Trade with less<br />information leakage.</h2>
-          <p className="lp-cta-sub">Connect your wallet, approve a session, and explore the current devnet build. The privacy model is live and positions are opening end to end.</p>
+          <p className="lp-cta-sub">Connect your wallet and explore the current devnet build. The privacy model is live, the product signs directly from the connected wallet, and the open-lane callback diagnostics remain the main blocker being worked through.</p>
           <Link href="/app" className="lp-btn-primary" style={{ display: "inline-flex", fontSize: "16px", padding: "16px 40px" }}>
             Launch App
           </Link>
@@ -734,7 +733,7 @@ export default function LandingPage() {
               </div>
               <p className="lp-footer-brand-desc">
                 Private perpetual trading on Solana.
-                Built for honest privacy boundaries, calmer repeated trading, and confidential compute powered by Arcium.
+                Built for honest privacy boundaries, direct wallet trading, and confidential compute powered by Arcium.
               </p>
               <div className="lp-footer-social">
                 <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer" aria-label="Twitter">

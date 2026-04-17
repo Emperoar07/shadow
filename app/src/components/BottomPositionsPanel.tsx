@@ -2,11 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BN from "bn.js";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { fetchWalletHistory, type IndexedRecentTx } from "../lib/history";
-import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
+import {
+  useAnchorWalletCompat,
+  useWalletConnectionState,
+  useWalletExecutionMode,
+} from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
@@ -217,8 +221,8 @@ export default function BottomPositionsPanel({
     if (!showNotifications) return "";
     return toast.loading(...args);
   }, [showNotifications]) as typeof toast.loading;
-  const { connecting, connected } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
+  const { connected } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
   const publicKey = anchorWallet?.publicKey ?? null;
   const { connection } = useConnection();
@@ -265,7 +269,7 @@ export default function BottomPositionsPanel({
   useEffect(() => {
     const current = publicKey?.toBase58() ?? null;
     const prev = prevPublicKeyRef.current;
-    const walletConnected = walletExecutionMode !== "none" || connecting || connected;
+    const walletConnected = walletExecutionMode !== "none" || connected;
     if (current === null && !walletConnected) {
       // Wallet fully disconnected — clear everything
       setPositions([]);
@@ -288,7 +292,7 @@ export default function BottomPositionsPanel({
       setLockedCollateral(null);
     }
     prevPublicKeyRef.current = current;
-  }, [publicKey, connecting, connected, walletExecutionMode]);
+  }, [publicKey, connected, walletExecutionMode]);
 
   // Seed from cache as soon as wallet key is known, before first fetch completes
   useEffect(() => {

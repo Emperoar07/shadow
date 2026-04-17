@@ -7,12 +7,8 @@ import {
   ConnectionProvider,
   WalletProvider,
 } from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import {
-  PhantomWalletAdapter,
-  SolflareWalletAdapter,
-} from "@solana/wallet-adapter-wallets";
 import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
+import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { Toaster } from "react-hot-toast";
 import ShadowLoader from "../components/ShadowLoader";
 import {
@@ -22,7 +18,6 @@ import {
   setPreferredRpcIndex,
 } from "../lib/runtime";
 
-import "@solana/wallet-adapter-react-ui/styles.css";
 import "../styles/globals.css";
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
@@ -109,11 +104,6 @@ export default function App({ Component, pageProps }: AppProps) {
     return () => clearInterval(interval);
   }, [autoSelectBestRpc, transports.length]);
 
-  const wallets = useMemo(
-    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
-    []
-  );
-
   const router = useRouter();
   const [pageLoading, setPageLoading] = useState(false);
   const loadStartRef = useRef(0);
@@ -161,8 +151,16 @@ export default function App({ Component, pageProps }: AppProps) {
         accentColor: "#7c3aed",
         logo: "/favicon.svg",
         landingHeader: "Log in to Shadow",
+        walletChainType: "solana-only",
       },
       loginMethods: ["email", "google", "twitter"],
+      externalWallets: {
+        solana: {
+          connectors: toSolanaWalletConnectors({
+            shouldAutoConnect: true,
+          }),
+        },
+      },
       embeddedWallets: {
         createOnLogin: "all-users",
         noPromptOnSignature: true,
@@ -208,8 +206,7 @@ export default function App({ Component, pageProps }: AppProps) {
         endpoint={transport.rpc}
         config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
       >
-        <WalletProvider wallets={wallets} autoConnect>
-          <WalletModalProvider>
+        <WalletProvider wallets={[]} autoConnect={false}>
             <Toaster
               position="bottom-right"
               toastOptions={{
@@ -222,7 +219,6 @@ export default function App({ Component, pageProps }: AppProps) {
             />
             {pageLoading && <ShadowLoader fullScreen message="" />}
             <Component {...pageProps} />
-          </WalletModalProvider>
         </WalletProvider>
       </ConnectionProvider>
     </PrivyProvider>

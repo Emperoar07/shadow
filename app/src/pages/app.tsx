@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { usePrivy, useCreateWallet } from "@privy-io/react-auth";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { usePrivy, useCreateWallet, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
-import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
+import {
+  useAnchorWalletCompat,
+  useWalletConnectionState,
+  useWalletExecutionMode,
+} from "../lib/use-anchor-wallet";
 import { createShadowPerpClient } from "../lib/create-client";
 import { getRuntimeConfig } from "../lib/runtime";
 import { FAUCET_TRIGGER_USDC, FAUCET_CAP_USDC, MUSDC_DECIMALS } from "../lib/faucet-constants";
@@ -22,10 +25,6 @@ import PrivateOrderbook from "../components/PrivateOrderbook";
 import TradingPanel from "../components/TradingPanel";
 import NetworkIndicator from "../components/NetworkIndicator";
 import WalletPopup from "../components/WalletPopup";
-import {
-  RELAY_SESSION_RENEW_BEFORE_SECONDS,
-  useArciumPrivacy,
-} from "../hooks/useArcium";
 import { useMarketSnapshot } from "../hooks/useMarketSnapshot";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 
@@ -53,9 +52,7 @@ const TerminalGrid = dynamic(
  */
 function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   const { connection } = useConnection();
-  const { publicKey: adapterPublicKey } = useWallet();
-  const { authenticated } = usePrivy();
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { address: walletAddr } = useWalletConnectionState();
   const anchorWallet = useAnchorWalletCompat();
   const [step, setStep] = useState(0);
   const [showGate, setShowGate] = useState(false);
@@ -68,9 +65,6 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
 
   const TRIGGER_RAW = BigInt(FAUCET_TRIGGER_USDC) * BigInt(10 ** MUSDC_DECIMALS);
   const CAP_USDC    = FAUCET_CAP_USDC;
-
-  const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
-  const walletAddr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null) ?? null;
 
   useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
   useEffect(() => { setStep(0); setShowGate(false); setCurrentBalanceRaw(null); }, [walletAddr]);
@@ -126,7 +120,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       }
     };
 
-    // 800ms delay — gives wallet-adapter / Privy time to settle after connect
+    // Small delay so wallet state fully settles after connect
     const timer = setTimeout(() => { void check(); }, 800);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [walletAddr, connection]);
@@ -375,16 +369,7 @@ export default function TradingAppPage() {
   const { visibility: panelVisibility, update: updateVisibility } = useVisibility();
   const { locked: layoutLocked, toggle: toggleLayoutLock } = useLayoutLocked();
   const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
-  const anchorWallet = useAnchorWalletCompat();
-  const walletExecutionMode = useWalletExecutionMode();
-  const publicKey = anchorWallet?.publicKey ?? null;
-
-  const { relaySession, revokeRelaySession } = useArciumPrivacy();
-  const isRelaySessionActive =
-    !!relaySession &&
-    relaySession.owner === (publicKey?.toBase58() ?? "") &&
-    relaySession.usedActions < relaySession.maxActions &&
-    relaySession.expiresAt - Math.floor(Date.now() / 1000) > RELAY_SESSION_RENEW_BEFORE_SECONDS;
+  useAnchorWalletCompat();
 
   const handleMarginReady = useCallback((balance: number | null, openModal: () => void) => {
     setMarginBalance(balance);
@@ -438,11 +423,6 @@ export default function TradingAppPage() {
                 <NetworkIndicator mode="network" />
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                {walletExecutionMode === "external" && (
-                  <div className="basis-full sm:basis-auto">
-                    <SessionTimerChip />
-                  </div>
-                )}
                 <WalletPopup
                   marginBalance={marginBalance}
                   onOpenCollateral={openCollateralModal ?? undefined}
@@ -455,9 +435,6 @@ export default function TradingAppPage() {
                   onResetTradingSettings={resetTradingSettings}
                   layoutLocked={layoutLocked}
                   onToggleLayoutLock={toggleLayoutLock}
-                  relaySession={walletExecutionMode === "external" ? relaySession : null}
-                  isRelaySessionActive={walletExecutionMode === "external" ? isRelaySessionActive : false}
-                  revokeRelaySession={walletExecutionMode === "external" ? revokeRelaySession : undefined}
                 />
                 <ConnectWalletButton />
               </div>
@@ -618,11 +595,12 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { publicKey: adapterPublicKey, disconnect: adapterDisconnect } = useWallet();
-  const { setVisible: openWalletModal } = useWalletModal();
-  const { ready, authenticated, login, logout } = usePrivy();
+  const { ready, authenticated, login, logout, connectWallet } = usePrivy();
+  const { wallets } = useWallets();
   const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
   const { createWallet } = useCreateWallet();
+  const { address: connectedAddress } = useWalletConnectionState();
+  const walletExecutionMode = useWalletExecutionMode();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -664,7 +642,7 @@ function ConnectWalletButton() {
   // Safety net: auto-create embedded Solana wallet if Privy user has none yet.
   // createOnLogin should handle this, but covers edge cases where it fails.
   useEffect(() => {
-    if (!ready || !authenticated || adapterPublicKey) return;
+    if (!ready || !authenticated || connectedAddress) return;
     if (walletCreateAttempted.current) return;
     const hasEmbedded = solanaWallets.some((w) => w.walletClientType === "privy");
     if (hasEmbedded) return;
@@ -676,7 +654,7 @@ function ConnectWalletButton() {
       });
     }, 2000);
     return () => clearTimeout(timer);
-  }, [ready, authenticated, adapterPublicKey, solanaWallets, createWallet]);
+  }, [ready, authenticated, connectedAddress, solanaWallets, createWallet]);
 
   useEffect(() => {
     if (!open) return;
@@ -689,9 +667,8 @@ function ConnectWalletButton() {
 
   if (!ready) return null;
 
-  // Connected state: Privy authenticated OR external wallet via wallet-adapter
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
-  const addr = adapterPublicKey?.toBase58() ?? (authenticated ? embeddedAddr : null);
+  const addr = connectedAddress ?? (authenticated ? embeddedAddr ?? null : null);
   const isConnected = !!addr;
 
   if (isConnected) {
@@ -708,9 +685,8 @@ function ConnectWalletButton() {
 
     const handleDisconnect = () => {
       setOpen(false);
-      // Disconnect wallet-adapter if external wallet
-      if (adapterPublicKey) adapterDisconnect().catch(() => {});
-      // Always logout Privy session
+      const activeWallet = wallets.find((wallet) => wallet.address === addr);
+      activeWallet?.disconnect?.();
       if (authenticated) logout();
     };
 
@@ -770,7 +746,7 @@ function ConnectWalletButton() {
                 Open in Explorer
               </a>
               {/* Export key — only for embedded wallet users (email/social login) */}
-              {embeddedAddr && !adapterPublicKey && (
+              {embeddedAddr && walletExecutionMode === "embedded" && (
                 <button
                   type="button"
                   onClick={() => {
@@ -804,7 +780,6 @@ function ConnectWalletButton() {
     );
   }
 
-  // Not connected — one button opens a picker with both options
   return (
     <div className="relative" ref={ref}>
       <button
@@ -820,7 +795,6 @@ function ConnectWalletButton() {
           <div className="px-4 pt-3 pb-2">
             <p className="text-[10px] uppercase tracking-widest text-gray-500">Connect to Shadow</p>
           </div>
-          {/* Email / Social via Privy */}
           <button
             type="button"
             onClick={handlePrivyLogin}
@@ -837,10 +811,12 @@ function ConnectWalletButton() {
               <p className="text-[10px] text-gray-500">Google, Twitter or email</p>
             </div>
           </button>
-          {/* External wallet via wallet-adapter */}
           <button
             type="button"
-            onClick={() => { setOpen(false); openWalletModal(true); }}
+            onClick={() => {
+              setOpen(false);
+              connectWallet();
+            }}
             className="flex w-full items-center gap-3 px-4 py-3 text-[12px] font-medium text-gray-200 hover:bg-shadow-800/80 hover:text-white transition-colors border-t border-shadow-700/40"
           >
             <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-shadow-700/60 border border-shadow-600/60">
@@ -852,7 +828,7 @@ function ConnectWalletButton() {
             </span>
             <div className="text-left">
               <p className="font-semibold text-[12px]">Phantom / Solflare</p>
-              <p className="text-[10px] text-gray-500">Connect existing wallet</p>
+              <p className="text-[10px] text-gray-500">Connect through Privy</p>
             </div>
           </button>
           <div className="px-4 py-2 border-t border-shadow-700/40">
@@ -930,251 +906,6 @@ function ProtocolStatusDot() {
       </span>
       {latencyMs !== null && (
         <span className="text-[9px] text-gray-500 tabular-nums">{latencyMs}ms</span>
-      )}
-    </div>
-  );
-}
-
-const SESSION_DURATION_OPTIONS = [
-  { label: "12h", seconds: 12 * 60 * 60 },
-  { label: "24h", seconds: 24 * 60 * 60 },
-  { label: "48h", seconds: 48 * 60 * 60 },
-] as const;
-
-function SessionTimerChip() {
-  const anchorWallet = useAnchorWalletCompat();
-  const walletExecutionMode = useWalletExecutionMode();
-  const publicKey = anchorWallet?.publicKey ?? null;
-  const { relaySession, relayAvailable, ensureRelaySession } = useArciumPrivacy();
-  const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
-  const [isTimerHovered, setIsTimerHovered] = useState(false);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [durationMenuOpen, setDurationMenuOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const id = setInterval(() => setNowTs(Math.floor(Date.now() / 1000)), 1_000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setDurationMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const handleStartSession = useCallback(async (durationSeconds: number) => {
-    if (isCreatingSession) return;
-    setIsCreatingSession(true);
-    setDurationMenuOpen(false);
-    try {
-      const session = await ensureRelaySession({ reason: "trade", userInitiated: true, durationSeconds });
-      if (!session) throw new Error("Session creation failed.");
-      toast.success("Delegated session active.");
-    } catch (error: any) {
-      const message =
-        typeof error?.message === "string" && error.message.trim().length > 0
-          ? error.message
-          : "Failed to start delegated session.";
-      toast.error(message);
-    } finally {
-      setIsCreatingSession(false);
-    }
-  }, [ensureRelaySession, isCreatingSession]);
-
-  if (!publicKey || walletExecutionMode !== "external") return null;
-
-  const isActive =
-    !!relaySession &&
-    relaySession.owner === publicKey.toBase58() &&
-    relaySession.expiresAt - nowTs > RELAY_SESSION_RENEW_BEFORE_SECONDS &&
-    relaySession.usedActions < relaySession.maxActions;
-
-  const totalSecs = isActive && relaySession ? Math.max(0, relaySession.expiresAt - nowTs) : 0;
-  const hh = Math.floor(totalSecs / 3600);
-  const mm = Math.floor((totalSecs % 3600) / 60);
-  const ss = totalSecs % 60;
-
-  if (isActive) {
-    return (
-      <>
-        <div className="flex w-full items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 sm:hidden">
-          <span
-            className="shrink-0 rounded-full bg-emerald-400"
-            style={{ width: 8, height: 8, animation: "pulse-dot 2s ease-in-out infinite" }}
-          />
-          <span className="uppercase tracking-[0.12em] text-emerald-200/80">Session Active</span>
-          <span className="ml-auto tabular-nums text-emerald-200">
-            {hh > 0 && `${hh}h `}{String(mm).padStart(2, "0")}m {String(ss).padStart(2, "0")}s
-          </span>
-        </div>
-        <div
-          className="hidden sm:flex items-center justify-center overflow-hidden whitespace-nowrap cursor-default shrink-0"
-          style={{
-            height: 32,
-            width: isTimerHovered ? "auto" : 32,
-            minWidth: 32,
-            borderRadius: isTimerHovered ? 20 : 9999,
-            background: isTimerHovered ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.12)",
-            border: `1px solid ${isTimerHovered ? "rgba(16,185,129,0.5)" : "rgba(16,185,129,0.3)"}`,
-            padding: isTimerHovered ? "0 12px 0 10px" : 0,
-            transition: "border-radius 0.35s cubic-bezier(.4,0,.2,1), padding 0.35s cubic-bezier(.4,0,.2,1), background 0.35s, border-color 0.35s",
-          }}
-          onMouseEnter={() => setIsTimerHovered(true)}
-          onMouseLeave={() => setIsTimerHovered(false)}
-        >
-          <span
-            className="shrink-0 rounded-full bg-emerald-400"
-            style={{ width: 8, height: 8, animation: "pulse-dot 2s ease-in-out infinite" }}
-          />
-          <span
-            className="overflow-hidden text-[12px] font-semibold text-emerald-300 tracking-[0.04em] leading-none"
-            style={{
-              maxWidth: isTimerHovered ? 120 : 0,
-              marginLeft: isTimerHovered ? 7 : 0,
-              opacity: isTimerHovered ? 1 : 0,
-              transition: "max-width 0.35s cubic-bezier(.4,0,.2,1), opacity 0.25s ease, margin-left 0.35s ease",
-            }}
-          >
-            {hh > 0 && <><span>{hh}</span><span style={{ color: "rgba(52,211,153,0.5)", fontSize: 11 }}>h </span></>}
-            <span>{String(mm).padStart(2, "0")}</span>
-            <span style={{ color: "rgba(52,211,153,0.5)", fontSize: 11 }}>m </span>
-            <span>{String(ss).padStart(2, "0")}</span>
-            <span style={{ color: "rgba(52,211,153,0.5)", fontSize: 11 }}>s</span>
-          </span>
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <div
-        className={`hidden sm:inline-flex items-center gap-1.5 border px-3 py-1.5 text-[11px] font-medium ${
-          relayAvailable
-            ? "border-shadow-500/50 bg-shadow-800/80 text-gray-400 hover:text-gray-200 hover:border-shadow-400/60 hover:bg-shadow-700/80"
-            : "border-yellow-500/35 bg-yellow-500/10 text-yellow-300"
-        } transition-all`}
-      >
-        <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />
-          <circle
-            cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-            strokeDasharray="37.7" strokeDashoffset="37.7" transform="rotate(-90 8 8)"
-          >
-            <animate attributeName="stroke-dashoffset" from="37.7" to="0" dur="3s" repeatCount="indefinite" />
-          </circle>
-        </svg>
-        {relayAvailable ? (
-          <button
-            type="button"
-            onClick={() => setDurationMenuOpen((o) => !o)}
-            disabled={isCreatingSession}
-            className="underline-offset-2 hover:underline disabled:opacity-60"
-          >
-            {isCreatingSession ? "Starting session..." : "Start session"}
-          </button>
-        ) : (
-          <span>Relay unavailable</span>
-        )}
-      </div>
-
-      <div
-        className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm sm:hidden ${
-          relayAvailable
-            ? "border-cyan-400/35 bg-cyan-500/10 text-cyan-200"
-            : "border-yellow-500/35 bg-yellow-500/10 text-yellow-300"
-        }`}
-      >
-        <div className="flex items-center gap-2">
-          <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />
-            <circle
-              cx="8"
-              cy="8"
-              r="6"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeDasharray="37.7"
-              strokeDashoffset="37.7"
-              transform="rotate(-90 8 8)"
-            >
-              <animate attributeName="stroke-dashoffset" from="37.7" to="0" dur="3s" repeatCount="indefinite" />
-            </circle>
-          </svg>
-          <span className="font-medium">{relayAvailable ? "Delegated session" : "Relay unavailable"}</span>
-        </div>
-        {relayAvailable && (
-          <button
-            type="button"
-            onClick={() => setDurationMenuOpen((o) => !o)}
-            disabled={isCreatingSession}
-            className="rounded-md border border-cyan-300/20 bg-black/10 px-3 py-1 text-xs font-semibold text-cyan-100 disabled:opacity-60"
-          >
-            {isCreatingSession ? "Starting..." : "Start"}
-          </button>
-        )}
-      </div>
-
-      {durationMenuOpen && relayAvailable && (
-        <>
-          <div className="absolute left-0 right-0 top-full mt-1.5 hidden rounded-lg border border-shadow-600 bg-shadow-800 shadow-xl z-[300] py-1.5 sm:left-auto sm:right-0 sm:block sm:w-36">
-            <p className="px-3 pb-1 text-[9px] uppercase tracking-widest text-gray-500">Session Duration</p>
-            {SESSION_DURATION_OPTIONS.map((opt) => (
-              <button
-                key={opt.label}
-                type="button"
-                onClick={() => handleStartSession(opt.seconds)}
-                disabled={isCreatingSession}
-                className="w-full text-left px-3 py-1.5 text-[11px] font-semibold text-gray-300 hover:text-white hover:bg-shadow-700/60 transition-colors disabled:opacity-40"
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          {mounted && createPortal(
-            <div
-              className="fixed inset-0 z-[450] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:hidden"
-              onClick={() => setDurationMenuOpen(false)}
-            >
-              <div
-                className="w-full max-w-xs overflow-hidden rounded-2xl border border-shadow-500 bg-shadow-900 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="border-b border-shadow-600 px-4 py-3">
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-gray-500">Session Duration</p>
-                  <p className="mt-1 text-sm font-semibold text-white">Choose how long delegated trading should stay active.</p>
-                </div>
-                <div className="p-2">
-                  {SESSION_DURATION_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.label}
-                      type="button"
-                      onClick={() => handleStartSession(opt.seconds)}
-                      disabled={isCreatingSession}
-                      className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-gray-200 transition-colors hover:bg-shadow-800 disabled:opacity-40"
-                    >
-                      <span>{opt.label}</span>
-                      <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-gray-500">Session</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>,
-            document.body
-          )}
-        </>
       )}
     </div>
   );

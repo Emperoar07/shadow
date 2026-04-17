@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { useWalletConnectionState } from "../lib/use-anchor-wallet";
 import { WALLET_DISPLAY_TOKENS } from "../lib/tokens";
 
 interface TokenBalance {
@@ -12,7 +13,7 @@ interface TokenBalance {
 
 export default function NetworkIndicator({ mode = "all" }: { mode?: "all" | "network" | "wallet" }) {
   const { connection } = useConnection();
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected } = useWalletConnectionState();
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [networkStatus, setNetworkStatus] = useState<"connected" | "checking" | "error">("checking");

@@ -7,7 +7,7 @@ const NAV = [
     items: [
       { id: "overview", label: "Overview" },
       { id: "how-it-works", label: "How It Works" },
-      { id: "session-trading", label: "Session Trading" },
+      { id: "wallet-connection", label: "Wallet Connection" },
       { id: "privacy", label: "Privacy Model" },
       { id: "margin", label: "Margin and Leverage" },
       { id: "orders", label: "Order Types" },
@@ -51,7 +51,7 @@ export default function DocsPage() {
         <title>Documentation | ShadowPerp</title>
         <meta
           name="description"
-          content="ShadowPerp documentation for private perpetual trading on Solana, covering privacy, session trading, margin, leverage, order flow, and Arcium MPC on devnet."
+          content="ShadowPerp documentation for private perpetual trading on Solana, covering wallet connection, privacy, margin, leverage, order flow, and Arcium MPC on devnet."
         />
       </Head>
 
@@ -306,8 +306,8 @@ export default function DocsPage() {
           <div className="docs-header">
             <h1>ShadowPerp Documentation</h1>
             <p>
-              ShadowPerp is a private perpetual trading app on Solana. It brings together encrypted positions,
-              delegated session trading, and Arcium Multi Party Computation so your order details stay off the
+              ShadowPerp is a private perpetual trading app on Solana. It combines encrypted positions,
+              direct wallet signing, and Arcium Multi Party Computation so your order details stay off the
               public ledger by default.
             </p>
           </div>
@@ -324,16 +324,16 @@ export default function DocsPage() {
             </p>
             <p>
               ShadowPerp supports <strong>6 trading pairs</strong>: SOL/USD, BTC/USD, ETH/USD, JUP/USD, PYTH/USD, and ORCA/USD.
-              Each pair routes to its own on chain market account. Delegated sessions and shared collateral keep execution
-              reusable across supported markets. Your selected pair persists across page refreshes.
+              Each pair routes to its own on chain market account. Shared collateral keeps account usage reusable
+              across supported markets, and your selected pair persists across page refreshes.
             </p>
             <Note>
               ShadowPerp is currently deployed on <strong>Solana Devnet</strong> at program ID <Code>ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4</Code>. All balances are test funds.
             </Note>
             <Note>
-              Current live status: delegated sessions, delegated collateral actions, shared collateral migration flows,
-              shielded collateral base flows, and the hardened relay and runtime stack are all working on devnet. The
-              remaining blocker is the Arcium backed open position lane, which is still being resolved on the current namespace.
+              Current live status: direct wallet trading, direct collateral actions, shared collateral migration flows,
+              shielded collateral base flows, and the hardened runtime stack are all working on devnet. The remaining
+              blocker is the Arcium-backed open-position lane, which is still being resolved on the current namespace.
             </Note>
           </Section>
 
@@ -360,8 +360,8 @@ export default function DocsPage() {
               </li>
             </ol>
             <p>
-              Once your session is active, the relay submits trades on your behalf. You sign once for the session
-              instead of approving a wallet popup for every action.
+              Shadow signs directly with your connected Solana wallet. That includes Privy embedded wallets for
+              email and social users, and external Solana wallets connected through Privy.
             </p>
             <Note>
               ShadowPerp keeps longer callback wait windows and surfaces on chain callback failures more directly.
@@ -370,63 +370,46 @@ export default function DocsPage() {
             </Note>
           </Section>
 
-          <Section id="session-trading" title="Session Trading">
+          <Section id="wallet-connection" title="Wallet Connection">
             <p>
-              ShadowPerp uses a <strong>delegated session</strong> model to keep the trading experience smooth. Here is what
-              happens when you start a session:
+              ShadowPerp now uses a <strong>direct wallet</strong> model. Every trade and collateral action is signed by
+              the connected Solana wallet that is active in the app.
             </p>
             <ol>
               <li>
-                You sign a <strong>CreateTradeSession</strong> transaction. This creates a wallet scoped session account
-                tied to your wallet and the relay. It is reusable across supported markets.
+                You can log in with email or social through Privy, which creates an embedded Solana wallet for you.
               </li>
               <li>
-                You sign a short <strong>authorization message</strong>. This is not a transaction. It simply proves
-                that the relay can act for you during the session window.
+                You can also connect an external Solana wallet such as Phantom or Solflare through Privy.
               </li>
               <li>
-                For the rest of that session, the relay can submit trades and delegated collateral actions without
-                opening a wallet popup each time.
+                Trading and collateral actions are signed directly from that wallet instead of being routed through a
+                separate session layer.
               </li>
             </ol>
-            <h3>Session Limits</h3>
+            <h3>What this means in practice</h3>
             <table className="docs-table">
               <thead>
                 <tr>
-                  <th>Parameter</th>
-                  <th>Default</th>
+                  <th>Wallet Type</th>
+                  <th>Trading Path</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td>Session duration</td>
-                  <td>5 hours by default, up to 48 hours</td>
+                  <td>Privy embedded wallet</td>
+                  <td>Direct signing in the app</td>
                 </tr>
                 <tr>
-                  <td>Max actions</td>
-                  <td>200 trades</td>
-                </tr>
-                <tr>
-                  <td>Max margin per action</td>
-                  <td>100,000 mUSDC</td>
-                </tr>
-                <tr>
-                  <td>Revocable</td>
-                  <td>Yes, at any time on chain</td>
+                  <td>External Solana wallet</td>
+                  <td>Direct signing through Privy wallet connectors</td>
                 </tr>
               </tbody>
             </table>
             <Note>
-              The session authorization signature is tied to a specific session ID, scope, and expiry. With the
-              wallet scoped session model, the same session can be reused across supported markets until it expires or
-              is revoked.
+              The product goal is simple: one wallet source of truth, one signing model, and fewer hidden branches in
+              the user flow. That keeps the app easier to reason about for both traders and maintainers.
             </Note>
-            <h3>Revoking a Session</h3>
-            <p>
-              You can revoke your active session at any time from the Settings panel. Open Settings, go to the Trading
-              tab, and click Revoke Session. This submits a transaction that invalidates the session on chain immediately.
-              The relay rejects all further requests from that session the moment the transaction confirms.
-            </p>
           </Section>
 
           <Section id="privacy" title="Privacy Model">
@@ -449,10 +432,9 @@ export default function DocsPage() {
             </ul>
             <h3>What is public</h3>
             <ul>
-              <li>Your wallet address, used for the margin account and session</li>
+              <li>Your wallet address, used for the margin account and wallet connection</li>
               <li>Token transfers to and from the vault (a Solana constraint)</li>
               <li>The fact that a trade was queued, but none of the details</li>
-              <li>Session creation and revocation</li>
             </ul>
             <h3>What is becoming private through shielded collateral</h3>
             <ul>
@@ -539,7 +521,7 @@ export default function DocsPage() {
             <h3>Limit Order</h3>
             <p>
               A limit order is queued in the browser and triggered when the market price crosses your chosen level.
-              When that happens, the relay submits the order automatically.
+              When that happens, the app submits the order from your connected wallet.
             </p>
             <Note>
               Limit orders run in the browser right now, which means the tab needs to stay open for them to fire.
@@ -640,8 +622,8 @@ export default function DocsPage() {
           <Section id="faq" title="FAQ">
             <h3>Do I need to keep the browser open?</h3>
             <p>
-              For market orders, the relay and callback path continue after submission, so you do not need to keep the
-              tab open just to keep the request alive. For limit orders, take profit, and stop loss automation, yes.
+              For market orders, the callback path continues after submission, so you do not need to keep the tab open
+              just to keep the request alive. For limit orders, take profit, and stop loss automation, yes.
               Those flows still run in the browser and need the tab to stay open.
             </p>
 
@@ -662,17 +644,17 @@ export default function DocsPage() {
               settlement completes or move to a terminal state if the callback aborts on chain.
             </p>
             <Note>
-              Current devnet status: wallet scoped delegated sessions and delegated collateral actions are working across
-              supported markets. The open position callback path is still being debugged on the current namespace.
+              Current devnet status: direct wallet trading and direct collateral actions are working across supported
+              markets. The open-position callback path is still being debugged on the current namespace.
             </Note>
 
             <h3>Is my data stored anywhere?</h3>
             <p>
-              Trading preferences, session info, automation rules, cached activity, layout preferences, and RPC settings
+              Trading preferences, automation rules, cached activity, layout preferences, and RPC settings
               are stored in your browser's <Code>localStorage</Code>. On chain position state is always read directly from
               Solana, but the app keeps a few local convenience snapshots so the interface can restore faster.
-              Server-backed features like the relay and history routes may receive your public wallet address and
-              encrypted trade inputs when needed to fulfill a request.
+              Server-backed features like history routes and market data helpers may receive your public wallet address
+              when needed to fulfill a request.
             </p>
 
             <h3>Can I use ShadowPerp on mainnet?</h3>
@@ -688,21 +670,20 @@ export default function DocsPage() {
               <h3>Information We Collect</h3>
               <p>
                 ShadowPerp does not require account registration and does not collect personally identifiable information.
-                When you connect a wallet, your public key is used only to identify your on chain margin account and
-                trading session. Some server-backed features including relay requests and wallet history lookups may
-                receive your public wallet address in order to fulfill the request, but the product does not create a
-                user profile or account around that data.
+                When you connect a wallet, your public key is used only to identify your on-chain margin account and
+                trading state. Some server-backed features including wallet history lookups may receive your public
+                wallet address in order to fulfill the request, but the product does not create a user profile or
+                account around that data.
               </p>
               <p>
-                The relay server receives encrypted trade inputs and your session authorization signature. These are
-                used only to submit transactions on your behalf. ShadowPerp is not designed to retain plaintext trade
-                inputs as application records, but normal operational logs and hosting telemetry may still capture
-                request metadata during debugging or incident handling.
+                ShadowPerp is not designed to retain plaintext trade inputs as application records, but normal
+                operational logs and hosting telemetry may still capture request metadata during debugging or incident
+                handling.
               </p>
               <h3>Cookies and Local Storage</h3>
               <p>
-                ShadowPerp stores session information, automation rules, theme and layout preferences, RPC preferences,
-                activity cache entries, and some UI convenience metadata in your browser's <Code>localStorage</Code>.
+                ShadowPerp stores automation rules, theme and layout preferences, RPC preferences, activity cache
+                entries, and some UI convenience metadata in your browser's <Code>localStorage</Code>.
                 This data stays on your device unless a specific server-backed feature needs your public wallet address
                 or encrypted payload to complete the request. No third party tracking cookies are used.
               </p>
@@ -778,11 +759,6 @@ export default function DocsPage() {
                     <td><Code>shadow-theme</Code></td>
                     <td>Light or dark mode preference</td>
                     <td>Persistent</td>
-                  </tr>
-                  <tr>
-                    <td><Code>shadowperp.relay.session.v1:*</Code></td>
-                    <td>Active trading session info per wallet and scope. Wallet scoped sessions use the same namespace with an all markets key.</td>
-                    <td>Session expiry</td>
                   </tr>
                   <tr>
                     <td><Code>shadowperp:ui:margin-mode:v1:*</Code></td>

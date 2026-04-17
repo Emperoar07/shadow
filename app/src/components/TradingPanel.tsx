@@ -10,10 +10,7 @@ import TradeConfirmationModal, { TradeStep } from "./TradeConfirmationModal";
 import OrderConfirmModal from "./OrderConfirmModal";
 import CollateralModal from "./CollateralModal";
 import LeverageModal from "./LeverageModal";
-import {
-  RELAY_SESSION_RENEW_BEFORE_SECONDS,
-  useArciumPrivacy,
-} from "../hooks/useArcium";
+import { useArciumPrivacy } from "../hooks/useArcium";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
@@ -168,19 +165,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     submitPrivateOrder,
     setError: setPrivacyError,
     resetStatus: resetPrivacyStatus,
-    relayAvailable,
-    relaySession,
-    refreshRelaySession,
-    ensureRelaySession,
-    invalidateRelaySession,
   } = useArciumPrivacy({ pairLabel: activePair.label });
-
-  const isRelaySessionActive =
-    !!relaySession &&
-    relaySession.owner === publicKey?.toBase58() &&
-    relaySession.usedActions < relaySession.maxActions &&
-    relaySession.expiresAt - Math.floor(Date.now() / 1000) >
-      RELAY_SESSION_RENEW_BEFORE_SECONDS;
 
   const parsedLimitPrice = parseOptionalPositive(limitPrice);
   const entryPrice = orderType === "limit" ? parsedLimitPrice ?? marketPrice : marketPrice;
@@ -390,18 +375,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     const interval = setInterval(() => void refreshMarketData(), 30_000);
     return () => clearInterval(interval);
   }, [refreshMarketData]);
-
-  useEffect(() => {
-    if (!publicKey) return;
-    void refreshRelaySession();
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
-        return;
-      }
-      void refreshRelaySession();
-    }, 45_000);
-    return () => clearInterval(interval);
-  }, [publicKey, refreshRelaySession]);
 
   const submitEncryptedOrder = useCallback(
     async (input: {
@@ -713,7 +686,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   const runLimitExecutor = useCallback(async () => {
     if (TRADING_DISABLED) return;
     if (!publicKey || !anchorWallet) return;
-    if (!isRelaySessionActive) return;
     if (limitExecutorRunningRef.current) return;
     limitExecutorRunningRef.current = true;
 
@@ -769,7 +741,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     } finally {
       limitExecutorRunningRef.current = false;
     }
-  }, [activePair.label, anchorWallet, isRelaySessionActive, marketPrice, publicKey, refreshMarketData, submitEncryptedOrder]);
+  }, [activePair.label, anchorWallet, marketPrice, publicKey, refreshMarketData, submitEncryptedOrder]);
 
   useEffect(() => {
     const id = setInterval(() => void runLimitExecutor(), 4_000);
@@ -1059,8 +1031,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
                 </svg>
                 Submitting order...
               </span>
-            ) : !isRelaySessionActive ? (
-              `Approve Session & ${tradeIntentLabel}`
             ) : orderType === "limit" ? (
               `Place ${direction.charAt(0).toUpperCase() + direction.slice(1)} limit`
             ) : (
@@ -1131,12 +1101,6 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
         marginBalance={marginBalance}
         onClose={() => setCollateralModalOpen(false)}
         onSuccess={() => void refreshMarketData()}
-        relayAvailable={relayAvailable}
-        relaySession={relaySession}
-        isRelaySessionActive={isRelaySessionActive}
-        ensureRelaySession={ensureRelaySession}
-        invalidateRelaySession={invalidateRelaySession}
-        refreshRelaySession={refreshRelaySession}
         pairLabel={activePair.label}
       />
 

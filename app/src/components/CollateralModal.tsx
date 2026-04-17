@@ -7,17 +7,9 @@ import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { classifyArciumError } from "../lib/arcium-errors";
-import { isSessionInvalidError } from "../lib/session-errors";
 import { FAUCET_TRIGGER_USDC } from "../lib/faucet-constants";
-import { relayUrl } from "../lib/feature-flags";
-import type {
-  EnsureRelaySessionOptions,
-  SessionRelayInfo,
-} from "../hooks/useArcium";
 
 type Tab = "deposit" | "withdraw";
-const SESSION_DEPOSIT_ENABLED = process.env.NEXT_PUBLIC_SESSION_DEPOSIT_ENABLED === "1";
-
 interface CollateralModalProps {
   isOpen: boolean;
   marginBalance: number | null;
@@ -25,14 +17,6 @@ interface CollateralModalProps {
   lockedCollateral?: number | null;
   onClose: () => void;
   onSuccess: () => void;
-  relayAvailable: boolean;
-  relaySession: SessionRelayInfo | null;
-  isRelaySessionActive: boolean;
-  ensureRelaySession: (
-    options?: EnsureRelaySessionOptions
-  ) => Promise<SessionRelayInfo | null>;
-  invalidateRelaySession: (owner?: string, market?: string) => void;
-  refreshRelaySession: () => Promise<SessionRelayInfo | null>;
   pairLabel?: string;
 }
 
@@ -43,12 +27,6 @@ export default function CollateralModal({
   lockedCollateral,
   onClose,
   onSuccess,
-  relayAvailable,
-  relaySession,
-  isRelaySessionActive,
-  ensureRelaySession,
-  invalidateRelaySession,
-  refreshRelaySession,
   pairLabel = "SOL-USD",
 }: CollateralModalProps) {
   const anchorWallet = useAnchorWalletCompat();
@@ -140,82 +118,6 @@ export default function CollateralModal({
     return `${action === "deposit" ? "Deposits" : "Withdrawals"} unavailable. Check app/.env.local and restart Next.js.`;
   }, []);
 
-  const isSessionAuthError = useCallback((rawMessage: string) => {
-    return isSessionInvalidError(rawMessage);
-  }, []);
-
-  const submitDelegatedCollateral = useCallback(
-    async (
-      endpoint: "deposit" | "withdraw",
-      amountBN: BN,
-      loadingMessage: string
-    ): Promise<string> => {
-      if (!publicKey) throw new Error("Connect your wallet");
-      const owner = publicKey.toBase58();
-
-      const submitWithSession = async (session: SessionRelayInfo): Promise<string> => {
-        const authExpiresAt = session.authExpiresAt ?? session.expiresAt;
-        toast.loading(loadingMessage, { id: "collateral" });
-        const response = await fetch(relayUrl(`/api/relay/${endpoint}`), {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            owner: session.owner,
-            sessionId: session.sessionId,
-            amountRaw: amountBN.toString(),
-            pairLabel,
-            auth: {
-              action: endpoint,
-              expiresAt: authExpiresAt,
-              signature: session.authSignature,
-            },
-          }),
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok || !payload?.ok || !payload?.txSignature) {
-          throw new Error(
-            payload?.error ||
-              `Delegated ${endpoint} failed (${response.status}).`
-          );
-        }
-        return payload.txSignature as string;
-      };
-
-      let session = await ensureRelaySession({
-        reason: endpoint,
-        userInitiated: true,
-      });
-      if (!session || session.owner !== owner) {
-        throw new Error("Delegated session required. Please sign a new session.");
-      }
-
-      try {
-        return await submitWithSession(session);
-      } catch (error: any) {
-        const message =
-          typeof error?.message === "string" ? error.message : "Delegated session failure";
-        if (!isSessionAuthError(message)) {
-          throw error;
-        }
-        invalidateRelaySession(session.owner, session.market);
-        session = await ensureRelaySession({
-          reason: endpoint,
-          userInitiated: true,
-        });
-        if (!session || session.owner !== owner) {
-          throw new Error("Delegated session required. Please sign a new session.");
-        }
-        return submitWithSession(session);
-      }
-    },
-    [
-      ensureRelaySession,
-      invalidateRelaySession,
-      isSessionAuthError,
-      publicKey,
-    ]
-  );
-
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
@@ -246,54 +148,6 @@ export default function CollateralModal({
     setIsBusy(true);
     try {
       const amountBN = new BN(Math.round(amt * 1_000_000));
-      let delegatedDepositComplete = false;
-
-      if (SESSION_DEPOSIT_ENABLED && relayAvailable) {
-        try {
-          const tx = await submitDelegatedCollateral(
-            "deposit",
-            amountBN,
-            "Depositing via delegated session..."
-          );
-          await refreshRelaySession();
-          toast.success(
-            <div>
-              <p className="font-medium">Deposited ${amt.toFixed(2)} mUSDC</p>
-              <a
-                href={getExplorerTxUrl(tx)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-accent-purple underline"
-              >
-                View transaction
-              </a>
-            </div>,
-            { id: "collateral", duration: 8000 }
-          );
-          setAmount("");
-          onSuccess();
-          delegatedDepositComplete = true;
-        } catch (sessionDepositError: any) {
-          const delegatedMsg =
-            typeof sessionDepositError?.message === "string"
-              ? sessionDepositError.message
-              : "Delegated deposit failed";
-          const unsupportedDelegatedPath =
-            delegatedMsg.includes("depositCollateralWithSession is unavailable") ||
-            delegatedMsg.includes("InstructionFallbackNotFound") ||
-            delegatedMsg.includes("Method not found");
-          if (!unsupportedDelegatedPath) {
-            throw sessionDepositError;
-          }
-          toast(
-            "Delegated deposit not active on current deployment, using wallet deposit.",
-            { id: "collateral" }
-          );
-        }
-      }
-
-      if (delegatedDepositComplete) return;
-
       if (!anchorWallet || !publicKey) { throw new Error("Connect your wallet"); }
       const { client } = createShadowPerpClient(connection, anchorWallet);
       const marketAddress = getSelectedMarketAddress();
@@ -331,16 +185,10 @@ export default function CollateralModal({
     amount,
     anchorWallet,
     connection,
-    ensureRelaySession,
     getSelectedMarketAddress,
     getRuntimeErrorMessage,
-    isRelaySessionActive,
     onSuccess,
     publicKey,
-    refreshRelaySession,
-    relayAvailable,
-    relaySession,
-    submitDelegatedCollateral,
   ]);
 
   const handleWithdraw = useCallback(async () => {
@@ -354,54 +202,6 @@ export default function CollateralModal({
     setIsBusy(true);
     try {
       const amountBN = new BN(Math.round(amt * 1_000_000));
-      let delegatedWithdrawComplete = false;
-
-      if (relayAvailable) {
-        try {
-          const tx = await submitDelegatedCollateral(
-            "withdraw",
-            amountBN,
-            "Withdrawing via delegated session..."
-          );
-          await refreshRelaySession();
-          toast.success(
-            <div>
-              <p className="font-medium">Withdrew ${amt.toFixed(2)} mUSDC</p>
-              <a
-                href={getExplorerTxUrl(tx)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-accent-purple underline"
-              >
-                View transaction
-              </a>
-            </div>,
-            { id: "collateral", duration: 8000 }
-          );
-          setAmount("");
-          onSuccess();
-          delegatedWithdrawComplete = true;
-        } catch (sessionWithdrawError: any) {
-          const delegatedMsg =
-            typeof sessionWithdrawError?.message === "string"
-              ? sessionWithdrawError.message
-              : "Delegated withdraw failed";
-          const unsupportedDelegatedPath =
-            delegatedMsg.includes("withdrawCollateralWithSession is unavailable") ||
-            delegatedMsg.includes("InstructionFallbackNotFound") ||
-            delegatedMsg.includes("Method not found");
-          if (!unsupportedDelegatedPath) {
-            throw sessionWithdrawError;
-          }
-          toast(
-            "Delegated withdraw not active on current deployment, using wallet withdraw.",
-            { id: "collateral" }
-          );
-        }
-      }
-
-      if (delegatedWithdrawComplete) return;
-
       if (!anchorWallet || !publicKey) {
         throw new Error("Connect your wallet");
       }
@@ -446,9 +246,6 @@ export default function CollateralModal({
     availableCollateral,
     onSuccess,
     publicKey,
-    refreshRelaySession,
-    relayAvailable,
-    submitDelegatedCollateral,
   ]);
 
   if (!isOpen || !mounted) return null;
@@ -468,9 +265,7 @@ export default function CollateralModal({
     ? ["25%", "50%", "75%", "100%"]
     : QUICK_AMOUNTS.map((v) => `$${v}`);
   const actionHelperText =
-    relayAvailable
-      ? "Shadow will use your trading session when it can. If not, it will fall back to a normal wallet transaction."
-      : "This action will open a normal wallet transaction on Solana devnet.";
+    "This action uses your connected Solana wallet directly on devnet.";
   const actionLabel = tab === "deposit" ? "Deposit to trading account" : "Withdraw to wallet";
   const actionButtonLabel = isBusy
     ? tab === "deposit"

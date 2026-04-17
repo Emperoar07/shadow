@@ -1,9 +1,6 @@
 import { useMemo } from "react";
-import {
-  useWallet,
-  type WalletContextState,
-} from "@solana/wallet-adapter-react";
-import { usePrivy } from "@privy-io/react-auth";
+import { type WalletContextState } from "@solana/wallet-adapter-react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import type { Transaction } from "@solana/web3.js";
@@ -19,78 +16,113 @@ export type AnchorCompatibleWallet = {
 
 type SignAllTransactions = NonNullable<WalletContextState["signAllTransactions"]>;
 
-export function useWalletExecutionMode(): WalletExecutionMode {
-  const { publicKey } = useWallet();
-  const { authenticated } = usePrivy();
-  const { wallets: solanaWallets } = useSolanaWallets();
+type ConnectedSolanaWalletLike = {
+  type: string;
+  address: string;
+  walletClientType: string;
+  signTransaction?: WalletContextState["signTransaction"];
+  signMessage?: WalletContextState["signMessage"];
+};
 
-  return useMemo(() => {
-    if (publicKey) return "external";
-    if (authenticated && solanaWallets.some((wallet) => wallet.walletClientType === "privy")) {
-      return "embedded";
-    }
-    return "none";
-  }, [publicKey, authenticated, solanaWallets]);
+function isConnectedSolanaWalletLike(value: unknown): value is ConnectedSolanaWalletLike {
+  if (!value || typeof value !== "object") return false;
+  const wallet = value as Record<string, unknown>;
+  return (
+    wallet.type === "solana" &&
+    typeof wallet.address === "string"
+  );
 }
 
-export function useAnchorWalletCompat(): AnchorCompatibleWallet | null {
-  const { publicKey, signTransaction, signAllTransactions, signMessage } = useWallet();
-  const { authenticated } = usePrivy();
-  const { wallets: solanaWallets } = useSolanaWallets();
+export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
+  const { wallets } = useWallets();
+  const { wallets: embeddedWallets } = useSolanaWallets();
 
   return useMemo(() => {
-    // Prefer wallet-adapter (Phantom, Solflare, etc.) if connected
-    if (publicKey && signTransaction) {
-      const safeSignAll =
-        signAllTransactions ??
-        (async (txs: Transaction[]) => {
-          const out: Transaction[] = [];
-          for (const tx of txs) {
-            out.push(await signTransaction(tx));
-          }
-          return out;
-        });
+    const connected = wallets.filter(isConnectedSolanaWalletLike);
+    const externalWallet = connected.find((wallet) => wallet.walletClientType !== "privy");
+    if (externalWallet) return externalWallet;
 
-      return {
-        publicKey,
-        signTransaction,
-        signAllTransactions: safeSignAll as SignAllTransactions,
-        signMessage,
-      };
-    }
+    const embeddedWallet = connected.find((wallet) => wallet.walletClientType === "privy");
+    if (embeddedWallet) return embeddedWallet;
 
-    // Fall back to Privy embedded wallet (email/social users — walletClientType === "privy")
-    if (authenticated) {
-      const embedded = solanaWallets.find((w) => w.walletClientType === "privy");
-      if (embedded?.address && embedded.signTransaction) {
-        let privyPublicKey: PublicKey;
-        try {
-          privyPublicKey = new PublicKey(embedded.address);
-        } catch {
-          return null;
-        }
+    const fallbackEmbedded = embeddedWallets.find(
+      (wallet) =>
+        wallet.walletClientType === "privy" &&
+        typeof wallet.address === "string"
+    );
 
-        const privySignTransaction = embedded.signTransaction as NonNullable<WalletContextState["signTransaction"]>;
-        const safeSignAll: SignAllTransactions = async (txs) => {
-          const out = [];
-          for (const tx of txs) {
-            out.push(await privySignTransaction(tx as Transaction) as typeof tx);
-          }
-          return out;
-        };
+    return fallbackEmbedded ?? null;
+  }, [wallets, embeddedWallets]);
+}
 
-        return {
-          publicKey: privyPublicKey,
-          signTransaction: privySignTransaction,
-          signAllTransactions: safeSignAll,
-          signMessage:
-            typeof embedded.signMessage === "function"
-              ? (embedded.signMessage as NonNullable<WalletContextState["signMessage"]>)
-              : undefined,
-        };
+export function useWalletConnectionState() {
+  const { ready, authenticated } = usePrivy();
+  const activeWallet = useConnectedSolanaWallet();
+
+  return useMemo(() => {
+    let publicKey: PublicKey | null = null;
+    if (activeWallet?.address) {
+      try {
+        publicKey = new PublicKey(activeWallet.address);
+      } catch {
+        publicKey = null;
       }
     }
 
-    return null;
-  }, [publicKey, signTransaction, signAllTransactions, signMessage, authenticated, solanaWallets]);
+    return {
+      ready,
+      authenticated,
+      connected: !!publicKey,
+      address: publicKey?.toBase58() ?? null,
+      publicKey,
+      walletClientType: activeWallet?.walletClientType ?? null,
+    };
+  }, [activeWallet, authenticated, ready]);
+}
+
+export function useWalletExecutionMode(): WalletExecutionMode {
+  const activeWallet = useConnectedSolanaWallet();
+
+  return useMemo(() => {
+    if (!activeWallet) return "none";
+    if (activeWallet.walletClientType === "privy") return "embedded";
+    return "external";
+  }, [activeWallet]);
+}
+
+export function useAnchorWalletCompat(): AnchorCompatibleWallet | null {
+  const activeWallet = useConnectedSolanaWallet();
+
+  return useMemo(() => {
+    if (!activeWallet?.address || !activeWallet.signTransaction) {
+      return null;
+    }
+
+    let publicKey: PublicKey;
+    try {
+      publicKey = new PublicKey(activeWallet.address);
+    } catch {
+      return null;
+    }
+
+    const signTransaction =
+      activeWallet.signTransaction as NonNullable<WalletContextState["signTransaction"]>;
+    const safeSignAll: SignAllTransactions = async (txs) => {
+      const out = [];
+      for (const tx of txs) {
+        out.push((await signTransaction(tx as Transaction)) as typeof tx);
+      }
+      return out;
+    };
+
+    return {
+      publicKey,
+      signTransaction,
+      signAllTransactions: safeSignAll,
+      signMessage:
+        typeof activeWallet.signMessage === "function"
+          ? (activeWallet.signMessage as NonNullable<WalletContextState["signMessage"]>)
+          : undefined,
+    };
+  }, [activeWallet]);
 }

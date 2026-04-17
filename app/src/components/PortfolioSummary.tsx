@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import BN from "bn.js";
 import { createShadowPerpClient } from "../lib/create-client";
-import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
+import {
+  useAnchorWalletCompat,
+  useWalletConnectionState,
+} from "../lib/use-anchor-wallet";
 import { fetchPrices } from "../lib/prices";
 import {
   getOwnerPositionViews,
   removeOwnerPositionView,
 } from "../lib/trade-automation";
 import CollateralModal from "./CollateralModal";
-import { useArciumPrivacy } from "../hooks/useArcium";
 import type { TradingPair } from "../lib/tokens";
 
 interface PortfolioData {
@@ -51,9 +53,8 @@ function writeCachedPortfolio(walletKey: string, data: PortfolioData) {
 }
 
 export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSummaryProps = {}) {
-  const { connecting, connected } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
-  const walletExecutionMode = useWalletExecutionMode();
+  const { connected } = useWalletConnectionState();
   const publicKey = anchorWallet?.publicKey ?? null;
   const { connection } = useConnection();
   const [data, setData] = useState<PortfolioData | null>(null);
@@ -67,19 +68,6 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
     if (cached && !data) setData(cached);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publicKey]);
-  const {
-    relayAvailable,
-    relaySession,
-    ensureRelaySession,
-    invalidateRelaySession,
-    refreshRelaySession,
-  } = useArciumPrivacy();
-  const isRelaySessionActive =
-    walletExecutionMode === "external" &&
-    !!relaySession &&
-    relaySession.owner === publicKey?.toBase58() &&
-    relaySession.usedActions < relaySession.maxActions &&
-    relaySession.expiresAt - Math.floor(Date.now() / 1000) > 0;
 
   useEffect(() => {
     clientRef.current = null;
@@ -88,7 +76,7 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
   const loadPortfolio = useCallback(async () => {
     if (!publicKey || !anchorWallet) {
       // Wallet disconnected entirely — clear display
-      if (!connecting && !connected) setData(null);
+      if (!connected) setData(null);
       return;
     }
 
@@ -212,7 +200,7 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
     } catch {
       // config/runtime errors — keep showing cached data, don't clear
     }
-  }, [publicKey, anchorWallet, connection, pair]);
+  }, [publicKey, anchorWallet, connection, pair, connected]);
 
   useEffect(() => {
     void loadPortfolio();
@@ -226,7 +214,7 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
 
 
   // Hide when no wallet is connected (not even autoconnecting)
-  if (!publicKey && !connecting && !connected) return null;
+  if (!publicKey && !connected) return null;
 
   const healthColor =
     (data?.accountHealth ?? 0) > 70
@@ -296,12 +284,6 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
       marginBalance={data?.marginBalance ?? null}
       freeCollateral={data?.freeCollateral ?? null}
       lockedCollateral={data?.lockedCollateral ?? null}
-      relayAvailable={walletExecutionMode === "external" ? relayAvailable : false}
-      relaySession={walletExecutionMode === "external" ? relaySession : null}
-      isRelaySessionActive={isRelaySessionActive}
-      ensureRelaySession={ensureRelaySession}
-      invalidateRelaySession={invalidateRelaySession}
-      refreshRelaySession={refreshRelaySession}
       pairLabel={pair?.label}
       onClose={() => setCollateralModalOpen(false)}
       onSuccess={() => {

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BN from "bn.js";
 import { PublicKey } from "@solana/web3.js";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
-import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { useAnchorWalletCompat, useWalletConnectionState } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 
@@ -54,8 +54,8 @@ const STATUS_CONFIG: Record<UiStatus, { label: string; color: string; bgColor: s
 };
 
 export default function PositionsList() {
-  const { publicKey } = useWallet();
   const anchorWallet = useAnchorWalletCompat();
+  const { publicKey } = useWalletConnectionState();
   const { connection } = useConnection();
   const [positions, setPositions] = useState<UiPosition[]>([]);
   const [loading, setLoading] = useState(false);

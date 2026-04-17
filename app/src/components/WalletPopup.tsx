@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Wallet, Clock, ExternalLink, ChevronDown, ArrowDownToLine, ArrowUpFromLine, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { fetchWalletHistory } from "../lib/history";
+import { useWalletConnectionState } from "../lib/use-anchor-wallet";
 import { DEVNET_TOKENS, WALLET_DISPLAY_TOKENS } from "../lib/tokens";
 
 const EXPLORER_BASE = "https://explorer.solana.com/tx";
@@ -311,13 +312,12 @@ async function enrichTxTypes(
 
 export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletPopupProps) {
   const { connection } = useConnection();
-  const { publicKey: adapterPublicKey, connected } = useWallet();
   const { authenticated } = usePrivy();
   const { wallets: solanaWallets } = useSolanaWallets();
+  const { publicKey, connected } = useWalletConnectionState();
   // Embedded wallet for email/social users
   const privyWallet = solanaWallets.find((w) => w.walletClientType === "privy");
   const privyPublicKey = privyWallet?.address ? (() => { try { return new PublicKey(privyWallet.address); } catch { return null; } })() : null;
-  const publicKey = adapterPublicKey ?? (authenticated ? privyPublicKey : null);
   const isConnected = connected || (authenticated && !!privyPublicKey);
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);

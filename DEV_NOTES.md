@@ -2291,3 +2291,126 @@ No code changes were made during this audit pass.
 1. Commit the root `railway.toml`.
 2. In Railway, either keep the service pointed at the repo root and redeploy, or set the service root directory to `relay`.
 3. Verify the deploy starts with `node dist/index.js` from the relay build output instead of Rust autodetection.
+
+## Panel Shell Border Cleanup (2026-04-16 UTC)
+
+### What changed
+- Moved the market-panel separator treatment back into the shared `DraggablePanel` shell instead of styling it directly inside `MarketInfo`.
+- Added an explicit `borderClassName` override on `DraggablePanel` so the market panel can keep a thicker lower separator without making `allowOverflow` responsible for visual styling.
+- Removed the inline `boxShadow` separator hack from `MarketInfo`.
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit --incremental false` passed on April 16, 2026.
+
+### Current blocker
+- `npm run check:preflight` currently fails in this environment with `Non-base58 character`, so the broader env/program preflight remains blocked on configuration cleanup rather than this UI change.
+
+### Next safe step
+1. Visually smoke the desktop and mobile trading layout to confirm the market panel separator matches the intended 2px standalone look.
+2. Fix the invalid env/program value causing `check:preflight` to fail before treating the full session baseline as green again.
+
+## Direct Wallet + Product Copy Alignment (2026-04-17 UTC)
+
+### What changed
+- Moved the frontend toward a direct-wallet model instead of a delegated-session-first model.
+- `app/src/pages/_app.tsx`
+  - wired Privy Solana connectors with `toSolanaWalletConnectors(...)`
+  - set `appearance.walletChainType` to `solana-only`
+  - removed wallet-adapter modal/adapters from the visible connection path while keeping a minimal `WalletProvider` shell for compatibility
+- `app/src/lib/use-anchor-wallet.ts`
+  - replaced wallet-adapter-first signer selection with a Privy-centered compat layer
+  - added wallet connection state helpers so embedded and external Solana wallets resolve through one source of truth
+- `app/src/hooks/useArcium.ts`
+  - `submitPrivateOrder()` now uses the direct `client.openPosition(...)` path for trading
+  - returned relay/session UI state is now stubbed idle/null so the app stops advertising delegated flow
+- `app/src/pages/app.tsx`
+  - removed the session chip/header UX
+  - switched connect-wallet UX to Privy `connectWallet()` for external Solana wallets
+  - kept embedded-wallet export affordance
+- `app/src/components/CollateralModal.tsx`
+  - removed delegated collateral submission branch from the live modal flow
+  - collateral actions now describe and use the direct wallet path
+- Updated wallet-aware UI components to use the new compat wallet state:
+  - `app/src/components/PortfolioSummary.tsx`
+  - `app/src/components/BottomPositionsPanel.tsx`
+  - `app/src/components/NetworkIndicator.tsx`
+  - `app/src/components/WalletPopup.tsx`
+  - `app/src/components/PositionsList.tsx`
+- Updated front-facing product copy:
+  - `README.md`
+  - `app/src/pages/docs.tsx`
+  - `app/src/pages/index.tsx`
+  - copy now frames Shadow as a private perp DEX for human traders, not as session-first infrastructure
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit --incremental false` passed on April 17, 2026 after the direct-wallet migration and copy refresh.
+
+### Current blocker
+- The code now compiles and the product copy matches the current direct-wallet direction, but the new Privy-owned external-wallet path still needs a real browser smoke on devnet.
+- `npm run check:preflight` is still not green in this environment because of the existing `Non-base58 character` config issue noted earlier.
+
+### Next safe step
+1. Run a live browser smoke with:
+   - Privy email/social login
+   - embedded wallet deposit
+   - direct open-position attempt
+2. Run a second smoke with an external Solana wallet connected through Privy.
+3. Fix the invalid env/program value that is still breaking `npm run check:preflight`.
+
+## Direct Wallet Cleanup Pass (2026-04-17 UTC)
+
+### What changed
+- Removed leftover relay/session props and imports from `app/src/components/CollateralModal.tsx`.
+- Simplified `app/src/components/PortfolioSummary.tsx` so collateral management no longer threads unused relay/session state through the UI.
+- Removed the old session section from `app/src/components/layout/SettingsPanel.tsx` so settings reflect the direct-wallet product path.
+- Cleaned `app/src/components/TradingPanel.tsx` by:
+  - dropping unused relay/session destructuring
+  - removing the session refresh polling effect
+  - letting the limit-order executor run on the active direct wallet path instead of an always-false session gate
+
+### What was verified
+- `rg -n "relaySession|isRelaySessionActive|revokeRelaySession|ensureRelaySession|refreshRelaySession|invalidateRelaySession|relayAvailable" app/src -g "*.tsx"` returned no remaining TSX references after the cleanup.
+- `pnpm --dir app exec tsc --noEmit --incremental false` passed on April 17, 2026 after the cleanup pass.
+
+### Current blocker
+- `app/src/hooks/useArcium.ts` still contains legacy relay/session internals behind stubbed return values. They are not currently wired into the live UI, but the hook itself still deserves a dedicated reduction pass.
+- `npm run check:preflight` remains blocked by the existing `Non-base58 character` env/config issue.
+
+### Next safe step
+1. Do a focused cleanup pass inside `app/src/hooks/useArcium.ts` to remove dead relay/session internals without changing the direct open-position callback behavior.
+2. Run a browser smoke for embedded and external Privy wallet flows after that reduction.
+3. Fix the invalid base58 env/program value so the repo baseline preflight is green again.
+
+## useArcium Direct-Path Reduction (2026-04-17 UTC)
+
+### What changed
+- Replaced the old `app/src/hooks/useArcium.ts` delegated-session-heavy implementation with a smaller direct-wallet hook.
+- Kept the live Arcium-sensitive pieces intact:
+  - encrypted open-position submission
+  - market leverage validation
+  - scaled amount conversion
+  - callback wait loop
+  - callback failure diagnosis from recent transaction logs
+- Removed the unused relay/session runtime internals from the hook itself:
+  - session storage hydration/recovery
+  - relay availability probing
+  - delegated session creation/auth/reconnect flows
+  - collateral delegation preparation
+  - relay revocation logic
+- Preserved compatibility exports and stubbed return fields so existing imports continue compiling while the app finishes its direct-wallet transition.
+
+### What was verified
+- `pnpm --dir app exec tsc --noEmit --incremental false` passed on April 17, 2026 after the hook rewrite.
+- A repo sweep confirmed the previously removed relay/session TSX references stayed gone after the hook reduction.
+
+### Current blocker
+- The code path is now much smaller and matches the live product direction better, but it still needs browser smoke coverage for:
+  - Privy embedded wallet open flow
+  - Privy external wallet open flow
+  - callback failure copy in the modal
+- `npm run check:preflight` is still blocked by the existing `Non-base58 character` environment/config issue.
+
+### Next safe step
+1. Run a live browser smoke on devnet for embedded and external Privy wallet paths.
+2. Fix the invalid base58 env/program value so `npm run check:preflight` can pass again.
+3. After that, do a final audit for any remaining direct-wallet documentation or code comments that still imply delegated sessions are active.
