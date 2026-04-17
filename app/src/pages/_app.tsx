@@ -7,10 +7,11 @@ import {
   ConnectionProvider,
   WalletProvider,
 } from "@solana/wallet-adapter-react";
-import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
+import { PrivyProvider, type PrivyClientConfig, useToken } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { Toaster } from "react-hot-toast";
 import ShadowLoader from "../components/ShadowLoader";
+import { setSponsorAccessTokenProvider } from "../lib/client";
 import {
   getRpcTransport,
   getRpcTransports,
@@ -154,6 +155,8 @@ export default function App({ Component, pageProps }: AppProps) {
         walletChainType: "solana-only",
         showWalletLoginFirst: true,
       },
+      walletConnectCloudProjectId:
+        process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
       loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
@@ -163,7 +166,7 @@ export default function App({ Component, pageProps }: AppProps) {
         },
       },
       embeddedWallets: {
-        createOnLogin: "all-users",
+        createOnLogin: "users-without-wallets",
         noPromptOnSignature: true,
       },
       solanaClusters: [{ name: "devnet", rpcUrl: initialRpcUrl.current }],
@@ -203,6 +206,7 @@ export default function App({ Component, pageProps }: AppProps) {
       appId={PRIVY_APP_ID}
       config={privyConfig}
     >
+      <PrivyAccessTokenBridge />
       <ConnectionProvider
         endpoint={transport.rpc}
         config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
@@ -224,4 +228,15 @@ export default function App({ Component, pageProps }: AppProps) {
       </ConnectionProvider>
     </PrivyProvider>
   );
+}
+
+function PrivyAccessTokenBridge() {
+  const { getAccessToken } = useToken();
+
+  useEffect(() => {
+    setSponsorAccessTokenProvider(() => getAccessToken());
+    return () => setSponsorAccessTokenProvider(null);
+  }, [getAccessToken]);
+
+  return null;
 }

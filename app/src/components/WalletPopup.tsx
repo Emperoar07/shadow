@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Wallet, Clock, ExternalLink, ChevronDown, ArrowDownToLine, ArrowUpFromLine, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
@@ -312,13 +310,8 @@ async function enrichTxTypes(
 
 export default function WalletPopup({ marginBalance, onOpenCollateral }: WalletPopupProps) {
   const { connection } = useConnection();
-  const { authenticated } = usePrivy();
-  const { wallets: solanaWallets } = useSolanaWallets();
   const { publicKey, connected } = useWalletConnectionState();
-  // Embedded wallet for email/social users
-  const privyWallet = solanaWallets.find((w) => w.walletClientType === "privy");
-  const privyPublicKey = privyWallet?.address ? (() => { try { return new PublicKey(privyWallet.address); } catch { return null; } })() : null;
-  const isConnected = connected || (authenticated && !!privyPublicKey);
+  const isConnected = connected;
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [open, setOpen] = useState(false);

@@ -369,8 +369,6 @@ export default function TradingAppPage() {
   const { visibility: panelVisibility, update: updateVisibility } = useVisibility();
   const { locked: layoutLocked, toggle: toggleLayoutLock } = useLayoutLocked();
   const { settings: tradingSettings, update: updateTradingSettings, reset: resetTradingSettings } = useTradingSettings();
-  useAnchorWalletCompat();
-
   const handleMarginReady = useCallback((balance: number | null, openModal: () => void) => {
     setMarginBalance(balance);
     setOpenCollateralModal(() => openModal);

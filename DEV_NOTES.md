@@ -4,6 +4,65 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Privy Wallet State Cleanup + Sponsor Auth Guard (2026-04-17 UTC)
+
+### What changed
+
+- Hardened the server-sponsored Solana fee-payer path:
+  - added `app/src/lib/server/privy-auth.ts`
+  - added authenticated token verification to `app/src/pages/api/sponsor-solana.ts`
+  - sponsor requests now require a Privy bearer token and verify the transaction signers belong to the authenticated user's linked Solana wallets
+  - wired browser-side access-token bridging in `app/src/pages/_app.tsx`
+  - wired sponsor auth header support in `app/src/lib/client.ts`
+- Added canonical-host middleware in `app/middleware.ts` so hosted production can force one Privy-approved origin (`www.shadowperpdex.xyz`) instead of splitting auth across apex and `www`.
+- Tightened the live Privy wallet config in `app/src/pages/_app.tsx`:
+  - kept only `wallet` and `email`
+  - changed embedded wallet creation from `all-users` to `users-without-wallets`
+  - added top-level `walletConnectCloudProjectId` support from `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`
+- Cleaned wallet-state duplication:
+  - `app/src/components/WalletPopup.tsx` now trusts the shared `useWalletConnectionState()` hook instead of recomputing embedded-wallet connectivity separately
+  - removed the dangling no-op `useAnchorWalletCompat()` call in `app/src/pages/app.tsx`
+- Removed dead Privy/wallet-adapter glue:
+  - deleted `app/src/lib/privy.tsx`
+  - deleted `app/src/types/wallet-adapter-wallets.d.ts`
+- Fixed landing copy in `app/src/pages/index.tsx` so it no longer claims social login is active when the app currently exposes wallet + email only.
+- Updated `app/.env.example` for the live hosted auth/runtime path:
+  - `PRIVY_APP_ID`
+  - `PRIVY_APP_SECRET`
+  - `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`
+  - `NEXT_PUBLIC_CANONICAL_HOST`
+
+### What was verified
+
+- `pnpm --dir app exec tsc --noEmit --incremental false` -> PASS
+- `npm run check:preflight` -> initially FAIL only on stale oracle freshness
+- `npm run oracle:once` -> PASS on 2026-04-17 with guarded single-source publish
+- `npm run check:preflight` -> PASS after oracle refresh
+- Confirmed the installed Privy SDK (`@privy-io/react-auth@1.99.1`) accepts `walletConnectCloudProjectId` as a top-level `PrivyProvider` config field, not inside `toSolanaWalletConnectors(...)`
+
+### Current blocker
+
+- Hosted login still depends on Privy dashboard / deployment config outside the repo:
+  - local shell env does not currently have `NEXT_PUBLIC_PRIVY_APP_ID`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, or `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` set
+  - the Privy dashboard screenshot shows `www.shadowperpdex.xyz` app-domain cookie setup is still `Pending`
+- If wallet or email login still fails in production after redeploy, check hosted Privy settings first before changing app code again:
+  - allowed origins
+  - email/passwordless enablement
+  - app secret on the backend host
+  - canonical host / cookie domain completion
+
+### Next safe step
+
+1. Set hosted env vars on the active deployment targets:
+   - Vercel: `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`, `NEXT_PUBLIC_CANONICAL_HOST=www.shadowperpdex.xyz`
+   - backend host: `PRIVY_APP_ID`, `PRIVY_APP_SECRET`
+2. Redeploy the frontend so the new Privy config and middleware ship together.
+3. Re-test:
+   - `Sign in` opens the Privy modal
+   - email creates or reuses the embedded Solana wallet
+   - external wallet login updates the header and market-panel connected state
+4. If email still errors with 403 from Privy, finish the pending Privy cookie-domain verification and re-check the dashboard auth toggles before editing code.
+
 ## Privy Email-Only Login Tightening (2026-04-17 UTC)
 
 ### What changed

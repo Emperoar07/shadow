@@ -3,9 +3,11 @@ import {
   Transaction,
   PublicKey,
   SystemProgram,
+  ComputeBudgetProgram,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   createApproveInstruction,
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
@@ -48,6 +50,8 @@ export const DEFAULT_TRADE_SESSION_DURATION_SECONDS = 5 * 60 * 60;
 const DEFAULT_POSITION_STATUS_TIMEOUT_MS = 120_000;
 const DEFAULT_POSITION_STATUS_POLL_MS = 2_000;
 const OPEN_POSITION_CALLBACK_DIAG_POLL_MS = 6_000;
+const SOLANA_GAS_SPONSOR_PATH = "/api/sponsor-solana";
+let sponsorAccessTokenProvider: null | (() => Promise<string | null>) = null;
 
 const ANCHOR_STATUS_MAP: Record<string, number> = {
   pending: 0, open: 1, closing: 2, closed: 3, liquidated: 4,
@@ -101,6 +105,62 @@ type OpenPositionSubmission = {
   txSignature: string;
   positionAddress: PublicKey;
 };
+
+function normalizeEnvFlag(raw?: string): boolean {
+  if (!raw) return false;
+  const value = raw.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function resolveSponsorCluster(): "devnet" | "mainnet-beta" | null {
+  const explicit = process.env.NEXT_PUBLIC_SOLANA_CLUSTER?.trim().toLowerCase();
+  if (explicit === "devnet") return "devnet";
+  if (explicit === "mainnet-beta" || explicit === "mainnet") return "mainnet-beta";
+
+  const rpc = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.toLowerCase() ?? "";
+  if (rpc.includes("devnet")) return "devnet";
+  if (rpc.includes("mainnet")) return "mainnet-beta";
+  return null;
+}
+
+function resolveSponsorPubkey(): PublicKey | null {
+  const raw = process.env.NEXT_PUBLIC_SOLANA_GAS_SPONSOR_PUBKEY?.trim();
+  if (!raw) return null;
+  try {
+    return new PublicKey(raw);
+  } catch {
+    return null;
+  }
+}
+
+function sponsorshipEnabled(): boolean {
+  return normalizeEnvFlag(process.env.NEXT_PUBLIC_SOLANA_GAS_SPONSOR_ENABLED);
+}
+
+function canUseGasSponsorship(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!sponsorshipEnabled()) return false;
+  const cluster = resolveSponsorCluster();
+  return cluster === "devnet" || cluster === "mainnet-beta";
+}
+
+function hasAllowedTopLevelInstructions(tx: Transaction, shadowProgramId: PublicKey): boolean {
+  const allowedProgramIds = new Set([
+    shadowProgramId.toBase58(),
+    TOKEN_PROGRAM_ID.toBase58(),
+    ASSOCIATED_TOKEN_PROGRAM_ID.toBase58(),
+    SystemProgram.programId.toBase58(),
+    ComputeBudgetProgram.programId.toBase58(),
+  ]);
+
+  return tx.instructions.every((ix) => allowedProgramIds.has(ix.programId.toBase58()));
+}
+
+export function setSponsorAccessTokenProvider(
+  provider: null | (() => Promise<string | null>)
+): void {
+  sponsorAccessTokenProvider = provider;
+}
 
 /**
  * ShadowPerp Client SDK
@@ -402,13 +462,46 @@ export class ShadowPerpClient {
 
   private async sendTransactionWithPolling(tx: Transaction): Promise<string> {
     const connection = this.provider.connection;
-    const feePayer = this.provider.wallet.publicKey;
+    const sponsorFeePayer = canUseGasSponsorship() ? resolveSponsorPubkey() : null;
+    const feePayer = sponsorFeePayer ?? this.provider.wallet.publicKey;
     const { blockhash } = await connection.getLatestBlockhash("confirmed");
 
     tx.feePayer = feePayer;
     tx.recentBlockhash = blockhash;
 
     const signed = await this.provider.wallet.signTransaction(tx);
+    if (sponsorFeePayer) {
+      if (!hasAllowedTopLevelInstructions(signed, this.config.programId)) {
+        throw new Error("Gas sponsorship rejected: unsupported instruction set.");
+      }
+
+      const sponsorAccessToken = sponsorAccessTokenProvider
+        ? await sponsorAccessTokenProvider()
+        : null;
+
+      const response = await fetch(SOLANA_GAS_SPONSOR_PATH, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(sponsorAccessToken
+            ? { Authorization: `Bearer ${sponsorAccessToken}` }
+            : {}),
+        },
+        body: JSON.stringify({
+          cluster: resolveSponsorCluster(),
+          transactionBase64: Buffer.from(
+            signed.serialize({ requireAllSignatures: false, verifySignatures: false })
+          ).toString("base64"),
+        }),
+      });
+
+      const payload = (await response.json()) as { signature?: string; error?: string };
+      if (!response.ok || !payload.signature) {
+        throw new Error(payload.error || "Gas sponsorship failed.");
+      }
+      return payload.signature;
+    }
+
     const serialized = signed.serialize();
 
     let signature: string;

@@ -520,21 +520,21 @@ export default function LandingPage() {
             position:relative;z-index:1;
             border-top:1px solid ${dark ? "rgba(255,255,255,.06)" : "#e8ebf4"};
             background: ${dark ? "rgba(10,10,18,0.8)" : "#ffffff"};
-            padding:24px 40px 15px;
+            padding:14px 40px 9px;
             font-size:13px;color:${dark ? "#6b7280" : "#64748b"};
           }
           .lp-footer-inner {
             max-width:1200px;margin:0 auto;
-            display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:28px;
+            display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:18px;
           }
-          .lp-footer-brand { display:flex;flex-direction:column;gap:8px }
+          .lp-footer-brand { display:flex;flex-direction:column;gap:5px }
           .lp-footer-brand-name { font-size:18px;font-weight:800;display:flex;align-items:center;gap:2px;background:linear-gradient(90deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text }
           .lp-footer-brand-desc { font-size:13px;line-height:1.6;color:${dark ? "#6b7280" : "#94a3b8"};max-width:360px }
-          .lp-footer-col h4 { font-size:14px;font-weight:600;color:${dark ? "#e2e8f0" : "#1e293b"};margin-bottom:12px }
-          .lp-footer-col a { display:block;color:${dark ? "#6b7280" : "#94a3b8"};text-decoration:none;transition:color .15s;padding:3px 0;font-size:13px }
+          .lp-footer-col h4 { font-size:14px;font-weight:600;color:${dark ? "#e2e8f0" : "#1e293b"};margin-bottom:6px }
+          .lp-footer-col a { display:block;color:${dark ? "#6b7280" : "#94a3b8"};text-decoration:none;transition:color .15s;padding:2px 0;font-size:13px }
           .lp-footer-col a:hover { color:#a78bfa }
           .lp-footer-bottom {
-            max-width:1200px;margin:22px auto 0;padding-top:14px;
+            max-width:1200px;margin:14px auto 0;padding-top:10px;
             border-top:1px solid ${dark ? "rgba(255,255,255,.04)" : "#e8ebf4"};
             display:flex;align-items:center;justify-content:space-between;font-size:12px;
             color:${dark ? "#374151" : "#94a3b8"};
@@ -555,9 +555,10 @@ export default function LandingPage() {
             .lp-features-grid{grid-template-columns:1fr}
             .lp-privacy-inner{grid-template-columns:1fr}
             .lp-nav-links{display:none}
-            .lp-footer-inner{grid-template-columns:1fr;gap:24px;text-align:center}
+            .lp-footer{padding:12px 20px 8px}
+            .lp-footer-inner{grid-template-columns:1fr;gap:14px;text-align:center}
             .lp-footer-brand-desc{margin:0 auto}
-            .lp-footer-bottom{flex-direction:column;gap:12px;text-align:center}
+            .lp-footer-bottom{flex-direction:column;gap:8px;text-align:center;margin-top:12px;padding-top:8px}
             .lp-session-card{grid-template-columns:1fr;padding:28px 24px}
             .lp-session-copy{max-width:none}
             .lp-session-title{font-size:24px}
@@ -737,7 +738,7 @@ export default function LandingPage() {
                 </div>
                 <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
               </div>
-              <div className="lp-ac-body"><p className="lp-ac-desc">Email and social users get an embedded wallet. Existing Solana users connect the wallet they already trust.</p></div>
+                      <div className="lp-ac-body"><p className="lp-ac-desc">Email users get an embedded wallet automatically. Existing Solana users connect the wallet they already trust.</p></div>
             </div>
             <div className="lp-ac-item">
               <div className="lp-ac-header">
