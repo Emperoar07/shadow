@@ -742,7 +742,7 @@ export default function LandingPage() {
             <div className="lp-ac-item">
               <div className="lp-ac-header">
                 <div className="lp-ac-left">
-                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="11" x2="17" y2="6"/><line x1="7" y1="13" x2="17" y2="18"/></svg></div>
+                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M9 7V4M12 7V4M15 7V4M9 17v3M12 17v3M15 17v3M7 9H4M7 12H4M7 15H4M17 9h3M17 12h3M17 15h3"/></svg></div>
                   <span className="lp-ac-title">Arcium MPC</span>
                 </div>
                 <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
@@ -772,7 +772,7 @@ export default function LandingPage() {
             <div className="lp-ac-item">
               <div className="lp-ac-header">
                 <div className="lp-ac-left">
-                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="2" fill="rgba(167,139,250,.2)"/><circle cx="15" cy="12" r="2" fill="rgba(167,139,250,.2)"/><circle cx="10" cy="18" r="2" fill="rgba(167,139,250,.2)"/></svg></div>
                   <span className="lp-ac-title">Trader First UX</span>
                 </div>
                 <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
