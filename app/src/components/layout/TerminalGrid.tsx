@@ -110,7 +110,11 @@ export default function TerminalGrid({
           if (!content) return null;
           return (
             <div key={item.i} style={item.i === "marketinfo" ? { overflow: "visible", zIndex: 10 } : undefined}>
-              <DraggablePanel locked={layoutLocked} allowOverflow={item.i === "marketinfo"}>
+              <DraggablePanel
+                locked={layoutLocked}
+                allowOverflow={item.i === "marketinfo"}
+                borderClassName={item.i === "marketinfo" ? "border-b-2 border-shadow-600" : undefined}
+              >
                 {content}
               </DraggablePanel>
             </div>
