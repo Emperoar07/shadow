@@ -39,13 +39,16 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
   const { wallets: embeddedWallets } = useSolanaWallets();
 
   return useMemo(() => {
-    if (isConnectedSolanaWalletLike(activeWallet)) {
-      return activeWallet;
-    }
-
+    // External wallet always wins — connecting Phantom while an embedded wallet
+    // exists doesn't switch useActiveWallet, so check useWallets() first.
     const connected = wallets.filter(isConnectedSolanaWalletLike);
     const externalWallet = connected.find((wallet) => wallet.walletClientType !== "privy");
     if (externalWallet) return externalWallet;
+
+    // Active wallet from Privy (covers embedded wallet set as active)
+    if (isConnectedSolanaWalletLike(activeWallet)) {
+      return activeWallet;
+    }
 
     const embeddedWallet = connected.find((wallet) => wallet.walletClientType === "privy");
     if (embeddedWallet) return embeddedWallet;
