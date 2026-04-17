@@ -152,8 +152,9 @@ export default function App({ Component, pageProps }: AppProps) {
         logo: "/favicon.svg",
         landingHeader: "Log in to Shadow",
         walletChainType: "solana-only",
+        showWalletLoginFirst: true,
       },
-      loginMethods: ["email", "google", "twitter"],
+      loginMethods: ["wallet", "email", "google", "twitter"],
       externalWallets: {
         solana: {
           connectors: toSolanaWalletConnectors({
