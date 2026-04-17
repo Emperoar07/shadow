@@ -780,24 +780,18 @@ function ConnectWalletButton() {
     );
   }
 
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={handlePrivyLogin}
-        className="flex items-center gap-2 px-4 py-1.5 rounded border border-accent-purple/60 bg-accent-purple/15 text-[12px] font-semibold text-accent-purple hover:bg-accent-purple/25 hover:border-accent-purple/80 transition-colors"
-      >
-        <span className="flex items-center justify-center w-4 h-4 rounded-full bg-accent-purple/20">
-          <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none">
-            <path d="M2 4l6 5 6-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-            <rect x="1.25" y="3" width="13.5" height="10" rx="2" stroke="currentColor" strokeWidth="1.4"/>
-          </svg>
-        </span>
-        Connect
-      </button>
-    </div>
-  );
-}
+    return (
+      <div className="relative" ref={ref}>
+        <button
+          type="button"
+          onClick={handlePrivyLogin}
+          className="px-4 py-1.5 rounded border border-accent-purple/60 bg-accent-purple/15 text-[12px] font-semibold text-accent-purple hover:bg-accent-purple/25 hover:border-accent-purple/80 transition-colors"
+        >
+          Sign in
+        </button>
+      </div>
+    );
+  }
 
 function ProtocolStatusDot() {
   const { connection } = useConnection();
