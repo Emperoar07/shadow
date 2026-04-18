@@ -7,7 +7,6 @@ import {
   ConnectionProvider,
   WalletProvider,
 } from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
@@ -22,7 +21,6 @@ import {
   setPreferredRpcIndex,
 } from "../lib/runtime";
 
-import "@solana/wallet-adapter-react-ui/styles.css";
 import "../styles/globals.css";
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
@@ -209,20 +207,18 @@ export default function App({ Component, pageProps }: AppProps) {
         config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
       >
         <WalletProvider wallets={wallets} autoConnect={false}>
-          <WalletModalProvider>
-            <Toaster
-              position="bottom-right"
-              toastOptions={{
-                style: {
-                  background: "#1a1a25",
-                  color: "#fff",
-                  border: "1px solid rgba(139, 92, 246, 0.3)",
-                },
-              }}
-            />
-            {pageLoading && <ShadowLoader fullScreen message="" />}
-            <Component {...pageProps} />
-          </WalletModalProvider>
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: "#1a1a25",
+                color: "#fff",
+                border: "1px solid rgba(139, 92, 246, 0.3)",
+              },
+            }}
+          />
+          {pageLoading && <ShadowLoader fullScreen message="" />}
+          <Component {...pageProps} />
         </WalletProvider>
       </ConnectionProvider>
     </PrivyProvider>
