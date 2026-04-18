@@ -766,12 +766,13 @@ function ConnectWalletButton() {
                 Open in Explorer
               </a>
               {/* Export key — only for embedded wallet users (email/social login) */}
-              {embeddedAddr && walletExecutionMode === "embedded" && (
+              {(embeddedAddr ?? linkedSolanaAddr) && (walletExecutionMode === "embedded" || (!connectedAddress && !!linkedSolanaAddr)) && (
                 <button
                   type="button"
                   onClick={() => {
                     setOpen(false);
-                    exportWallet({ address: embeddedAddr }).catch(() => {});
+                    const exportAddr = embeddedAddr ?? linkedSolanaAddr!;
+                    exportWallet({ address: exportAddr }).catch(() => {});
                   }}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-[12px] text-gray-300 hover:bg-shadow-800/80 hover:text-white transition-colors"
                 >
