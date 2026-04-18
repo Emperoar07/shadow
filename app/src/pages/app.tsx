@@ -617,6 +617,10 @@ export default function TradingAppPage() {
 
 function ConnectWalletButton() {
   const { ready, authenticated, logout, login, user, getAccessToken } = usePrivy();
+  const { wallets } = useWallets();
+  const { wallets: solanaWallets, exportWallet, createWallet } = useSolanaWallets();
+  const { address: connectedAddress } = useWalletConnectionState();
+  const walletExecutionMode = useWalletExecutionMode();
 
   // Wire Privy bearer token and wallet mode into the gas sponsor path.
   // Sponsorship only applies to embedded wallets — external wallets pay their own fees.
@@ -630,10 +634,6 @@ function ConnectWalletButton() {
       setSponsorWalletMode("none");
     };
   }, [authenticated, getAccessToken, walletExecutionMode]);
-  const { wallets } = useWallets();
-  const { wallets: solanaWallets, exportWallet, createWallet } = useSolanaWallets();
-  const { address: connectedAddress } = useWalletConnectionState();
-  const walletExecutionMode = useWalletExecutionMode();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
