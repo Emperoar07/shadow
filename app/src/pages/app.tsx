@@ -595,9 +595,9 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { ready, authenticated, logout, login } = usePrivy();
+  const { ready, authenticated, logout, login, user } = usePrivy();
   const { wallets } = useWallets();
-  const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
+  const { wallets: solanaWallets, exportWallet, createWallet } = useSolanaWallets();
   const { address: connectedAddress } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
   const [open, setOpen] = useState(false);
@@ -605,6 +605,19 @@ function ConnectWalletButton() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Safety net: create embedded Solana wallet if user has none linked yet.
+  // Check user.linkedAccounts (always populated) rather than solanaWallets (can be empty on first render).
+  useEffect(() => {
+    if (!ready || !authenticated || !user) return;
+    const hasSolanaWallet = user.linkedAccounts?.some(
+      (a: { type: string; chainType?: string }) =>
+        a.type === "wallet" && a.chainType === "solana"
+    );
+    if (!hasSolanaWallet) {
+      createWallet().catch((e) => console.error("[Shadow] createWallet failed:", e));
+    }
+  }, [ready, authenticated, user, createWallet]);
 
   const handlePrivyLogin = useCallback(() => {
     setOpen(false);
