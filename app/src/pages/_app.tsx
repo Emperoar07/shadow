@@ -168,7 +168,7 @@ export default function App({ Component, pageProps }: AppProps) {
       },
       walletConnectCloudProjectId:
         process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
-      loginMethods: ["wallet", "email", "google", "twitter"],
+      loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
           connectors: toSolanaWalletConnectors({
