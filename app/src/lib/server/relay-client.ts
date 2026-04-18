@@ -161,6 +161,10 @@ function parseKeypairFromPath(filePath: string): Keypair | null {
   return parseKeypairFromJson(filePath, raw);
 }
 
+function allowLocalRelayerFallback(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
 function resolveRelayerKeypair(): Keypair {
   const fromEnvJson =
     parseKeypairFromJson(
@@ -182,12 +186,18 @@ function resolveRelayerKeypair(): Keypair {
     return parsed;
   }
 
+  if (!allowLocalRelayerFallback()) {
+    throw new Error(
+      "Missing relayer keypair. Set SHADOWPERP_RELAYER_KEYPAIR_JSON or SHADOWPERP_RELAYER_KEYPAIR_PATH."
+    );
+  }
+
   const defaultPath = path.join(os.homedir(), ".config", "solana", "id.json");
   const parsedDefault = parseKeypairFromPath(defaultPath);
   if (parsedDefault) return parsedDefault;
 
   throw new Error(
-    "Missing relayer keypair. Set SHADOWPERP_RELAYER_KEYPAIR_JSON (or SHADOWPERP_RELAYER_KEYPAIR_PATH)."
+    "Missing relayer keypair. Set SHADOWPERP_RELAYER_KEYPAIR_JSON or SHADOWPERP_RELAYER_KEYPAIR_PATH."
   );
 }
 

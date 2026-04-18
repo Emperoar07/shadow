@@ -627,7 +627,7 @@ NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT=${marketPda.toBase58()}
   console.log("Collateral Mint:", collateralMint.toBase58());
   console.log("Price Feeder:   ", priceFeeder.publicKey.toBase58());
   console.log("\nNext steps:");
-  console.log("  1. cd app && pnpm dev");
+  console.log("  1. cd app && npm run dev");
   console.log("  2. Connect wallet (Phantom/Solflare) on devnet");
   console.log("  3. Get devnet USDC from the mock mint above");
   console.log("  4. Deposit collateral and open positions!");

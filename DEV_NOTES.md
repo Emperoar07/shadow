@@ -4,6 +4,58 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Safe Audit Fixes (2026-04-18 UTC)
+
+### What changed
+
+- Removed the frontend wallet auto-provision side effect from the connect button path:
+  - `app/src/pages/app.tsx`
+  - Shadow now relies on Privy's configured wallet provisioning instead of opportunistically calling `createWallet()` during login state changes.
+- Hardened relay runtime key resolution to fail closed in production when no explicit relayer key is configured:
+  - `app/src/lib/server/relay-client.ts`
+  - local/dev can still fall back to `~/.config/solana/id.json`, but production no longer should
+- Standardized the frontend package-manager path around npm:
+  - `app/package.json`
+  - removed `app/pnpm-lock.yaml`
+  - refreshed `app/package-lock.json`
+  - updated install/run guidance in `README.md`
+  - updated the deploy script next-step message in `scripts/deploy-devnet.ts`
+- Added a real frontend ESLint configuration so lint no longer opens the interactive Next.js setup prompt:
+  - `app/.eslintrc.json`
+  - `app/package.json`
+- Patched browser crypto buffer typing in encrypted local persistence utilities:
+  - `app/src/lib/trade-automation.ts`
+- Updated relay env documentation:
+  - `app/.env.example`
+
+### What was verified
+
+- `cd app && npm install --legacy-peer-deps` -> PASS
+  - kept the app on the current Privy SDK line while refreshing the lockfile and adding ESLint dependencies
+- `cd app && npx tsc --noEmit` -> PASS
+- `cd app && npm run lint` -> PASS with warnings only
+  - current warnings are existing React hook dependency warnings in:
+    - `BottomPositionsPanel.tsx`
+    - `OrderConfirmModal.tsx`
+    - `PrivateOrderbook.tsx`
+    - `TradingPanel.tsx`
+    - `WalletPopup.tsx`
+    - `useMarketSnapshot.ts`
+    - `app.tsx`
+
+### Current blocker
+
+- Root `npm run check:preflight` is not green from this shell because the current local environment is missing:
+  - `NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID`
+- That is an env/runtime configuration gap, not a compile failure in the code changes above.
+
+### Next safe step
+
+1. Restore the required devnet env values locally and rerun:
+   - `npm run check:preflight`
+2. Optionally clean up the remaining React hook warnings now that lint is wired and stable.
+3. Commit the audit-fix batch once preflight is revalidated or the missing env is intentionally accepted.
+
 ## Privy Custom-Domain Wallet Proxy Fix (2026-04-18 UTC)
 
 ### What changed

@@ -25,7 +25,6 @@ function randomBytes(length: number): Uint8Array {
     globalThis.crypto.getRandomValues(buf);
   } else {
     // Node.js fallback
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const nodeCrypto = require("crypto");
     const nodeBytes = nodeCrypto.randomBytes(length);
     buf.set(nodeBytes);

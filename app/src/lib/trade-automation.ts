@@ -371,16 +371,24 @@ async function derivePersistenceKey(
   owner: string,
   signature: Uint8Array
 ): Promise<CryptoKey> {
-  const material = concatBytes([
-    textEncoder.encode(KEY_DERIVATION_LABEL),
-    textEncoder.encode(owner),
-    signature,
-  ]);
+  const material = new Uint8Array(
+    concatBytes([
+      textEncoder.encode(KEY_DERIVATION_LABEL),
+      textEncoder.encode(owner),
+      signature,
+    ])
+  );
   const digest = await window.crypto.subtle.digest("SHA-256", material);
   return window.crypto.subtle.importKey("raw", digest, "AES-GCM", false, [
     "encrypt",
     "decrypt",
   ]);
+}
+
+function toBufferSource(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
 }
 
 async function persistSnapshot(
@@ -398,9 +406,9 @@ async function persistSnapshot(
     })
   );
   const ciphertext = await window.crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: toBufferSource(iv) },
     key,
-    plaintext
+    toBufferSource(plaintext)
   );
   const envelope: PersistedEnvelopeV1 = {
     version: ENVELOPE_VERSION,
@@ -432,9 +440,9 @@ async function restoreSnapshot(
 
   try {
     const decrypted = await window.crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: fromBase64(envelope.ivB64) },
+      { name: "AES-GCM", iv: toBufferSource(fromBase64(envelope.ivB64)) },
       key,
-      fromBase64(envelope.cipherB64)
+      toBufferSource(fromBase64(envelope.cipherB64))
     );
     const payloadRaw = JSON.parse(textDecoder.decode(new Uint8Array(decrypted)));
     if (!isRecord(payloadRaw) || payloadRaw.owner !== owner) return null;

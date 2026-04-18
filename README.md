@@ -64,7 +64,7 @@ build/                   Compiled circuit artifacts
 
 ```bash
 npm install
-cd app && pnpm install && cd ..
+cd app && npm install && cd ..
 ```
 
 ### Environment
@@ -85,7 +85,7 @@ Set the required values in `app/.env.local`, especially:
 
 ```bash
 cd app
-pnpm dev
+npm run dev
 ```
 
 ## Scripts
