@@ -664,6 +664,18 @@ function ConnectWalletButton() {
     }
   }, [login]);
 
+  const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
+  const addr = connectedAddress ?? embeddedAddr ?? null;
+  const isConnected = !!addr;
+
+  // Authenticated but wallet hooks still hydrating — show skeleton instead of "Sign In".
+  // Cap at 6s to avoid infinite spinner if something goes wrong.
+  useEffect(() => {
+    if (!authenticated || isConnected) { setHydrationTimedOut(false); return; }
+    const t = setTimeout(() => setHydrationTimedOut(true), 6000);
+    return () => clearTimeout(t);
+  }, [authenticated, isConnected]);
+
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -677,18 +689,6 @@ function ConnectWalletButton() {
   if (!ready) return (
     <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
   );
-
-  const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
-  const addr = connectedAddress ?? embeddedAddr ?? null;
-  const isConnected = !!addr;
-
-  // Authenticated but wallet hooks still hydrating — show skeleton instead of "Sign In".
-  // Cap at 6s to avoid infinite spinner if something goes wrong.
-  useEffect(() => {
-    if (!authenticated || isConnected) { setHydrationTimedOut(false); return; }
-    const t = setTimeout(() => setHydrationTimedOut(true), 6000);
-    return () => clearTimeout(t);
-  }, [authenticated, isConnected]);
 
   const isHydrating = authenticated && !isConnected && !hydrationTimedOut;
   if (isHydrating) return (
