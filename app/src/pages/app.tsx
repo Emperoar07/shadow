@@ -609,6 +609,7 @@ function ConnectWalletButton() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [hydrationTimedOut, setHydrationTimedOut] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const ref = useRef<HTMLDivElement>(null);
   const walletCreateAttemptedForUserRef = useRef<string | null>(null);
@@ -682,13 +683,7 @@ function ConnectWalletButton() {
   const isConnected = !!addr;
 
   // Authenticated but wallet hooks still hydrating — show skeleton instead of "Sign In".
-  // Check linkedAccounts: if user has a linked Solana wallet it will appear shortly;
-  // if they have none, the createWallet safety net is running — also show skeleton.
   // Cap at 6s to avoid infinite spinner if something goes wrong.
-  const hasLinkedSolanaWallet = !!user?.linkedAccounts?.some(
-    (a: { type: string; chainType?: string }) => a.type === "wallet" && a.chainType === "solana"
-  );
-  const [hydrationTimedOut, setHydrationTimedOut] = useState(false);
   useEffect(() => {
     if (!authenticated || isConnected) { setHydrationTimedOut(false); return; }
     const t = setTimeout(() => setHydrationTimedOut(true), 6000);
