@@ -35,8 +35,15 @@ const nextConfig = {
           {
             key: "Content-Security-Policy",
             value: [
-              "frame-ancestors 'self'",
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://s.tradingview.com https://*.privy.io",
+              "style-src 'self' 'unsafe-inline' https://s.tradingview.com",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data:",
+              "connect-src 'self' https: wss:",
+              "worker-src 'self' blob:",
               `frame-src ${privyFrameSources.join(" ")}`,
+              "frame-ancestors 'self'",
             ].join("; "),
           },
           // Disable access to sensitive browser features

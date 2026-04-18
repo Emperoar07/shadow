@@ -31,6 +31,16 @@ const TRIGGER_USDC = FAUCET_TRIGGER_USDC;
 const DECIMALS     = MUSDC_DECIMALS;
 const COOLDOWN_MS  = 7 * 24 * 60 * 60 * 1000;
 
+// Server-side rate limit: wallet → last claim timestamp (survives cookie clearing)
+const serverSideClaims = new Map<string, number>();
+function checkServerSideRateLimit(wallet: string, now: number): { blocked: true; nextClaimAt: number } | { blocked: false } {
+  const lastClaim = serverSideClaims.get(wallet.toLowerCase());
+  if (!lastClaim) return { blocked: false };
+  const elapsed = now - lastClaim;
+  if (elapsed >= COOLDOWN_MS) return { blocked: false };
+  return { blocked: true, nextClaimAt: lastClaim + COOLDOWN_MS };
+}
+
 const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ??
   "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
@@ -171,6 +181,18 @@ export default async function handler(
   }
 
   const now = Date.now();
+
+  // Server-side check first — cannot be bypassed by clearing cookies
+  const serverLimit = checkServerSideRateLimit(wallet, now);
+  if (serverLimit.blocked) {
+    const daysLeft = Math.ceil((serverLimit.nextClaimAt - now) / (1000 * 60 * 60 * 24));
+    return res.status(429).json({
+      success: false,
+      error: `You can top up again in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
+      nextClaimAt: serverLimit.nextClaimAt,
+    });
+  }
+
   const cooldown = checkCooldown(req, wallet, now);
   if (cooldown.blocked) {
     return res.status(429).json({
@@ -239,6 +261,7 @@ export default async function handler(
     });
     await connection.confirmTransaction(signature, "confirmed");
 
+    serverSideClaims.set(wallet.toLowerCase(), now);
     setCooldownCookie(res, wallet, now);
 
     return res.status(200).json({ success: true, signature, amount: topUpUsdc });
