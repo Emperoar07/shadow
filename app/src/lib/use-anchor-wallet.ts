@@ -54,6 +54,14 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
     const embeddedWallet = connected.find((wallet) => wallet.walletClientType === "privy");
     if (embeddedWallet) return embeddedWallet;
 
+    // useSolanaWallets() returns all Solana wallets (embedded + external)
+    const fallbackExternal = embeddedWallets.find(
+      (wallet) =>
+        wallet.walletClientType !== "privy" &&
+        typeof wallet.address === "string"
+    );
+    if (fallbackExternal) return fallbackExternal;
+
     const fallbackEmbedded = embeddedWallets.find(
       (wallet) =>
         wallet.walletClientType === "privy" &&

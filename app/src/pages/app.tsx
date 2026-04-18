@@ -224,15 +224,13 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
       </button>
-      {isTopUpMode && (
-        <button
-          type="button"
-          onClick={() => setShowGate(false)}
-          className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
-        >
-          Dismiss for now
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => setShowGate(false)}
+        className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+      >
+        {isTopUpMode ? "Dismiss for now" : "Skip for now"}
+      </button>
     </div>,
 
     // Step 1: Claim funds
@@ -281,7 +279,14 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
           </>
         ) : isTopUpMode ? `Top Up ${topUpAmount.toLocaleString()} mUSDC` : "Claim & Deposit to Margin"}
       </button>
-      <p className="mt-3 text-[10px] text-gray-600">mUSDC is sent to your wallet and auto deposited into your Shadow margin.</p>
+      <button
+        type="button"
+        onClick={() => setShowGate(false)}
+        className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+      >
+        Skip for now
+      </button>
+      <p className="mt-1 text-[10px] text-gray-600">mUSDC is sent to your wallet and auto deposited into your Shadow margin.</p>
     </div>,
 
     // Step 2: Ready
@@ -597,6 +602,8 @@ function ConnectWalletButton() {
   const walletExecutionMode = useWalletExecutionMode();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const ref = useRef<HTMLDivElement>(null);
 
   const handlePrivyLogin = useCallback(() => {
@@ -622,7 +629,7 @@ function ConnectWalletButton() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  if (!ready) return null;
+  if (!mounted || !ready) return null;
 
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
   const addr = connectedAddress ?? (authenticated ? embeddedAddr ?? null : null);
@@ -642,7 +649,9 @@ function ConnectWalletButton() {
 
     const handleDisconnect = () => {
       setOpen(false);
-      const activeWallet = wallets.find((wallet) => wallet.address === addr);
+      const activeWallet =
+        wallets.find((wallet) => wallet.address === addr) ??
+        solanaWallets.find((wallet) => wallet.address === addr);
       activeWallet?.disconnect?.();
       if (authenticated) logout();
     };
