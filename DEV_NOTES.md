@@ -4,6 +4,150 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Privy Custom-Domain Wallet Proxy Fix (2026-04-18 UTC)
+
+### What changed
+
+- Patched the frontend CSP in `app/next.config.js` to allow a configured custom Privy auth domain in `frame-src`.
+- Added explicit support for a hosted Privy API/auth domain in the frontend:
+  - `app/src/pages/_app.tsx`
+  - `app/.env.example`
+  - `README.md`
+- Added `NEXT_PUBLIC_PRIVY_API_URL` as the deploy-time knob for the custom Privy domain (for example `https://privy.www.shadowperpdex.xyz`).
+- Wired `PrivyProvider` to use that custom domain via `apiUrl` when configured.
+
+### What was verified
+
+- Root preflight baseline:
+  - `npm run check:preflight` initially failed only on stale oracle freshness
+  - `npm run oracle:once` refreshed oracle successfully
+  - `npm run check:preflight` then passed
+- Frontend static validation:
+  - `cd app && npx tsc --noEmit` -> PASS
+- Confirmed the prior hosted failure has a concrete code-side cause:
+  - browser traces referenced `https://privy.www.shadowperpdex.xyz`
+  - repo CSP only allowed `https://auth.privy.io` and `https://*.privy.io`
+  - that would block the custom hosted Privy iframe / wallet proxy path
+
+### Current blocker
+
+- The code-side CSP / API-domain gap is patched locally, but hosted production will not benefit until:
+  - `NEXT_PUBLIC_PRIVY_API_URL` is set in the deployed environment
+  - the frontend is redeployed
+- Dashboard-side alignment may still be required after deploy:
+  - wallet login enabled
+  - email login enabled
+  - unwanted social methods disabled
+  - HttpOnly cookie domain fully verified/healthy in Privy
+
+### Next safe step
+
+1. Set hosted env:
+   - `NEXT_PUBLIC_PRIVY_API_URL=https://privy.www.shadowperpdex.xyz`
+2. Redeploy the frontend.
+3. Re-smoke hosted auth on `https://www.shadowperpdex.xyz/app` for:
+   - `Sign in` opens modal
+   - email completes and app shows connected embedded Solana wallet
+   - external Solana wallet path is visible in modal
+   - connected market-panel behavior unlocks after login
+4. If wallet buttons are still absent after redeploy, treat that as a Privy dashboard login-method / wallet-surface mismatch rather than a CSP issue.
+
+## Privy Email Login Failure Trace (2026-04-18 UTC)
+
+### What changed
+
+- Patched the local frontend login flow away from `connectOrCreateWallet()` toward Privy's normal login modal for Solana-targeted auth:
+  - `app/src/pages/_app.tsx`
+  - `app/src/pages/app.tsx`
+- Aligned local provider config toward `wallet + email` and explicit Solana wallet surfacing.
+- Ran a hosted smoke on `https://www.shadowperpdex.xyz/app` using a real email login flow.
+
+### What was verified
+
+- Hosted `Sign in` opens the Privy modal successfully.
+- Hosted email path accepts an email address and sends a confirmation code.
+- Hosted code entry succeeds and advances to the terms-acceptance screen.
+- After accepting terms, Privy does **not** complete the wallet/app handoff cleanly.
+- The hosted modal ends in:
+  - `Something went wrong`
+  - `walletProxy does not exist.`
+- The app remains visually disconnected after this failure:
+  - header button still shows `Sign in`
+  - market panel still shows disconnected-state behavior
+  - bottom panel still says `Connect wallet to view positions`
+- Local static validation after the code patch:
+  - `npx tsc --noEmit` in `app/` -> PASS
+- `next lint` could not run because this repo does not yet have ESLint configured and Next opened the interactive setup prompt.
+
+### Current blocker
+
+- The root hosted failure is no longer "email submit does nothing".
+- The concrete hosted blocker is now Privy's wallet provisioning / wallet proxy handoff after successful email authentication:
+  - `walletProxy does not exist`
+- This means auth begins and completes far enough to verify the code and accept terms, but the downstream embedded-wallet bridge fails before the app can observe a usable connected wallet.
+- Hosted production is also still out of alignment with the intended product surface:
+  - Google is still visible in the live modal
+  - the wallet-first Solana UX is not visibly matching the patched local config
+
+### Next safe step
+
+1. Verify the hosted deployment actually contains the latest frontend patch:
+   - one-button flow uses `login()` instead of `connectOrCreateWallet()`
+   - local config change is deployed
+2. In the Privy dashboard, confirm production auth methods match intended behavior:
+   - wallet enabled
+   - email enabled
+   - Google disabled if no longer desired
+3. Inspect Privy's hosted embedded-wallet / custom-domain setup for the app:
+   - the hosted failure now points at missing `walletProxy`
+   - prior browser traces also showed custom-domain analytics / proxy irregularities on the Privy domain
+4. Re-smoke both paths after dashboard + deploy alignment:
+   - email -> embedded wallet creation -> connected app state
+   - external Solana wallet -> connected app state
+
+## Privy Hosted Smoke Check (2026-04-18 UTC)
+
+### What changed
+
+- No product code changed in this pass.
+- Ran a hosted browser smoke against `https://www.shadowperpdex.xyz/app` focused on the live Privy sign-in surface and canonical-host behavior.
+
+### What was verified
+
+- Apex host redirect is working:
+  - `https://shadowperpdex.xyz/app` -> `308` to `https://www.shadowperpdex.xyz/app`
+- Hosted app loads successfully on `www` and renders the disconnected trading shell.
+- Clicking the `Sign in` button opens the Privy modal successfully.
+- Email login progressed through the passwordless init step:
+  - submitting a reserved-domain test address advanced the modal to the 6-digit confirmation-code entry screen
+- The live modal currently exposes:
+  - email entry
+  - Google login
+- Browser console still reports a Privy custom-domain analytics failure:
+  - `https://privy.www.shadowperpdex.xyz/api/v1/analytics_events`
+  - browser observed CORS failure from `https://www.shadowperpdex.xyz`
+
+### Current blocker
+
+- Hosted production is still not behaving like the intended `wallet + email only` configuration:
+  - the live Privy modal is still surfacing Google
+  - the wallet login path is not visibly available in the hosted modal smoke that was run
+- This means the remaining risk is operational / dashboard-side, not clearly a repo-side frontend bug:
+  - Privy login methods exposed in the dashboard do not yet match the intended product surface
+  - the custom Privy domain / cookie-domain setup is still suspicious because browser-side analytics on `privy.www.shadowperpdex.xyz` are failing
+
+### Next safe step
+
+1. In the Privy dashboard, verify the live app only exposes the intended login methods for production.
+2. Confirm whether Google should be removed entirely; if yes, align both:
+   - Privy dashboard auth methods
+   - `app/src/pages/_app.tsx`
+3. Verify the custom Privy domain / cookie-domain setup for `privy.www.shadowperpdex.xyz` is fully healthy before treating hosted auth as done.
+4. Re-run the hosted smoke specifically for:
+   - visible external Solana wallet option in the modal
+   - successful connected-state update after wallet login
+   - market-panel unlock after connection
+
 ## Arcium Circuit Integrity Pass (2026-04-18 UTC)
 
 ### What changed

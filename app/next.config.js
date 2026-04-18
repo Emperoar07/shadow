@@ -1,6 +1,18 @@
 /** @type {import('next').NextConfig} */
 const path = require("path");
 
+const privyApiOrigin = process.env.NEXT_PUBLIC_PRIVY_API_URL?.trim();
+const privyFrameSources = [
+  "blob:",
+  "https://s.tradingview.com",
+  "https://auth.privy.io",
+  "https://*.privy.io",
+];
+
+if (privyApiOrigin) {
+  privyFrameSources.push(privyApiOrigin);
+}
+
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
@@ -24,7 +36,7 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "frame-ancestors 'self'",
-              "frame-src blob: https://s.tradingview.com https://auth.privy.io https://*.privy.io",
+              `frame-src ${privyFrameSources.join(" ")}`,
             ].join("; "),
           },
           // Disable access to sensitive browser features

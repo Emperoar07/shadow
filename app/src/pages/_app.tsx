@@ -22,6 +22,7 @@ import {
 import "../styles/globals.css";
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
+const PRIVY_API_URL = process.env.NEXT_PUBLIC_PRIVY_API_URL?.trim() ?? "";
 
 if (typeof window !== "undefined" && !(globalThis as any).Buffer) {
   (globalThis as any).Buffer = Buffer;
@@ -154,10 +155,15 @@ export default function App({ Component, pageProps }: AppProps) {
         landingHeader: "Log in to Shadow",
         walletChainType: "solana-only",
         showWalletLoginFirst: true,
+        walletList: [
+          "detected_solana_wallets",
+          "phantom",
+          "wallet_connect",
+        ],
       },
       walletConnectCloudProjectId:
         process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
-      loginMethods: ["wallet", "email", "google"],
+      loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
           connectors: toSolanaWalletConnectors({
@@ -209,6 +215,8 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <PrivyProvider
       appId={PRIVY_APP_ID}
+      // @ts-expect-error Privy runtime supports apiUrl, but this SDK version's Provider typing omits it.
+      apiUrl={PRIVY_API_URL || undefined}
       config={privyConfig}
     >
       <PrivyAccessTokenBridge />

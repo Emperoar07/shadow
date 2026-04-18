@@ -590,10 +590,10 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { ready, authenticated, logout, connectOrCreateWallet } = usePrivy();
+  const { ready, authenticated, logout, login } = usePrivy();
   const { wallets } = useWallets();
   const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
-  const { address: connectedAddress, signerReady } = useWalletConnectionState();
+  const { address: connectedAddress } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -602,14 +602,16 @@ function ConnectWalletButton() {
   const handlePrivyLogin = useCallback(() => {
     setOpen(false);
     try {
-      connectOrCreateWallet();
+      login({
+        loginMethods: ["wallet", "email"],
+      });
     } catch (error) {
       console.error("[Shadow][Privy connect]", error);
-      toast.error("Privy sign-in could not open. Check the configured app ID, allowed origins, and wallet/email methods.", {
+      toast.error("Privy sign-in could not open. Check the configured app ID, allowed origins, and the wallet/email methods in the Privy dashboard.", {
         duration: 7000,
       });
     }
-  }, [connectOrCreateWallet]);
+  }, [login]);
 
   useEffect(() => {
     if (!open) return;
@@ -623,8 +625,8 @@ function ConnectWalletButton() {
   if (!ready) return null;
 
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
-  const addr = signerReady ? connectedAddress : null;
-  const isConnected = !!addr && signerReady;
+  const addr = connectedAddress ?? (authenticated ? embeddedAddr ?? null : null);
+  const isConnected = !!addr;
 
   if (isConnected) {
     const short = `${addr!.slice(0, 4)}...${addr!.slice(-4)}`;

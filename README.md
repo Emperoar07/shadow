@@ -78,6 +78,7 @@ Set the required values in `app/.env.local`, especially:
 - `NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID`
 - `NEXT_PUBLIC_ARCIUM_RPC_URL`
 - `NEXT_PUBLIC_PRIVY_APP_ID`
+- `NEXT_PUBLIC_PRIVY_API_URL` if Privy is using a custom hosted auth domain such as `https://privy.www.shadowperpdex.xyz`
 - market and Arcium runtime values
 
 ### Run the Frontend
