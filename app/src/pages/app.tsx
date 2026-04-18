@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import BN from "bn.js";
 import {
   useAnchorWalletCompat,
@@ -11,6 +11,7 @@ import {
   useWalletExecutionMode,
 } from "../lib/use-anchor-wallet";
 import { createShadowPerpClient } from "../lib/create-client";
+import { setSponsorAccessTokenProvider } from "../lib/client";
 import { getRuntimeConfig } from "../lib/runtime";
 import { FAUCET_TRIGGER_USDC, FAUCET_CAP_USDC, MUSDC_DECIMALS } from "../lib/faucet-constants";
 import dynamic from "next/dynamic";
@@ -132,21 +133,36 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   }, [walletAddr, connection]);
 
   const handleClaim = async () => {
-    if (!walletAddr || isClaiming) return;
+    if (!walletAddr || !anchorWallet || isClaiming) return;
     setIsClaiming(true);
     try {
+      const { runtime } = createShadowPerpClient(connection, anchorWallet);
       const res = await fetch("/api/faucet-mock-usdc", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ wallet: walletAddr }),
+        body: JSON.stringify({
+          wallet: walletAddr,
+          currentBalanceRaw: currentBalanceRaw ?? undefined,
+          marketAddress: runtime.marketAddress.toBase58(),
+        }),
       });
-      const data = await res.json() as {
+      const raw = await res.text();
+      let data: {
         success: boolean;
-        signature?: string;
+        transaction?: string;
         amount?: number;
         error?: string;
         nextClaimAt?: number;
       };
+      try {
+        data = JSON.parse(raw) as typeof data;
+      } catch {
+        throw new Error(
+          raw.includes("<!DOCTYPE")
+            ? "Faucet endpoint returned an HTML error page."
+            : "Faucet returned an invalid response."
+        );
+      }
 
       if (!data.success) {
         if (data.nextClaimAt) {
@@ -158,28 +174,27 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         return;
       }
 
+      if (!data.transaction) {
+        throw new Error("No faucet transaction returned.");
+      }
+
+      if (!anchorWallet.signTransaction) {
+        throw new Error("Connected wallet cannot sign transactions.");
+      }
+
+      const tx = Transaction.from(Buffer.from(data.transaction, "base64"));
+      const signed = await anchorWallet.signTransaction(tx as Transaction);
+      const sig = await connection.sendRawTransaction(signed.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+      });
+      await connection.confirmTransaction(sig, "confirmed");
+
       const claimedAmount = data.amount ?? topUpAmount;
       const nextAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
       try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
 
-      // Auto-deposit into Shadow margin account
-      if (anchorWallet) {
-        try {
-          const { client } = createShadowPerpClient(connection, anchorWallet);
-          const runtime = getRuntimeConfig();
-          const depositAmount = new BN(claimedAmount).mul(new BN(10 ** 6));
-          await client.depositCollateral(runtime.marketAddress, depositAmount);
-          toast.success(`${claimedAmount.toLocaleString()} mUSDC deposited into your Shadow margin!`);
-        } catch (depositErr: any) {
-          const msg = typeof depositErr?.message === "string"
-            ? depositErr.message.split("\n")[0]
-            : "Auto-deposit failed";
-          toast.error(`mUSDC claimed but deposit failed: ${msg}. Use Manage Collateral to deposit manually.`);
-        }
-      } else {
-        toast.success(`${claimedAmount.toLocaleString()} mUSDC sent to your wallet!`);
-      }
-
+      toast.success(`${claimedAmount.toLocaleString()} mUSDC deposited into your Shadow margin!`);
       setStep(2);
     } catch (err: any) {
       const msg = typeof err?.message === "string" ? err.message.split("\n")[0] : "Claim failed";
@@ -601,7 +616,13 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { ready, authenticated, logout, login, user } = usePrivy();
+  const { ready, authenticated, logout, login, user, getAccessToken } = usePrivy();
+
+  // Wire Privy bearer token into the gas sponsor path so signed txs include auth.
+  useEffect(() => {
+    setSponsorAccessTokenProvider(authenticated ? getAccessToken : null);
+    return () => setSponsorAccessTokenProvider(null);
+  }, [authenticated, getAccessToken]);
   const { wallets } = useWallets();
   const { wallets: solanaWallets, exportWallet, createWallet } = useSolanaWallets();
   const { address: connectedAddress } = useWalletConnectionState();
