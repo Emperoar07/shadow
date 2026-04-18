@@ -86,6 +86,13 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         const marginInfo = await connection.getAccountInfo(marginPda);
         if (cancelled) return;
 
+        // Always check cooldown first — prevents re-showing gate after a
+        // successful claim where the deposit tx or account may still be settling.
+        try {
+          const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
+          if (stored && parseInt(stored, 10) > Date.now()) return;
+        } catch {}
+
         // No margin account — first-time user, show welcome flow
         if (!marginInfo || marginInfo.data.length < 80) {
           setCurrentBalanceRaw(null);
@@ -98,13 +105,6 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         const balance = marginInfo.data.readBigUInt64LE(72);
 
         if (balance < TRIGGER_RAW) {
-          // Check cooldown — only gate returning users if cooldown has elapsed
-          if (balance > BigInt(0)) {
-            try {
-              const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
-              if (stored && parseInt(stored, 10) > Date.now()) return; // cooldown active, skip
-            } catch {}
-          }
           const balanceUsdc = Number(balance) / 10 ** 6;
           const delta = CAP_USDC - Math.floor(balanceUsdc);
           setCurrentBalanceRaw(balance.toString());
@@ -601,9 +601,9 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { ready, authenticated, logout, login, user } = usePrivy();
+  const { ready, authenticated, logout, login } = usePrivy();
   const { wallets } = useWallets();
-  const { wallets: solanaWallets, exportWallet, createWallet } = useSolanaWallets();
+  const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
   const { address: connectedAddress } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
   const [open, setOpen] = useState(false);
@@ -611,23 +611,6 @@ function ConnectWalletButton() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const ref = useRef<HTMLDivElement>(null);
-
-  // Safety net: create embedded Solana wallet if user has none linked yet.
-  // Check user.linkedAccounts (always populated) rather than solanaWallets (can be empty on first render).
-  useEffect(() => {
-    if (!ready || !authenticated || !user) return;
-    const hasSolanaWallet = user.linkedAccounts?.some(
-      (a: { type: string; chainType?: string }) =>
-        a.type === "wallet" && a.chainType === "solana"
-    );
-    if (!hasSolanaWallet) {
-      createWallet()
-        .then(() => {
-          toast.success("Solana wallet created and ready!", { duration: 4000 });
-        })
-        .catch((e) => console.error("[Shadow] createWallet failed:", e));
-    }
-  }, [ready, authenticated, user, createWallet]);
 
   // Notify once when wallet first becomes connected this session.
   const prevConnectedRef = useRef(false);
