@@ -212,8 +212,7 @@ export default function App({ Component, pageProps }: AppProps) {
       config={privyConfig}
     >
       <PrivyAccessTokenBridge />
-      {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-      {/* @ts-ignore wallet-adapter-react FC type incompatible with React 19 JSX */}
+      {/* @ts-ignore */}
       <ConnectionProvider
         endpoint={transport.rpc}
         config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
