@@ -10,6 +10,7 @@ import {
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
+import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { Toaster } from "react-hot-toast";
 import ShadowLoader from "../components/ShadowLoader";
 import {
@@ -157,8 +158,24 @@ export default function App({ Component, pageProps }: AppProps) {
         accentColor: "#7c3aed",
         logo: "/favicon.svg",
         landingHeader: "Log in to Shadow",
+        walletChainType: "solana-only",
+        showWalletLoginFirst: true,
+        walletList: [
+          "detected_solana_wallets",
+          "phantom",
+          "wallet_connect",
+        ],
       },
-      loginMethods: ["email", "google", "twitter"],
+      walletConnectCloudProjectId:
+        process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+      loginMethods: ["wallet", "email", "google", "twitter"],
+      externalWallets: {
+        solana: {
+          connectors: toSolanaWalletConnectors({
+            shouldAutoConnect: false,
+          }),
+        },
+      },
       embeddedWallets: {
         createOnLogin: "all-users",
         noPromptOnSignature: true,

@@ -4,6 +4,55 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Privy External Wallet List Restoration (2026-04-18 UTC)
+
+### Problem
+
+- The hosted Privy modal stopped showing external wallet sign-in options.
+- The login sheet only showed:
+  - email
+  - Google
+  - Twitter
+
+### Root cause
+
+- Commit `9c372df` ("Fix: prevent external wallet extensions from hijacking Privy email login on refresh") did fix the extension-hijack issue, but it also unintentionally overwrote the Privy login surface in `app/src/pages/_app.tsx`.
+- That change removed all wallet-specific Privy config:
+  - `loginMethods: ["wallet", ...]`
+  - `appearance.walletChainType`
+  - `appearance.showWalletLoginFirst`
+  - `appearance.walletList`
+  - `externalWallets.solana.connectors`
+- Result: Privy no longer had any configured external-wallet login path to render in the modal.
+
+### What changed
+
+- Restored the wallet-specific Privy config in `app/src/pages/_app.tsx`:
+  - `loginMethods` now includes `"wallet"`
+  - `appearance.walletChainType = "solana-only"`
+  - `appearance.showWalletLoginFirst = true`
+  - `appearance.walletList = ["detected_solana_wallets", "phantom", "wallet_connect"]`
+  - `externalWallets.solana.connectors = toSolanaWalletConnectors({ shouldAutoConnect: false })`
+  - `walletConnectCloudProjectId` is passed through again
+
+### What was verified
+
+- `npx tsc --noEmit` in `app/` -> PASS
+- Installed Privy SDK typings confirm this version accepts:
+  - `phantom`
+  - `wallet_connect`
+  - `detected_solana_wallets`
+- Installed Privy SDK typings do **not** accept `"solflare"` as a direct `walletList` entry in this version, so Solflare must surface through the configured Solana connectors rather than explicit `walletList` naming.
+
+### Next safe step
+
+1. Redeploy the frontend.
+2. Re-open the Privy modal on the hosted app and verify:
+   - external wallet sign-in is visible again
+   - Phantom appears directly
+   - Solflare appears through the detected/connectors path
+3. If the modal still omits wallets after deploy, verify the Privy dashboard has wallet authentication enabled for the live app before changing code again.
+
 ## Vercel Ledger Transitive Build Fix (2026-04-18 UTC)
 
 ### What changed
