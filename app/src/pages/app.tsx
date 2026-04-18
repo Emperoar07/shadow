@@ -642,14 +642,14 @@ function ConnectWalletButton() {
   // Notify once when wallet first becomes connected this session.
   const prevConnectedRef = useRef(false);
   useEffect(() => {
-    const addr = connectedAddress ?? (authenticated ? solanaWallets.find((w) => w.walletClientType === "privy")?.address ?? null : null);
-    const isNowConnected = !!addr;
+    const resolvedAddr = connectedAddress ?? solanaWallets.find((w) => w.walletClientType === "privy")?.address ?? null;
+    const isNowConnected = !!resolvedAddr;
     if (isNowConnected && !prevConnectedRef.current) {
-      const short = `${addr!.slice(0, 4)}...${addr!.slice(-4)}`;
+      const short = `${resolvedAddr!.slice(0, 4)}...${resolvedAddr!.slice(-4)}`;
       toast.success(`Wallet connected: ${short}`, { duration: 3500 });
     }
     prevConnectedRef.current = isNowConnected;
-  }, [connectedAddress, authenticated, solanaWallets]);
+  }, [connectedAddress, solanaWallets]);
 
   const handlePrivyLogin = useCallback(() => {
     setOpen(false);
@@ -678,19 +678,18 @@ function ConnectWalletButton() {
   );
 
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
-  // Fall back to linkedAccounts so the connected state shows immediately while
-  // useSolanaWallets() is still hydrating after email/social login.
-  const linkedSolanaAddr = authenticated
-    ? (user?.linkedAccounts?.find(
-        (a: { type: string; chainType?: string; address?: string }) =>
-          a.type === "wallet" && a.chainType === "solana"
-      ) as { address?: string } | undefined)?.address ?? null
-    : null;
-  const addr = connectedAddress ?? embeddedAddr ?? linkedSolanaAddr ?? null;
+  const addr = connectedAddress ?? embeddedAddr ?? null;
   const isConnected = !!addr;
+
+  // Authenticated but wallet hooks still hydrating — show skeleton instead of "Sign In"
+  const isHydrating = authenticated && !isConnected;
+  if (isHydrating) return (
+    <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
+  );
 
   if (isConnected) {
     const short = `${addr!.slice(0, 4)}...${addr!.slice(-4)}`;
+    const isEmbedded = walletExecutionMode === "embedded" || (!connectedAddress && !!embeddedAddr);
 
     const handleCopy = () => {
       navigator.clipboard.writeText(addr!).then(() => {
@@ -766,13 +765,12 @@ function ConnectWalletButton() {
                 Open in Explorer
               </a>
               {/* Export key — only for embedded wallet users (email/social login) */}
-              {(embeddedAddr ?? linkedSolanaAddr) && (walletExecutionMode === "embedded" || (!connectedAddress && !!linkedSolanaAddr)) && (
+              {isEmbedded && embeddedAddr && (
                 <button
                   type="button"
                   onClick={() => {
                     setOpen(false);
-                    const exportAddr = embeddedAddr ?? linkedSolanaAddr!;
-                    exportWallet({ address: exportAddr }).catch(() => {});
+                    exportWallet({ address: embeddedAddr }).catch(() => {});
                   }}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-[12px] text-gray-300 hover:bg-shadow-800/80 hover:text-white transition-colors"
                 >
