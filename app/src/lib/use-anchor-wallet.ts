@@ -40,35 +40,37 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
   const { wallets: embeddedWallets } = useSolanaWallets();
 
   return useMemo(() => {
-    // External wallet always wins — connecting Phantom while an embedded wallet
-    // exists doesn't switch useActiveWallet, so check useWallets() first.
+    // useSolanaWallets() is the authoritative source for signTransaction — always
+    // resolve wallets through it by address so signing methods are available.
+    const solanaByAddress = new Map(embeddedWallets.map((w) => [w.address, w]));
+
+    // External wallet always wins — check useWallets() for connection state,
+    // then look up the rich version (with signTransaction) from useSolanaWallets().
     const connected = wallets.filter(isConnectedSolanaWalletLike);
-    const externalWallet = connected.find((wallet) => wallet.walletClientType !== "privy");
-    if (externalWallet) return externalWallet;
+    const externalDetected = connected.find((w) => w.walletClientType !== "privy");
+    if (externalDetected) {
+      return solanaByAddress.get(externalDetected.address) ?? externalDetected;
+    }
 
     // Active wallet from Privy (covers embedded wallet set as active)
     if (isConnectedSolanaWalletLike(activeWallet)) {
-      return activeWallet;
+      return solanaByAddress.get(activeWallet.address) ?? activeWallet;
     }
 
-    const embeddedWallet = connected.find((wallet) => wallet.walletClientType === "privy");
-    if (embeddedWallet) return embeddedWallet;
+    const embeddedDetected = connected.find((w) => w.walletClientType === "privy");
+    if (embeddedDetected) {
+      return solanaByAddress.get(embeddedDetected.address) ?? embeddedDetected;
+    }
 
-    // useSolanaWallets() returns all Solana wallets (embedded + external)
+    // Pure useSolanaWallets() fallbacks
     const fallbackExternal = embeddedWallets.find(
-      (wallet) =>
-        wallet.walletClientType !== "privy" &&
-        typeof wallet.address === "string"
+      (w) => w.walletClientType !== "privy" && typeof w.address === "string"
     );
     if (fallbackExternal) return fallbackExternal;
 
-    const fallbackEmbedded = embeddedWallets.find(
-      (wallet) =>
-        wallet.walletClientType === "privy" &&
-        typeof wallet.address === "string"
-    );
-
-    return fallbackEmbedded ?? null;
+    return embeddedWallets.find(
+      (w) => w.walletClientType === "privy" && typeof w.address === "string"
+    ) ?? null;
   }, [activeWallet, wallets, embeddedWallets]);
 }
 
