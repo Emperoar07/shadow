@@ -601,9 +601,9 @@ export default function TradingAppPage() {
 }
 
 function ConnectWalletButton() {
-  const { ready, authenticated, logout, login } = usePrivy();
+  const { ready, authenticated, logout, login, user } = usePrivy();
   const { wallets } = useWallets();
-  const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
+  const { wallets: solanaWallets, exportWallet, createWallet } = useSolanaWallets();
   const { address: connectedAddress } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
   const [open, setOpen] = useState(false);
@@ -611,6 +611,33 @@ function ConnectWalletButton() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const ref = useRef<HTMLDivElement>(null);
+  const walletCreateAttemptedForUserRef = useRef<string | null>(null);
+
+  // Safety net for email logins: Privy auth can settle before the embedded
+  // Solana wallet is surfaced to the app. Only create a wallet when the
+  // authenticated user truly has no linked Solana wallet yet.
+  useEffect(() => {
+    if (!ready || !authenticated || !user) {
+      walletCreateAttemptedForUserRef.current = null;
+      return;
+    }
+
+    const hasLinkedSolanaWallet = user.linkedAccounts?.some(
+      (account) => account.type === "wallet" && account.chainType === "solana"
+    );
+    if (hasLinkedSolanaWallet) {
+      walletCreateAttemptedForUserRef.current = null;
+      return;
+    }
+
+    if (walletCreateAttemptedForUserRef.current === user.id) return;
+    walletCreateAttemptedForUserRef.current = user.id;
+
+    createWallet().catch((error) => {
+      console.error("[Shadow] createWallet failed:", error);
+      walletCreateAttemptedForUserRef.current = null;
+    });
+  }, [authenticated, createWallet, ready, user]);
 
   // Notify once when wallet first becomes connected this session.
   const prevConnectedRef = useRef(false);
@@ -651,7 +678,15 @@ function ConnectWalletButton() {
   );
 
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
-  const addr = connectedAddress ?? (authenticated ? embeddedAddr ?? null : null);
+  // Fall back to linkedAccounts so the connected state shows immediately while
+  // useSolanaWallets() is still hydrating after email/social login.
+  const linkedSolanaAddr = authenticated
+    ? (user?.linkedAccounts?.find(
+        (a: { type: string; chainType?: string; address?: string }) =>
+          a.type === "wallet" && a.chainType === "solana"
+      ) as { address?: string } | undefined)?.address ?? null
+    : null;
+  const addr = connectedAddress ?? embeddedAddr ?? linkedSolanaAddr ?? null;
   const isConnected = !!addr;
 
   if (isConnected) {
