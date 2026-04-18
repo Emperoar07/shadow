@@ -74,7 +74,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
 
     let cancelled = false;
 
-    const check = async () => {
+    const check = async (attempt = 0): Promise<void> => {
       try {
         const PROGRAM_ID = new PublicKey(
           process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ?? "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
@@ -112,16 +112,22 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
           setShowGate(true);
         }
       } catch {
-        if (!cancelled) {
-          setCurrentBalanceRaw(null);
-          setTopUpAmount(CAP_USDC);
-          setShowGate(true);
+        // RPC error — retry up to 3 times with backoff before giving up silently.
+        // Never show the gate due to a transient network failure.
+        if (cancelled) return;
+        if (attempt < 3) {
+          const delay = 2000 * (attempt + 1);
+          await new Promise((r) => setTimeout(r, delay));
+          if (!cancelled) return check(attempt + 1);
         }
+        // All retries exhausted — skip gate rather than falsely trigger it.
+        console.warn("[Shadow][faucet-gate] RPC failed after retries, skipping gate.");
       }
     };
 
-    // Small delay so wallet state fully settles after connect
-    const timer = setTimeout(() => { void check(); }, 800);
+    // Wait 2 s after wallet address settles before checking — avoids false
+    // positives while Privy finishes initialising the wallet session.
+    const timer = setTimeout(() => { void check(); }, 2000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [walletAddr, connection]);
 
