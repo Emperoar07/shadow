@@ -89,12 +89,13 @@ async function authenticateSponsoredTransaction(
   const user = await privy.getUser(claims.userId);
   const linkedSolanaWallets = new Set<string>();
   for (const account of user.linkedAccounts) {
-    if (account.type !== "wallet" || account.chainType !== "solana") continue;
-    const address =
-      "address" in account && typeof account.address === "string"
-        ? account.address.toLowerCase()
-        : null;
-    if (address) linkedSolanaWallets.add(address);
+    if (account.type !== "wallet") continue;
+    const acct = account as { chainType?: string; address?: string };
+    // Accept Solana embedded and external wallets; exclude EVM (chainType="ethereum")
+    if (acct.chainType && acct.chainType !== "solana") continue;
+    if (acct.address && typeof acct.address === "string") {
+      linkedSolanaWallets.add(acct.address.toLowerCase());
+    }
   }
 
   if (linkedSolanaWallets.size === 0) {
