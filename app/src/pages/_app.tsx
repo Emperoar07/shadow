@@ -7,10 +7,8 @@ import {
   ConnectionProvider,
   WalletProvider,
 } from "@solana/wallet-adapter-react";
-import {
-  PhantomWalletAdapter,
-  SolflareWalletAdapter,
-} from "@solana/wallet-adapter-wallets";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
+import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
 import { Toaster } from "react-hot-toast";
 import ShadowLoader from "../components/ShadowLoader";

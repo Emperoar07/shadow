@@ -4,6 +4,43 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Vercel Ledger Transitive Build Fix (2026-04-18 UTC)
+
+### What changed
+
+- Narrowed the Solana wallet-adapter dependency surface in the frontend:
+  - `app/src/pages/_app.tsx`
+  - `app/package.json`
+- Replaced umbrella adapter imports from `@solana/wallet-adapter-wallets` with the two adapters the app actually uses:
+  - `@solana/wallet-adapter-phantom`
+  - `@solana/wallet-adapter-solflare`
+- This preserves the same Phantom + Solflare wallet logic in `_app.tsx` while avoiding transitive adapters the app does not use.
+
+### What was verified
+
+- Recent Vercel failure no longer pointed at app code or Privy config.
+- The hosted build progressed past:
+  - dependency install
+  - lint/typecheck
+  - optimized production compile
+- The new blocker occurred during page-data collection from a transitive wallet dependency:
+  - `@ledgerhq/errors/lib-es/helpers`
+- `@solana/wallet-adapter-wallets` was confirmed to pull in many unused adapters, including Ledger-related packages.
+- `app/package-lock.json` already reflects the direct Phantom + Solflare adapter entries after local install refresh.
+
+### Current blocker
+
+- Local `next build` verification timed out in this shell before a full success/fail closeout, so the final confidence still depends on the next hosted deploy.
+- This pass is still the smallest correct fix for the observed Vercel failure because it removes the transitive Ledger path entirely instead of patching around it.
+
+### Next safe step
+
+1. Redeploy the frontend from the commit containing:
+   - direct adapter imports in `_app.tsx`
+   - direct Phantom/Solflare dependencies in `app/package.json`
+2. If Vercel still fails, treat the next log as a fresh blocker rather than reverting this adapter narrowing.
+3. Do not reintroduce `@solana/wallet-adapter-wallets` unless the product truly needs additional adapters beyond Phantom and Solflare.
+
 ## External Wallet Hijack Fix (2026-04-18 UTC)
 
 ### Problem
