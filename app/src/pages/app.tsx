@@ -615,9 +615,25 @@ function ConnectWalletButton() {
         a.type === "wallet" && a.chainType === "solana"
     );
     if (!hasSolanaWallet) {
-      createWallet().catch((e) => console.error("[Shadow] createWallet failed:", e));
+      createWallet()
+        .then(() => {
+          toast.success("Solana wallet created and ready!", { duration: 4000 });
+        })
+        .catch((e) => console.error("[Shadow] createWallet failed:", e));
     }
   }, [ready, authenticated, user, createWallet]);
+
+  // Notify once when wallet first becomes connected this session.
+  const prevConnectedRef = useRef(false);
+  useEffect(() => {
+    const addr = connectedAddress ?? (authenticated ? solanaWallets.find((w) => w.walletClientType === "privy")?.address ?? null : null);
+    const isNowConnected = !!addr;
+    if (isNowConnected && !prevConnectedRef.current) {
+      const short = `${addr!.slice(0, 4)}...${addr!.slice(-4)}`;
+      toast.success(`Wallet connected: ${short}`, { duration: 3500 });
+    }
+    prevConnectedRef.current = isNowConnected;
+  }, [connectedAddress, authenticated, solanaWallets]);
 
   const handlePrivyLogin = useCallback(() => {
     setOpen(false);
