@@ -3,10 +3,7 @@ import type { AppProps } from "next/app";
 import { useRouter } from "next/router";
 import { Buffer } from "buffer";
 import { Connection } from "@solana/web3.js";
-import {
-  ConnectionProvider,
-  WalletProvider,
-} from "@solana/wallet-adapter-react";
+import { ConnectionProvider } from "@solana/wallet-adapter-react";
 import { PrivyProvider, type PrivyClientConfig, useToken } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { Toaster } from "react-hot-toast";
@@ -224,20 +221,18 @@ export default function App({ Component, pageProps }: AppProps) {
         endpoint={transport.rpc}
         config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
       >
-        <WalletProvider wallets={[]} autoConnect={false}>
-            <Toaster
-              position="bottom-right"
-              toastOptions={{
-                style: {
-                  background: "#1a1a25",
-                  color: "#fff",
-                  border: "1px solid rgba(139, 92, 246, 0.3)",
-                },
-              }}
-            />
-            {pageLoading && <ShadowLoader fullScreen message="" />}
-            <Component {...pageProps} />
-        </WalletProvider>
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: "#1a1a25",
+                color: "#fff",
+                border: "1px solid rgba(139, 92, 246, 0.3)",
+              },
+            }}
+          />
+          {pageLoading && <ShadowLoader fullScreen message="" />}
+          <Component {...pageProps} />
       </ConnectionProvider>
     </PrivyProvider>
   );
