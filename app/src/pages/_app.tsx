@@ -172,12 +172,7 @@ export default function App({ Component, pageProps }: AppProps) {
         },
       },
       embeddedWallets: {
-        solana: {
-          createOnLogin: "users-without-wallets",
-        },
-        ethereum: {
-          createOnLogin: "off",
-        },
+        createOnLogin: "users-without-wallets",
         noPromptOnSignature: true,
       },
       solanaClusters: [{ name: "devnet", rpcUrl: initialRpcUrl.current }],
