@@ -622,9 +622,7 @@ function ConnectWalletButton() {
   const handlePrivyLogin = useCallback(() => {
     setOpen(false);
     try {
-      login({
-        loginMethods: ["wallet", "email"],
-      });
+      login();
     } catch (error) {
       console.error("[Shadow][Privy connect]", error);
       toast.error("Privy sign-in could not open. Check the configured app ID, allowed origins, and the wallet/email methods in the Privy dashboard.", {
@@ -642,7 +640,10 @@ function ConnectWalletButton() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  if (!mounted || !ready) return null;
+  if (!mounted) return null;
+  if (!ready) return (
+    <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
+  );
 
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
   const addr = connectedAddress ?? (authenticated ? embeddedAddr ?? null : null);
