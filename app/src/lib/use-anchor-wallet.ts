@@ -31,7 +31,11 @@ function isConnectedSolanaWalletLike(value: unknown): value is ConnectedSolanaWa
   const isSolana =
     wallet.type === "solana" ||
     (wallet.type === "wallet" && wallet.chainType === "solana");
-  return isSolana && typeof wallet.address === "string";
+  // Reject Ethereum addresses (0x...) — they are not valid Solana base58
+  const address = wallet.address;
+  const hasValidAddress =
+    typeof address === "string" && !address.startsWith("0x");
+  return isSolana && hasValidAddress;
 }
 
 export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {

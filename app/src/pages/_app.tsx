@@ -179,6 +179,10 @@ export default function App({ Component, pageProps }: AppProps) {
       embeddedWallets: {
         createOnLogin: "all-users",
         noPromptOnSignature: true,
+        // Restrict to Solana only — prevents Privy from creating an Ethereum
+        // embedded wallet first, which would resolve as the active wallet with
+        // a 0x address (invalid base58) before the Solana wallet is ready.
+        ethereum: { createOnLogin: "off" },
       },
       solanaClusters: [{ name: "devnet", rpcUrl: initialRpcUrl.current }],
     }),
