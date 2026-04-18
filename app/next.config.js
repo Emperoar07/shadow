@@ -7,6 +7,8 @@ const privyFrameSources = [
   "https://s.tradingview.com",
   "https://auth.privy.io",
   "https://*.privy.io",
+  // Privy constructs its iframe at privy.<your-domain> — allow all subdomains
+  "https://*.shadowperpdex.xyz",
 ];
 
 if (privyApiOrigin) {
