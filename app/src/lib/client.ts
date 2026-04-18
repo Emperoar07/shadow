@@ -51,6 +51,7 @@ const DEFAULT_POSITION_STATUS_POLL_MS = 2_000;
 const OPEN_POSITION_CALLBACK_DIAG_POLL_MS = 6_000;
 const SOLANA_GAS_SPONSOR_PATH = "/api/sponsor-solana";
 let sponsorAccessTokenProvider: null | (() => Promise<string | null>) = null;
+let sponsorWalletMode: "embedded" | "external" | "none" = "none";
 
 const ANCHOR_STATUS_MAP: Record<string, number> = {
   pending: 0, open: 1, closing: 2, closed: 3, liquidated: 4,
@@ -139,6 +140,8 @@ function sponsorshipEnabled(): boolean {
 function canUseGasSponsorship(): boolean {
   if (typeof window === "undefined") return false;
   if (!sponsorshipEnabled()) return false;
+  // Only sponsor embedded wallets — external wallets pay their own fees.
+  if (sponsorWalletMode !== "embedded") return false;
   const cluster = resolveSponsorCluster();
   return cluster === "devnet" || cluster === "mainnet-beta";
 }
@@ -159,6 +162,12 @@ export function setSponsorAccessTokenProvider(
   provider: null | (() => Promise<string | null>)
 ): void {
   sponsorAccessTokenProvider = provider;
+}
+
+export function setSponsorWalletMode(
+  mode: "embedded" | "external" | "none"
+): void {
+  sponsorWalletMode = mode;
 }
 
 /**

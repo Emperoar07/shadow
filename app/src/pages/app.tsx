@@ -11,7 +11,7 @@ import {
   useWalletExecutionMode,
 } from "../lib/use-anchor-wallet";
 import { createShadowPerpClient } from "../lib/create-client";
-import { setSponsorAccessTokenProvider } from "../lib/client";
+import { setSponsorAccessTokenProvider, setSponsorWalletMode } from "../lib/client";
 import { getRuntimeConfig } from "../lib/runtime";
 import { FAUCET_TRIGGER_USDC, FAUCET_CAP_USDC, MUSDC_DECIMALS } from "../lib/faucet-constants";
 import dynamic from "next/dynamic";
@@ -618,11 +618,18 @@ export default function TradingAppPage() {
 function ConnectWalletButton() {
   const { ready, authenticated, logout, login, user, getAccessToken } = usePrivy();
 
-  // Wire Privy bearer token into the gas sponsor path so signed txs include auth.
+  // Wire Privy bearer token and wallet mode into the gas sponsor path.
+  // Sponsorship only applies to embedded wallets — external wallets pay their own fees.
   useEffect(() => {
     setSponsorAccessTokenProvider(authenticated ? getAccessToken : null);
-    return () => setSponsorAccessTokenProvider(null);
-  }, [authenticated, getAccessToken]);
+    setSponsorWalletMode(
+      !authenticated ? "none" : walletExecutionMode === "embedded" ? "embedded" : "external"
+    );
+    return () => {
+      setSponsorAccessTokenProvider(null);
+      setSponsorWalletMode("none");
+    };
+  }, [authenticated, getAccessToken, walletExecutionMode]);
   const { wallets } = useWallets();
   const { wallets: solanaWallets, exportWallet, createWallet } = useSolanaWallets();
   const { address: connectedAddress } = useWalletConnectionState();
