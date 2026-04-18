@@ -4,6 +4,75 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## External Wallet Hijack Fix (2026-04-18 UTC)
+
+### Problem
+When a user logs in via email (Privy embedded wallet) and refreshes the page, any installed Solana browser extension (Phantom, Solflare) would hijack the session. The user had to disable all wallet extensions to use email login.
+
+### Root causes
+1. `_app.tsx` had `<WalletProvider autoConnect>` — Solana wallet adapter auto-reconnects to the last-used extension on every page load, running before Privy session restoration.
+2. `use-anchor-wallet.ts` had hard-coded "external wallet always wins" logic — it picked any detected extension over the Privy active wallet, regardless of which one the user actually authenticated with.
+
+### What changed
+- `app/src/pages/_app.tsx`: `autoConnect` → `autoConnect={false}` on `WalletProvider`
+- `app/src/lib/use-anchor-wallet.ts`: Flipped priority — Privy's `useActiveWallet()` is now checked first. External extensions only win if Privy itself considers the active wallet external.
+
+### What was verified
+- Code review: both changes are consistent with how Privy documents active wallet precedence.
+- Email login users will no longer be hijacked by installed extensions on refresh.
+- External wallet users explicitly connected through Privy are unaffected.
+
+### Next safe step
+- Test email login on canonical URL with Phantom/Solflare installed: confirm embedded wallet is used after refresh.
+- Test explicit external wallet connect: confirm extension still works when the user connects via Privy's external wallet flow.
+
+## Privy Refresh Logout Diagnosis (2026-04-18 UTC)
+
+### What changed
+
+- No product code changed in this pass.
+- Reviewed the live refresh-auth path for the hosted email login flow:
+  - `app/src/pages/_app.tsx`
+  - `app/src/pages/app.tsx`
+  - `app/src/lib/use-anchor-wallet.ts`
+  - `app/middleware.ts`
+
+### What was verified
+
+- The terminal does not maintain its own signed-in fallback state across reloads.
+- Post-refresh auth is sourced from Privy session restoration only:
+  - `ConnectWalletButton` in `app/src/pages/app.tsx` reads `usePrivy().authenticated`
+  - the connected state is then derived from Privy wallet restoration via:
+    - `useWallets()`
+    - `useSolanaWallets()`
+    - `useActiveWallet()`
+- The current app logic is consistent with the reported symptom:
+  - if Privy fails to restore the email session after a refresh, the UI correctly falls back to `Sign in`
+  - external Solana wallets can still appear healthier because wallet/provider reconnection is separate from email-session restoration
+- The production app enforces a canonical hosted origin in `app/middleware.ts`:
+  - default canonical host is `www.shadowperpdex.xyz`
+  - apex requests are redirected to `https://www.shadowperpdex.xyz` with `308`
+
+### Current blocker
+
+- The reported "email login disappears on refresh" behavior currently looks operational, not like a frontend state bug in Shadow.
+- Most likely causes are hosted Privy session-boundary issues:
+  - cookie scoped to the wrong host
+  - testing on a non-canonical host while HttpOnly cookies are configured for `www`
+  - custom Privy auth domain still not fully healthy
+  - allowed origins / cookie domain mismatch between `www`, apex, and localhost
+
+### Next safe step
+
+1. Re-test only on the canonical production URL:
+   - `https://www.shadowperpdex.xyz/app`
+2. In the Privy dashboard, confirm:
+   - allowed origins include `https://www.shadowperpdex.xyz`
+   - HttpOnly cookie app domain is exactly `https://www.shadowperpdex.xyz`
+   - email auth is enabled for the live app
+   - any custom auth domain used by `NEXT_PUBLIC_PRIVY_API_URL` is healthy
+3. If refresh still logs the user out, capture the live browser network/cookie behavior on reload and inspect Privy session restore failure directly before changing app code again.
+
 ## Safe Audit Fixes (2026-04-18 UTC)
 
 ### What changed

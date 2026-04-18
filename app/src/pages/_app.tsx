@@ -3,12 +3,18 @@ import type { AppProps } from "next/app";
 import { useRouter } from "next/router";
 import { Buffer } from "buffer";
 import { Connection } from "@solana/web3.js";
-import { ConnectionProvider } from "@solana/wallet-adapter-react";
-import { PrivyProvider, type PrivyClientConfig, useToken } from "@privy-io/react-auth";
-import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
+import {
+  ConnectionProvider,
+  WalletProvider,
+} from "@solana/wallet-adapter-react";
+import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
+import {
+  PhantomWalletAdapter,
+  SolflareWalletAdapter,
+} from "@solana/wallet-adapter-wallets";
+import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
 import { Toaster } from "react-hot-toast";
 import ShadowLoader from "../components/ShadowLoader";
-import { setSponsorAccessTokenProvider } from "../lib/client";
 import {
   getRpcTransport,
   getRpcTransports,
@@ -16,10 +22,10 @@ import {
   setPreferredRpcIndex,
 } from "../lib/runtime";
 
+import "@solana/wallet-adapter-react-ui/styles.css";
 import "../styles/globals.css";
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
-const PRIVY_API_URL = process.env.NEXT_PUBLIC_PRIVY_API_URL?.trim() ?? "";
 
 if (typeof window !== "undefined" && !(globalThis as any).Buffer) {
   (globalThis as any).Buffer = Buffer;
@@ -103,6 +109,11 @@ export default function App({ Component, pageProps }: AppProps) {
     return () => clearInterval(interval);
   }, [autoSelectBestRpc, transports.length]);
 
+  const wallets = useMemo(
+    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
+    []
+  );
+
   const router = useRouter();
   const [pageLoading, setPageLoading] = useState(false);
   const loadStartRef = useRef(0);
@@ -150,26 +161,10 @@ export default function App({ Component, pageProps }: AppProps) {
         accentColor: "#7c3aed",
         logo: "/favicon.svg",
         landingHeader: "Log in to Shadow",
-        walletChainType: "solana-only",
-        showWalletLoginFirst: true,
-        walletList: [
-          "detected_solana_wallets",
-          "phantom",
-          "wallet_connect",
-        ],
       },
-      walletConnectCloudProjectId:
-        process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
-      loginMethods: ["wallet", "email"],
-      externalWallets: {
-        solana: {
-          connectors: toSolanaWalletConnectors({
-            shouldAutoConnect: true,
-          }),
-        },
-      },
+      loginMethods: ["email", "google", "twitter"],
       embeddedWallets: {
-        createOnLogin: "users-without-wallets",
+        createOnLogin: "all-users",
         noPromptOnSignature: true,
       },
       solanaClusters: [{ name: "devnet", rpcUrl: initialRpcUrl.current }],
@@ -207,40 +202,29 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <PrivyProvider
       appId={PRIVY_APP_ID}
-      // @ts-expect-error Privy runtime supports apiUrl, but this SDK version's Provider typing omits it.
-      apiUrl={PRIVY_API_URL || undefined}
       config={privyConfig}
     >
-      <PrivyAccessTokenBridge />
-      {/* @ts-ignore */}
       <ConnectionProvider
         endpoint={transport.rpc}
         config={{ commitment: "confirmed", wsEndpoint: transport.ws }}
       >
-          <Toaster
-            position="bottom-right"
-            toastOptions={{
-              style: {
-                background: "#1a1a25",
-                color: "#fff",
-                border: "1px solid rgba(139, 92, 246, 0.3)",
-              },
-            }}
-          />
-          {pageLoading && <ShadowLoader fullScreen message="" />}
-          <Component {...pageProps} />
+        <WalletProvider wallets={wallets} autoConnect={false}>
+          <WalletModalProvider>
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: "#1a1a25",
+                  color: "#fff",
+                  border: "1px solid rgba(139, 92, 246, 0.3)",
+                },
+              }}
+            />
+            {pageLoading && <ShadowLoader fullScreen message="" />}
+            <Component {...pageProps} />
+          </WalletModalProvider>
+        </WalletProvider>
       </ConnectionProvider>
     </PrivyProvider>
   );
-}
-
-function PrivyAccessTokenBridge() {
-  const { getAccessToken } = useToken();
-
-  useEffect(() => {
-    setSponsorAccessTokenProvider(() => getAccessToken());
-    return () => setSponsorAccessTokenProvider(null);
-  }, [getAccessToken]);
-
-  return null;
 }
