@@ -603,7 +603,7 @@ function ConnectWalletButton() {
     setOpen(false);
     try {
       login({
-        loginMethods: ["wallet", "email"],
+        loginMethods: ["wallet", "email", "google"],
       });
     } catch (error) {
       console.error("[Shadow][Privy connect]", error);

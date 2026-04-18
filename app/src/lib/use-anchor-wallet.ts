@@ -27,10 +27,11 @@ type ConnectedSolanaWalletLike = {
 function isConnectedSolanaWalletLike(value: unknown): value is ConnectedSolanaWalletLike {
   if (!value || typeof value !== "object") return false;
   const wallet = value as Record<string, unknown>;
-  return (
-    wallet.type === "solana" &&
-    typeof wallet.address === "string"
-  );
+  // Privy wallets have type="wallet" + chainType="solana"; external connectors use type="solana"
+  const isSolana =
+    wallet.type === "solana" ||
+    (wallet.type === "wallet" && wallet.chainType === "solana");
+  return isSolana && typeof wallet.address === "string";
 }
 
 export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
