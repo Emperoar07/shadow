@@ -681,8 +681,21 @@ function ConnectWalletButton() {
   const addr = connectedAddress ?? embeddedAddr ?? null;
   const isConnected = !!addr;
 
-  // Authenticated but wallet hooks still hydrating — show skeleton instead of "Sign In"
-  const isHydrating = authenticated && !isConnected;
+  // Authenticated but wallet hooks still hydrating — show skeleton instead of "Sign In".
+  // Check linkedAccounts: if user has a linked Solana wallet it will appear shortly;
+  // if they have none, the createWallet safety net is running — also show skeleton.
+  // Cap at 6s to avoid infinite spinner if something goes wrong.
+  const hasLinkedSolanaWallet = !!user?.linkedAccounts?.some(
+    (a: { type: string; chainType?: string }) => a.type === "wallet" && a.chainType === "solana"
+  );
+  const [hydrationTimedOut, setHydrationTimedOut] = useState(false);
+  useEffect(() => {
+    if (!authenticated || isConnected) { setHydrationTimedOut(false); return; }
+    const t = setTimeout(() => setHydrationTimedOut(true), 6000);
+    return () => clearTimeout(t);
+  }, [authenticated, isConnected]);
+
+  const isHydrating = authenticated && !isConnected && !hydrationTimedOut;
   if (isHydrating) return (
     <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
   );
