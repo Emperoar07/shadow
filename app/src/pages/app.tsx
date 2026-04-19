@@ -88,15 +88,13 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         const marginInfo = await connection.getAccountInfo(marginPda);
         if (cancelled) return;
 
-        // Always check cooldown first — prevents re-showing gate after a
-        // successful claim where the deposit tx or account may still be settling.
-        try {
-          const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
-          if (stored && parseInt(stored, 10) > Date.now()) return;
-        } catch {}
-
-        // No margin account — first-time user, show welcome flow
+        // No margin account — first-time user. Check cooldown before showing
+        // (prevents re-showing right after a successful claim while tx settles).
         if (!marginInfo || marginInfo.data.length < 80) {
+          try {
+            const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
+            if (stored && parseInt(stored, 10) > Date.now()) return;
+          } catch {}
           setCurrentBalanceRaw(null);
           setTopUpAmount(FAUCET_FIRST_CLAIM_USDC);
           setShowGate(true);
@@ -106,6 +104,8 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         // balance is u64 at byte offset 72 (8 discriminator + 32 owner + 32 market)
         const balance = marginInfo.data.readBigUInt64LE(72);
 
+        // Always show top-up gate when below trigger — regardless of cooldown,
+        // because low balance blocks trading and must be surfaced.
         if (balance < TRIGGER_RAW) {
           const balanceUsdc = Number(balance) / 10 ** 6;
           const delta = Math.max(1, CAP_USDC - Math.floor(balanceUsdc));
@@ -114,22 +114,19 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
           setShowGate(true);
         }
       } catch {
-        // RPC error — retry up to 3 times with backoff before giving up silently.
-        // Never show the gate due to a transient network failure.
         if (cancelled) return;
         if (attempt < 3) {
-          const delay = 2000 * (attempt + 1);
+          const delay = 2_000 * (attempt + 1);
           await new Promise((r) => setTimeout(r, delay));
           if (!cancelled) return check(attempt + 1);
         }
-        // All retries exhausted — skip gate rather than falsely trigger it.
         console.warn("[Shadow][faucet-gate] RPC failed after retries, skipping gate.");
       }
     };
 
-    // Wait 2 s after wallet address settles before checking — avoids false
-    // positives while Privy finishes initialising the wallet session.
-    const timer = setTimeout(() => { void check(); }, 2000);
+    // 3s delay — gives Privy time to fully hydrate both embedded and external
+    // wallet sessions before the balance check fires.
+    const timer = setTimeout(() => { void check(); }, 3_000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [walletAddr, connection]);
 
