@@ -44,6 +44,11 @@ import {
 } from "../types";
 import { isMissingAccountError } from "./account-errors";
 import { confirmWithPolling } from "./arcium-errors";
+import {
+  extractOpenCallbackFailureMessage,
+  diagnoseOpenCallbackFailure as diagnoseCallbackShared,
+  normalizePositionStatus as normalizePositionStatusShared,
+} from "./arcium-callback-diag";
 
 export const DEFAULT_TRADE_SESSION_DURATION_SECONDS = 5 * 60 * 60;
 const DEFAULT_POSITION_STATUS_TIMEOUT_MS = 120_000;
@@ -52,18 +57,8 @@ const OPEN_POSITION_CALLBACK_DIAG_POLL_MS = 6_000;
 const SOLANA_GAS_SPONSOR_PATH = "/api/sponsor-solana";
 let sponsorAccessTokenProvider: null | (() => Promise<string | null>) = null;
 
-const ANCHOR_STATUS_MAP: Record<string, number> = {
-  pending: 0, open: 1, closing: 2, closed: 3, liquidated: 4,
-  closedPendingSettlement: 5, liquidatedPendingSettlement: 6,
-};
-
 function normalizeStatus(raw: unknown): number {
-  if (typeof raw === "number") return raw;
-  if (raw && typeof raw === "object") {
-    const key = Object.keys(raw)[0];
-    if (key && key in ANCHOR_STATUS_MAP) return ANCHOR_STATUS_MAP[key];
-  }
-  return -1;
+  return normalizePositionStatusShared(raw);
 }
 
 function parsePendingComputationAccount(position: unknown): PublicKey | null {
@@ -76,28 +71,6 @@ function parsePendingComputationAccount(position: unknown): PublicKey | null {
   } catch {
     return null;
   }
-}
-
-function extractOpenCallbackFailureMessage(
-  logs: string[],
-  clusterOffset: number
-): string | null {
-  if (!logs.some((line) => line.includes("Instruction: OpenPositionProbeBCallback"))) {
-    return null;
-  }
-
-  const aborted = logs.find((line) => line.includes("AbortedComputation"));
-  const invalidResult = logs.find((line) => line.includes("InvalidComputationResult"));
-
-  if (aborted || invalidResult) {
-    const stages = [
-      aborted ? "AbortedComputation (6000)" : null,
-      invalidResult ? "InvalidComputationResult (6010)" : null,
-    ].filter(Boolean);
-    return `Queued on Arcium cluster ${clusterOffset}, but the MPC callback already failed on-chain: ${stages.join(" -> ")}.`;
-  }
-
-  return `Queued on Arcium cluster ${clusterOffset}, but the MPC callback already failed on-chain.`;
 }
 
 type OpenPositionSubmission = {
@@ -566,47 +539,12 @@ export class ShadowPerpClient {
     positionAddress: PublicKey,
     pendingComputationAddress: PublicKey | null
   ): Promise<string | null> {
-    const connection = this.provider.connection;
-    const addresses = [pendingComputationAddress, positionAddress].filter(
-      (address): address is PublicKey => !!address
+    return diagnoseCallbackShared(
+      this.provider.connection,
+      positionAddress,
+      pendingComputationAddress,
+      this.config.clusterOffset
     );
-    const seen = new Set<string>();
-    const signatures: { signature: string; blockTime: number }[] = [];
-
-    for (const address of addresses) {
-      try {
-        const recent = await connection.getSignaturesForAddress(address, { limit: 8 }, "confirmed");
-        for (const entry of recent) {
-          if (seen.has(entry.signature)) continue;
-          seen.add(entry.signature);
-          signatures.push({
-            signature: entry.signature,
-            blockTime: entry.blockTime ?? 0,
-          });
-        }
-      } catch {
-        // Best-effort only. If RPC history lookup fails, fall back to the generic pending message.
-      }
-    }
-
-    signatures.sort((a, b) => b.blockTime - a.blockTime);
-
-    for (const { signature } of signatures.slice(0, 12)) {
-      try {
-        const tx = await connection.getTransaction(signature, {
-          commitment: "confirmed",
-          maxSupportedTransactionVersion: 0,
-        });
-        const logs = tx?.meta?.logMessages ?? [];
-        if (!logs.length || !tx?.meta?.err) continue;
-        const message = extractOpenCallbackFailureMessage(logs, this.config.clusterOffset);
-        if (message) return message;
-      } catch {
-        // Ignore individual RPC misses and keep scanning.
-      }
-    }
-
-    return null;
   }
 
   // ============ DELEGATED SESSION ============

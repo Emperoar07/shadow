@@ -211,9 +211,16 @@ export default async function handler(
   try {
     const connection = new Connection(getRpcUrl(), "confirmed");
     const programId = getProgramId();
-    const targetMarketAddress = marketAddress
-      ? new PublicKey(marketAddress)
-      : getDefaultMarketAddress();
+    let targetMarketAddress: PublicKey;
+    if (marketAddress) {
+      try {
+        targetMarketAddress = new PublicKey(marketAddress);
+      } catch {
+        return res.status(400).json({ success: false, error: "Invalid market address" });
+      }
+    } else {
+      targetMarketAddress = getDefaultMarketAddress();
+    }
 
     const balanceRaw = await fetchMarginBalanceRaw(connection, recipientPubkey);
 

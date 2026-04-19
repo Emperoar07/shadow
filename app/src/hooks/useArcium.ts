@@ -10,28 +10,13 @@ import {
   useWalletExecutionMode,
 } from "../lib/use-anchor-wallet";
 import { isMissingAccountError } from "../lib/account-errors";
-
-/**
- * Anchor deserializes Rust enums as `{ variantName: {} }` objects.
- * Convert to our numeric PositionStatus enum for reliable comparison.
- */
-const ANCHOR_ENUM_MAP: Record<string, PositionStatus> = {
-  pending: PositionStatus.Pending,
-  open: PositionStatus.Open,
-  closing: PositionStatus.Closing,
-  closed: PositionStatus.Closed,
-  liquidated: PositionStatus.Liquidated,
-  closedPendingSettlement: PositionStatus.ClosedPendingSettlement,
-  liquidatedPendingSettlement: PositionStatus.LiquidatedPendingSettlement,
-};
+import {
+  diagnoseOpenCallbackFailure,
+  normalizePositionStatus as normalizePositionStatusShared,
+} from "../lib/arcium-callback-diag";
 
 function normalizePositionStatus(raw: unknown): PositionStatus {
-  if (typeof raw === "number") return raw;
-  if (raw && typeof raw === "object") {
-    const key = Object.keys(raw)[0];
-    if (key && key in ANCHOR_ENUM_MAP) return ANCHOR_ENUM_MAP[key];
-  }
-  return PositionStatus.Pending;
+  return normalizePositionStatusShared(raw) as PositionStatus;
 }
 
 type PrivacyStatus =
@@ -244,75 +229,6 @@ function parsePendingComputationAccount(position: unknown): PublicKey | null {
   }
 }
 
-function extractOpenCallbackFailureMessage(
-  logs: string[],
-  clusterOffset: number
-): string | null {
-  if (!logs.some((line) => line.includes("Instruction: OpenPositionProbeBCallback"))) {
-    return null;
-  }
-
-  const aborted = logs.find((line) => line.includes("AbortedComputation"));
-  const invalidResult = logs.find((line) => line.includes("InvalidComputationResult"));
-
-  if (aborted || invalidResult) {
-    const stages = [
-      aborted ? "AbortedComputation (6000)" : null,
-      invalidResult ? "InvalidComputationResult (6010)" : null,
-    ].filter(Boolean);
-    return `Queued on Arcium cluster ${clusterOffset}, but the MPC callback already failed on-chain: ${stages.join(" -> ")}.`;
-  }
-
-  return `Queued on Arcium cluster ${clusterOffset}, but the MPC callback already failed on-chain.`;
-}
-
-async function diagnoseOpenCallbackFailure(
-  connection: Connection,
-  positionAddress: PublicKey,
-  pendingComputationAddress: PublicKey | null,
-  clusterOffset: number
-): Promise<string | null> {
-  const addresses = [pendingComputationAddress, positionAddress].filter(
-    (address): address is PublicKey => !!address
-  );
-  const seen = new Set<string>();
-  const signatures: { signature: string; blockTime: number }[] = [];
-
-  for (const address of addresses) {
-    try {
-      const recent = await connection.getSignaturesForAddress(address, { limit: 8 }, "confirmed");
-      for (const entry of recent) {
-        if (seen.has(entry.signature)) continue;
-        seen.add(entry.signature);
-        signatures.push({
-          signature: entry.signature,
-          blockTime: entry.blockTime ?? 0,
-        });
-      }
-    } catch {
-      // Best-effort only. If RPC history lookup fails, fall back to the generic pending message.
-    }
-  }
-
-  signatures.sort((a, b) => b.blockTime - a.blockTime);
-
-  for (const { signature } of signatures.slice(0, 12)) {
-    try {
-      const tx = await connection.getTransaction(signature, {
-        commitment: "confirmed",
-        maxSupportedTransactionVersion: 0,
-      });
-      const logs = tx?.meta?.logMessages ?? [];
-      if (!logs.length || !tx?.meta?.err) continue;
-      const message = extractOpenCallbackFailureMessage(logs, clusterOffset);
-      if (message) return message;
-    } catch {
-      // Ignore individual RPC misses and keep scanning.
-    }
-  }
-
-  return null;
-}
 
 function attachTxContext(
   error: Error,

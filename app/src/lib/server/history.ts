@@ -1,7 +1,8 @@
-import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
+import { AnchorProvider } from "@coral-xyz/anchor";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { ShadowPerpClient } from "../client";
 import { getRuntimeConfig } from "../runtime";
+import { normalizePositionStatus, getDummyWallet } from "../arcium-callback-diag";
 import type {
   HistoryTxType,
   IndexedHistoryPosition,
@@ -90,6 +91,7 @@ function collectRpcCandidates(): string[] {
 }
 
 const RPC_CANDIDATES = collectRpcCandidates();
+const RUNTIME_CONFIG = getRuntimeConfig();
 
 function getHeliusApiKey(): string | null {
   return normalizeRpcUrl(process.env.HELIUS_API_KEY);
@@ -158,30 +160,6 @@ async function withHistoryConnection<T>(
   throw lastError ?? new Error("No healthy history RPC endpoint available.");
 }
 
-function normalizePositionStatus(raw: unknown): number {
-  if (typeof raw === "number") return raw;
-  if (raw && typeof raw === "object") {
-    const key = Object.keys(raw as Record<string, unknown>)[0];
-    if (!key) return -1;
-    const normalized = key.toLowerCase();
-    if (normalized === "pending") return 0;
-    if (normalized === "open") return 1;
-    if (normalized === "closing") return 2;
-    if (normalized === "closed") return 3;
-    if (normalized === "liquidated") return 4;
-    if (normalized === "closedpendingsettlement") return 5;
-    if (normalized === "liquidatedpendingsettlement") return 6;
-  }
-  return -1;
-}
-
-function getDummyWallet(owner: PublicKey): Wallet {
-  return {
-    publicKey: owner,
-    signTransaction: async <T>(tx: T) => tx,
-    signAllTransactions: async <T>(txs: T[]) => txs,
-  } as unknown as Wallet;
-}
 
 async function loadHistorySnapshot(
   owner: PublicKey,
@@ -234,7 +212,7 @@ async function loadHistorySnapshot(
   const historyPositions: IndexedHistoryPosition[] = [];
   if (options.includePositions) {
     await withHistoryConnection(async (connection) => {
-      const runtime = getRuntimeConfig();
+      const runtime = RUNTIME_CONFIG;
       const provider = new AnchorProvider(connection, getDummyWallet(owner), {
         commitment: "confirmed",
       });
