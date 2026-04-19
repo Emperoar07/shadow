@@ -13,7 +13,7 @@ import {
 import { createShadowPerpClient } from "../lib/create-client";
 import { setSponsorAccessTokenProvider } from "../lib/client";
 import { getRuntimeConfig } from "../lib/runtime";
-import { FAUCET_TRIGGER_USDC, FAUCET_CAP_USDC, MUSDC_DECIMALS } from "../lib/faucet-constants";
+import { FAUCET_TRIGGER_USDC, FAUCET_FIRST_CLAIM_USDC, FAUCET_CAP_USDC, MUSDC_DECIMALS } from "../lib/faucet-constants";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
@@ -49,19 +49,20 @@ const TerminalGrid = dynamic(
 
 /**
  * Full-screen onboarding gate shown when connected wallet has zero mUSDC.
- * Multi-step: Welcome → Funds Allocated → Enter. Cannot be dismissed without claiming.
+ * Multi-step: Welcome → Claim → Ready. Always dismissable via skip.
  */
 function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   const { connection } = useConnection();
   const { address: walletAddr } = useWalletConnectionState();
+  const walletExecutionMode = useWalletExecutionMode();
   const anchorWallet = useAnchorWalletCompat();
   const [step, setStep] = useState(0);
   const [showGate, setShowGate] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [mounted, setMounted] = useState(false);
-  // null = first-time (no/zero balance), number = top-up (low balance, shows delta)
+  // null = first-time (no/zero balance), string = top-up mode (existing balance)
   const [currentBalanceRaw, setCurrentBalanceRaw] = useState<string | null>(null);
-  const [topUpAmount, setTopUpAmount] = useState<number>(20_000);
+  const [topUpAmount, setTopUpAmount] = useState<number>(FAUCET_FIRST_CLAIM_USDC);
   const isTopUpMode = currentBalanceRaw !== null && BigInt(currentBalanceRaw) > BigInt(0);
 
   const TRIGGER_RAW = BigInt(FAUCET_TRIGGER_USDC) * BigInt(10 ** MUSDC_DECIMALS);
@@ -97,7 +98,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         // No margin account — first-time user, show welcome flow
         if (!marginInfo || marginInfo.data.length < 80) {
           setCurrentBalanceRaw(null);
-          setTopUpAmount(CAP_USDC);
+          setTopUpAmount(FAUCET_FIRST_CLAIM_USDC);
           setShowGate(true);
           return;
         }
@@ -107,7 +108,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
 
         if (balance < TRIGGER_RAW) {
           const balanceUsdc = Number(balance) / 10 ** 6;
-          const delta = CAP_USDC - Math.floor(balanceUsdc);
+          const delta = Math.max(1, CAP_USDC - Math.floor(balanceUsdc));
           setCurrentBalanceRaw(balance.toString());
           setTopUpAmount(delta);
           setShowGate(true);
@@ -133,10 +134,15 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   }, [walletAddr, connection]);
 
   const handleClaim = async () => {
-    if (!walletAddr || !anchorWallet || isClaiming) return;
+    if (!walletAddr || isClaiming) return;
+    // Both embedded and external wallets must be able to sign
+    if (!anchorWallet?.signTransaction) {
+      toast.error("Wallet not ready to sign. Please reconnect.");
+      return;
+    }
     setIsClaiming(true);
     try {
-      const { runtime } = createShadowPerpClient(connection, anchorWallet);
+      const runtime = getRuntimeConfig();
       const res = await fetch("/api/faucet-mock-usdc", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -178,14 +184,11 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         throw new Error("No faucet transaction returned.");
       }
 
-      if (!anchorWallet.signTransaction) {
-        throw new Error("Connected wallet cannot sign transactions.");
-      }
-
       const tx = Transaction.from(Buffer.from(data.transaction, "base64"));
+      // External wallets need skipPreflight=true to avoid simulation mismatch
       const signed = await anchorWallet.signTransaction(tx as Transaction);
       const sig = await connection.sendRawTransaction(signed.serialize(), {
-        skipPreflight: false,
+        skipPreflight: walletExecutionMode === "external",
         preflightCommitment: "confirmed",
       });
       await connection.confirmTransaction(sig, "confirmed");
@@ -219,10 +222,10 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         <>
           <h2 className="text-2xl font-bold text-white mb-2">Your margin is running low</h2>
           <p className="text-gray-400 text-sm leading-relaxed mb-1 font-medium">
-            Balance below 10,000 mUSDC.
+            Balance below 2,000 mUSDC.
           </p>
           <p className="text-gray-500 text-[13px] leading-relaxed">
-            Top up your Shadow margin to keep trading. We will send exactly what you need to reach 20,000 mUSDC.
+            Top up your Shadow margin to keep trading. We will send exactly what you need to reach 10,000 mUSDC.
           </p>
         </>
       ) : (
@@ -267,7 +270,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       <p className="text-gray-400 text-[13px] leading-relaxed mb-4">
         {isTopUpMode
           ? <>Top up <span className="text-white font-semibold">{topUpAmount.toLocaleString()} mUSDC</span> and we will auto deposit it straight into your Shadow margin.</>
-          : <>Claim <span className="text-white font-semibold">20,000 mUSDC</span> and we will auto deposit it straight into your Shadow margin so you can start trading immediately.</>
+          : <>Claim <span className="text-white font-semibold">10,000 mUSDC</span> and we will auto deposit it straight into your Shadow margin so you can start trading immediately.</>
         }
       </p>
       <div className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 flex items-center justify-between mb-6">
@@ -298,7 +301,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
             </svg>
             {isTopUpMode ? "Topping up..." : "Claiming and depositing..."}
           </>
-        ) : isTopUpMode ? `Top Up ${topUpAmount.toLocaleString()} mUSDC` : "Claim & Deposit to Margin"}
+        ) : isTopUpMode ? `Top Up ${topUpAmount.toLocaleString()} mUSDC` : `Claim ${FAUCET_FIRST_CLAIM_USDC.toLocaleString()} mUSDC`}
       </button>
       <button
         type="button"
@@ -320,8 +323,8 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       <h2 className="text-2xl font-bold text-white mb-2">Ready When You Are</h2>
       <p className="text-gray-500 text-[13px] leading-relaxed mb-5">
         {isTopUpMode
-          ? `Your margin has been topped up to 20,000 mUSDC. You are ready to keep trading.`
-          : `20,000 mUSDC is now in your Shadow margin account. You are ready to open your first trade.`
+          ? `Your margin has been topped up to 10,000 mUSDC. You are ready to keep trading.`
+          : `10,000 mUSDC is now in your Shadow margin account. You are ready to open your first trade.`
         }
       </p>
       <div className="w-full space-y-2.5 mb-6 text-left">
