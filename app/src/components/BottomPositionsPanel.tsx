@@ -261,10 +261,10 @@ export default function BottomPositionsPanel({
   const autoCloseInFlightRef = useRef<Set<string>>(new Set());
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
 
-  // Reset cached client when wallet changes
+  // Reset cached client when wallet or wallet mode changes
   useEffect(() => {
     clientRef.current = null;
-  }, [anchorWallet]);
+  }, [anchorWallet, walletExecutionMode]);
 
   const prevPublicKeyRef = useRef<string | null>(null);
   useEffect(() => {
@@ -317,7 +317,7 @@ export default function BottomPositionsPanel({
     setLoading(true);
     try {
       if (!clientRef.current) {
-        clientRef.current = createShadowPerpClient(connection, anchorWallet);
+        clientRef.current = createShadowPerpClient(connection, anchorWallet, walletExecutionMode);
       }
       const { client, runtime } = clientRef.current;
       const configuredMarkets = Array.from(
@@ -484,7 +484,7 @@ export default function BottomPositionsPanel({
       setClosingAddress(pos.address);
       try {
         if (!clientRef.current) {
-          clientRef.current = createShadowPerpClient(connection, anchorWallet);
+          clientRef.current = createShadowPerpClient(connection, anchorWallet, walletExecutionMode);
         }
         const { client } = clientRef.current;
         const marketAddress = new PublicKey(pos.marketAddress);
@@ -829,7 +829,7 @@ export default function BottomPositionsPanel({
       setBalancesLoading(true);
       try {
         if (!clientRef.current) {
-          clientRef.current = createShadowPerpClient(connection, anchorWallet);
+          clientRef.current = createShadowPerpClient(connection, anchorWallet, walletExecutionMode);
         }
         const { client } = clientRef.current;
         const [solLamports, tokenResults, marginResult] = await Promise.all([

@@ -11,7 +11,7 @@ import OrderConfirmModal from "./OrderConfirmModal";
 import CollateralModal from "./CollateralModal";
 import LeverageModal from "./LeverageModal";
 import { useArciumPrivacy } from "../hooks/useArcium";
-import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
 import {
@@ -130,6 +130,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     return toast.loading(...args);
   }, [showNotifications]) as typeof toast.loading;
   const anchorWallet = useAnchorWalletCompat();
+  const walletExecutionMode = useWalletExecutionMode();
   const publicKey = anchorWallet?.publicKey ?? null;
   const signMessage = anchorWallet?.signMessage;
   const { connection } = useConnection();
@@ -157,6 +158,11 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   const [clientInitError, setClientInitError] = useState<string | null>(null);
   const [priceQuality, setPriceQuality] = useState<PriceQuality>("live");
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
+  const prevWalletModeRef = useRef(walletExecutionMode);
+  if (prevWalletModeRef.current !== walletExecutionMode) {
+    clientRef.current = null;
+    prevWalletModeRef.current = walletExecutionMode;
+  }
   const refreshSeqRef = useRef(0);
   const handleSubmitRef = useRef<() => void>(() => undefined);
   const limitExecutorRunningRef = useRef(false);
@@ -207,7 +213,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     if (!anchorWallet) return null;
     if (!clientRef.current) {
       try {
-        clientRef.current = createShadowPerpClient(connection, anchorWallet);
+        clientRef.current = createShadowPerpClient(connection, anchorWallet, walletExecutionMode);
         setClientInitError(null);
       } catch (error: any) {
         const reason =

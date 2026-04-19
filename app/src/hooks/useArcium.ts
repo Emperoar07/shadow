@@ -337,6 +337,11 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
   const walletExecutionMode = useWalletExecutionMode();
   const publicKey = anchorWallet?.publicKey ?? null;
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
+  const prevWalletModeRef = useRef(walletExecutionMode);
+  if (prevWalletModeRef.current !== walletExecutionMode) {
+    clientRef.current = null;
+    prevWalletModeRef.current = walletExecutionMode;
+  }
 
   const [status, setStatus] = useState<PrivacyStatus>("idle");
   const [statusMessage, setStatusMessage] = useState<string>("");
@@ -350,10 +355,10 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
   const getClient = useCallback(() => {
     if (!anchorWallet) return null;
     if (!clientRef.current) {
-      clientRef.current = createShadowPerpClient(connection, anchorWallet);
+      clientRef.current = createShadowPerpClient(connection, anchorWallet, walletExecutionMode);
     }
     return clientRef.current;
-  }, [anchorWallet, connection]);
+  }, [anchorWallet, connection, walletExecutionMode]);
 
   const resolveMarketAddress = useCallback(
     (ctx: ReturnType<typeof createShadowPerpClient>) => {

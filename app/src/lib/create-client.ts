@@ -12,7 +12,8 @@ type AnchorWallet = {
 
 export function createShadowPerpClient(
   connection: Connection,
-  wallet: AnchorWallet
+  wallet: AnchorWallet,
+  walletMode: "embedded" | "external" | "none" = "none"
 ): { client: ShadowPerpClient; runtime: ReturnType<typeof getRuntimeConfig> } {
   if (!wallet.publicKey || !wallet.signTransaction || !wallet.signAllTransactions) {
     throw new Error("Connected wallet does not support Anchor transactions");
@@ -24,7 +25,7 @@ export function createShadowPerpClient(
   });
 
   return {
-    client: new ShadowPerpClient(provider, runtime),
+    client: new ShadowPerpClient(provider, runtime, walletMode),
     runtime,
   };
 }

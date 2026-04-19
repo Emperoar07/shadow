@@ -51,7 +51,6 @@ const DEFAULT_POSITION_STATUS_POLL_MS = 2_000;
 const OPEN_POSITION_CALLBACK_DIAG_POLL_MS = 6_000;
 const SOLANA_GAS_SPONSOR_PATH = "/api/sponsor-solana";
 let sponsorAccessTokenProvider: null | (() => Promise<string | null>) = null;
-let sponsorWalletMode: "embedded" | "external" | "none" = "none";
 
 const ANCHOR_STATUS_MAP: Record<string, number> = {
   pending: 0, open: 1, closing: 2, closed: 3, liquidated: 4,
@@ -137,11 +136,11 @@ function sponsorshipEnabled(): boolean {
   return normalizeEnvFlag(process.env.NEXT_PUBLIC_SOLANA_GAS_SPONSOR_ENABLED);
 }
 
-function canUseGasSponsorship(): boolean {
+function canUseGasSponsorship(walletMode: "embedded" | "external" | "none"): boolean {
   if (typeof window === "undefined") return false;
   if (!sponsorshipEnabled()) return false;
   // Only sponsor embedded wallets — external wallets pay their own fees.
-  if (sponsorWalletMode !== "embedded") return false;
+  if (walletMode !== "embedded") return false;
   const cluster = resolveSponsorCluster();
   return cluster === "devnet" || cluster === "mainnet-beta";
 }
@@ -164,11 +163,6 @@ export function setSponsorAccessTokenProvider(
   sponsorAccessTokenProvider = provider;
 }
 
-export function setSponsorWalletMode(
-  mode: "embedded" | "external" | "none"
-): void {
-  sponsorWalletMode = mode;
-}
 
 /**
  * ShadowPerp Client SDK
@@ -190,6 +184,7 @@ export class ShadowPerpClient {
   private program: any;
   private provider: AnchorProvider;
   private config: ShadowPerpConfig;
+  private walletMode: "embedded" | "external" | "none";
 
   // Encryption state
   private clientPrivateKey: Uint8Array | null = null;
@@ -197,9 +192,14 @@ export class ShadowPerpClient {
   private sharedSecret: Uint8Array | null = null;
   private cipher: RescueCipher | null = null;
 
-  constructor(provider: AnchorProvider, config: ShadowPerpConfig) {
+  constructor(
+    provider: AnchorProvider,
+    config: ShadowPerpConfig,
+    walletMode: "embedded" | "external" | "none" = "none"
+  ) {
     this.provider = provider;
     this.config = config;
+    this.walletMode = walletMode;
     const idlWithAddress = {
       ...config.idl,
       address: config.programId.toBase58(),
@@ -470,7 +470,7 @@ export class ShadowPerpClient {
 
   private async sendTransactionWithPolling(tx: Transaction): Promise<string> {
     const connection = this.provider.connection;
-    const sponsorFeePayer = canUseGasSponsorship() ? resolveSponsorPubkey() : null;
+    const sponsorFeePayer = canUseGasSponsorship(this.walletMode) ? resolveSponsorPubkey() : null;
     const feePayer = sponsorFeePayer ?? this.provider.wallet.publicKey;
     const { blockhash } = await connection.getLatestBlockhash("confirmed");
 

@@ -11,7 +11,7 @@ import {
   useWalletExecutionMode,
 } from "../lib/use-anchor-wallet";
 import { createShadowPerpClient } from "../lib/create-client";
-import { setSponsorAccessTokenProvider, setSponsorWalletMode } from "../lib/client";
+import { setSponsorAccessTokenProvider } from "../lib/client";
 import { getRuntimeConfig } from "../lib/runtime";
 import { FAUCET_TRIGGER_USDC, FAUCET_CAP_USDC, MUSDC_DECIMALS } from "../lib/faucet-constants";
 import dynamic from "next/dynamic";
@@ -622,18 +622,11 @@ function ConnectWalletButton() {
   const { address: connectedAddress } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
 
-  // Wire Privy bearer token and wallet mode into the gas sponsor path.
-  // Sponsorship only applies to embedded wallets — external wallets pay their own fees.
+  // Wire Privy bearer token into the gas sponsor path.
   useEffect(() => {
     setSponsorAccessTokenProvider(authenticated ? getAccessToken : null);
-    setSponsorWalletMode(
-      !authenticated ? "none" : walletExecutionMode === "embedded" ? "embedded" : "external"
-    );
-    return () => {
-      setSponsorAccessTokenProvider(null);
-      setSponsorWalletMode("none");
-    };
-  }, [authenticated, getAccessToken, walletExecutionMode]);
+    return () => setSponsorAccessTokenProvider(null);
+  }, [authenticated, getAccessToken]);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);

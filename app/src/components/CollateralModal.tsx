@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import BN from "bn.js";
 import { useConnection } from "@solana/wallet-adapter-react";
+import { Transaction } from "@solana/web3.js";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
-import { useAnchorWalletCompat } from "../lib/use-anchor-wallet";
+import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { classifyArciumError } from "../lib/arcium-errors";
 import { FAUCET_TRIGGER_USDC } from "../lib/faucet-constants";
@@ -30,6 +31,7 @@ export default function CollateralModal({
   pairLabel = "SOL-USD",
 }: CollateralModalProps) {
   const anchorWallet = useAnchorWalletCompat();
+  const walletExecutionMode = useWalletExecutionMode();
   const publicKey = anchorWallet?.publicKey ?? null;
   const { connection } = useConnection();
   const [tab, setTab] = useState<Tab>("deposit");
@@ -50,43 +52,6 @@ export default function CollateralModal({
     } catch {}
   }, [faucetCooldownKey]);
 
-  const handleClaimMockUsdc = useCallback(async () => {
-    if (!publicKey || isClaiming) return;
-    const now = Date.now();
-    if (nextClaimAt && now < nextClaimAt) return;
-    setIsClaiming(true);
-    const toastId = "faucet-claim";
-    toast.loading("Claiming 20,000 mUSDC...", { id: toastId });
-    try {
-      const res = await fetch("/api/faucet-mock-usdc", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ wallet: publicKey.toBase58() }),
-      });
-      const data = await res.json() as { success: boolean; amount?: number; error?: string; nextClaimAt?: number };
-      if (data.success) {
-        toast.success(`Claimed ${data.amount?.toLocaleString()} mUSDC!`, { id: toastId });
-        const nextAt = now + 7 * 24 * 60 * 60 * 1000;
-        setNextClaimAt(nextAt);
-        if (faucetCooldownKey) {
-          try { localStorage.setItem(faucetCooldownKey, String(nextAt)); } catch {}
-        }
-        onSuccess();
-      } else {
-        if (data.nextClaimAt) {
-          setNextClaimAt(data.nextClaimAt);
-          if (faucetCooldownKey) {
-            try { localStorage.setItem(faucetCooldownKey, String(data.nextClaimAt)); } catch {}
-          }
-        }
-        toast.error(data.error ?? "Claim failed", { id: toastId });
-      }
-    } catch (err: any) {
-      toast.error(err?.message ?? "Claim failed", { id: toastId });
-    } finally {
-      setIsClaiming(false);
-    }
-  }, [publicKey, isClaiming, nextClaimAt, faucetCooldownKey, onSuccess]);
   const availableCollateral = freeCollateral ?? marginBalance;
   const reservedCollateral =
     lockedCollateral ??
@@ -117,6 +82,87 @@ export default function CollateralModal({
     }
     return `${action === "deposit" ? "Deposits" : "Withdrawals"} unavailable. Check app/.env.local and restart Next.js.`;
   }, []);
+
+  const handleClaimMockUsdc = useCallback(async () => {
+    if (!publicKey || !anchorWallet || isClaiming) return;
+    const now = Date.now();
+    if (nextClaimAt && now < nextClaimAt) return;
+    setIsClaiming(true);
+    const toastId = "faucet-claim";
+    toast.loading("Preparing claim + deposit...", { id: toastId });
+    try {
+      const marketAddress = getSelectedMarketAddress();
+      const res = await fetch("/api/faucet-mock-usdc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          wallet: publicKey.toBase58(),
+          marketAddress: marketAddress.toBase58(),
+        }),
+      });
+      const raw = await res.text();
+      let data: {
+        success: boolean;
+        transaction?: string;
+        amount?: number;
+        error?: string;
+        nextClaimAt?: number;
+      };
+      try {
+        data = JSON.parse(raw) as typeof data;
+      } catch {
+        throw new Error(
+          raw.includes("<!DOCTYPE")
+            ? "Faucet endpoint returned an HTML error page."
+            : "Faucet returned an invalid response."
+        );
+      }
+      if (data.success) {
+        if (!data.transaction) {
+          throw new Error("No faucet transaction returned.");
+        }
+        if (!anchorWallet.signTransaction) {
+          throw new Error("Connected wallet cannot sign transactions.");
+        }
+        const tx = Transaction.from(Buffer.from(data.transaction, "base64"));
+        const signed = await anchorWallet.signTransaction(tx as Transaction);
+        const signature = await connection.sendRawTransaction(signed.serialize(), {
+          skipPreflight: false,
+          preflightCommitment: "confirmed",
+        });
+        await connection.confirmTransaction(signature, "confirmed");
+
+        toast.success(`Claimed ${data.amount?.toLocaleString()} mUSDC into margin!`, { id: toastId });
+        const nextAt = now + 7 * 24 * 60 * 60 * 1000;
+        setNextClaimAt(nextAt);
+        if (faucetCooldownKey) {
+          try { localStorage.setItem(faucetCooldownKey, String(nextAt)); } catch {}
+        }
+        onSuccess();
+      } else {
+        if (data.nextClaimAt) {
+          setNextClaimAt(data.nextClaimAt);
+          if (faucetCooldownKey) {
+            try { localStorage.setItem(faucetCooldownKey, String(data.nextClaimAt)); } catch {}
+          }
+        }
+        toast.error(data.error ?? "Claim failed", { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? "Claim failed", { id: toastId });
+    } finally {
+      setIsClaiming(false);
+    }
+  }, [
+    anchorWallet,
+    connection,
+    faucetCooldownKey,
+    getSelectedMarketAddress,
+    isClaiming,
+    nextClaimAt,
+    onSuccess,
+    publicKey,
+  ]);
 
   useEffect(() => {
     setMounted(true);
@@ -149,7 +195,7 @@ export default function CollateralModal({
     try {
       const amountBN = new BN(Math.round(amt * 1_000_000));
       if (!anchorWallet || !publicKey) { throw new Error("Connect your wallet"); }
-      const { client } = createShadowPerpClient(connection, anchorWallet);
+      const { client } = createShadowPerpClient(connection, anchorWallet, walletExecutionMode);
       const marketAddress = getSelectedMarketAddress();
       toast.loading("Depositing collateral...", { id: "collateral" });
       const tx = await client.depositCollateral(marketAddress, amountBN);
@@ -205,7 +251,7 @@ export default function CollateralModal({
       if (!anchorWallet || !publicKey) {
         throw new Error("Connect your wallet");
       }
-      const { client } = createShadowPerpClient(connection, anchorWallet);
+      const { client } = createShadowPerpClient(connection, anchorWallet, walletExecutionMode);
       const marketAddress = getSelectedMarketAddress();
       toast.loading("Withdrawing collateral...", { id: "collateral" });
       const tx = await client.withdrawCollateral(marketAddress, amountBN);
