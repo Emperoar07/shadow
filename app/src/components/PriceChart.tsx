@@ -222,7 +222,7 @@ export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProp
         "volume.volume.color.0": colors.downColor,
         "volume.volume.color.1": colors.upColor,
         "volume.volume ma.color": colors.crosshairColor,
-        "volume.show ma": false,
+        "volume.volume ma.visible": false,
       },
     };
 
