@@ -105,7 +105,7 @@ async function fetchHeliusTransactions(
   const params = new URLSearchParams({ limit: String(limit) });
   if (before) params.set("before", before);
 
-  const url = `https://api.helius.xyz/v0/addresses/${wallet}/transactions?api-key=${apiKey}&${params}`;
+  const url = `https://api-devnet.helius-rpc.com/v0/addresses/${wallet}/transactions?api-key=${apiKey}&${params}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     if (res.status === 429) throw new Error("429 Helius rate limited");
