@@ -1,23 +1,13 @@
 /**
  * POST /api/faucet-mock-usdc
  *
- * Returns a partially signed transaction that:
- *   1. Creates the user's mUSDC ATA if needed (faucet pays rent)
- *   2. Transfers the required top-up from faucet -> user ATA
- *   3. Calls depositCollateral to move mUSDC from user ATA -> Shadow vault
+ * Transfers mUSDC from the faucet wallet directly to the user's token account.
+ * No user signature required — faucet signs and broadcasts the tx itself.
+ * User deposits to margin separately via the Collateral modal.
  *
- * Top-up logic:
- *   - Cap balance: 20,000 mUSDC in Shadow margin account
- *   - Trigger threshold: below 10,000 mUSDC
- *   - Sends exactly the amount needed to bring the margin back to 20,000
- *   - Cooldown: 7 days per wallet, enforced server-side on transaction issue
- *
- * Body:   { wallet: string; currentBalanceRaw?: string; marketAddress?: string }
- *   currentBalanceRaw — raw u64 margin balance (scaled by 1e6). If omitted the
- *   server fetches it directly.
- *
+ * Body:   { wallet: string }
  * Response:
- *   { success: true; transaction: string; amount: number }
+ *   { success: true; signature: string; amount: number }
  *   { success: false; error: string; nextClaimAt?: number }
  */
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -25,7 +15,6 @@ import {
   Connection,
   Keypair,
   PublicKey,
-  SystemProgram,
   Transaction,
 } from "@solana/web3.js";
 import {
@@ -34,21 +23,18 @@ import {
   createTransferInstruction,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import * as anchor from "@coral-xyz/anchor";
-import BN from "bn.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-import { FAUCET_CAP_USDC, FAUCET_TRIGGER_USDC, MUSDC_DECIMALS } from "../../lib/faucet-constants";
+import { FAUCET_FIRST_CLAIM_USDC, FAUCET_CAP_USDC, FAUCET_TRIGGER_USDC, MUSDC_DECIMALS } from "../../lib/faucet-constants";
 
-const CAP_USDC      = FAUCET_CAP_USDC;
-const TRIGGER_USDC  = FAUCET_TRIGGER_USDC;
-const DECIMALS      = MUSDC_DECIMALS;
-const COOLDOWN_MS   = 7 * 24 * 60 * 60 * 1000;
+const CAP_USDC     = FAUCET_CAP_USDC;
+const TRIGGER_USDC = FAUCET_TRIGGER_USDC;
+const DECIMALS     = MUSDC_DECIMALS;
+const COOLDOWN_MS  = 7 * 24 * 60 * 60 * 1000;
 
-// In-memory cooldown — resets on cold start (Vercel serverless); client-side
-// localStorage is the durable gate after confirmTransaction.
+// In-memory cooldown — resets on cold start; client localStorage is the durable gate.
 const cooldowns = new Map<string, number>();
 
 function getRpcUrl(): string {
@@ -66,25 +52,16 @@ function getMockUsdcMint(): PublicKey {
 }
 
 function getProgramId(): PublicKey {
-  const id =
+  return new PublicKey(
     process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ??
-    "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4";
-  return new PublicKey(id);
-}
-
-function getDefaultMarketAddress(): PublicKey {
-  const addr = process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT;
-  if (!addr) {
-    throw new Error("market address required");
-  }
-  return new PublicKey(addr);
+    "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
+  );
 }
 
 function getFaucetKeypair(): Keypair {
   const secret = process.env.FAUCET_WALLET_SECRET_KEY;
   if (secret) {
-    const parsed = JSON.parse(secret) as number[];
-    return Keypair.fromSecretKey(new Uint8Array(parsed));
+    return Keypair.fromSecretKey(new Uint8Array(JSON.parse(secret) as number[]));
   }
   const walletPath =
     process.env.SOLANA_WALLET ||
@@ -97,7 +74,6 @@ function getFaucetKeypair(): Keypair {
   );
 }
 
-/** Fetch the Shadow margin balance (in raw u64, scaled by 1e6) for a wallet. */
 async function fetchMarginBalanceRaw(
   connection: Connection,
   owner: PublicKey
@@ -109,61 +85,14 @@ async function fetchMarginBalanceRaw(
     );
     const info = await connection.getAccountInfo(marginPda);
     if (!info || info.data.length < 80) return BigInt(0);
-    // u64 at byte offset 72 (8 discriminator + 32 owner + 32 market)
     return info.data.readBigUInt64LE(72);
   } catch {
     return BigInt(0);
   }
 }
 
-function getMarginAccountAddress(owner: PublicKey, programId: PublicKey): PublicKey {
-  const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("margin"), owner.toBuffer()],
-    programId
-  );
-  return pda;
-}
-
-async function buildDepositInstruction(
-  connection: Connection,
-  programId: PublicKey,
-  marketAddress: PublicKey,
-  owner: PublicKey,
-  userTokenAccount: PublicKey,
-  amount: BN
-) {
-  const idl = (await import("../../idl/shadowperp.json")).default;
-  const provider = new anchor.AnchorProvider(
-    connection,
-    {
-      publicKey: owner,
-      signTransaction: async (tx: Transaction) => tx,
-      signAllTransactions: async (txs: Transaction[]) => txs,
-    } as any,
-    { commitment: "confirmed" }
-  );
-  const program = new anchor.Program(idl as anchor.Idl, provider);
-  const marginAccount = getMarginAccountAddress(owner, programId);
-  const marketAccount = await (program.account as any).market.fetch(marketAddress) as {
-    vault: PublicKey;
-  };
-
-  return program.methods
-    .depositCollateral(amount)
-    .accounts({
-      owner,
-      market: marketAddress,
-      marginAccount,
-      userTokenAccount,
-      vault: marketAccount.vault,
-      tokenProgram: TOKEN_PROGRAM_ID,
-      systemProgram: SystemProgram.programId,
-    })
-    .instruction();
-}
-
 type FaucetResponse =
-  | { success: true; transaction: string; amount: number }
+  | { success: true; signature: string; amount: number }
   | { success: false; error: string; nextClaimAt?: number };
 
 export default async function handler(
@@ -174,11 +103,8 @@ export default async function handler(
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const { wallet, marketAddress } = ((req.body as
-    | { wallet?: string; marketAddress?: string }
-    | undefined) ?? {}) as {
+  const { wallet } = ((req.body as { wallet?: string } | undefined) ?? {}) as {
     wallet?: string;
-    marketAddress?: string;
   };
 
   if (!wallet || typeof wallet !== "string") {
@@ -192,7 +118,7 @@ export default async function handler(
     return res.status(400).json({ success: false, error: "Invalid wallet address" });
   }
 
-  // Cooldown check
+  // Cooldown check (in-memory, best-effort)
   const now = Date.now();
   const lastClaim = cooldowns.get(wallet);
   if (lastClaim !== undefined) {
@@ -202,7 +128,7 @@ export default async function handler(
       const daysLeft = Math.ceil((COOLDOWN_MS - elapsed) / (1000 * 60 * 60 * 24));
       return res.status(429).json({
         success: false,
-        error: `You can top up again in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
+        error: `You can claim again in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
         nextClaimAt,
       });
     }
@@ -210,23 +136,9 @@ export default async function handler(
 
   try {
     const connection = new Connection(getRpcUrl(), "confirmed");
-    const programId = getProgramId();
-    let targetMarketAddress: PublicKey;
-    if (marketAddress) {
-      try {
-        targetMarketAddress = new PublicKey(marketAddress);
-      } catch {
-        return res.status(400).json({ success: false, error: "Invalid market address" });
-      }
-    } else {
-      targetMarketAddress = getDefaultMarketAddress();
-    }
-
     const balanceRaw = await fetchMarginBalanceRaw(connection, recipientPubkey);
-
     const balanceUsdc = Number(balanceRaw) / 10 ** DECIMALS;
 
-    // Only top up if below the trigger threshold
     if (balanceUsdc >= TRIGGER_USDC) {
       return res.status(400).json({
         success: false,
@@ -234,20 +146,21 @@ export default async function handler(
       });
     }
 
-    // Send exactly enough to reach the cap
-    const topUpUsdc = CAP_USDC - Math.floor(balanceUsdc);
-    const topUpRaw  = BigInt(topUpUsdc) * BigInt(10 ** DECIMALS);
-    const amountBN = new BN(topUpRaw.toString());
+    // First-time: send FAUCET_FIRST_CLAIM_USDC. Top-up: send delta to reach cap.
+    const isFirstTime = balanceUsdc === 0;
+    const sendUsdc = isFirstTime
+      ? FAUCET_FIRST_CLAIM_USDC
+      : Math.max(1, CAP_USDC - Math.floor(balanceUsdc));
+    const sendRaw = BigInt(sendUsdc) * BigInt(10 ** DECIMALS);
 
     const mintAddress = getMockUsdcMint();
     const faucet = getFaucetKeypair();
-
     const faucetAta    = await getAssociatedTokenAddress(mintAddress, faucet.publicKey);
     const recipientAta = await getAssociatedTokenAddress(mintAddress, recipientPubkey);
 
     const tx = new Transaction();
 
-    // Create recipient ATA if it does not exist (faucet pays rent)
+    // Create recipient ATA if needed — faucet pays rent
     const recipientAtaInfo = await connection.getAccountInfo(recipientAta);
     if (!recipientAtaInfo) {
       tx.add(
@@ -265,37 +178,26 @@ export default async function handler(
         faucetAta,
         recipientAta,
         faucet.publicKey,
-        topUpRaw,
+        sendRaw,
         [],
         TOKEN_PROGRAM_ID
-      )
-    );
-
-    tx.add(
-      await buildDepositInstruction(
-        connection,
-        programId,
-        targetMarketAddress,
-        recipientPubkey,
-        recipientAta,
-        amountBN
       )
     );
 
     const { blockhash } = await connection.getLatestBlockhash("confirmed");
     tx.recentBlockhash = blockhash;
     tx.feePayer = faucet.publicKey;
-    tx.partialSign(faucet);
+    tx.sign(faucet);
 
-    const transaction = Buffer.from(
-      tx.serialize({ requireAllSignatures: false, verifySignatures: false })
-    ).toString("base64");
-
-    return res.status(200).json({
-      success: true,
-      transaction,
-      amount: topUpUsdc,
+    const signature = await connection.sendRawTransaction(tx.serialize(), {
+      skipPreflight: false,
+      preflightCommitment: "confirmed",
     });
+    await connection.confirmTransaction(signature, "confirmed");
+
+    cooldowns.set(wallet, now);
+
+    return res.status(200).json({ success: true, signature, amount: sendUsdc });
   } catch (err: any) {
     console.error("[faucet-mock-usdc]", err);
     const message =

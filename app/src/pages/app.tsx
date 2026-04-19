@@ -132,27 +132,17 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
 
   const handleClaim = async () => {
     if (!walletAddr || isClaiming) return;
-    // Both embedded and external wallets must be able to sign
-    if (!anchorWallet?.signTransaction) {
-      toast.error("Wallet not ready to sign. Please reconnect.");
-      return;
-    }
     setIsClaiming(true);
     try {
-      const runtime = getRuntimeConfig();
       const res = await fetch("/api/faucet-mock-usdc", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          wallet: walletAddr,
-          currentBalanceRaw: currentBalanceRaw ?? undefined,
-          marketAddress: runtime.marketAddress.toBase58(),
-        }),
+        body: JSON.stringify({ wallet: walletAddr }),
       });
       const raw = await res.text();
       let data: {
         success: boolean;
-        transaction?: string;
+        signature?: string;
         amount?: number;
         error?: string;
         nextClaimAt?: number;
@@ -177,24 +167,11 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         return;
       }
 
-      if (!data.transaction) {
-        throw new Error("No faucet transaction returned.");
-      }
-
-      const tx = Transaction.from(Buffer.from(data.transaction, "base64"));
-      // External wallets need skipPreflight=true to avoid simulation mismatch
-      const signed = await anchorWallet.signTransaction(tx as Transaction);
-      const sig = await connection.sendRawTransaction(signed.serialize(), {
-        skipPreflight: walletExecutionMode === "external",
-        preflightCommitment: "confirmed",
-      });
-      await connection.confirmTransaction(sig, "confirmed");
-
       const claimedAmount = data.amount ?? topUpAmount;
       const nextAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
       try { localStorage.setItem(`mockusdc_faucet_${walletAddr}`, String(nextAt)); } catch {}
 
-      toast.success(`${claimedAmount.toLocaleString()} mUSDC deposited into your Shadow margin!`);
+      toast.success(`${claimedAmount.toLocaleString()} mUSDC sent to your wallet. Deposit to margin to start trading.`);
       setStep(2);
     } catch (err: any) {
       const msg = typeof err?.message === "string" ? err.message.split("\n")[0] : "Claim failed";
@@ -266,8 +243,8 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </h2>
       <p className="text-gray-400 text-[13px] leading-relaxed mb-4">
         {isTopUpMode
-          ? <>Top up <span className="text-white font-semibold">{topUpAmount.toLocaleString()} mUSDC</span> and we will auto deposit it straight into your Shadow margin.</>
-          : <>Claim <span className="text-white font-semibold">10,000 mUSDC</span> and we will auto deposit it straight into your Shadow margin so you can start trading immediately.</>
+          ? <>Top up <span className="text-white font-semibold">{topUpAmount.toLocaleString()} mUSDC</span> sent to your wallet. Deposit to margin to keep trading.</>
+          : <>Claim <span className="text-white font-semibold">10,000 mUSDC</span> sent straight to your wallet. Then deposit to your Shadow margin to start trading.</>
         }
       </p>
       <div className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 flex items-center justify-between mb-6">
@@ -307,7 +284,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       >
         Skip for now
       </button>
-      <p className="mt-1 text-[10px] text-gray-600">mUSDC is sent to your wallet and auto deposited into your Shadow margin.</p>
+      <p className="mt-1 text-[10px] text-gray-600">mUSDC is sent to your wallet. Deposit to Shadow margin when ready.</p>
     </div>,
 
     // Step 2: Ready
@@ -320,8 +297,8 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       <h2 className="text-2xl font-bold text-white mb-2">Ready When You Are</h2>
       <p className="text-gray-500 text-[13px] leading-relaxed mb-5">
         {isTopUpMode
-          ? `Your margin has been topped up to 10,000 mUSDC. You are ready to keep trading.`
-          : `10,000 mUSDC is now in your Shadow margin account. You are ready to open your first trade.`
+          ? `${topUpAmount.toLocaleString()} mUSDC is in your wallet. Deposit to margin to keep trading.`
+          : `10,000 mUSDC is in your wallet. Deposit to your Shadow margin to start trading.`
         }
       </p>
       <div className="w-full space-y-2.5 mb-6 text-left">
@@ -338,10 +315,17 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </div>
       <button
         type="button"
-        onClick={() => setShowGate(false)}
+        onClick={() => { setShowGate(false); onOpenDeposit?.(); }}
         className="w-full py-3 rounded-xl font-bold text-sm bg-accent-purple hover:bg-accent-purple/85 text-white transition-colors"
       >
-        Enter Shadow
+        {isTopUpMode ? "Deposit to Margin" : "Deposit & Start Trading"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setShowGate(false)}
+        className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+      >
+        I&apos;ll deposit later
       </button>
     </div>,
   ];
