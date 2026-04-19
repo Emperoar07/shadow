@@ -37,7 +37,7 @@ interface HeliusTx {
   slot: number;
   timestamp: number | null;
   transactionError: unknown | null;
-  type: string;          // e.g. "UNKNOWN", "TRANSFER", custom program types
+  type: string;
   description: string;
   nativeTransfers?: { fromUserAccount: string; toUserAccount: string; amount: number }[];
   tokenTransfers?: { fromUserAccount: string; toUserAccount: string; tokenAmount: number; mint: string }[];
@@ -89,8 +89,10 @@ function collectRpcCandidates(): string[] {
   return out;
 }
 
+const RPC_CANDIDATES = collectRpcCandidates();
+
 function getHeliusApiKey(): string | null {
-  return normalizeRpcUrl(process.env.HELIUS_API_KEY ?? process.env.NEXT_PUBLIC_HELIUS_API_KEY);
+  return normalizeRpcUrl(process.env.HELIUS_API_KEY);
 }
 
 // Fetch parsed transactions from Helius Enhanced Transactions API
@@ -123,7 +125,7 @@ function heliusTxToIndexed(tx: HeliusTx, wallet: string): IndexedRecentTx {
     slot: tx.slot,
     err: tx.transactionError !== null,
     blockTime: tx.timestamp,
-    memo: tx.description || null,
+    memo: tx.description?.trim() || null,
     txType,
   };
 }
@@ -131,16 +133,11 @@ function heliusTxToIndexed(tx: HeliusTx, wallet: string): IndexedRecentTx {
 function inferTxTypeFromDescription(tx: HeliusTx, wallet: string): HistoryTxType {
   const desc = tx.description.toLowerCase();
 
-  // Check token transfers to/from wallet for deposit/withdraw style events
   const inbound = tx.tokenTransfers?.some((t) => t.toUserAccount === wallet && t.tokenAmount > 0);
   const outbound = tx.tokenTransfers?.some((t) => t.fromUserAccount === wallet && t.tokenAmount > 0);
 
-  if (inbound && desc.includes("transfer")) {
-    return { label: "Token Received", color: "text-accent-green", icon: "down" };
-  }
-  if (outbound && desc.includes("transfer")) {
-    return { label: "Token Sent", color: "text-accent-red", icon: "up" };
-  }
+  if (inbound && desc.includes("transfer")) return { label: "Token Received", color: "text-accent-green", icon: "down" };
+  if (outbound && desc.includes("transfer")) return { label: "Token Sent", color: "text-accent-red", icon: "up" };
 
   return { label: tx.type || "Transaction", color: "text-gray-500", icon: "generic" };
 }
@@ -148,7 +145,7 @@ function inferTxTypeFromDescription(tx: HeliusTx, wallet: string): HistoryTxType
 async function withHistoryConnection<T>(
   fn: (connection: Connection, rpcUrl: string) => Promise<T>
 ): Promise<T> {
-  const candidates = collectRpcCandidates();
+  const candidates = RPC_CANDIDATES;
   let lastError: unknown = null;
   for (const rpcUrl of candidates) {
     const connection = new Connection(rpcUrl, "confirmed");

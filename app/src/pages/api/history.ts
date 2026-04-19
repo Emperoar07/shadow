@@ -29,9 +29,18 @@ export default async function handler(
     return;
   }
 
-  const wallet = typeof req.query.wallet === "string" ? req.query.wallet : "";
-  if (!wallet) {
+  const walletRaw = typeof req.query.wallet === "string" ? req.query.wallet.trim() : "";
+  if (!walletRaw) {
     res.status(400).json({ ok: false, error: "Missing wallet" });
+    return;
+  }
+  let wallet: string;
+  try {
+    const { PublicKey } = await import("@solana/web3.js");
+    new PublicKey(walletRaw);
+    wallet = walletRaw;
+  } catch {
+    res.status(400).json({ ok: false, error: "Invalid wallet address" });
     return;
   }
 
