@@ -514,9 +514,12 @@ export class ShadowPerpClient {
 
     let signature: string;
     try {
+      // Skip preflight for external wallets — the wallet extension already
+      // simulates, and running it again against the app RPC can produce false
+      // "insufficient SOL" failures when nodes are slightly out of sync.
       signature = await connection.sendRawTransaction(serialized, {
         preflightCommitment: "confirmed",
-        skipPreflight: false,
+        skipPreflight: this.walletMode === "external",
         maxRetries: 3,
       });
     } catch (sendErr: any) {
