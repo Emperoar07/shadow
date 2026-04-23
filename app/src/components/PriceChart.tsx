@@ -89,6 +89,8 @@ function ensureTvScript(): Promise<void> {
 export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [showSoftLoading, setShowSoftLoading] = useState(false);
+  // true only on first mount or full widget rebuild (theme/mobile change)
+  const [isHardLoading, setIsHardLoading] = useState(true);
   const [tvTheme, setTvTheme] = useState<"dark" | "light">("dark");
   const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -178,6 +180,7 @@ export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProp
     builtMobileRef.current = null;
 
     setIsLoading(true);
+    setIsHardLoading(true);
     setShowSoftLoading(false);
 
     const colors = tvTheme === "light" ? LIGHT_COLORS : DARK_COLORS;
@@ -238,7 +241,7 @@ export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProp
 
     // Use the cached script promise — won't re-inject tv.js if already loaded.
     const fallbackTimer = setTimeout(() => {
-      if (!cancelled) setIsLoading(false);
+      if (!cancelled) { setIsLoading(false); setIsHardLoading(false); }
     }, 6000);
 
     ensureTvScript()
@@ -257,6 +260,7 @@ export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProp
               builtMobileRef.current = isMobile;
               clearTimeout(fallbackTimer);
               setIsLoading(false);
+              setIsHardLoading(false);
             }
           });
         } catch {
@@ -289,13 +293,13 @@ export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProp
   return (
     <div className="trade-price-chart flex flex-col h-full min-h-0">
       <div className="relative flex-1 min-h-0">
-        {isLoading && !showSoftLoading && (
+        {isHardLoading && !showSoftLoading && (
           <div className="absolute inset-0 z-20 bg-shadow-900">
             <ShadowLoader message="Loading chart..." />
           </div>
         )}
 
-        {isLoading && showSoftLoading && (
+        {isHardLoading && showSoftLoading && (
           <div className="absolute inset-0 z-20 bg-shadow-900">
             <ShadowLoader message="Syncing live chart..." />
           </div>
