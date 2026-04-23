@@ -4,6 +4,84 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
+## Arcium Deploy Identity Fix + Live Open Blocker (2026-04-23 UTC)
+
+### What changed
+
+- Fixed the missing Arcium diagnostic exports in the on-chain program so the probe instructions are actually part of the built IDL/program:
+  - `programs/shadowperp/src/handlers/mod.rs`
+  - `programs/shadowperp/src/handlers/callbacks/mod.rs`
+  - `programs/shadowperp/src/state/mod.rs`
+  - `programs/shadowperp/src/lib.rs`
+- Restored the missing repo diagnostic runner:
+  - `scripts/diagnose-open-contract.ts`
+- Hardened deploy tooling to avoid a dangerous program-id drift:
+  - `scripts/manual-deploy-devnet.ts`
+  - `scripts/deploy-devnet.ts`
+- Deploy helpers now detect when `target/deploy/shadowperp-keypair.json` does **not** match the configured devnet program id in `Anchor.toml`, and they upgrade the configured live program id instead of silently trying to deploy a new program namespace.
+
+### What was verified
+
+- Local source still declares and targets the live devnet program:
+  - `ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4`
+- The drifted local artifact keypair was:
+  - `AfjXVwyUaMY7mZUVKRvm2AX2Ymhd4VH6oR5SBLoTWALJ`
+- The live upgrade landed successfully via the fixed helper:
+  - upgrade tx: `2NTfHqPvJRN5DmfeZFga8hkH1a5qAwUutgWnTYfAjTytWd5gVNnX9brJvdJAyRUQwQs4idoZQhwpP1isQJ4bLriW`
+- `solana program show` now reports:
+  - program: `ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4`
+  - last deployed slot: `457624425`
+- `npm run check:preflight` after upgrade:
+  - PASS for program account, market owner, comp-def pointers, and finalization
+  - only expected failure before refresh was oracle freshness
+- Oracle refresh succeeded:
+  - tx: `4uwDR8vKTUSHQH7kxzY5ijgP6i1tpxqJNs2UQS9aiV5CQsux1wrshshMPmNSKRCsYZNEQyTQKSV13mXetBzk1Uue`
+  - later refresh tx: `2dVJAkrUmu4mRaxbDqZhSRrspBuKxyETscfCTLESkASTZLpK6vjsdKAR6wZJEEZW9RtN7NdCM76HSTTUKo6wJBEA`
+- The diagnostic probe lane is now callable end to end:
+  - tuple-only queue tx: `51L1tXt2QfqiruskaRGv1rtkYnqWGjbut4nJZrx1CZZuus3qz66UG1YNrRjjWEVsJLima8o5QDEknbUW4Tq78aXZ`
+  - margin-check queue tx: `4HJcZ3gZ85DNQK27eoxdZXuvWQbxZAAg6J6FsuwnVv6D3o671dL8PVeATpmb6rnjoRi5CYKUkMHKwkpiFvy9iCwN`
+  - full-check queue tx: `4JMQMNAMdBDqP8z6FEsHx2DnqbCn3KB5pu4ijF2KQXbCvTKQ2SurgZv34d9PhpLrxHAFGyyEZiYxQeskDnWp11Wn`
+- All three live diagnostic probes still resolve to:
+  - status = `aborted`
+  - results = `[false, false, false, false]`
+- Fresh direct smoke after oracle refresh:
+  - open tx: `4XX83A4gjJ8UProm5rKMKg7MtW2EjipA1bBjcdN4QprayvScKWcXG1UKYgTtZqdvC8mMYL261sNVzgXtBwBpe2LQ`
+  - callback tx: `5bvC2aC2x2AoT7dKqqGqY2JM2exV4BTSmW2WAVDGWzBYaTrJkiBCPkEfxhjmh5kN4MGhWfcixjCCo5KxZWJp7wS7`
+  - duplicate callback retry tx: `5oerjBBo9hXdVR7eZz7UK6wSS1PvL5RHHVaWWdx8YWzB7T6WF6ksSXmk3jHpC2xSNrcK2Xiqk8PC5nJFGmkPrgUA`
+- Latest smoke position:
+  - PDA: `3FUc9XremouN9wFZPQUMnprMvMhxPuPju4xDMGrr5Ebg`
+  - final status: `Closed` (`3`)
+  - margin after callback cleanup: `0`
+- Callback logs confirm the same root blocker remains:
+  - `Instruction: OpenPositionProbeBCallback`
+  - `MPC verify failed ... AbortedComputation (6000)`
+  - then cleanup closes the position
+- The later `6204 AlreadyCallbackedComputation` tx is only a duplicate/retry after the callback already ran; it is not the primary failure.
+
+### Important disproved lead
+
+- Re-checked the installed `@arcium-hq/client` behavior directly.
+- In this repo’s deployed setup, `getMXEAccAddress(...)` / `getMXEPublicKey(...)` resolve the live MXE account correctly when passed the same MXE program namespace the app already uses.
+- A brief attempt to force the raw Arcium program id into the canary produced a nonexistent account (`E5hBn8WXskRBX5BdAKP1jCEwjrAtq8repKqj8BSjyKG6`), so that hypothesis was rejected and reverted.
+
+### Current blocker
+
+- The deploy/tooling blocker is fixed.
+- The live protocol blocker is **not** fixed:
+  - `open_position_probe_b` still aborts on devnet after queueing
+  - the callback cleanup now makes the end state clearer by closing the failed position instead of leaving it zombie-pending
+- This remains a shared protocol lane issue, not a Privy / embedded-wallet / external-wallet distinction.
+
+### Next safe step
+
+1. Treat the remaining issue as the Arcium open-lane blocker, not a wallet integration bug.
+2. Escalate with the fresh evidence above:
+   - live upgrade tx
+   - fresh probe txs
+   - fresh open/callback txs
+   - latest closed position PDA
+3. If continuing locally, the highest-signal next experiment is a fresh namespace only if the goal is to reinitialize a brand-new open comp-def family; otherwise keep the current devnet program stable and avoid speculative protocol-shape churn before Arcium-side guidance.
+
 ## Privy External Wallet List Restoration (2026-04-18 UTC)
 
 ### Problem
@@ -3016,3 +3094,64 @@ No code changes were made during this audit pass.
    - external Solana wallet login through Privy
 2. Commit only the audit-fix, oracle-hardening, doc-alignment, and connect-button files.
 3. Leave the unrelated local UI/layout edits untouched until they are reviewed separately.
+
+## Open Position Audit (2026-04-23 UTC)
+
+### What changed
+- No product logic changed in this pass.
+- Ran a repo-grounded audit across the direct wallet open-position path, Arcium callback path, devnet health scripts, and live diagnostics docs.
+
+### What was verified
+- `git status --short` was clean at audit start.
+- Active runtime/devnet values verified from local notes and env:
+  - program: `ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4`
+  - market: `crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T`
+  - cluster offset: `456`
+- `npm run check:preflight` passed on April 23, 2026 after refreshing the oracle.
+- `npm run oracle:once` succeeded and published tx:
+  - `5xJB9G7vedWmFCzCiiiZLEL8NbVRabYDnvC42ksnjQZjhzJ4YjbHnne1S5j2WUS67Qg8ivDPURXK7SvzYgzJUxhD`
+- `solana confirm 5xJB9G7vedWmFCzCiiiZLEL8NbVRabYDnvC42ksnjQZjhzJ4YjbHnne1S5j2WUS67Qg8ivDPURXK7SvzYgzJUxhD --url https://api.devnet.solana.com`
+  returned `Finalized`.
+- `npm run canary:devnet` still does not prove open-position health because the canary currently derives the old per-market margin PDA and reports:
+  - `margin account has no available collateral for simulation`
+
+### Current blocker
+- Embedded and external wallets both converge into the same live open-position lane:
+  - UI -> `submitPrivateOrder(...)`
+  - client -> `openPosition(...)`
+  - program -> `open_position`
+  - callback -> `open_position_probe_b_callback`
+- The strongest current root-cause signal remains protocol-side, not wallet-side:
+  - the repo already contains deployed diagnostics showing tuple-only, margin-check, and full-check probes all abort on devnet for the same open tuple lane
+  - this points to the Arcium open computation / callback verification lane as the shared blocker for both wallet types
+- Secondary audit issue:
+  - `scripts/devnet-canary.ts` still uses legacy `[b"margin", market, owner]` seeds instead of the live owner-scoped `[b"margin", owner]` PDA, so its queue-health result is currently a false negative for the real app architecture
+
+### Next safe step
+1. Fix `scripts/devnet-canary.ts` to use the live owner-scoped margin PDA so automated health checks match the app/client path.
+2. Run a funded live smoke for both:
+   - embedded Privy wallet
+   - external Solana wallet
+   and capture whether the position reaches `Pending` then closes with callback failure, or fails earlier.
+3. If the funded smoke still reproduces on both wallet types, treat `open_position_probe_b` / callback verification as the primary live blocker and escalate with the existing diagnostic packet plus fresh tx signatures.
+
+### Follow-up validation (2026-04-23 UTC)
+- Updated `scripts/devnet-canary.ts` to use the live owner-scoped margin PDA seeds:
+  - `[b"margin", owner]`
+  instead of the stale legacy per-market derivation.
+- Restored `scripts/diagnose-open-contract.ts` so the `diag:open-contract` package script resolves again.
+- Validation results:
+  - `npx ts-node scripts/diagnose-open-contract.ts --rpc https://api.devnet.solana.com --program ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4 --market crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T`
+    now compiles and starts, but the deployed IDL/program does not expose the old probe methods:
+    - `runOpenPositionTupleProbe is unavailable in the loaded IDL`
+  - `npm run oracle:once` with explicit devnet env published tx:
+    - `3wGtCNKBLbtURp6B2Yi6BrpmHr4eQ73jhfrVtXxZvAc4ubu9MEkdejubVGdVbf9CbgCj3b2jKUpx1toBiGB2nxy6`
+  - rerunning the canary after that publish still reported:
+    - `Oracle freshness - age=1195s (max 300s)`
+    - `Queue call health (open_position simulate) - skipped (oracle stale; refresh price first)`
+- Current interpretation:
+  - the canary seed bug is fixed
+  - the diagnostic script restore is fixed
+  - the remaining live blocker is now chain/runtime-side:
+    - either `last_price_update` on the market is not advancing as expected on devnet after the oracle publish, or the verified write/read path is not observing the same finalized market state yet
+  - open-position diagnosis still points to the shared protocol-side lane, not wallet-specific signing

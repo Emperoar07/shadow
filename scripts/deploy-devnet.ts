@@ -133,6 +133,18 @@ function readProgramIdFromIdl(idlPath: string): PublicKey | null {
   return new PublicKey(idl.address);
 }
 
+function readConfiguredDevnetProgramId(rootDir: string): PublicKey | null {
+  const anchorTomlPath = path.resolve(rootDir, "Anchor.toml");
+  if (!fs.existsSync(anchorTomlPath)) {
+    return null;
+  }
+  const anchorToml = fs.readFileSync(anchorTomlPath, "utf-8");
+  const match = anchorToml.match(
+    /\[programs\.devnet\][\s\S]*?shadowperp\s*=\s*"([^"]+)"/
+  );
+  return match ? new PublicKey(match[1]) : null;
+}
+
 function rotateProgramKeypairForFreshNamespace(
   keypairPath: string,
   anchorBin: string,
@@ -235,6 +247,7 @@ async function main() {
 
   const keypairProgramId = readProgramIdFromKeypair(keypairPath);
   const idlProgramId = readProgramIdFromIdl(targetIdlPath);
+  const configuredProgramId = readConfiguredDevnetProgramId(rootDir);
   const needsBuild =
     freshNamespace ||
     !fs.existsSync(soPath) ||
@@ -343,8 +356,37 @@ async function main() {
   if (!skipDeploy) {
     console.log("\nStep 2: Deploying to devnet...");
     console.log("Deploy lane:", useWslDeploy ? "WSL" : "Windows");
+    const useConfiguredUpgradePath =
+      !freshNamespace &&
+      Boolean(configuredProgramId) &&
+      (!keypairProgramId || !configuredProgramId!.equals(keypairProgramId));
 
-    if (useWslDeploy) {
+    if (useConfiguredUpgradePath) {
+      console.log(
+        "Deploy target is the configured devnet program id from Anchor.toml:",
+        configuredProgramId!.toBase58()
+      );
+      try {
+        execSync(
+          [
+            `"${anchorBin}" upgrade`,
+            `--program-id ${configuredProgramId!.toBase58()}`,
+            `--provider.cluster devnet`,
+            `--provider.wallet "${walletPath}"`,
+            `"${soPath}"`,
+            `-- --use-rpc --with-compute-unit-price 10000 --max-sign-attempts 100`,
+          ].join(" "),
+          {
+            cwd: rootDir,
+            stdio: "inherit",
+            env: anchorEnv,
+          }
+        );
+      } catch {
+        console.error("ERROR: Anchor upgrade failed against configured devnet program id.");
+        process.exit(1);
+      }
+    } else if (useWslDeploy) {
       // Deploy from WSL using the clean Solana 2.3.13 lane — avoids Windows
       // networking issues that cause AlreadyProcessed / write failures.
       const repoWsl = toWslPath(rootDir);
@@ -403,7 +445,8 @@ async function main() {
   const programKeypair = Keypair.fromSecretKey(
     new Uint8Array(JSON.parse(fs.readFileSync(programKeypairPath, "utf-8")))
   );
-  const PROGRAM_ID = programKeypair.publicKey;
+  const PROGRAM_ID =
+    !freshNamespace && configuredProgramId ? configuredProgramId : programKeypair.publicKey;
   console.log("Program deployed:", PROGRAM_ID.toBase58());
 
   console.log("Step 2a: Verifying deployed program is visible on RPC...");

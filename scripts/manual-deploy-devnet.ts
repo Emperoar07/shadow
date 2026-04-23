@@ -19,6 +19,28 @@ function quoteForBash(value: string): string {
   return `'${value.replace(/'/g, `'\"'\"'`)}'`;
 }
 
+function resolveAnchorBin(rootDir: string): string {
+  const explicit = process.env.ANCHOR_BIN;
+  if (explicit) return explicit;
+
+  const localExe = path.resolve(rootDir, ".tools", "anchor-0.32.1.exe");
+  if (process.platform === "win32" && fs.existsSync(localExe)) {
+    return localExe;
+  }
+
+  return "anchor";
+}
+
+function readConfiguredDevnetProgramId(rootDir: string): PublicKey | null {
+  const anchorTomlPath = path.resolve(rootDir, "Anchor.toml");
+  if (!fs.existsSync(anchorTomlPath)) return null;
+  const anchorToml = fs.readFileSync(anchorTomlPath, "utf-8");
+  const match = anchorToml.match(
+    /\[programs\.devnet\][\s\S]*?shadowperp\s*=\s*"([^"]+)"/
+  );
+  return match ? new PublicKey(match[1]) : null;
+}
+
 function readKeypair(keypairPath: string): Keypair {
   const raw = JSON.parse(fs.readFileSync(keypairPath, "utf-8"));
   return Keypair.fromSecretKey(new Uint8Array(raw));
@@ -94,6 +116,7 @@ function parseFlag(argv: string[], name: string): string | undefined {
 async function main() {
   const command = parseCommand(process.argv);
   const rootDir = path.resolve(__dirname, "..");
+  const anchorBin = resolveAnchorBin(rootDir);
   const soPath = path.resolve(rootDir, "target", "deploy", "shadowperp.so");
   const programKeypairPath = path.resolve(rootDir, "target", "deploy", "shadowperp-keypair.json");
   const bufferKeypairPath =
@@ -127,20 +150,34 @@ async function main() {
   const bufferKeypair = ensureBufferKeypair(bufferKeypairPath);
   const connection = new Connection(rpcUrl, "confirmed");
 
-  const programId = programKeypair.publicKey;
+  const artifactProgramId = programKeypair.publicKey;
+  const configuredProgramId = readConfiguredDevnetProgramId(rootDir);
+  const programId = configuredProgramId ?? artifactProgramId;
+  const useConfiguredUpgradePath =
+    Boolean(configuredProgramId) && !configuredProgramId!.equals(artifactProgramId);
   const bufferPubkey = bufferKeypair.publicKey;
   const walletPubkey = walletKeypair.publicKey;
 
   if (command === "status") {
-    const [walletBalance, programInfo, bufferInfo] = await Promise.all([
+    const [walletBalance, programInfo, bufferInfo, artifactInfo] = await Promise.all([
       connection.getBalance(walletPubkey, "confirmed"),
       connection.getAccountInfo(programId, "confirmed").catch(() => null),
       connection.getAccountInfo(bufferPubkey, "confirmed").catch(() => null),
+      artifactProgramId.equals(programId)
+        ? Promise.resolve(null)
+        : connection.getAccountInfo(artifactProgramId, "confirmed").catch(() => null),
     ]);
     console.log("RPC URL:", rpcUrl);
     console.log("Wallet:", walletPubkey.toBase58());
     console.log("Wallet SOL:", walletBalance / LAMPORTS_PER_SOL);
-    console.log("Program ID:", programId.toBase58());
+    console.log("Configured Devnet Program ID:", configuredProgramId?.toBase58() ?? "<none>");
+    console.log("Artifact Program ID:", artifactProgramId.toBase58());
+    console.log("Deploy Target Program ID:", programId.toBase58());
+    console.log("Using Configured Upgrade Path:", useConfiguredUpgradePath);
+    if (artifactInfo) {
+      console.log("Artifact Program Visible:", Boolean(artifactInfo));
+      console.log("Artifact Program Executable:", Boolean(artifactInfo?.executable));
+    }
     console.log("Program Visible:", Boolean(programInfo));
     console.log("Program Executable:", Boolean(programInfo?.executable));
     console.log("Buffer Keypair:", bufferKeypairPath);
@@ -174,38 +211,57 @@ async function main() {
 
   if (command === "deploy" || command === "full") {
     console.log("RPC URL:", rpcUrl);
-    console.log("Program ID:", programId.toBase58());
+    console.log("Configured Devnet Program ID:", configuredProgramId?.toBase58() ?? "<none>");
+    console.log("Artifact Program ID:", artifactProgramId.toBase58());
+    console.log("Deploy Target Program ID:", programId.toBase58());
     console.log("Buffer Pubkey:", bufferPubkey.toBase58());
-    const writeBufferCmdLine = [
-      `${WSL_SOLANA_BIN}/solana program write-buffer ${quoteForBash(toWslPath(soPath))}`,
-      `--buffer ${quoteForBash(toWslPath(bufferKeypairPath))}`,
-      `--keypair ${quoteForBash(toWslPath(walletPath))}`,
-      `--url ${quoteForBash(rpcUrl)}`,
-      `--ws ${quoteForBash(wsUrl)}`,
-      `--use-rpc`,
-      `--with-compute-unit-price 10000`,
-      `--max-sign-attempts 100`,
-    ].join(" ");
-    const deployFromBufferCmdLine = [
-      `${WSL_SOLANA_BIN}/solana program deploy`,
-      `--program-id ${quoteForBash(toWslPath(programKeypairPath))}`,
-      `--buffer ${quoteForBash(toWslPath(bufferKeypairPath))}`,
-      `--keypair ${quoteForBash(toWslPath(walletPath))}`,
-      `--url ${quoteForBash(rpcUrl)}`,
-      `--ws ${quoteForBash(wsUrl)}`,
-      `--use-rpc`,
-      `--with-compute-unit-price 10000`,
-      `--max-sign-attempts 100`,
-    ].join(" ");
-    const deployCmd = [
-      `export PATH="${WSL_SOLANA_BIN}:$PATH"`,
-      `cd ${quoteForBash(toWslPath(rootDir))}`,
-      writeBufferCmdLine,
-      deployFromBufferCmdLine,
-    ].join(" && ");
-
     try {
-      runWsl(deployCmd);
+      if (useConfiguredUpgradePath) {
+        execSync(
+          [
+            `"${anchorBin}" upgrade`,
+            `--program-id ${programId.toBase58()}`,
+            `--provider.cluster devnet`,
+            `--provider.wallet "${walletPath}"`,
+            `"${soPath}"`,
+            `-- --use-rpc --with-compute-unit-price 10000 --max-sign-attempts 100`,
+          ].join(" "),
+          {
+            cwd: rootDir,
+            stdio: "inherit",
+            env: process.env,
+          }
+        );
+      } else {
+        const writeBufferCmdLine = [
+          `${WSL_SOLANA_BIN}/solana program write-buffer ${quoteForBash(toWslPath(soPath))}`,
+          `--buffer ${quoteForBash(toWslPath(bufferKeypairPath))}`,
+          `--keypair ${quoteForBash(toWslPath(walletPath))}`,
+          `--url ${quoteForBash(rpcUrl)}`,
+          `--ws ${quoteForBash(wsUrl)}`,
+          `--use-rpc`,
+          `--with-compute-unit-price 10000`,
+          `--max-sign-attempts 100`,
+        ].join(" ");
+        const deployFromBufferCmdLine = [
+          `${WSL_SOLANA_BIN}/solana program deploy`,
+          `--program-id ${quoteForBash(toWslPath(programKeypairPath))}`,
+          `--buffer ${quoteForBash(toWslPath(bufferKeypairPath))}`,
+          `--keypair ${quoteForBash(toWslPath(walletPath))}`,
+          `--url ${quoteForBash(rpcUrl)}`,
+          `--ws ${quoteForBash(wsUrl)}`,
+          `--use-rpc`,
+          `--with-compute-unit-price 10000`,
+          `--max-sign-attempts 100`,
+        ].join(" ");
+        const deployCmd = [
+          `export PATH="${WSL_SOLANA_BIN}:$PATH"`,
+          `cd ${quoteForBash(toWslPath(rootDir))}`,
+          writeBufferCmdLine,
+          deployFromBufferCmdLine,
+        ].join(" && ");
+        runWsl(deployCmd);
+      }
     } catch {
       console.error("Manual deploy failed. Re-run the same command to resume with the persistent buffer.");
       console.error(`Persistent buffer: ${bufferPubkey.toBase58()}`);
