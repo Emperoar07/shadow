@@ -62,7 +62,7 @@ Main handlers:
 - `sync_comp_defs`
 - `open_position`
 - `open_position_with_session` (delegated relayer path, not the default live frontend path)
-- `open_position_v2_callback`
+- `open_position_probe_b_callback`
 - `close_position`
 - `close_position_with_session` (delegated relayer path, not the default live frontend path)
 - `close_position_callback`

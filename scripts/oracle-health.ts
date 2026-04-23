@@ -13,6 +13,8 @@ import * as path from "path";
 import { resolveRpcEndpoint } from "./rpc";
 
 const DEFAULT_MAX_AGE_SECONDS = 300;
+const DEFAULT_PROGRAM_ID = "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4";
+const DEFAULT_MARKET = "crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T";
 
 function readArg(name: string): string | undefined {
   const args = process.argv.slice(2);
@@ -87,11 +89,14 @@ async function main(): Promise<void> {
   const programId = parsePublicKey(
     "NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID",
     process.env.SHADOWPERP_PROGRAM_ID ||
-      process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID
+      process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
+      DEFAULT_PROGRAM_ID
   );
   const marketPk = parsePublicKey(
     "NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT",
-    process.env.SHADOWPERP_MARKET || process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT
+    process.env.SHADOWPERP_MARKET ||
+      process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT ||
+      DEFAULT_MARKET
   );
   const maxAgeSeconds = Number.parseInt(
     readArg("max-age-seconds") || `${DEFAULT_MAX_AGE_SECONDS}`,
@@ -118,7 +123,9 @@ async function main(): Promise<void> {
   const lastUpdate = toNumber(
     pickField<any>(market, "lastPriceUpdate", "last_price_update")
   );
-  const now = Math.floor(Date.now() / 1000);
+  const slot = await connection.getSlot("confirmed");
+  const chainTime = await connection.getBlockTime(slot);
+  const now = Number.isFinite(chainTime) ? (chainTime as number) : Math.floor(Date.now() / 1000);
   const age = now - lastUpdate;
 
   const oracleUi = Number.isFinite(oracleRaw) ? oracleRaw / 1_000_000 : Number.NaN;

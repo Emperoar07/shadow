@@ -63,6 +63,9 @@ type PublishResult = {
   verified: MarketSnapshot;
 };
 
+const DEFAULT_PROGRAM_ID = "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4";
+const DEFAULT_MARKET = "crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T";
+
 function ts(): string {
   return new Date().toISOString();
 }
@@ -422,11 +425,16 @@ async function main(): Promise<void> {
   let activeRpcUrl = rpcSelection.rpcUrl;
 
   const programIdRaw =
-    process.env.SHADOWPERP_PROGRAM_ID || process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID;
+    process.env.SHADOWPERP_PROGRAM_ID ||
+    process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
+    DEFAULT_PROGRAM_ID;
   if (!normalizeValue(programIdRaw)) {
     throw new Error("Missing SHADOWPERP_PROGRAM_ID / NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID");
   }
-  const marketRaw = process.env.SHADOWPERP_MARKET || process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT;
+  const marketRaw =
+    process.env.SHADOWPERP_MARKET ||
+    process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT ||
+    DEFAULT_MARKET;
   if (!normalizeValue(marketRaw)) {
     throw new Error("Missing SHADOWPERP_MARKET / NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT");
   }

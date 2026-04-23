@@ -24,6 +24,8 @@ const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111"
 );
 const DEFAULT_ORACLE_MAX_AGE_SECONDS = 300;
+const DEFAULT_PROGRAM_ID = "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4";
+const DEFAULT_MARKET = "crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T";
 
 type Check = {
   name: string;
@@ -144,11 +146,14 @@ async function main(): Promise<void> {
   const programId = parsePublicKey(
     "NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID",
     process.env.SHADOWPERP_PROGRAM_ID ||
-      process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID
+      process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
+      DEFAULT_PROGRAM_ID
   );
   const marketPk = parsePublicKey(
     "NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT",
-    process.env.SHADOWPERP_MARKET || process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT
+    process.env.SHADOWPERP_MARKET ||
+      process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT ||
+      DEFAULT_MARKET
   );
   const arciumProgramId = parsePublicKey(
     "NEXT_PUBLIC_ARCIUM_PROGRAM_ID",
@@ -289,7 +294,11 @@ async function main(): Promise<void> {
   const lastPriceUpdate = toNumber(
     pickField<any>(market, "lastPriceUpdate", "last_price_update")
   );
-  const nowSeconds = Math.floor(Date.now() / 1000);
+  const slot = await connection.getSlot("confirmed");
+  const chainTime = await connection.getBlockTime(slot);
+  const nowSeconds = Number.isFinite(chainTime)
+    ? (chainTime as number)
+    : Math.floor(Date.now() / 1000);
   const age = nowSeconds - lastPriceUpdate;
   checks.push({
     name: "Oracle price set",

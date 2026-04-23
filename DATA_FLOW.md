@@ -25,13 +25,13 @@ Current product note:
    - account constraints
 4. Program queues Arcium computation via `queue_computation`
 5. Arcium cluster executes `open_position` circuit
-6. Callback `open_position_v2_callback` verifies output and updates state
+6. Callback `open_position_probe_b_callback` verifies output and updates state
 
 ### State Effects
 
 - position moves `Pending -> Open` on successful callback
 - margin lock updates occur in margin account
-- market open interest encrypted aggregates update from callback output
+- `market.active_positions` increments on successful callback
 
 ### Delegated Open (Session Path, legacy/optional)
 

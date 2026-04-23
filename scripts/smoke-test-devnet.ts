@@ -71,6 +71,20 @@ function resolveWallet(): Keypair {
   );
 }
 
+function resolveIdlPath(): string {
+  const candidates = [
+    path.resolve(__dirname, "..", "target", "idl", "shadowperp.json"),
+    path.resolve(__dirname, "..", "app", "src", "idl", "shadowperp.json"),
+  ];
+  const found = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!found) {
+    throw new Error(
+      `IDL not found at ${candidates.join(" or ")}. Run 'anchor build' first if needed.`
+    );
+  }
+  return found;
+}
+
 function ok(label: string) {
   console.log(`  [OK] ${label}`);
 }
@@ -79,6 +93,18 @@ function fail(label: string, err?: string) {
 }
 function info(label: string) {
   console.log(`  [INFO] ${label}`);
+}
+
+async function resolveFundingStatePda(
+  connection: Connection,
+  market: PublicKey
+): Promise<PublicKey | null> {
+  const candidate = PublicKey.findProgramAddressSync(
+    [Buffer.from("funding"), market.toBuffer()],
+    PROGRAM_ID
+  )[0];
+  const info = await connection.getAccountInfo(candidate);
+  return info ? candidate : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,10 +126,7 @@ async function main() {
   anchor.setProvider(provider);
 
   // Load IDL
-  const idlPath = path.resolve(__dirname, "..", "target", "idl", "shadowperp.json");
-  if (!fs.existsSync(idlPath)) {
-    throw new Error(`IDL not found at ${idlPath}. Run 'anchor build' first.`);
-  }
+  const idlPath = resolveIdlPath();
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
   const program = new anchor.Program(
     { ...idl, address: PROGRAM_ID.toBase58() } as any,
@@ -147,7 +170,12 @@ async function main() {
     // Check key fields
     if (market.oraclePrice > 0) {
       const priceUi = market.oraclePrice / 1_000_000;
-      const age = Math.floor(Date.now() / 1000) - Number(market.lastPriceUpdate);
+      const slot = await connection.getSlot("confirmed");
+      const chainTime = await connection.getBlockTime(slot);
+      const nowSeconds = Number.isFinite(chainTime)
+        ? (chainTime as number)
+        : Math.floor(Date.now() / 1000);
+      const age = nowSeconds - Number(market.lastPriceUpdate);
       ok(`Oracle price: $${priceUi.toFixed(2)} (age: ${age}s)`);
       if (age > 300) {
         fail("Oracle price is STALE (>300s)");
@@ -420,14 +448,30 @@ async function main() {
           PROGRAM_ID
         )[0];
 
-        const fundingStatePda = PublicKey.findProgramAddressSync(
-          [Buffer.from("funding"), MARKET_ACCOUNT.toBuffer()],
-          PROGRAM_ID
-        )[0];
+        const fundingStatePda = await resolveFundingStatePda(connection, MARKET_ACCOUNT);
         const posFundingRefPda = PublicKey.findProgramAddressSync(
           [Buffer.from("pos-funding"), positionAddress.toBuffer()],
           PROGRAM_ID
         )[0];
+        const openAccounts = {
+          owner: wallet.publicKey,
+          market: MARKET_ACCOUNT,
+          marginAccount: marginPda,
+          position: positionAddress,
+          fundingState: fundingStatePda,
+          posFundingRef: posFundingRefPda,
+          mxeAccount,
+          compDefAccount: market.openPositionCompDef,
+          clusterAccount: clusterAddress,
+          mempoolAccount: getMempoolAccAddress(CLUSTER_OFFSET),
+          executingPool: getExecutingPoolAccAddress(CLUSTER_OFFSET),
+          computationAccount,
+          poolAccount: getFeePoolAccAddress(),
+          signPdaAccount,
+          arciumProgram: ARCIUM_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+          clockAccount: getClockAccAddress(),
+        };
 
         info("Sending openPosition tx...");
         const openTx = await program.methods
@@ -444,25 +488,7 @@ async function main() {
             nonceBN,
             computationOffset
           )
-          .accounts({
-            owner: wallet.publicKey,
-            market: MARKET_ACCOUNT,
-            marginAccount: marginPda,
-            position: positionAddress,
-            fundingState: fundingStatePda,
-            posFundingRef: posFundingRefPda,
-            mxeAccount,
-            compDefAccount: market.openPositionCompDef,
-            clusterAccount: clusterAddress,
-            mempoolAccount: getMempoolAccAddress(CLUSTER_OFFSET),
-            executingPool: getExecutingPoolAccAddress(CLUSTER_OFFSET),
-            computationAccount,
-            poolAccount: getFeePoolAccAddress(),
-            signPdaAccount,
-            arciumProgram: ARCIUM_PROGRAM_ID,
-            systemProgram: SystemProgram.programId,
-            clockAccount: getClockAccAddress(),
-          })
+          .accounts(openAccounts as any)
           .transaction();
 
         // Use polling-based confirmation (works with Alchemy which lacks signatureSubscribe)
