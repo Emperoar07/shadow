@@ -97,6 +97,51 @@ pub fn init_open_position_tuple_probe_handler(
     Ok(())
 }
 
+#[init_computation_definition_accounts("open_position_tuple_probe_u8_v1", payer)]
+#[derive(Accounts)]
+pub struct InitOpenPositionTupleProbeU8CompDef<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        has_one = authority @ crate::errors::ShadowPerpError::Unauthorized,
+        seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
+        bump = market.bump
+    )]
+    pub market: Account<'info, Market>,
+
+    pub authority: Signer<'info>,
+
+    #[account(mut, address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
+
+    /// CHECK: Created and validated by the Arcium program during init_comp_def CPI.
+    #[account(mut)]
+    pub comp_def_account: UncheckedAccount<'info>,
+
+    /// CHECK: Derived LUT PDA checked by address constraint above.
+    #[account(mut, address = derive_mxe_lut_pda!(mxe_account.lut_offset_slot))]
+    pub address_lookup_table: UncheckedAccount<'info>,
+
+    /// CHECK: Must match LUT program id via address constraint above.
+    #[account(address = LUT_PROGRAM_ID)]
+    pub lut_program: UncheckedAccount<'info>,
+
+    pub arcium_program: Program<'info, Arcium>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn init_open_position_tuple_probe_u8_handler(
+    ctx: Context<InitOpenPositionTupleProbeU8CompDef>,
+) -> Result<()> {
+    init_comp_def(ctx.accounts, None, None)?;
+    msg!(
+        "open_position_tuple_probe_u8_v1 comp def: {}",
+        ctx.accounts.comp_def_account.key()
+    );
+    Ok(())
+}
+
 #[init_computation_definition_accounts("open_position_margin_probe_v1", payer)]
 #[derive(Accounts)]
 pub struct InitOpenPositionMarginProbeCompDef<'info> {

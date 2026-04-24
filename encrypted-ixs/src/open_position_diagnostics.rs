@@ -18,6 +18,14 @@ mod open_position_diagnostics_circuit {
     }
 
     #[instruction]
+    pub fn open_position_tuple_probe_u8_v1(
+        inputs: Enc<Shared, (u64, u64, u8, u8, u64)>,
+    ) -> bool {
+        let _ = inputs.to_arcis();
+        true.reveal()
+    }
+
+    #[instruction]
     pub fn open_position_margin_probe_v1(
         inputs: Enc<Shared, (u64, u64, u8, bool, u64)>,
         requested_margin: u64,

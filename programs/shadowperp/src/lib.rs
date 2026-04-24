@@ -21,9 +21,11 @@ use handlers::init_comp_defs::__client_accounts_init_settle_private_position_com
 use handlers::init_comp_defs::__client_accounts_init_verify_withdrawal_proof_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_execute_private_order_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_open_position_tuple_probe_comp_def;
+use handlers::init_comp_defs::__client_accounts_init_open_position_tuple_probe_u8_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_open_position_margin_probe_comp_def;
 use handlers::init_comp_defs::__client_accounts_init_open_position_full_probe_comp_def;
 use handlers::open_position_diagnostics::__client_accounts_run_open_position_tuple_probe;
+use handlers::open_position_diagnostics::__client_accounts_run_open_position_tuple_probe_u8;
 use handlers::open_position_diagnostics::__client_accounts_run_open_position_margin_probe;
 use handlers::open_position_diagnostics::__client_accounts_run_open_position_full_probe;
 #[cfg(feature = "shielded-collateral")]
@@ -69,6 +71,7 @@ use handlers::callbacks::__client_accounts_close_position_v2_callback;
 use handlers::callbacks::__client_accounts_execute_private_order_callback;
 use handlers::callbacks::__client_accounts_open_position_probe_b_callback;
 use handlers::callbacks::__client_accounts_open_position_tuple_probe_v1_callback;
+use handlers::callbacks::__client_accounts_open_position_tuple_probe_u8v1_callback;
 use handlers::callbacks::__client_accounts_open_position_margin_probe_v1_callback;
 use handlers::callbacks::__client_accounts_open_position_full_probe_v1_callback;
 use handlers::callbacks::__client_accounts_seed_open_interest_state_v3_callback;
@@ -105,6 +108,7 @@ use handlers::callbacks::open_position_callback::{OpenPositionProbeBCallback, Op
 use handlers::callbacks::open_position_diagnostic_callbacks::{
     OpenPositionFullProbeV1Callback, OpenPositionFullProbeV1Output,
     OpenPositionMarginProbeV1Callback, OpenPositionMarginProbeV1Output,
+    OpenPositionTupleProbeU8V1Callback, OpenPositionTupleProbeU8V1Output,
     OpenPositionTupleProbeV1Callback, OpenPositionTupleProbeV1Output,
 };
 use handlers::callbacks::seed_open_interest_state_callback::{SeedOpenInterestStateV3Callback, SeedOpenInterestStateV3Output};
@@ -118,7 +122,7 @@ use handlers::init_comp_defs::{
     InitClosePositionCompDef, InitLiquidationCompDef, InitOpenPositionCompDef,
     InitSeedOpenInterestCompDef,
     InitOpenPositionTupleProbeCompDef, InitOpenPositionMarginProbeCompDef,
-    InitOpenPositionFullProbeCompDef,
+    InitOpenPositionFullProbeCompDef, InitOpenPositionTupleProbeU8CompDef,
 };
 #[cfg(feature = "shielded-collateral")]
 use handlers::init_comp_defs::{
@@ -130,6 +134,7 @@ use handlers::initialize::Initialize;
 use handlers::open_position::OpenPosition;
 use handlers::open_position_diagnostics::{
     RunOpenPositionFullProbe, RunOpenPositionMarginProbe, RunOpenPositionTupleProbe,
+    RunOpenPositionTupleProbeU8,
 };
 use handlers::private_orders::{AddPrivateOrder, ExecutePrivateOrder, InitPrivateOrderBook};
 use handlers::seed_open_interest_state::SeedOpenInterestState;
@@ -234,6 +239,12 @@ pub mod shadowperp {
         handlers::init_comp_defs::init_open_position_tuple_probe_handler(ctx)
     }
 
+    pub fn init_open_position_tuple_probe_u8_comp_def(
+        ctx: Context<InitOpenPositionTupleProbeU8CompDef>,
+    ) -> Result<()> {
+        handlers::init_comp_defs::init_open_position_tuple_probe_u8_handler(ctx)
+    }
+
     pub fn init_open_position_margin_probe_comp_def(
         ctx: Context<InitOpenPositionMarginProbeCompDef>,
     ) -> Result<()> {
@@ -259,6 +270,32 @@ pub mod shadowperp {
         computation_offset: u64,
     ) -> Result<()> {
         handlers::open_position_diagnostics::run_open_position_tuple_probe_handler(
+            ctx,
+            encrypted_size,
+            encrypted_entry_price,
+            encrypted_leverage,
+            encrypted_is_long,
+            encrypted_margin,
+            client_pubkey,
+            nonce,
+            run_id,
+            computation_offset,
+        )
+    }
+
+    pub fn run_open_position_tuple_probe_u8(
+        ctx: Context<RunOpenPositionTupleProbeU8>,
+        encrypted_size: [u8; 32],
+        encrypted_entry_price: [u8; 32],
+        encrypted_leverage: [u8; 32],
+        encrypted_is_long: [u8; 32],
+        encrypted_margin: [u8; 32],
+        client_pubkey: [u8; 32],
+        nonce: u128,
+        run_id: u64,
+        computation_offset: u64,
+    ) -> Result<()> {
+        handlers::open_position_diagnostics::run_open_position_tuple_probe_u8_handler(
             ctx,
             encrypted_size,
             encrypted_entry_price,
@@ -622,6 +659,17 @@ pub mod shadowperp {
         output: SignedComputationOutputs<OpenPositionTupleProbeV1Output>,
     ) -> Result<()> {
         handlers::callbacks::open_position_diagnostic_callbacks::open_position_tuple_probe_v1_callback_handler(
+            ctx,
+            output,
+        )
+    }
+
+    #[arcium_callback(encrypted_ix = "open_position_tuple_probe_u8_v1")]
+    pub fn open_position_tuple_probe_u8_v1_callback(
+        ctx: Context<OpenPositionTupleProbeU8V1Callback>,
+        output: SignedComputationOutputs<OpenPositionTupleProbeU8V1Output>,
+    ) -> Result<()> {
+        handlers::callbacks::open_position_diagnostic_callbacks::open_position_tuple_probe_u8_v1_callback_handler(
             ctx,
             output,
         )

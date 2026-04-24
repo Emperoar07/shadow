@@ -104,6 +104,7 @@ export default function CollateralModal({
       let data: {
         success: boolean;
         transaction?: string;
+        signature?: string;
         amount?: number;
         error?: string;
         nextClaimAt?: number;
@@ -118,19 +119,20 @@ export default function CollateralModal({
         );
       }
       if (data.success) {
-        if (!data.transaction) {
-          throw new Error("No faucet transaction returned.");
+        if (data.transaction) {
+          if (!anchorWallet.signTransaction) {
+            throw new Error("Connected wallet cannot sign transactions.");
+          }
+          const tx = Transaction.from(Buffer.from(data.transaction, "base64"));
+          const signed = await anchorWallet.signTransaction(tx as Transaction);
+          const signature = await connection.sendRawTransaction(signed.serialize(), {
+            skipPreflight: false,
+            preflightCommitment: "confirmed",
+          });
+          await connection.confirmTransaction(signature, "confirmed");
+        } else if (!data.signature) {
+          throw new Error("No faucet transaction or signature returned.");
         }
-        if (!anchorWallet.signTransaction) {
-          throw new Error("Connected wallet cannot sign transactions.");
-        }
-        const tx = Transaction.from(Buffer.from(data.transaction, "base64"));
-        const signed = await anchorWallet.signTransaction(tx as Transaction);
-        const signature = await connection.sendRawTransaction(signed.serialize(), {
-          skipPreflight: false,
-          preflightCommitment: "confirmed",
-        });
-        await connection.confirmTransaction(signature, "confirmed");
 
         toast.success(`Claimed ${data.amount?.toLocaleString()} mUSDC into margin!`, { id: toastId });
         const nextAt = now + 7 * 24 * 60 * 60 * 1000;

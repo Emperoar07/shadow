@@ -37,7 +37,7 @@ type ProbeSpec = {
   circuit: string;
   initMethod: string;
   runMethod: string;
-  stage: 1 | 2 | 3;
+  stage: 1 | 2 | 3 | 4;
 };
 
 const PROBES: ProbeSpec[] = [
@@ -47,6 +47,13 @@ const PROBES: ProbeSpec[] = [
     initMethod: "initOpenPositionTupleProbeCompDef",
     runMethod: "runOpenPositionTupleProbe",
     stage: 1,
+  },
+  {
+    label: "tuple-u8-only",
+    circuit: "open_position_tuple_probe_u8_v1",
+    initMethod: "initOpenPositionTupleProbeU8CompDef",
+    runMethod: "runOpenPositionTupleProbeU8",
+    stage: 4,
   },
   {
     label: "margin-check",
@@ -565,7 +572,7 @@ async function main(): Promise<void> {
     }
 
     const builder =
-      probe.stage === 1
+      probe.stage === 1 || probe.stage === 4
         ? runMethod(
             encSize,
             encEntryPrice,

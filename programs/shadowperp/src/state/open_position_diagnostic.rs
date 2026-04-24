@@ -45,6 +45,7 @@ impl OpenPositionDiagnostic {
     pub const STAGE_TUPLE_ONLY: u8 = 1;
     pub const STAGE_MARGIN_CHECK: u8 = 2;
     pub const STAGE_FULL_CHECK: u8 = 3;
+    pub const STAGE_TUPLE_U8_ONLY: u8 = 4;
 
     pub const LEN: usize = 8 +  // discriminator
         32 + // owner

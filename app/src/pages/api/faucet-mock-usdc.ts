@@ -33,15 +33,74 @@ const CAP_USDC     = FAUCET_CAP_USDC;
 const TRIGGER_USDC = FAUCET_TRIGGER_USDC;
 const DECIMALS     = MUSDC_DECIMALS;
 const COOLDOWN_MS  = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_RPC = "https://api.devnet.solana.com";
 
 // In-memory cooldown — resets on cold start; client localStorage is the durable gate.
 const cooldowns = new Map<string, number>();
 
-function getRpcUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
-    process.env.SOLANA_RPC_URL ||
-    "https://api.devnet.solana.com"
+function normalizeRpcUrl(raw?: string): string | null {
+  if (!raw) return null;
+  let value = raw.trim();
+  if (!value) return null;
+  if (value.startsWith("<") && value.endsWith(">")) {
+    value = value.slice(1, -1).trim();
+  }
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+  return value || null;
+}
+
+function parseRpcList(raw?: string): string[] {
+  const normalized = normalizeRpcUrl(raw);
+  if (!normalized) return [];
+  return normalized
+    .split(/[\n,]+/)
+    .map((entry) => normalizeRpcUrl(entry))
+    .filter((entry): entry is string => Boolean(entry));
+}
+
+function getRpcCandidates(): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (value: string | null) => {
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    out.push(value);
+  };
+
+  for (const url of parseRpcList(process.env.SOLANA_RPC_URLS)) push(url);
+  for (const url of parseRpcList(process.env.NEXT_PUBLIC_SOLANA_RPC_URLS)) push(url);
+  push(normalizeRpcUrl(process.env.SOLANA_RPC_URL));
+  push(normalizeRpcUrl(process.env.NEXT_PUBLIC_SOLANA_RPC_URL));
+  push(DEFAULT_RPC);
+
+  return out;
+}
+
+async function getHealthyConnection(): Promise<Connection> {
+  const attempts: string[] = [];
+
+  for (const url of getRpcCandidates()) {
+    const connection = new Connection(url, "confirmed");
+    try {
+      await Promise.race([
+        connection.getLatestBlockhash("processed"),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("rpc probe timeout")), 4_500)
+        ),
+      ]);
+      return connection;
+    } catch (error: any) {
+      attempts.push(`${url} :: ${String(error?.message || error).split("\n")[0]}`);
+    }
+  }
+
+  throw new Error(
+    `No healthy RPC endpoint found. ${attempts.join(" | ")}`
   );
 }
 
@@ -85,6 +144,7 @@ async function fetchMarginBalanceRaw(
     );
     const info = await connection.getAccountInfo(marginPda);
     if (!info || info.data.length < 80) return BigInt(0);
+    // MarginAccount.balance lives at byte 72: 8 discriminator + 32 owner + 32 market.
     return info.data.readBigUInt64LE(72);
   } catch {
     return BigInt(0);
@@ -135,7 +195,7 @@ export default async function handler(
   }
 
   try {
-    const connection = new Connection(getRpcUrl(), "confirmed");
+    const connection = await getHealthyConnection();
     const balanceRaw = await fetchMarginBalanceRaw(connection, recipientPubkey);
     const balanceUsdc = Number(balanceRaw) / 10 ** DECIMALS;
 
