@@ -8,7 +8,7 @@ import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { classifyArciumError } from "../lib/arcium-errors";
-import { FAUCET_TRIGGER_USDC } from "../lib/faucet-constants";
+import { FAUCET_CAP_USDC, FAUCET_FIRST_CLAIM_USDC, FAUCET_TRIGGER_USDC } from "../lib/faucet-constants";
 
 type Tab = "deposit" | "withdraw";
 interface CollateralModalProps {
@@ -42,6 +42,10 @@ export default function CollateralModal({
   const [isClaiming, setIsClaiming] = useState(false);
   const [nextClaimAt, setNextClaimAt] = useState<number | null>(null);
   const faucetCooldownKey = publicKey ? `mockusdc_faucet_${publicKey.toBase58()}` : null;
+  const faucetSuggestedAmount =
+    marginBalance !== null && marginBalance > 0
+      ? Math.max(1, FAUCET_CAP_USDC - Math.floor(marginBalance))
+      : FAUCET_FIRST_CLAIM_USDC;
 
   // Load persisted cooldown from localStorage
   useEffect(() => {
@@ -89,7 +93,7 @@ export default function CollateralModal({
     if (nextClaimAt && now < nextClaimAt) return;
     setIsClaiming(true);
     const toastId = "faucet-claim";
-    toast.loading("Preparing claim + deposit...", { id: toastId });
+    toast.loading("Claiming test mUSDC...", { id: toastId });
     try {
       const marketAddress = getSelectedMarketAddress();
       const res = await fetch("/api/faucet-mock-usdc", {
@@ -134,13 +138,15 @@ export default function CollateralModal({
           throw new Error("No faucet transaction or signature returned.");
         }
 
-        toast.success(`Claimed ${data.amount?.toLocaleString()} mUSDC into margin!`, { id: toastId });
+        const claimedAmount = data.amount ?? faucetSuggestedAmount;
+        setTab("deposit");
+        setAmount(String(claimedAmount));
+        toast.success(`${claimedAmount.toLocaleString()} mUSDC sent to your wallet. Deposit it to margin below.`, { id: toastId });
         const nextAt = now + 7 * 24 * 60 * 60 * 1000;
         setNextClaimAt(nextAt);
         if (faucetCooldownKey) {
           try { localStorage.setItem(faucetCooldownKey, String(nextAt)); } catch {}
         }
-        onSuccess();
       } else {
         if (data.nextClaimAt) {
           setNextClaimAt(data.nextClaimAt);
@@ -159,10 +165,10 @@ export default function CollateralModal({
     anchorWallet,
     connection,
     faucetCooldownKey,
+    faucetSuggestedAmount,
     getSelectedMarketAddress,
     isClaiming,
     nextClaimAt,
-    onSuccess,
     publicKey,
   ]);
 
@@ -485,7 +491,11 @@ export default function CollateralModal({
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
-                  {isClaiming ? "Claiming..." : canClaim ? "Claim 20,000 mUSDC" : "Already Claimed"}
+                  {isClaiming
+                    ? "Claiming..."
+                    : canClaim
+                    ? `Claim ${faucetSuggestedAmount.toLocaleString()} mUSDC`
+                    : "Already Claimed"}
                 </button>
               </div>
             );
