@@ -599,6 +599,41 @@ export default function TradingAppPage() {
   );
 }
 
+const WALLET_RESTORE_HINT_KEY = "shadowperp:wallet:last-connected:v1";
+
+type WalletRestoreHint = {
+  address: string;
+  userId?: string;
+};
+
+function readWalletRestoreHint(): WalletRestoreHint | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(WALLET_RESTORE_HINT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<WalletRestoreHint>;
+    return typeof parsed.address === "string" ? { address: parsed.address, userId: parsed.userId } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeWalletRestoreHint(address: string, userId?: string) {
+  try {
+    window.localStorage.setItem(WALLET_RESTORE_HINT_KEY, JSON.stringify({ address, userId }));
+  } catch {
+    // Storage can be unavailable in private browsing; Privy remains authoritative.
+  }
+}
+
+function clearWalletRestoreHint() {
+  try {
+    window.localStorage.removeItem(WALLET_RESTORE_HINT_KEY);
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
 function ConnectWalletButton() {
   const { ready, authenticated, logout, login, user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
@@ -615,7 +650,11 @@ function ConnectWalletButton() {
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [hydrationTimedOut, setHydrationTimedOut] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const [restoreHint, setRestoreHint] = useState<WalletRestoreHint | null>(null);
+  useEffect(() => {
+    setMounted(true);
+    setRestoreHint(readWalletRestoreHint());
+  }, []);
   const ref = useRef<HTMLDivElement>(null);
 
   // Notify once when wallet first becomes connected this session.
@@ -645,14 +684,28 @@ function ConnectWalletButton() {
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
   const addr = connectedAddress ?? embeddedAddr ?? null;
   const isConnected = !!addr;
+  const hasLinkedSolanaWallet = Boolean(
+    user?.linkedAccounts?.some(
+      (account) => account.type === "wallet" && account.chainType === "solana"
+    )
+  );
+  const restoreHintMatchesUser = Boolean(restoreHint && (!user?.id || restoreHint.userId === user.id));
+  const shouldRestoreWallet = authenticated && !isConnected && Boolean(hasLinkedSolanaWallet || restoreHintMatchesUser);
 
-  // Authenticated but wallet hooks still hydrating — show skeleton instead of "Sign In".
-  // Cap at 6s to avoid infinite spinner if something goes wrong.
+  useEffect(() => {
+    if (!addr) return;
+    const nextHint = { address: addr, userId: user?.id };
+    writeWalletRestoreHint(nextHint.address, nextHint.userId);
+    setRestoreHint(nextHint);
+  }, [addr, user?.id]);
+
+  // Authenticated but wallet hooks still hydrating: keep prior sessions in auto-restore mode.
   useEffect(() => {
     if (!authenticated || isConnected) { setHydrationTimedOut(false); return; }
-    const t = setTimeout(() => setHydrationTimedOut(true), 6000);
+    const timeoutMs = shouldRestoreWallet ? 20000 : 6000;
+    const t = setTimeout(() => setHydrationTimedOut(true), timeoutMs);
     return () => clearTimeout(t);
-  }, [authenticated, isConnected]);
+  }, [authenticated, isConnected, shouldRestoreWallet]);
 
   useEffect(() => {
     if (!open) return;
@@ -669,25 +722,8 @@ function ConnectWalletButton() {
   );
 
   const isHydrating = authenticated && !isConnected && !hydrationTimedOut;
-  const hasLinkedSolanaWallet = Boolean(
-    user?.linkedAccounts?.some(
-      (account) => account.type === "wallet" && account.chainType === "solana"
-    )
-  );
 
-  if (authenticated && !isConnected && hydrationTimedOut && hasLinkedSolanaWallet) {
-    return (
-      <button
-        type="button"
-        onClick={handlePrivyLogin}
-        className="h-8 rounded border border-amber-400/40 bg-amber-400/10 px-3 text-[11px] font-medium text-amber-200 transition-colors hover:border-amber-300/70 hover:bg-amber-400/15"
-      >
-        Reconnect wallet
-      </button>
-    );
-  }
-
-  if (isHydrating) return (
+  if (isHydrating || (shouldRestoreWallet && hydrationTimedOut)) return (
     <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
   );
 
@@ -706,6 +742,8 @@ function ConnectWalletButton() {
 
     const handleDisconnect = () => {
       setOpen(false);
+      clearWalletRestoreHint();
+      setRestoreHint(null);
       const activeWallet =
         wallets.find((wallet) => wallet.address === addr) ??
         solanaWallets.find((wallet) => wallet.address === addr);
