@@ -690,7 +690,13 @@ function ConnectWalletButton() {
     )
   );
   const restoreHintMatchesUser = Boolean(restoreHint && (!user?.id || restoreHint.userId === user.id));
-  const shouldRestoreWallet = authenticated && !isConnected && Boolean(hasLinkedSolanaWallet || restoreHintMatchesUser);
+  // Every authenticated Privy session has an embedded Solana wallet (createOnLogin:
+  // "all-users"). So if Privy says authenticated but the wallet hooks haven't hydrated
+  // yet, always wait for restore — regardless of linkedAccounts or localStorage hint.
+  // linkedAccounts/hint only influence the timeout budget (longer wait when we have
+  // strong evidence a wallet existed previously).
+  const hasStrongRestoreEvidence = Boolean(hasLinkedSolanaWallet || restoreHintMatchesUser);
+  const shouldRestoreWallet = authenticated && !isConnected;
 
   useEffect(() => {
     if (!addr) return;
@@ -702,10 +708,13 @@ function ConnectWalletButton() {
   // Authenticated but wallet hooks still hydrating: keep prior sessions in auto-restore mode.
   useEffect(() => {
     if (!authenticated || isConnected) { setHydrationTimedOut(false); return; }
-    const timeoutMs = shouldRestoreWallet ? 20000 : 6000;
+    // Longer budget when we have strong evidence a wallet existed before (linked
+    // account or localStorage hint). Baseline 10s is enough for a normal embedded-wallet
+    // rehydrate on a warm Privy session after refresh.
+    const timeoutMs = hasStrongRestoreEvidence ? 20000 : 10000;
     const t = setTimeout(() => setHydrationTimedOut(true), timeoutMs);
     return () => clearTimeout(t);
-  }, [authenticated, isConnected, shouldRestoreWallet]);
+  }, [authenticated, isConnected, hasStrongRestoreEvidence]);
 
   useEffect(() => {
     if (!open) return;

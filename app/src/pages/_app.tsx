@@ -170,8 +170,11 @@ export default function App({ Component, pageProps }: AppProps) {
       loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
+          // Auto-reconnect external wallets that Privy already has in its session.
+          // This is scoped: Privy only auto-connects wallets the user previously linked,
+          // not random detected extensions. Safe to keep true alongside email login.
           connectors: toSolanaWalletConnectors({
-            shouldAutoConnect: false,
+            shouldAutoConnect: true,
           }),
         },
       },
