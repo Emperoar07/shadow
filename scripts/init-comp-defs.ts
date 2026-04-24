@@ -74,6 +74,11 @@ const COMP_DEFS = [
     marketField: null,
   },
   {
+    circuit: "open_position_tuple_probe_u8_v1",
+    methodName: "initOpenPositionTupleProbeU8CompDef",
+    marketField: null,
+  },
+  {
     circuit: "open_position_margin_probe_v1",
     methodName: "initOpenPositionMarginProbeCompDef",
     marketField: null,
@@ -562,6 +567,7 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
     "seed_open_interest_state_v3",
     "execute_private_order",
     "open_position_tuple_probe_v1",
+    "open_position_tuple_probe_u8_v1",
     "open_position_margin_probe_v1",
     "open_position_full_probe_v1",
   ];

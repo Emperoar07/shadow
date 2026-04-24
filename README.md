@@ -2,7 +2,7 @@
 
 Private perpetual trading on Solana, powered by Arcium confidential compute.
 
-ShadowPerp is a private perp DEX built for human traders who want less information leakage by default. Trade size, side, leverage, entry price, and margin are encrypted before submission. Arcium's Multi Party Computation network handles the private computation, and only the minimum public state required for settlement is written on chain.
+ShadowPerp is a private perp DEX built for human traders who want less information leakage by default. Trade size, leverage, entry price, and margin are encrypted before submission. Direction is encrypted for the MPC path but revealed at open for routing and liquidation bookkeeping. Arcium's Multi Party Computation network handles the private computation, and only the minimum public state required for settlement is written on chain.
 
 This repository contains the devnet product: frontend, on-chain program, Arcium circuits, and the supporting tooling used to run and debug the system.
 
@@ -10,7 +10,7 @@ This repository contains the devnet product: frontend, on-chain program, Arcium 
 
 ## Features
 
-- **Encrypted positions** - Size, side, leverage, entry price, and liquidation thresholds stay encrypted instead of being exposed as plaintext position data.
+- **Encrypted positions** - Size, leverage, entry price, margin, and liquidation thresholds stay encrypted instead of being exposed as plaintext position data; direction is revealed at open for protocol routing.
 - **Direct wallet trading** - Shadow signs directly from the connected Solana wallet. Privy embedded wallets and external Solana wallets share the same trading path.
 - **Private order flow** - Orders do not broadcast the usual pre-trade signals before execution.
 - **6 trading pairs** - SOL/USD, BTC/USD, ETH/USD, JUP/USD, PYTH/USD, and ORCA/USD.
@@ -34,7 +34,8 @@ ShadowPerp follows an encrypt, compute, and settle model:
 
 | Data | Visibility |
 |------|-----------|
-| Position size, entry price, leverage, direction | Encrypted on chain |
+| Position size, entry price, leverage, margin | Encrypted on chain |
+| Direction | Encrypted for MPC, revealed at open for routing and liquidation bookkeeping |
 | Liquidation price, unrealized PnL | Encrypted on chain |
 | Wallet address and token transfers | Public |
 | Trade queued event without plaintext details | Public |
@@ -54,7 +55,7 @@ build/                   Compiled circuit artifacts
 ### Prerequisites
 
 - Node.js 20 or later
-- pnpm
+- npm
 - Rust and Cargo
 - Solana CLI
 - Anchor CLI

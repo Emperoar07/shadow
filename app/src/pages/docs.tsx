@@ -314,9 +314,10 @@ export default function DocsPage() {
 
           <Section id="overview" title="Overview">
             <p>
-              ShadowPerp lets you trade perpetual futures on Solana without broadcasting your position details to the
-              world. Trade size, direction, leverage, and margin are encrypted before they reach the on chain program.
-              Sensitive calculations run through Arcium's MPC network rather than being exposed in plaintext on the ledger.
+              ShadowPerp lets you trade perpetual futures on Solana without broadcasting most position details to the
+              world. Trade size, leverage, and margin are encrypted before they reach the on chain program. Direction is
+              encrypted for the MPC path, then revealed at open for routing and liquidation bookkeeping. Sensitive
+              calculations run through Arcium's MPC network rather than being exposed in plaintext on the ledger.
             </p>
             <p>
               Only the minimum public state required for settlement is written on chain. The protocol is designed so
@@ -342,7 +343,7 @@ export default function DocsPage() {
             <ol>
               <li>
                 <strong>Encrypt</strong> — Your browser encrypts sensitive trade inputs including size, price, leverage,
-                direction, and margin before submission.
+                and margin before submission. Direction is encrypted for the MPC path and revealed when the position opens.
               </li>
               <li>
                 <strong>Queue</strong> — The encrypted payload is submitted to the Solana program, which queues an
@@ -426,7 +427,6 @@ export default function DocsPage() {
               <li>Position size</li>
               <li>Entry price</li>
               <li>Leverage</li>
-              <li>Direction (long or short)</li>
               <li>Margin amount</li>
               <li>Unrealized PnL</li>
             </ul>
@@ -434,6 +434,7 @@ export default function DocsPage() {
             <ul>
               <li>Your wallet address, used for the margin account and wallet connection</li>
               <li>Token transfers to and from the vault (a Solana constraint)</li>
+              <li>Direction after a position opens, used for routing and liquidation bookkeeping</li>
               <li>The fact that a trade was queued, but none of the details</li>
             </ul>
             <h3>What is becoming private through shielded collateral</h3>
