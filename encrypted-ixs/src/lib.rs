@@ -7,7 +7,10 @@
 //! - Position size: NEVER revealed
 //! - Entry price: NEVER revealed
 //! - Leverage: NEVER revealed
-//! - Direction (long/short): NEVER revealed
+//! - Margin: NEVER revealed inside MPC (plaintext `requested_margin` is revealed at open
+//!   time for on-chain lock accounting; the encrypted value is checked against it)
+//! - Direction (long/short): Revealed at open time — used by liquidation sort and margin
+//!   mode routing. Encrypted copy still participates in MPC circuits.
 //! - Health factor: NEVER revealed
 //! - Realized PnL: Revealed ONLY at position close
 
