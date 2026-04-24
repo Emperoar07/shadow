@@ -53,6 +53,7 @@ const TerminalGrid = dynamic(
  */
 function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   const { connection } = useConnection();
+  const { getAccessToken } = usePrivy();
   const { address: walletAddr } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
   const anchorWallet = useAnchorWalletCompat();
@@ -134,9 +135,16 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
     if (!walletAddr || isClaiming) return;
     setIsClaiming(true);
     try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error("Sign in again before claiming faucet funds.");
+      }
       const res = await fetch("/api/faucet-mock-usdc", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ wallet: walletAddr }),
       });
       const raw = await res.text();
@@ -208,7 +216,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
           <p className="text-gray-400 text-sm leading-relaxed mb-1 font-medium">You are early.</p>
           <p className="text-gray-500 text-[13px] leading-relaxed">
             Shadow is a private perpetual trading terminal on Solana with encrypted positions powered by Arcium MPC.
-            Trade with full privacy. Your positions are never exposed on chain.
+            Position inputs stay encrypted while required settlement state remains public on Solana.
           </p>
         </>
       )}
@@ -815,7 +823,7 @@ function ConnectWalletButton() {
                 </svg>
                 Open in Explorer
               </a>
-              {/* Export key — only for embedded wallet users (email/social login) */}
+              {/* Export key — only for embedded wallet users (email login) */}
               {isEmbedded && embeddedAddr && (
                 <button
                   type="button"

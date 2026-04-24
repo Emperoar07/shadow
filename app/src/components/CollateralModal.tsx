@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import BN from "bn.js";
 import { useConnection } from "@solana/wallet-adapter-react";
+import { usePrivy } from "@privy-io/react-auth";
 import { Transaction } from "@solana/web3.js";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
@@ -33,6 +34,7 @@ export default function CollateralModal({
   const anchorWallet = useAnchorWalletCompat();
   const walletExecutionMode = useWalletExecutionMode();
   const publicKey = anchorWallet?.publicKey ?? null;
+  const { getAccessToken } = usePrivy();
   const { connection } = useConnection();
   const [tab, setTab] = useState<Tab>("deposit");
   const [amount, setAmount] = useState("");
@@ -96,9 +98,16 @@ export default function CollateralModal({
     toast.loading("Claiming test mUSDC...", { id: toastId });
     try {
       const marketAddress = getSelectedMarketAddress();
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error("Sign in again before claiming faucet funds.");
+      }
       const res = await fetch("/api/faucet-mock-usdc", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           wallet: publicKey.toBase58(),
           marketAddress: marketAddress.toBase58(),
@@ -167,6 +176,7 @@ export default function CollateralModal({
     faucetCooldownKey,
     faucetSuggestedAmount,
     getSelectedMarketAddress,
+    getAccessToken,
     isClaiming,
     nextClaimAt,
     publicKey,

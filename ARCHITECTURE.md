@@ -137,7 +137,7 @@ Arcium-related account pointers are stored in market state and validated in call
 
 - The live app signs trading and collateral instructions directly from the connected Solana wallet.
 - Privy provides:
-  - embedded wallets for email/social users
+  - embedded Solana wallets for email users
   - external Solana wallet connectors for wallets such as Phantom or Solflare
 - Shadow still encrypts sensitive trade payloads client-side before queueing Arcium computation.
 - Collateral transfer paths remain public on Solana; encrypted trade internals remain on the Arcium path.

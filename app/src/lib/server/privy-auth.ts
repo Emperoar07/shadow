@@ -1,4 +1,5 @@
 import { PrivyClient } from "@privy-io/server-auth";
+import type { NextApiRequest } from "next";
 
 let privyClient: PrivyClient | null = null;
 
@@ -33,4 +34,48 @@ export function extractBearerToken(authorization?: string | null): string | null
   if (!scheme || !token) return null;
   if (scheme.toLowerCase() !== "bearer") return null;
   return token;
+}
+
+export function getRequestIp(req: NextApiRequest): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  const first = raw?.split(",")[0]?.trim();
+  return first || req.socket.remoteAddress || "unknown";
+}
+
+export async function requirePrivyUser(req: NextApiRequest): Promise<{
+  userId: string;
+  user: Awaited<ReturnType<PrivyClient["getUser"]>>;
+}> {
+  const authorization = req.headers.authorization;
+  const token = extractBearerToken(Array.isArray(authorization) ? authorization[0] : authorization);
+  if (!token) {
+    throw new Error("Missing Privy bearer token.");
+  }
+
+  const privy = getPrivyServerClient();
+  const claims = await privy.verifyAuthToken(token);
+  const user = await privy.getUser(claims.userId);
+  return { userId: claims.userId, user };
+}
+
+export async function requirePrivySolanaWallet(
+  req: NextApiRequest,
+  walletAddress: string
+): Promise<{ userId: string }> {
+  const { userId, user } = await requirePrivyUser(req);
+  const normalizedWallet = walletAddress.toLowerCase();
+
+  const hasLinkedWallet = user.linkedAccounts.some((account) => {
+    if (account.type !== "wallet") return false;
+    const wallet = account as { chainType?: string; address?: string };
+    if (wallet.chainType && wallet.chainType !== "solana") return false;
+    return wallet.address?.toLowerCase() === normalizedWallet;
+  });
+
+  if (!hasLinkedWallet) {
+    throw new Error("Requested wallet does not match the authenticated Privy user.");
+  }
+
+  return { userId };
 }

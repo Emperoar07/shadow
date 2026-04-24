@@ -1,4 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { checkRateLimit } from "../../lib/server/rate-limit";
+import { getRequestIp } from "../../lib/server/privy-auth";
 import {
   findTradingPair,
   getReferenceProviders,
@@ -16,6 +18,8 @@ type ErrorResponse = {
 const CACHE_TTL_MS = 3_000;
 const DEPTH_LIMIT = 120;
 const TRADE_LIMIT = 60;
+const RATE_LIMIT = 240;
+const RATE_WINDOW_MS = 60_000;
 
 let cache = new Map<string, { expiresAt: number; payload: ReferenceDepthSnapshot }>();
 
@@ -380,6 +384,17 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ReferenceDepthSnapshot | ErrorResponse>
 ) {
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
+    res.status(405).json({ error: "Method Not Allowed", fetchedAt: Date.now() });
+    return;
+  }
+
+  if (!checkRateLimit(`reference-depth:ip:${getRequestIp(req)}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+    res.status(429).json({ error: "Rate limit exceeded", fetchedAt: Date.now() });
+    return;
+  }
+
   const pairLabel = String(req.query.pair ?? "").trim();
   if (!pairLabel) {
     res.status(400).json({ error: "Missing pair", fetchedAt: Date.now() });

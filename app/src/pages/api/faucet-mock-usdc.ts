@@ -1,8 +1,8 @@
 /**
  * POST /api/faucet-mock-usdc
  *
- * Transfers mUSDC from the faucet wallet directly to the user's token account.
- * No user signature required — faucet signs and broadcasts the tx itself.
+ * Transfers mUSDC from the faucet wallet directly to the authenticated user's token account.
+ * No user signature required; faucet signs and broadcasts the tx itself.
  * User deposits to margin separately via the Collateral modal.
  *
  * Body:   { wallet: string }
@@ -28,14 +28,19 @@ import * as path from "path";
 import * as os from "os";
 
 import { FAUCET_FIRST_CLAIM_USDC, FAUCET_CAP_USDC, FAUCET_TRIGGER_USDC, MUSDC_DECIMALS } from "../../lib/faucet-constants";
+import { checkRateLimit } from "../../lib/server/rate-limit";
+import { getRequestIp, requirePrivySolanaWallet } from "../../lib/server/privy-auth";
 
 const CAP_USDC     = FAUCET_CAP_USDC;
 const TRIGGER_USDC = FAUCET_TRIGGER_USDC;
 const DECIMALS     = MUSDC_DECIMALS;
 const COOLDOWN_MS  = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_RPC = "https://api.devnet.solana.com";
+const USER_RATE_LIMIT = 3;
+const IP_RATE_LIMIT = 20;
+const RATE_WINDOW_MS = 60 * 60 * 1000;
 
-// In-memory cooldown — resets on cold start; client localStorage is the durable gate.
+// In-memory cooldown resets on cold start; Privy auth + rate limits provide the server-side abuse gate.
 const cooldowns = new Map<string, number>();
 
 function normalizeRpcUrl(raw?: string): string | null {
@@ -122,6 +127,9 @@ function getFaucetKeypair(): Keypair {
   if (secret) {
     return Keypair.fromSecretKey(new Uint8Array(JSON.parse(secret) as number[]));
   }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Faucet wallet not configured. Set FAUCET_WALLET_SECRET_KEY env var.");
+  }
   const walletPath =
     process.env.SOLANA_WALLET ||
     path.join(os.homedir(), ".config", "solana", "id.json");
@@ -176,6 +184,26 @@ export default async function handler(
     recipientPubkey = new PublicKey(wallet);
   } catch {
     return res.status(400).json({ success: false, error: "Invalid wallet address" });
+  }
+
+  let userId: string;
+  try {
+    ({ userId } = await requirePrivySolanaWallet(req, recipientPubkey.toBase58()));
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Authentication required.",
+    });
+  }
+
+  if (
+    !checkRateLimit(`faucet:user:${userId}`, USER_RATE_LIMIT, RATE_WINDOW_MS) ||
+    !checkRateLimit(`faucet:ip:${getRequestIp(req)}`, IP_RATE_LIMIT, RATE_WINDOW_MS)
+  ) {
+    return res.status(429).json({
+      success: false,
+      error: "Too many faucet attempts. Try again later.",
+    });
   }
 
   // Cooldown check (in-memory, best-effort)

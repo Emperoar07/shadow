@@ -108,8 +108,7 @@ export function classifyArciumError(error: unknown): ArciumErrorInfo {
     msg.includes("Insufficient margin") ||
     msg.includes("insufficient collateral") ||
     msg.includes("InsufficientMargin") ||
-    code === ANCHOR_ERROR_OFFSET + 1 || // InsufficientMargin (6001)
-    code === ANCHOR_ERROR_OFFSET + 2    // InsufficientCollateral (6002)
+    code === ANCHOR_ERROR_OFFSET + 4 // InsufficientMargin (6004)
   ) {
     return {
       message: "Insufficient margin balance",
@@ -158,12 +157,22 @@ export function classifyArciumError(error: unknown): ArciumErrorInfo {
     };
   }
 
-  // --- StalePrice (6006) ---
-  if (code === ANCHOR_ERROR_OFFSET + 6 || msg.includes("StalePrice")) {
+  // --- InvalidPrice (6007) ---
+  if (code === ANCHOR_ERROR_OFFSET + 7 || msg.includes("InvalidPrice")) {
+    return {
+      message: "Oracle price is invalid. Refresh market pricing and retry.",
+      isRetryable: true,
+      errorCode: 6007,
+      category: "program",
+    };
+  }
+
+  // --- StalePrice (6008) ---
+  if (code === ANCHOR_ERROR_OFFSET + 8 || msg.includes("StalePrice")) {
     return {
       message: "Oracle price was stale. Retrying with fresh price...",
       isRetryable: true,
-      errorCode: 6006,
+      errorCode: 6008,
       category: "program",
     };
   }
@@ -555,6 +564,9 @@ function extractErrorCode(error: unknown): number | null {
 
   const decMatch = msg.match(/Custom\((\d+)\)/);
   if (decMatch) return parseInt(decMatch[1], 10);
+
+  const jsonCustomMatch = msg.match(/"Custom"\s*:\s*(\d+)/);
+  if (jsonCustomMatch) return parseInt(jsonCustomMatch[1], 10);
 
   // Anchor logs: "Error Code: <Name>. Error Number: <num>"
   const logMatch = msg.match(/Error Number:\s*(\d+)/);

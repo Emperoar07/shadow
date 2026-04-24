@@ -204,7 +204,7 @@ export default function App({ Component, pageProps }: AppProps) {
               Privy is not configured for this deployment
             </h1>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Shadow now expects a real Privy app ID for email and social sign-in.
+              Shadow now expects a real Privy app ID for email and Solana wallet sign-in.
               Set <code className="rounded bg-shadow-800 px-1.5 py-0.5 text-xs text-red-200">NEXT_PUBLIC_PRIVY_APP_ID</code>
               in this environment, then redeploy.
             </p>

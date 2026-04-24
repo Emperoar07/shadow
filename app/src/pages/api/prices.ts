@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getOrderedReferenceProviders, type MarketFeedProvider } from "../../lib/market-feeds";
 import { TRADING_PAIRS } from "../../lib/tokens";
+import { checkRateLimit } from "../../lib/server/rate-limit";
+import { getRequestIp } from "../../lib/server/privy-auth";
 
 type PriceData = {
   price: number;
@@ -34,6 +36,8 @@ type PairConfig = {
 };
 
 const CACHE_TTL_MS = 20_000;
+const RATE_LIMIT = 120;
+const RATE_WINDOW_MS = 60_000;
 
 const PAIRS: PairConfig[] = TRADING_PAIRS.map((pair) => {
   const primaryReference = getOrderedReferenceProviders(pair)[0];
@@ -279,6 +283,11 @@ export default async function handler(
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
     res.status(405).json({ error: "Method Not Allowed" });
+    return;
+  }
+
+  if (!checkRateLimit(`prices:ip:${getRequestIp(req)}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+    res.status(429).json({ error: "Rate limit exceeded" });
     return;
   }
 
