@@ -136,7 +136,7 @@ export default function NetworkIndicator({ mode = "all" }: { mode?: "all" | "net
 
   if (mode === "network") return (
     <div
-      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
+      className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${
         isDevnet
           ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-400"
           : networkName === "Mainnet"
@@ -145,7 +145,7 @@ export default function NetworkIndicator({ mode = "all" }: { mode?: "all" | "net
       }`}
     >
       <div
-        className={`w-1.5 h-1.5 rounded-full ${
+        className={`w-1 h-1 rounded-full ${
           networkStatus === "connected"
             ? isDevnet ? "bg-yellow-400" : "bg-accent-green"
             : networkStatus === "checking"
