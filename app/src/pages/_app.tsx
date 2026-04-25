@@ -170,16 +170,18 @@ export default function App({ Component, pageProps }: AppProps) {
       loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
-          // Auto-reconnect external wallets that Privy already has in its session.
-          // This is scoped: Privy only auto-connects wallets the user previously linked,
-          // not random detected extensions. Safe to keep true alongside email login.
+          // Disable auto-reconnect: installed wallet extensions were hijacking
+          // email-login sessions on refresh and replacing the active wallet.
           connectors: toSolanaWalletConnectors({
-            shouldAutoConnect: true,
+            shouldAutoConnect: false,
           }),
         },
       },
       embeddedWallets: {
-        createOnLogin: "all-users",
+        // Only create an embedded wallet for users who don't already have one.
+        // "all-users" caused sign-in failures for existing embedded-wallet users
+        // whose wallets were keyed to a prior Privy app.
+        createOnLogin: "users-without-wallets",
         noPromptOnSignature: true,
         // Restrict to Solana only — prevents Privy from creating an Ethereum
         // embedded wallet first, which would resolve as the active wallet with
