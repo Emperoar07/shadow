@@ -33,19 +33,57 @@ function normalizeCluster(raw?: string): "devnet" | "mainnet-beta" | null {
 function resolveCluster(): "devnet" | "mainnet-beta" | null {
   const explicit = normalizeCluster(process.env.NEXT_PUBLIC_SOLANA_CLUSTER);
   if (explicit) return explicit;
-  const rpc = process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "";
-  const normalizedRpc = rpc.toLowerCase();
-  if (normalizedRpc.includes("devnet")) return "devnet";
-  if (normalizedRpc.includes("mainnet")) return "mainnet-beta";
+  const rpc = (
+    process.env.SOLANA_RPC_URL ||
+    process.env.SOLANA_RPC_URLS?.split(",")[0] ||
+    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
+    ""
+  ).toLowerCase();
+  if (rpc.includes("devnet")) return "devnet";
+  if (rpc.includes("mainnet")) return "mainnet-beta";
   return null;
 }
 
-function resolveConnection(): Connection {
-  const rpcUrl =
-    process.env.SOLANA_RPC_URL ||
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
-    "https://api.devnet.solana.com";
-  return new Connection(rpcUrl, "confirmed");
+function resolveRpcEndpoints(): string[] {
+  const seen = new Set<string>();
+  const endpoints: string[] = [];
+
+  const add = (raw: string | undefined) => {
+    if (!raw) return;
+    for (const url of raw.split(",").map((s) => s.trim()).filter(Boolean)) {
+      if (!seen.has(url)) { seen.add(url); endpoints.push(url); }
+    }
+  };
+
+  add(process.env.SOLANA_RPC_URLS);
+  add(process.env.SOLANA_RPC_URL);
+  add(process.env.NEXT_PUBLIC_SOLANA_RPC_URLS);
+  add(process.env.NEXT_PUBLIC_SOLANA_RPC_URL);
+  add("https://api.devnet.solana.com");
+
+  return endpoints;
+}
+
+async function sendWithFallback(
+  tx: Transaction,
+  endpoints: string[]
+): Promise<string> {
+  let lastError: unknown;
+  for (const url of endpoints) {
+    try {
+      const conn = new Connection(url, "confirmed");
+      const signature = await conn.sendRawTransaction(tx.serialize(), {
+        preflightCommitment: "confirmed",
+        skipPreflight: false,
+        maxRetries: 3,
+      });
+      await conn.confirmTransaction(signature, "confirmed");
+      return signature;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
 }
 
 function resolveSponsorKeypair(): Keypair {
@@ -171,13 +209,7 @@ export default async function handler(
 
     tx.partialSign(sponsor);
 
-    const connection = resolveConnection();
-    const signature = await connection.sendRawTransaction(tx.serialize(), {
-      preflightCommitment: "confirmed",
-      skipPreflight: false,
-      maxRetries: 3,
-    });
-    await connection.confirmTransaction(signature, "confirmed");
+    const signature = await sendWithFallback(tx, resolveRpcEndpoints());
 
     res.status(200).json({ ok: true, signature });
   } catch (error) {
