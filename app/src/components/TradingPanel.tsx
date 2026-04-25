@@ -138,7 +138,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   const [orderType, setOrderType] = useState<OrderType>("market");
   const [marginMode, setMarginMode] = useState<MarginMode>("cross");
   const [size, setSize] = useState("");
-  const [sizeUnit, setSizeUnit] = useState<SizeUnit>("base");
+  const [sizeUnit, setSizeUnit] = useState<SizeUnit>("usd");
   const [limitPrice, setLimitPrice] = useState("");
   const [takeProfit, setTakeProfit] = useState("");
   const [stopLoss, setStopLoss] = useState("");

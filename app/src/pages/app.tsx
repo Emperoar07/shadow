@@ -441,17 +441,21 @@ export default function TradingAppPage() {
                   <span className="text-lg font-extrabold tracking-wide bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">SHADOW</span>
                 </Link>
                 <NetworkIndicator mode="network" />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <a
                   href="https://faucet.solana.com/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[10px] font-medium text-gray-400 hover:text-accent-green underline-offset-2 hover:underline transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded border border-shadow-500/60 bg-shadow-800/80 text-[12px] font-medium text-gray-200 hover:border-accent-green/50 hover:bg-shadow-700/80 transition-colors"
                   title="Get more devnet SOL from the official Solana faucet"
                 >
+                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 1v6m0 0L5 4m3 3l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M3 8h10a1 1 0 011 1v4a1 1 0 01-1 1H3a1 1 0 01-1-1V9a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                   Faucet
                 </a>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <WalletPopup
                   marginBalance={marginBalance}
                   onOpenCollateral={openCollateralModal ?? undefined}
