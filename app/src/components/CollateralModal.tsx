@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import BN from "bn.js";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
@@ -68,6 +68,9 @@ export default function CollateralModal({
   const [isClaiming, setIsClaiming] = useState(false);
   const [nextClaimAt, setNextClaimAt] = useState<number | null>(null);
   const [walletTokenBalanceRaw, setWalletTokenBalanceRaw] = useState<bigint | null>(null);
+  const [walletSolBalance, setWalletSolBalance] = useState<number | null>(null);
+  const [isClaimingSol, setIsClaimingSol] = useState(false);
+  const [solClaimedKey, setSolClaimedKey] = useState<string | null>(null);
   const faucetCooldownKey = publicKey ? `mockusdc_faucet_${publicKey.toBase58()}` : null;
   const walletTokenBalanceUsdc =
     walletTokenBalanceRaw === null
@@ -96,6 +99,19 @@ export default function CollateralModal({
     setWalletTokenBalanceRaw(balance);
   }, [connection, publicKey]);
 
+  const refreshWalletSolBalance = useCallback(async () => {
+    if (!publicKey) {
+      setWalletSolBalance(null);
+      return;
+    }
+    try {
+      const lamports = await connection.getBalance(publicKey);
+      setWalletSolBalance(lamports / LAMPORTS_PER_SOL);
+    } catch {
+      setWalletSolBalance(null);
+    }
+  }, [connection, publicKey]);
+
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -104,11 +120,35 @@ export default function CollateralModal({
         ? await fetchWalletMockUsdcBalanceRaw(connection, publicKey)
         : null;
       if (!cancelled) setWalletTokenBalanceRaw(balance);
+      if (publicKey) {
+        try {
+          const lamports = await connection.getBalance(publicKey);
+          if (!cancelled) setWalletSolBalance(lamports / LAMPORTS_PER_SOL);
+        } catch {
+          if (!cancelled) setWalletSolBalance(null);
+        }
+      } else if (!cancelled) {
+        setWalletSolBalance(null);
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [connection, isOpen, publicKey]);
+
+  // Load SOL drip claim flag from localStorage (best-effort; server has authoritative one-time check)
+  useEffect(() => {
+    if (!publicKey) {
+      setSolClaimedKey(null);
+      return;
+    }
+    const key = `sol_drip_claimed_${publicKey.toBase58()}`;
+    try {
+      setSolClaimedKey(localStorage.getItem(key) ? key : null);
+    } catch {
+      setSolClaimedKey(null);
+    }
+  }, [publicKey]);
 
   const availableCollateral = freeCollateral ?? marginBalance;
   const reservedCollateral =
@@ -237,6 +277,46 @@ export default function CollateralModal({
     publicKey,
     refreshWalletTokenBalance,
   ]);
+
+  const handleClaimSolDrip = useCallback(async () => {
+    if (!publicKey || isClaimingSol) return;
+    setIsClaimingSol(true);
+    const toastId = "sol-drip";
+    toast.loading("Requesting devnet SOL...", { id: toastId });
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error("Sign in again before requesting SOL.");
+      }
+      const res = await fetch("/api/faucet-sol", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ wallet: publicKey.toBase58() }),
+      });
+      const data = (await res.json()) as {
+        success: boolean;
+        signature?: string;
+        amount?: number;
+        error?: string;
+      };
+      if (data.success && data.signature) {
+        toast.success(`${data.amount ?? 0.2} SOL sent to your wallet.`, { id: toastId });
+        const key = `sol_drip_claimed_${publicKey.toBase58()}`;
+        try { localStorage.setItem(key, String(Date.now())); } catch {}
+        setSolClaimedKey(key);
+        void refreshWalletSolBalance();
+      } else {
+        toast.error(data.error ?? "SOL drip failed", { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? "SOL drip failed", { id: toastId });
+    } finally {
+      setIsClaimingSol(false);
+    }
+  }, [publicKey, isClaimingSol, getAccessToken, refreshWalletSolBalance]);
 
   useEffect(() => {
     setMounted(true);
@@ -540,8 +620,8 @@ export default function CollateralModal({
             mUSDC is Shadow&apos;s devnet collateral token. Your position details stay encrypted through Arcium MPC.
           </p>
 
-          {/* MockUSDC faucet claim */}
-          {publicKey && walletTokenBalanceUsdc !== null && walletTokenBalanceUsdc < FAUCET_TRIGGER_USDC && (() => {
+          {/* MockUSDC faucet claim — gate on wallet + margin combined so moving funds to margin doesn't re-show it */}
+          {publicKey && walletTokenBalanceUsdc !== null && (walletTokenBalanceUsdc + (marginBalance ?? 0)) < FAUCET_TRIGGER_USDC && (() => {
             const now = Date.now();
             const canClaim = !nextClaimAt || now >= nextClaimAt;
             const daysLeft = nextClaimAt
@@ -572,6 +652,26 @@ export default function CollateralModal({
               </div>
             );
           })()}
+
+          {/* Devnet SOL one-time drip — for tx fees and account rent */}
+          {publicKey && walletSolBalance !== null && walletSolBalance < 0.05 && !solClaimedKey && (
+            <div className="rounded-xl border border-shadow-600/70 bg-shadow-800/50 px-4 py-3 text-center">
+              <p className="text-[10px] text-gray-500 mb-2">
+                Need SOL for devnet tx fees? One-time drip per wallet.
+              </p>
+              <button
+                type="button"
+                onClick={handleClaimSolDrip}
+                disabled={isClaimingSol}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold bg-accent-green/20 border border-accent-green/40 text-accent-green hover:bg-accent-green/30 hover:border-accent-green/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                {isClaimingSol ? "Requesting..." : "Claim 0.2 SOL"}
+              </button>
+            </div>
+          )}
 
         </div>
       </div>

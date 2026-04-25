@@ -441,6 +441,15 @@ export default function TradingAppPage() {
                   <span className="text-lg font-extrabold tracking-wide bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">SHADOW</span>
                 </Link>
                 <NetworkIndicator mode="network" />
+                <a
+                  href="https://faucet.solana.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-medium text-gray-400 hover:text-accent-green underline-offset-2 hover:underline transition-colors"
+                  title="Get more devnet SOL from the official Solana faucet"
+                >
+                  Faucet
+                </a>
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <WalletPopup
