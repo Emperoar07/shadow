@@ -282,14 +282,14 @@ input[type="range"]::-webkit-slider-thumb:active {
 
 /* LIGHT MODE */
 html.light body {
-  background: #d4dae5;
+  background: #eef2f7;
   color: #0f172a;
   --foreground-rgb: 15, 23, 42;
-  --background-rgb: 212, 218, 229;
+  --background-rgb: 238, 242, 247;
 }
 
 html.light .gradient-bg {
-  background: linear-gradient(180deg, #d4dae5 0%, #cdd4e2 100%);
+  background: linear-gradient(180deg, #eef2f7 0%, #e8edf5 100%);
   animation: none;
 }
 
@@ -311,16 +311,16 @@ html.light .trade-trading-panel,
 html.light .trade-orderbook,
 html.light .trade-bottom-panel,
 html.light footer {
-  background-color: #e2e7f1 !important;
+  background-color: #f7f9fc !important;
 }
 
 html.light .trade-market-bar,
 html.light .trade-portfolio-inner {
-  background-color: #dde3ed !important;
+  background-color: #f1f4fa !important;
 }
 
 html.light .trade-main {
-  background-color: #d4dae5;
+  background-color: #eef2f7;
 }
 
 html.light .trade-header {
@@ -328,14 +328,14 @@ html.light .trade-header {
 }
 
 html.light .trade-header-control {
-  background: rgba(226, 231, 241, 0.96) !important;
-  border-color: rgba(196, 201, 216, 0.9) !important;
+  background: rgba(241, 244, 250, 0.96) !important;
+  border-color: rgba(203, 213, 225, 0.9) !important;
   color: #475569 !important;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 html.light .trade-header-control:hover {
-  background: rgba(221, 227, 237, 0.98) !important;
+  background: rgba(233, 237, 245, 0.98) !important;
   border-color: rgba(148, 163, 184, 0.85) !important;
   color: #334155 !important;
 }
@@ -345,8 +345,8 @@ html.light .trade-header-control svg {
 }
 
 html.light .trade-header-popover {
-  background: #e8ecf7 !important;
-  border-color: #c4c9d8 !important;
+  background: #f8fafc !important;
+  border-color: #d8dce8 !important;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12) !important;
 }
 
@@ -365,44 +365,44 @@ html.light .trade-terminal-grid {
 }
 
 html.light .trade-price-chart-toolbar {
-  background: #d4daa5;
+  background: #eef2f7;
 }
 
 html.light .trade-price-chart .bg-shadow-700 {
-  background-color: #d5daa5 !important;
+  background-color: #e9edf5 !important;
 }
 
 html.light .trade-price-chart .bg-shadow-800 {
-  background-color: #e2e7f1 !important;
+  background-color: #f7f9fc !important;
 }
 
 html.light .bg-shadow-900 {
-  background-color: #d4dae5 !important;
+  background-color: #eef2f7 !important;
 }
 
 html.light .bg-shadow-800 {
-  background-color: #e2e7f1 !important;
+  background-color: #f7f9fc !important;
 }
 
 html.light .bg-shadow-700 {
-  background-color: #d5dae8 !important;
+  background-color: #e9edf5 !important;
 }
 
 html.light .bg-shadow-600 {
-  background-color: #cdd2e0 !important;
+  background-color: #e1e7f0 !important;
 }
 
 html.light .bg-shadow-600\/50 {
-  background-color: rgba(205, 210, 224, 0.78) !important;
+  background-color: rgba(225, 231, 240, 0.78) !important;
 }
 
 html.light .bg-shadow-800\/90 {
-  background-color: rgba(226, 231, 241, 0.94) !important;
+  background-color: rgba(247, 249, 252, 0.94) !important;
 }
 
 html.light .border-shadow-600,
 html.light .border-shadow-500 {
-  border-color: #c4c9d8 !important;
+  border-color: #d8dce8 !important;
 }
 
 html.light .text-white {
@@ -465,11 +465,11 @@ html.light .trade-orderbook .text-gray-600 {
 html.light .trade-trading-panel .bg-shadow-700,
 html.light .trade-trading-panel .bg-shadow-700\/60,
 html.light .trade-trading-panel .bg-shadow-700\/70 {
-  background-color: #d5daa8 !important;
+  background-color: #f1f3f9 !important;
 }
 
 html.light .trade-trading-panel .bg-shadow-600 {
-  background-color: #cdd2e0 !important;
+  background-color: #e8ebf4 !important;
 }
 
 html.light .trade-trading-panel .border-shadow-500,
@@ -497,7 +497,7 @@ html.light .trade-bottom-panel {
 }
 
 html.light .position-card {
-  background: #e8ecf7;
+  background: #ffffff;
   border-color: rgba(124, 58, 237, 0.2);
 }
 
@@ -543,19 +543,19 @@ html.light .pair-btn.active {
 
 /* ── Collateral Modal ── */
 html.light .collateral-modal-panel {
-  background: #e8ecf7 !important;
+  background: #ffffff !important;
 }
 html.light .collateral-modal-panel .bg-shadow-800\/60 {
-  background-color: rgba(226, 231, 241, 0.8) !important;
+  background-color: rgba(241, 243, 249, 0.8) !important;
 }
 html.light .collateral-modal-panel .border-shadow-700 {
-  border-color: #c4c9d8 !important;
+  border-color: #d8dce8 !important;
 }
 html.light .collateral-modal-panel .bg-shadow-600 {
-  background-color: #cdd2e0 !important;
+  background-color: #e8ebf4 !important;
 }
 html.light .collateral-modal-panel .hover\:bg-shadow-500:hover {
-  background-color: #c4c9d8 !important;
+  background-color: #dde1ec !important;
 }
 html.light .collateral-modal-panel .text-gray-400 { color: #64748b !important; }
 html.light .collateral-modal-panel .text-gray-500 { color: #64748b !important; }
@@ -614,18 +614,18 @@ html.light input[type="text"] {
 
 /* Order summary panel (margin/notional/liq) */
 html.light .trade-trading-panel .bg-shadow-700\/40 {
-  background-color: #e8ecf7 !important;
+  background-color: #ffffff !important;
 }
 
 html.light .trade-trading-panel .divide-shadow-600 > :not([hidden]) ~ :not([hidden]) {
-  border-color: #c4c9d8 !important;
+  border-color: #d1d5e8 !important;
 }
 
 /* Light mode: colour the leverage slider track via the element background only.
    No ::-webkit-slider-runnable-track rules — they trigger pseudo-element track
    rendering and make the track taller than the h-1/h-1.5 element height. */
 html.light .trade-trading-panel input[type=range].bg-shadow-600 {
-  background: #bec4d2 !important;
+  background: #c4c9db !important;
 }
 
 /* Slider thumb border in light mode */
@@ -635,7 +635,7 @@ html.light input[type="range"]::-webkit-slider-thumb {
 
 /* Skeleton loading in light mode */
 html.light .skeleton-pulse {
-  background: linear-gradient(90deg, #cdd2e0 25%, #d5daa8 50%, #cdd2e0 75%);
+  background: linear-gradient(90deg, #e8eaf2 25%, #f1f3f9 50%, #e8eaf2 75%);
   background-size: 200% 100%;
 }
 
@@ -646,10 +646,10 @@ html.light .trade-orderbook .hover\:bg-shadow-700\/30:hover {
 
 /* Transparent panel backgrounds in trading panel */
 html.light .trade-trading-panel .bg-shadow-700\/60 {
-  background-color: rgba(213,218,232,0.9) !important;
+  background-color: rgba(241, 243, 249, 0.9) !important;
 }
 html.light .trade-trading-panel .bg-shadow-700\/80 {
-  background-color: rgba(213,218,232,0.95) !important;
+  background-color: rgba(241, 243, 249, 0.95) !important;
 }
 
 /* ── Hover states ── */
@@ -666,8 +666,8 @@ html.light .trade-bottom-panel .hover\:bg-red-500\/20:hover {
 }
 
 html.light .tpsl-editor-panel {
-  background-color: #e8ecf7 !important;
-  border-top-color: #c4c9d8 !important;
+  background-color: #f8fafc !important;
+  border-top-color: #d8dce8 !important;
 }
 
 html.light .tpsl-editor-panel .text-cyan-300 {
@@ -685,11 +685,11 @@ html.light .tpsl-editor-panel .hover\:text-gray-200:hover {
 }
 
 html.light .tpsl-editor-panel .bg-shadow-700 {
-  background-color: #d5daa8 !important;
+  background-color: #ffffff !important;
 }
 
 html.light .tpsl-editor-panel .border-shadow-500 {
-  border-color: #bfc6d4 !important;
+  border-color: #cfd7e6 !important;
 }
 
 /* ── Status badge colours (yellow, green, red, gray) ── */
@@ -842,8 +842,8 @@ html.light .bg-cyan-500\/10             { background-color: rgba(6,182,212,0.10)
   background: #252530;
 }
 html.light .terminal-grid-container {
-  background: #c4c9d8;
-  border-color: #c4c9d8;
+  background: #d8dce8;
+  border-color: #d8dce8;
 }
 .layout-locked .react-resizable-handle {
   display: none !important;
@@ -852,75 +852,75 @@ html.light .terminal-grid-container {
 /* ── Light mode gap-fill: opacity variants & missing component classes ── */
 
 /* Generic opacity-variant backgrounds */
-html.light .bg-shadow-800\/50  { background-color: rgba(226,231,241,0.75) !important; }
-html.light .bg-shadow-800\/55  { background-color: rgba(226,231,241,0.80) !important; }
-html.light .bg-shadow-800\/60  { background-color: rgba(226,231,241,0.85) !important; }
-html.light .bg-shadow-800\/65  { background-color: rgba(226,231,241,0.88) !important; }
-html.light .bg-shadow-800\/80  { background-color: rgba(226,231,241,0.92) !important; }
-html.light .bg-shadow-800\/95  { background-color: rgba(226,231,241,0.97) !important; }
-html.light .bg-shadow-900\/60  { background-color: rgba(212,218,229,0.85) !important; }
-html.light .bg-shadow-900\/70  { background-color: rgba(212,218,229,0.90) !important; }
-html.light .bg-shadow-900\/90  { background-color: rgba(212,218,229,0.95) !important; }
-html.light .bg-shadow-700\/80  { background-color: rgba(213,218,232,0.95) !important; }
-html.light .bg-shadow-500      { background-color: #cdd2e0 !important; }
+html.light .bg-shadow-800\/50  { background-color: rgba(247,249,252,0.75) !important; }
+html.light .bg-shadow-800\/55  { background-color: rgba(247,249,252,0.80) !important; }
+html.light .bg-shadow-800\/60  { background-color: rgba(247,249,252,0.85) !important; }
+html.light .bg-shadow-800\/65  { background-color: rgba(247,249,252,0.88) !important; }
+html.light .bg-shadow-800\/80  { background-color: rgba(247,249,252,0.92) !important; }
+html.light .bg-shadow-800\/95  { background-color: rgba(247,249,252,0.97) !important; }
+html.light .bg-shadow-900\/60  { background-color: rgba(238,242,247,0.85) !important; }
+html.light .bg-shadow-900\/70  { background-color: rgba(238,242,247,0.90) !important; }
+html.light .bg-shadow-900\/90  { background-color: rgba(238,242,247,0.95) !important; }
+html.light .bg-shadow-700\/80  { background-color: rgba(233,237,245,0.95) !important; }
+html.light .bg-shadow-500      { background-color: #dde1ec !important; }
 
 /* Generic opacity-variant borders */
-html.light .border-shadow-700  { border-color: #c4c9d8 !important; }
-html.light .border-shadow-600\/80 { border-color: rgba(196,201,216,0.90) !important; }
-html.light .border-shadow-500\/80 { border-color: rgba(196,201,216,0.90) !important; }
-html.light .border-shadow-500\/50 { border-color: rgba(196,201,216,0.70) !important; }
-html.light .border-shadow-400  { border-color: #bfc6d4 !important; }
-html.light .border-shadow-400\/60 { border-color: rgba(191,198,212,0.75) !important; }
-html.light .border-shadow-700\/40 { border-color: rgba(196,201,216,0.55) !important; }
+html.light .border-shadow-700  { border-color: #d8dce8 !important; }
+html.light .border-shadow-600\/80 { border-color: rgba(216,220,232,0.90) !important; }
+html.light .border-shadow-500\/80 { border-color: rgba(216,220,232,0.90) !important; }
+html.light .border-shadow-500\/50 { border-color: rgba(216,220,232,0.70) !important; }
+html.light .border-shadow-400  { border-color: #c8d0de !important; }
+html.light .border-shadow-400\/60 { border-color: rgba(200,208,222,0.75) !important; }
+html.light .border-shadow-700\/40 { border-color: rgba(216,220,232,0.55) !important; }
 
 /* text-gray-100 already covered; add text-gray-700 for WalletPopup */
 html.light .text-gray-700 { color: #334155 !important; }
 
 /* WalletPopup popover */
 html.light .wallet-popup-panel {
-  background-color: #e8ecf7 !important;
-  border-color: #c4c9d8 !important;
+  background-color: #f8fafc !important;
+  border-color: #d8dce8 !important;
 }
-html.light .wallet-popup-panel .bg-shadow-800\/60 { background-color: rgba(226,231,241,0.85) !important; }
-html.light .wallet-popup-panel .bg-shadow-700\/80 { background-color: rgba(213,218,232,0.95) !important; }
-html.light .wallet-popup-panel .border-shadow-500\/50 { border-color: rgba(196,201,216,0.70) !important; }
+html.light .wallet-popup-panel .bg-shadow-800\/60 { background-color: rgba(241,243,249,0.85) !important; }
+html.light .wallet-popup-panel .bg-shadow-700\/80 { background-color: rgba(233,237,245,0.95) !important; }
+html.light .wallet-popup-panel .border-shadow-500\/50 { border-color: rgba(216,220,232,0.70) !important; }
 
 /* OrderConfirmModal */
 html.light .order-confirm-modal {
-  background-color: #e8ecf7 !important;
-  border-color: #c4c9d8 !important;
+  background-color: #f8fafc !important;
+  border-color: #d8dce8 !important;
 }
-html.light .order-confirm-modal .bg-shadow-900\/60 { background-color: rgba(212,218,229,0.85) !important; }
-html.light .order-confirm-modal .bg-shadow-800 { background-color: #e2e7f1 !important; }
-html.light .order-confirm-modal .border-shadow-500\/80 { border-color: rgba(196,201,216,0.90) !important; }
-html.light .order-confirm-modal .border-shadow-600\/80 { border-color: rgba(196,201,216,0.90) !important; }
+html.light .order-confirm-modal .bg-shadow-900\/60 { background-color: rgba(238,242,247,0.85) !important; }
+html.light .order-confirm-modal .bg-shadow-800 { background-color: #f7f9fc !important; }
+html.light .order-confirm-modal .border-shadow-500\/80 { border-color: rgba(216,220,232,0.90) !important; }
+html.light .order-confirm-modal .border-shadow-600\/80 { border-color: rgba(216,220,232,0.90) !important; }
 html.light .order-confirm-modal .text-gray-400 { color: #64748b !important; }
 html.light .order-confirm-modal .text-gray-300 { color: #334155 !important; }
 
 /* TradeConfirmationModal */
 html.light .trade-confirmation-modal {
-  background-color: #e8ecf7 !important;
-  border-color: #c4c9d8 !important;
+  background-color: #f8fafc !important;
+  border-color: #d8dce8 !important;
 }
-html.light .trade-confirmation-modal .bg-shadow-800\/95 { background-color: rgba(226,231,241,0.97) !important; }
-html.light .trade-confirmation-modal .bg-shadow-900\/70 { background-color: rgba(212,218,229,0.90) !important; }
-html.light .trade-confirmation-modal .bg-shadow-500 { background-color: #cdd2e0 !important; }
-html.light .trade-confirmation-modal .border-shadow-500\/80 { border-color: rgba(196,201,216,0.90) !important; }
-html.light .trade-confirmation-modal .border-shadow-600\/80 { border-color: rgba(196,201,216,0.90) !important; }
+html.light .trade-confirmation-modal .bg-shadow-800\/95 { background-color: rgba(247,249,252,0.97) !important; }
+html.light .trade-confirmation-modal .bg-shadow-900\/70 { background-color: rgba(238,242,247,0.90) !important; }
+html.light .trade-confirmation-modal .bg-shadow-500 { background-color: #dde1ec !important; }
+html.light .trade-confirmation-modal .border-shadow-500\/80 { border-color: rgba(216,220,232,0.90) !important; }
+html.light .trade-confirmation-modal .border-shadow-600\/80 { border-color: rgba(216,220,232,0.90) !important; }
 
 /* LeverageModal */
 html.light .leverage-modal-panel {
-  background-color: #e8ecf7 !important;
-  border-color: #c4c9d8 !important;
+  background-color: #f8fafc !important;
+  border-color: #d8dce8 !important;
 }
-html.light .leverage-modal-panel .bg-shadow-800\/50 { background-color: rgba(226,231,241,0.75) !important; }
+html.light .leverage-modal-panel .bg-shadow-800\/50 { background-color: rgba(247,249,252,0.75) !important; }
 
 /* NetworkIndicator */
-html.light .bg-shadow-700\/50 { background-color: rgba(213,218,232,0.75) !important; }
+html.light .bg-shadow-700\/50 { background-color: rgba(233,237,245,0.75) !important; }
 
 /* PairSelector dropdown */
-html.light .pair-dropdown .bg-shadow-800 { background-color: #e8ecf7 !important; }
-html.light .pair-dropdown .border-shadow-600 { border-color: #c4c9d8 !important; }
-html.light .pair-dropdown .hover\:bg-shadow-700:hover { background-color: #dde3ed !important; }
-html.light .pair-dropdown .border-shadow-400 { border-color: #c4c9d8 !important; }
+html.light .pair-dropdown .bg-shadow-800 { background-color: #f8fafc !important; }
+html.light .pair-dropdown .border-shadow-600 { border-color: #d8dce8 !important; }
+html.light .pair-dropdown .hover\:bg-shadow-700:hover { background-color: #f1f4fa !important; }
+html.light .pair-dropdown .border-shadow-400 { border-color: #c8d0de !important; }
 html.light .pair-dropdown .text-gray-400 { color: #64748b !important; }
