@@ -3,7 +3,7 @@ import { type WalletContextState } from "@solana/wallet-adapter-react";
 import { useActiveWallet, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
-import type { Transaction } from "@solana/web3.js";
+import type { Transaction, VersionedTransaction } from "@solana/web3.js";
 
 export type WalletExecutionMode = "external" | "embedded" | "none";
 
@@ -131,8 +131,13 @@ export function useAnchorWalletCompat(): AnchorCompatibleWallet | null {
       return null;
     }
 
-    const signTransaction =
-      activeWallet.signTransaction as NonNullable<WalletContextState["signTransaction"]>;
+    const signTransaction: NonNullable<WalletContextState["signTransaction"]> =
+      async <T extends Transaction | VersionedTransaction>(tx: T): Promise<T> => {
+        // Privy embedded wallet methods rely on their wallet object context.
+        // Calling the method unbound can drop the internal public key.
+        const signed = await activeWallet.signTransaction!.call(activeWallet, tx);
+        return signed as T;
+      };
     const safeSignAll: SignAllTransactions = async (txs) => {
       const out = [];
       for (const tx of txs) {
@@ -147,7 +152,11 @@ export function useAnchorWalletCompat(): AnchorCompatibleWallet | null {
       signAllTransactions: safeSignAll,
       signMessage:
         typeof activeWallet.signMessage === "function"
-          ? (activeWallet.signMessage as NonNullable<WalletContextState["signMessage"]>)
+          ? ((message) =>
+              activeWallet.signMessage!.call(
+                activeWallet,
+                message
+              )) as NonNullable<WalletContextState["signMessage"]>
           : undefined,
     };
   }, [activeWallet]);

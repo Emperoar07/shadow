@@ -27,6 +27,9 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Updated `app/src/components/CollateralModal.tsx` to accept either faucet response shape:
   - `transaction`
   - `signature`
+- Updated faucet availability/top-up tracking to use the connected wallet's mUSDC token account instead of the Shadow margin account.
+- Bound Privy Solana wallet signing methods through their wallet object context before adapting them to Anchor shape.
+  - This prevents embedded-wallet signing from dropping its internal public key during collateral deposits.
 
 ### Arcium diagnostic expansion
 
@@ -121,6 +124,11 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - root `npm audit --omit=dev` -> FAIL: 15 prod vulnerabilities, 0 critical, 7 high.
   - app `npm audit --omit=dev` -> FAIL: 45 prod vulnerabilities, 3 high.
   - `cd app && npm run build` timed out locally after 240s and left no code error before timeout; timed-out node workers were stopped.
+- 2026-04-25 UTC: embedded wallet deposit + faucet tracking verification:
+  - `npm run oracle:once` refreshed stale oracle successfully.
+  - `npm run check:preflight` -> PASS.
+  - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
+  - `cd app && npm run lint -- --quiet` -> PASS.
 
 ## Current Blocker
 
@@ -140,6 +148,9 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - The new `tuple-u8` diagnostic lane is wired locally but is **not live yet**.
 - Separate transient queue-gate issue: `Custom:6008` is `StalePrice`; refresh or run the oracle daemon before retesting open-position flow.
 - UI now pre-checks/refreshes the oracle before open-position submission, but hosted production must set `ORACLE_FEEDER_SECRET_KEY` for stale-price writes.
+- Latest hosted open-position screenshot showed:
+  - `Unable to refresh market oracle before opening position. Oracle feeder keypair is not configured.`
+  - This is an operational env blocker for hosted stale-oracle refresh, not a wallet or Arcium callback failure.
 
 ### 3. Audit release blockers
 

@@ -4,6 +4,7 @@
  * Transfers mUSDC from the faucet wallet directly to the authenticated user's token account.
  * No user signature required; faucet signs and broadcasts the tx itself.
  * User deposits to margin separately via the Collateral modal.
+ * Availability is based on wallet mUSDC, not Shadow margin balance.
  *
  * Body:   { wallet: string }
  * Response:
@@ -115,13 +116,6 @@ function getMockUsdcMint(): PublicKey {
   return new PublicKey(mint);
 }
 
-function getProgramId(): PublicKey {
-  return new PublicKey(
-    process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ??
-    "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
-  );
-}
-
 function getFaucetKeypair(): Keypair {
   const secret = process.env.FAUCET_WALLET_SECRET_KEY;
   if (secret) {
@@ -141,19 +135,15 @@ function getFaucetKeypair(): Keypair {
   );
 }
 
-async function fetchMarginBalanceRaw(
+async function fetchWalletTokenBalanceRaw(
   connection: Connection,
-  owner: PublicKey
+  owner: PublicKey,
+  mint: PublicKey
 ): Promise<bigint> {
   try {
-    const [marginPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("margin"), owner.toBuffer()],
-      getProgramId()
-    );
-    const info = await connection.getAccountInfo(marginPda);
-    if (!info || info.data.length < 80) return BigInt(0);
-    // MarginAccount.balance lives at byte 72: 8 discriminator + 32 owner + 32 market.
-    return info.data.readBigUInt64LE(72);
+    const tokenAccount = await getAssociatedTokenAddress(mint, owner);
+    const balance = await connection.getTokenAccountBalance(tokenAccount);
+    return BigInt(balance.value.amount);
   } catch {
     return BigInt(0);
   }
@@ -224,13 +214,18 @@ export default async function handler(
 
   try {
     const connection = await getHealthyConnection();
-    const balanceRaw = await fetchMarginBalanceRaw(connection, recipientPubkey);
+    const mintAddress = getMockUsdcMint();
+    const balanceRaw = await fetchWalletTokenBalanceRaw(
+      connection,
+      recipientPubkey,
+      mintAddress
+    );
     const balanceUsdc = Number(balanceRaw) / 10 ** DECIMALS;
 
     if (balanceUsdc >= TRIGGER_USDC) {
       return res.status(400).json({
         success: false,
-        error: `Balance is ${Math.floor(balanceUsdc).toLocaleString()} mUSDC — no top-up needed until it falls below ${TRIGGER_USDC.toLocaleString()}.`,
+        error: `Wallet balance is ${Math.floor(balanceUsdc).toLocaleString()} mUSDC - no top-up needed until it falls below ${TRIGGER_USDC.toLocaleString()}.`,
       });
     }
 
@@ -241,7 +236,6 @@ export default async function handler(
       : Math.max(1, CAP_USDC - Math.floor(balanceUsdc));
     const sendRaw = BigInt(sendUsdc) * BigInt(10 ** DECIMALS);
 
-    const mintAddress = getMockUsdcMint();
     const faucet = getFaucetKeypair();
     const faucetAta    = await getAssociatedTokenAddress(mintAddress, faucet.publicKey);
     const recipientAta = await getAssociatedTokenAddress(mintAddress, recipientPubkey);

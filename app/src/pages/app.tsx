@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
 import BN from "bn.js";
 import {
   useAnchorWalletCompat,
@@ -29,6 +30,16 @@ import WalletPopup from "../components/WalletPopup";
 import { useMarketSnapshot } from "../hooks/useMarketSnapshot";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 
+const DEFAULT_MOCK_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+
+function getMockUsdcMint(): PublicKey {
+  return new PublicKey(
+    process.env.NEXT_PUBLIC_MOCKUSDC_MINT ??
+      process.env.NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT ??
+      DEFAULT_MOCK_USDC_MINT
+  );
+}
+
 const DotGridBackground = dynamic(
   () => import("../components/NeuralShadowBackground"),
   { ssr: false }
@@ -48,7 +59,7 @@ const TerminalGrid = dynamic(
 
 
 /**
- * Full-screen onboarding gate shown when connected wallet has zero mUSDC.
+ * Full-screen onboarding gate shown when connected wallet has low wallet mUSDC.
  * Multi-step: Welcome → Claim → Ready. Always dismissable via skip.
  */
 function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
@@ -79,19 +90,16 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
 
     const check = async (attempt = 0): Promise<void> => {
       try {
-        const PROGRAM_ID = new PublicKey(
-          process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ?? "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
-        );
-        const [marginPda] = PublicKey.findProgramAddressSync(
-          [Buffer.from("margin"), new PublicKey(walletAddr).toBuffer()],
-          PROGRAM_ID
-        );
-        const marginInfo = await connection.getAccountInfo(marginPda);
+        const owner = new PublicKey(walletAddr);
+        const tokenAccount = await getAssociatedTokenAddress(getMockUsdcMint(), owner);
+        const tokenBalance = await connection
+          .getTokenAccountBalance(tokenAccount)
+          .catch(() => null);
         if (cancelled) return;
 
-        // No margin account — first-time user. Check cooldown before showing
-        // (prevents re-showing right after a successful claim while tx settles).
-        if (!marginInfo || marginInfo.data.length < 80) {
+        // No wallet mUSDC account — first-time user. Check cooldown before showing
+        // to avoid reopening immediately after a successful claim while tx settles.
+        if (!tokenBalance) {
           try {
             const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
             if (stored && parseInt(stored, 10) > Date.now()) return;
@@ -102,11 +110,10 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
           return;
         }
 
-        // balance is u64 at byte offset 72 (8 discriminator + 32 owner + 32 market)
-        const balance = marginInfo.data.readBigUInt64LE(72);
+        const balance = BigInt(tokenBalance.value.amount);
 
         // Always show top-up gate when below trigger — regardless of cooldown,
-        // because low balance blocks trading and must be surfaced.
+        // because low wallet balance blocks deposits and must be surfaced.
         if (balance < TRIGGER_RAW) {
           const balanceUsdc = Number(balance) / 10 ** 6;
           const delta = Math.max(1, CAP_USDC - Math.floor(balanceUsdc));
@@ -207,7 +214,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
             Balance below 2,000 mUSDC.
           </p>
           <p className="text-gray-500 text-[13px] leading-relaxed">
-            Top up your Shadow margin to keep trading. We will send exactly what you need to reach 10,000 mUSDC.
+            Top up your wallet mUSDC to keep trading. We will send exactly what you need to reach 10,000 mUSDC.
           </p>
         </>
       ) : (
@@ -281,7 +288,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-            {isTopUpMode ? "Topping up..." : "Claiming and depositing..."}
+            {isTopUpMode ? "Topping up..." : "Claiming..."}
           </>
         ) : isTopUpMode ? `Top Up ${topUpAmount.toLocaleString()} mUSDC` : `Claim ${FAUCET_FIRST_CLAIM_USDC.toLocaleString()} mUSDC`}
       </button>

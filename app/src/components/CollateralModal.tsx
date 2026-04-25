@@ -3,13 +3,37 @@ import { createPortal } from "react-dom";
 import BN from "bn.js";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
 import { getExplorerTxUrl } from "../lib/explorer";
 import { classifyArciumError } from "../lib/arcium-errors";
-import { FAUCET_CAP_USDC, FAUCET_FIRST_CLAIM_USDC, FAUCET_TRIGGER_USDC } from "../lib/faucet-constants";
+import { FAUCET_CAP_USDC, FAUCET_FIRST_CLAIM_USDC, FAUCET_TRIGGER_USDC, MUSDC_DECIMALS } from "../lib/faucet-constants";
+
+const DEFAULT_MOCK_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+
+function getMockUsdcMint(): PublicKey {
+  return new PublicKey(
+    process.env.NEXT_PUBLIC_MOCKUSDC_MINT ??
+      process.env.NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT ??
+      DEFAULT_MOCK_USDC_MINT
+  );
+}
+
+async function fetchWalletMockUsdcBalanceRaw(
+  connection: ReturnType<typeof useConnection>["connection"],
+  owner: PublicKey
+): Promise<bigint> {
+  try {
+    const ata = await getAssociatedTokenAddress(getMockUsdcMint(), owner);
+    const balance = await connection.getTokenAccountBalance(ata);
+    return BigInt(balance.value.amount);
+  } catch {
+    return BigInt(0);
+  }
+}
 
 type Tab = "deposit" | "withdraw";
 interface CollateralModalProps {
@@ -43,10 +67,15 @@ export default function CollateralModal({
   const [mounted, setMounted] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [nextClaimAt, setNextClaimAt] = useState<number | null>(null);
+  const [walletTokenBalanceRaw, setWalletTokenBalanceRaw] = useState<bigint | null>(null);
   const faucetCooldownKey = publicKey ? `mockusdc_faucet_${publicKey.toBase58()}` : null;
+  const walletTokenBalanceUsdc =
+    walletTokenBalanceRaw === null
+      ? null
+      : Number(walletTokenBalanceRaw) / 10 ** MUSDC_DECIMALS;
   const faucetSuggestedAmount =
-    marginBalance !== null && marginBalance > 0
-      ? Math.max(1, FAUCET_CAP_USDC - Math.floor(marginBalance))
+    walletTokenBalanceUsdc !== null && walletTokenBalanceUsdc > 0
+      ? Math.max(1, FAUCET_CAP_USDC - Math.floor(walletTokenBalanceUsdc))
       : FAUCET_FIRST_CLAIM_USDC;
 
   // Load persisted cooldown from localStorage
@@ -57,6 +86,29 @@ export default function CollateralModal({
       if (stored) setNextClaimAt(parseInt(stored, 10));
     } catch {}
   }, [faucetCooldownKey]);
+
+  const refreshWalletTokenBalance = useCallback(async () => {
+    if (!publicKey) {
+      setWalletTokenBalanceRaw(null);
+      return;
+    }
+    const balance = await fetchWalletMockUsdcBalanceRaw(connection, publicKey);
+    setWalletTokenBalanceRaw(balance);
+  }, [connection, publicKey]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    void (async () => {
+      const balance = publicKey
+        ? await fetchWalletMockUsdcBalanceRaw(connection, publicKey)
+        : null;
+      if (!cancelled) setWalletTokenBalanceRaw(balance);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, isOpen, publicKey]);
 
   const availableCollateral = freeCollateral ?? marginBalance;
   const reservedCollateral =
@@ -150,6 +202,9 @@ export default function CollateralModal({
         const claimedAmount = data.amount ?? faucetSuggestedAmount;
         setTab("deposit");
         setAmount(String(claimedAmount));
+        const claimedRaw = BigInt(claimedAmount) * BigInt(10 ** MUSDC_DECIMALS);
+        setWalletTokenBalanceRaw((current) => (current ?? BigInt(0)) + claimedRaw);
+        void refreshWalletTokenBalance();
         toast.success(`${claimedAmount.toLocaleString()} mUSDC sent to your wallet. Deposit it to margin below.`, { id: toastId });
         const nextAt = now + 7 * 24 * 60 * 60 * 1000;
         setNextClaimAt(nextAt);
@@ -180,6 +235,7 @@ export default function CollateralModal({
     isClaiming,
     nextClaimAt,
     publicKey,
+    refreshWalletTokenBalance,
   ]);
 
   useEffect(() => {
@@ -232,6 +288,7 @@ export default function CollateralModal({
         { id: "collateral", duration: 8000 }
       );
       setAmount("");
+      void refreshWalletTokenBalance();
       onSuccess();
     } catch (error: any) {
       const classified = error?.classified ?? classifyArciumError(error);
@@ -253,6 +310,8 @@ export default function CollateralModal({
     getRuntimeErrorMessage,
     onSuccess,
     publicKey,
+    refreshWalletTokenBalance,
+    walletExecutionMode,
   ]);
 
   const handleWithdraw = useCallback(async () => {
@@ -288,6 +347,7 @@ export default function CollateralModal({
         { id: "collateral", duration: 8000 }
       );
       setAmount("");
+      void refreshWalletTokenBalance();
       onSuccess();
     } catch (error: any) {
       const classified = error?.classified ?? classifyArciumError(error);
@@ -310,6 +370,8 @@ export default function CollateralModal({
     availableCollateral,
     onSuccess,
     publicKey,
+    refreshWalletTokenBalance,
+    walletExecutionMode,
   ]);
 
   if (!isOpen || !mounted) return null;
@@ -479,7 +541,7 @@ export default function CollateralModal({
           </p>
 
           {/* MockUSDC faucet claim */}
-          {publicKey && marginBalance !== null && marginBalance < FAUCET_TRIGGER_USDC && (() => {
+          {publicKey && walletTokenBalanceUsdc !== null && walletTokenBalanceUsdc < FAUCET_TRIGGER_USDC && (() => {
             const now = Date.now();
             const canClaim = !nextClaimAt || now >= nextClaimAt;
             const daysLeft = nextClaimAt

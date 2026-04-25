@@ -98,6 +98,8 @@ Current product note:
 - SPL transfer into market-linked vault
 - on adopted markets, that vault is the shared collateral vault for the collateral mint
 - owner-scoped margin account balance increases
+- devnet faucet availability/top-up checks read the connected wallet's mUSDC token account,
+  not the owner-scoped margin account
 
 ### Withdraw
 
