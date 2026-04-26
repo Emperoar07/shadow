@@ -788,7 +788,7 @@ export default function LandingPage() {
           <div className="lp-cta-glow" />
           <p className="lp-section-tag" style={{ textAlign: "center" }}>Ready?</p>
           <h2 className="lp-cta-title">Trade with less<br />information leakage.</h2>
-          <p className="lp-cta-sub">Connect your wallet and explore the current devnet build. The privacy model is live, the product signs directly from the connected wallet, and the open-lane callback diagnostics remain the main blocker being worked through.</p>
+          <p className="lp-cta-sub">Connect your wallet and start trading on devnet.</p>
           <Link href="/app" className="lp-btn-primary" style={{ display: "inline-flex", fontSize: "16px", padding: "16px 40px" }}>
             Launch App
           </Link>
