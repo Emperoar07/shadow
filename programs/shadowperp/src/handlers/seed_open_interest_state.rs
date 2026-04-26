@@ -77,7 +77,7 @@ pub fn handler(ctx: Context<SeedOpenInterestState>, computation_offset: u64) -> 
         market.encrypted_total_long_oi == [0u8; 32] && market.encrypted_total_short_oi == [0u8; 32],
         ShadowPerpError::InvalidAccountData
     );
-    let args = ArgBuilder::new().plaintext_u8(0).build();
+    let args = ArgBuilder::new().plaintext_u8(1).build();
 
     let callback_accounts = vec![CallbackAccount {
         pubkey: market.key(),

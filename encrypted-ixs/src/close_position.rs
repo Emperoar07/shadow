@@ -22,7 +22,7 @@ mod close_position_circuit {
     /// positions do not need a plaintext margin slot on-chain.
     #[instruction]
     pub fn close_position_v2(
-        position: Enc<Shared, (u64, u64, u8, bool, u64)>,
+        position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         exit_price: u64,
         trading_fee_bps: u16,
     ) -> (i64, u64, u64, u64) {
@@ -30,7 +30,7 @@ mod close_position_circuit {
 
         let entry = pos.1 as i64;
         let price_delta = exit_price as i64 - entry;
-        let direction: i64 = if pos.3 { 1 } else { -1 };
+        let direction: i64 = if pos.3 != 0 { 1 } else { -1 };
         // Size is stored in base units scaled to 1e9. Prices and margins are
         // stored in quote-token units scaled to 1e6.
         const BASE_SCALE: i128 = 1_000_000_000;
@@ -48,7 +48,7 @@ mod close_position_circuit {
         // Settlement = margin + pnl - fees (clamped to 0)
         let margin_i64 = pos.4 as i64;
         let fee_i64 = fee as i64;
-        let settlement_i64 = margin_i64.wrapping_add(realized_pnl).wrapping_sub(fee_i64);
+        let settlement_i64 = margin_i64.saturating_add(realized_pnl).saturating_sub(fee_i64);
         let settlement_amount = if settlement_i64 > 0 {
             settlement_i64 as u64
         } else {

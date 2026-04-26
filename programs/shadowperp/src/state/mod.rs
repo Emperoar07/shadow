@@ -6,7 +6,6 @@ pub mod position;
 pub mod open_position_diagnostic;
 pub mod position_funding_ref;
 pub mod private_order_book;
-pub mod trade_session;
 pub mod tpsl_order;
 #[cfg(feature = "shielded-collateral")]
 pub mod shielded_collateral;
@@ -19,7 +18,6 @@ pub use position::*;
 pub use open_position_diagnostic::*;
 pub use position_funding_ref::*;
 pub use private_order_book::*;
-pub use trade_session::*;
 pub use tpsl_order::*;
 #[cfg(feature = "shielded-collateral")]
 pub use shielded_collateral::*;

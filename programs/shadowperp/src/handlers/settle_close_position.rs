@@ -6,7 +6,6 @@ use crate::state::{FundingState, Market, Position, PositionClosed, PositionFundi
 
 #[derive(Accounts)]
 pub struct SettleClosePosition<'info> {
-    #[account(mut)]
     pub payer: Signer<'info>,
 
     #[account(
@@ -16,6 +15,14 @@ pub struct SettleClosePosition<'info> {
         has_one = market,
     )]
     pub position: Box<Account<'info, Position>>,
+
+    /// Receives recovered rent from closed PDAs. Must match `position.owner`
+    /// so rent cannot be redirected to an arbitrary caller.
+    #[account(
+        mut,
+        constraint = position_owner.key() == position.owner
+    )]
+    pub position_owner: SystemAccount<'info>,
 
     #[account(
         seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
@@ -51,7 +58,7 @@ pub struct SettleClosePosition<'info> {
         mut,
         seeds = [b"pos-funding", position.key().as_ref()],
         bump,
-        close = payer,
+        close = position_owner,
     )]
     pub pos_funding_ref: Option<Account<'info, PositionFundingRef>>,
 

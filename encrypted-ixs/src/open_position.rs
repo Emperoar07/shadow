@@ -16,7 +16,7 @@ mod open_position_circuit {
     ///
     #[instruction]
     pub fn open_position_probe_b(
-        inputs: Enc<Shared, (u64, u64, u8, bool, u64)>,
+        inputs: Enc<Shared, (u64, u64, u8, u8, u64)>,
         requested_margin: u64,
         max_leverage: u8,
     ) -> bool {

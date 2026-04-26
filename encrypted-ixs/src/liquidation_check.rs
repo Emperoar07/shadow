@@ -18,7 +18,7 @@ mod liquidation_check_circuit {
     /// - current mark/liquidation price marker
     #[instruction]
     pub fn check_liquidation(
-        position: Enc<Shared, (u64, u64, u8, bool, u64)>,
+        position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         mark_price: u64,
         liquidation_threshold_bps: u16,
     ) -> (bool, u64, u64) {
@@ -26,7 +26,7 @@ mod liquidation_check_circuit {
 
         let entry = pos.1 as i64;
         let price_delta = mark_price as i64 - entry;
-        let direction: i64 = if pos.3 { 1 } else { -1 };
+        let direction: i64 = if pos.3 != 0 { 1 } else { -1 };
         const BASE_SCALE: i128 = 1_000_000_000;
 
         let pnl_num = (price_delta as i128)
@@ -34,7 +34,7 @@ mod liquidation_check_circuit {
             .wrapping_mul(direction as i128);
         let unrealized_pnl = (pnl_num / BASE_SCALE) as i64;
 
-        let equity = (pos.4 as i64).wrapping_add(unrealized_pnl);
+        let equity = (pos.4 as i64).saturating_add(unrealized_pnl);
 
         let maintenance_u128 = ((pos.0 as u128)
             .wrapping_mul(mark_price as u128)

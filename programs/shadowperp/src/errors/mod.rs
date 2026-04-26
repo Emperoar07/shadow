@@ -64,18 +64,6 @@ pub enum ShadowPerpError {
     #[msg("Invalid account data")]
     InvalidAccountData,
 
-    #[msg("Trade session is expired")]
-    SessionExpired,
-
-    #[msg("Trade session is revoked")]
-    SessionRevoked,
-
-    #[msg("Trade session action limit reached")]
-    SessionActionLimitReached,
-
-    #[msg("Trade session per-action margin limit exceeded")]
-    SessionMarginLimitExceeded,
-
     #[msg("Shielded collateral feature not enabled")]
     ShieldedNotEnabled,
 

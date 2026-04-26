@@ -28,7 +28,7 @@ mod settle_private_position_circuit {
     ///   - new_balance: updated shielded balance after settlement
     #[instruction]
     pub fn settle_private_position(
-        position: Enc<Shared, (u64, u64, u8, bool, u64)>,
+        position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         exit_price: u64,
         trading_fee_bps: u16,
         remaining_balance: Enc<Shared, u64>,
@@ -38,7 +38,7 @@ mod settle_private_position_circuit {
 
         let entry = pos.1 as i64;
         let price_delta = exit_price as i64 - entry;
-        let direction: i64 = if pos.3 { 1 } else { -1 };
+        let direction: i64 = if pos.3 != 0 { 1 } else { -1 };
         const BASE_SCALE: i128 = 1_000_000_000;
 
         let pnl_num = (price_delta as i128)
@@ -54,7 +54,7 @@ mod settle_private_position_circuit {
         // Settlement = margin + pnl - fees
         let margin_i64 = pos.4 as i64;
         let fee_i64 = fee as i64;
-        let settlement_i64 = margin_i64.wrapping_add(realized_pnl).wrapping_sub(fee_i64);
+        let settlement_i64 = margin_i64.saturating_add(realized_pnl).saturating_sub(fee_i64);
 
         // Clamp to zero (can't have negative settlement)
         let settlement_amount = if settlement_i64 > 0 {
@@ -64,7 +64,7 @@ mod settle_private_position_circuit {
         };
 
         // New shielded balance = remaining + settlement
-        let new_balance = rem_balance + settlement_amount;
+        let new_balance = rem_balance.saturating_add(settlement_amount);
 
         (
             realized_pnl.reveal(),

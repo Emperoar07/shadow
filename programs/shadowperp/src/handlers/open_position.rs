@@ -139,6 +139,7 @@ pub fn handler(
     require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
     let market = &mut ctx.accounts.market;
+    require!(market.max_leverage > 0, ShadowPerpError::InvalidAccountData);
     let margin_account = &mut ctx.accounts.margin_account;
     let position = &mut ctx.accounts.position;
     let clock = Clock::get()?;
@@ -222,7 +223,7 @@ pub fn handler(
     //     3. encrypted_u64  (size ciphertext)
     //     4. encrypted_u64  (entry_price ciphertext)
     //     5. encrypted_u8   (leverage ciphertext)
-    //     6. encrypted_bool (is_long ciphertext)
+    //     6. encrypted_u8  (is_long ciphertext)
     //     7. encrypted_u64  (margin ciphertext)
     //   requested_margin: u64     8.
     //   max_leverage: u8          9.
@@ -233,7 +234,7 @@ pub fn handler(
         .encrypted_u64(encrypted_size)
         .encrypted_u64(encrypted_entry_price)
         .encrypted_u8(encrypted_leverage)
-        .encrypted_bool(encrypted_is_long)
+        .encrypted_u8(encrypted_is_long)
         .encrypted_u64(encrypted_margin)
         // requested_margin: plaintext mirror for MPC consistency check
         .plaintext_u64(margin)

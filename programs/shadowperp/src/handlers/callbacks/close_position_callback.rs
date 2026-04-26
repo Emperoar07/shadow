@@ -57,6 +57,18 @@ pub fn close_position_callback_handler(
     ctx: Context<ClosePositionV2Callback>,
     output: SignedComputationOutputs<ClosePositionV2Output>,
 ) -> Result<()> {
+    // Guard first: reject any callback not bound to this market's cluster + comp-def BEFORE
+    // processing or trusting any MPC output. This prevents a forged cluster from injecting
+    // fabricated settlement values or corrupting position state via the error-path cleanup.
+    require!(
+        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
+        ShadowPerpError::Unauthorized
+    );
+    require!(
+        ctx.accounts.comp_def_account.key() == ctx.accounts.market.close_position_comp_def,
+        ShadowPerpError::Unauthorized
+    );
+
     let verified_output = match output.verify_output(
         &ctx.accounts.cluster_account,
         &ctx.accounts.computation_account,
@@ -69,30 +81,15 @@ pub fn close_position_callback_handler(
                 error
             );
             let position = &mut ctx.accounts.position;
-            if position.status == PositionStatus::Closing
-                && position.pending_computation_account == ctx.accounts.computation_account.key()
-            {
-                position.consume_pending_computation(ctx.accounts.computation_account.key())?;
-                position.status = PositionStatus::Open;
-                msg!(
-                    "close_position callback cleanup restored position {} to Open",
-                    position.key()
-                );
-                return Ok(());
-            }
-            return Err(ShadowPerpError::InvalidComputationResult.into());
+            position.consume_pending_computation(ctx.accounts.computation_account.key())?;
+            position.status = PositionStatus::Open;
+            msg!(
+                "close_position callback cleanup restored position {} to Open",
+                position.key()
+            );
+            return Ok(());
         }
     };
-
-    // Callback must be bound to this market's configured Arcium cluster + comp-def.
-    require!(
-        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
-        ShadowPerpError::Unauthorized
-    );
-    require!(
-        ctx.accounts.comp_def_account.key() == ctx.accounts.market.close_position_comp_def,
-        ShadowPerpError::Unauthorized
-    );
 
     let market = &mut ctx.accounts.market;
     let margin_account = &mut ctx.accounts.margin_account;

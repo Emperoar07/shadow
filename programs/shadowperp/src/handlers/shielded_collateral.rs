@@ -1077,13 +1077,13 @@ pub fn settle_private_position_handler(
     enc_remaining_balance.copy_from_slice(&encrypted_payload[160..192]);
 
     let args = ArgBuilder::new()
-        // position: Enc<Shared, (u64, u64, u8, bool, u64)>
+        // position: Enc<Shared, (u64, u64, u8, u8, u64)>
         .x25519_pubkey(client_pubkey)
         .plaintext_u128(nonce)
         .encrypted_u64(enc_size)
         .encrypted_u64(enc_entry_price)
         .encrypted_u8(enc_leverage)
-        .encrypted_bool(enc_is_long)
+        .encrypted_u8(enc_is_long)
         .encrypted_u64(enc_locked_margin)
         // exit_price: plaintext (from market oracle, NOT caller-supplied)
         .plaintext_u64(exit_price)

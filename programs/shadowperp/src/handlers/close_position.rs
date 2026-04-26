@@ -146,7 +146,7 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         .encrypted_u64(encrypted_size) // size
         .encrypted_u64(encrypted_entry_price) // entry_price
         .encrypted_u8(encrypted_leverage) // leverage
-        .encrypted_bool(encrypted_is_long) // is_long
+        .encrypted_u8(encrypted_is_long) // is_long
         .encrypted_u64(encrypted_margin) // margin
         // exit_price: fresh mark_price or oracle_price as fallback
         .plaintext_u64(exit_price)

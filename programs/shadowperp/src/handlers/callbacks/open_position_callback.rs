@@ -53,6 +53,16 @@ pub fn open_position_callback_handler(
     ctx: Context<OpenPositionProbeBCallback>,
     output: SignedComputationOutputs<OpenPositionProbeBOutput>,
 ) -> Result<()> {
+    // Guard: ensure this callback is bound to this market's comp-def BEFORE processing any output.
+    require!(
+        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
+        ShadowPerpError::Unauthorized
+    );
+    require!(
+        ctx.accounts.comp_def_account.key() == ctx.accounts.market.open_position_comp_def,
+        ShadowPerpError::Unauthorized
+    );
+
     let verified_output = match output.verify_output(
         &ctx.accounts.cluster_account,
         &ctx.accounts.computation_account,
@@ -78,16 +88,6 @@ pub fn open_position_callback_handler(
             return Ok(());
         }
     };
-
-    // Callback must be bound to this market's configured Arcium cluster + comp-def.
-    require!(
-        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
-        ShadowPerpError::Unauthorized
-    );
-    require!(
-        ctx.accounts.comp_def_account.key() == ctx.accounts.market.open_position_comp_def,
-        ShadowPerpError::Unauthorized
-    );
 
     let market = &mut ctx.accounts.market;
     let margin_account = &mut ctx.accounts.margin_account;
