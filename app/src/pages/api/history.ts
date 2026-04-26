@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { checkRateLimit } from "../../lib/server/rate-limit";
 import { getHistorySnapshot } from "../../lib/server/history";
+import { getRequestIp, requirePrivySolanaWallet } from "../../lib/server/privy-auth";
 
 type HistoryResponse =
   | {
@@ -17,6 +18,7 @@ type HistoryResponse =
     };
 
 const RATE_LIMIT = 30;
+const IP_RATE_LIMIT = 60;
 const RATE_WINDOW_MS = 60_000;
 
 export default async function handler(
@@ -49,7 +51,21 @@ export default async function handler(
   const before = typeof req.query.before === "string" ? req.query.before : undefined;
   const includePositions = req.query.includePositions === "true";
 
-  if (!checkRateLimit(`history:${wallet}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+  let userId: string;
+  try {
+    ({ userId } = await requirePrivySolanaWallet(req, wallet));
+  } catch (error) {
+    res.status(401).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Authentication required.",
+    });
+    return;
+  }
+
+  if (
+    !checkRateLimit(`history:user:${userId}`, RATE_LIMIT, RATE_WINDOW_MS) ||
+    !checkRateLimit(`history:ip:${getRequestIp(req)}`, IP_RATE_LIMIT, RATE_WINDOW_MS)
+  ) {
     res.status(429).json({ ok: false, error: "Rate limit exceeded. Try again later." });
     return;
   }

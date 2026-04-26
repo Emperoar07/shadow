@@ -132,7 +132,7 @@ async function authenticateSponsoredTransaction(
     // Accept Solana embedded and external wallets; exclude EVM (chainType="ethereum")
     if (acct.chainType && acct.chainType !== "solana") continue;
     if (acct.address && typeof acct.address === "string") {
-      linkedSolanaWallets.add(acct.address.toLowerCase());
+      linkedSolanaWallets.add(acct.address);
     }
   }
 
@@ -150,7 +150,7 @@ async function authenticateSponsoredTransaction(
   }
 
   const signerMismatch = nonSponsorSigners.some(
-    (publicKey) => !linkedSolanaWallets.has(publicKey.toBase58().toLowerCase())
+    (publicKey) => !linkedSolanaWallets.has(publicKey.toBase58())
   );
   if (signerMismatch) {
     throw new Error("Sponsored transaction signer does not match the authenticated Privy user.");
@@ -184,7 +184,11 @@ export default async function handler(
     }
 
     const transactionBase64 = body?.transactionBase64?.trim();
-    if (!transactionBase64 || transactionBase64.length > MAX_BODY_BYTES) {
+    if (!transactionBase64) {
+      throw new Error("Missing or invalid sponsored transaction payload.");
+    }
+    const txBytes = Buffer.from(transactionBase64, "base64");
+    if (txBytes.length > MAX_BODY_BYTES) {
       throw new Error("Missing or invalid sponsored transaction payload.");
     }
 
@@ -195,7 +199,7 @@ export default async function handler(
     }
     const shadowProgramId = new PublicKey(shadowProgramIdRaw);
 
-    const tx = Transaction.from(Buffer.from(transactionBase64, "base64"));
+    const tx = Transaction.from(txBytes);
     if (!tx.feePayer?.equals(sponsor.publicKey)) {
       throw new Error("Sponsored transaction fee payer does not match configured sponsor.");
     }

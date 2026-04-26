@@ -8,7 +8,6 @@ import {
 import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  createApproveInstruction,
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 import {
@@ -39,8 +38,6 @@ import {
   Market,
   MarginAccount,
   PositionStatus,
-  TradeSession,
-  TradeSessionV2,
 } from "../types";
 import { isMissingAccountError } from "./account-errors";
 import { confirmWithPolling } from "./arcium-errors";
@@ -50,7 +47,6 @@ import {
   normalizePositionStatus as normalizePositionStatusShared,
 } from "./arcium-callback-diag";
 
-export const DEFAULT_TRADE_SESSION_DURATION_SECONDS = 5 * 60 * 60;
 const DEFAULT_POSITION_STATUS_TIMEOUT_MS = 120_000;
 const DEFAULT_POSITION_STATUS_POLL_MS = 2_000;
 const OPEN_POSITION_CALLBACK_DIAG_POLL_MS = 6_000;
@@ -383,50 +379,11 @@ export class ShadowPerpClient {
     return settlementPda;
   }
 
-  getTradeSessionAddress(market: PublicKey, owner: PublicKey, sessionId: BN): PublicKey {
-    const [sessionPda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("trade_session"),
-        market.toBuffer(),
-        owner.toBuffer(),
-        sessionId.toArrayLike(Buffer, "le", 8),
-      ],
-      this.config.programId
-    );
-    return sessionPda;
-  }
-
-  async getTradeSession(sessionAddress: PublicKey): Promise<TradeSession> {
-    const account = await this.program.account.tradeSession.fetch(sessionAddress);
-    return account as unknown as TradeSession;
-  }
-
-  getTradeSessionV2Address(owner: PublicKey, sessionId: BN): PublicKey {
-    const [sessionPda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("trade_session_v2"),
-        owner.toBuffer(),
-        sessionId.toArrayLike(Buffer, "le", 8),
-      ],
-      this.config.programId
-    );
-    return sessionPda;
-  }
-
-  async getTradeSessionV2(sessionAddress: PublicKey): Promise<TradeSessionV2> {
-    const account = await (this.program.account as any).tradeSessionV2.fetch(sessionAddress);
-    return account as unknown as TradeSessionV2;
-  }
 
   private toU64Bn(value: BN | number): BN {
     const bn = BN.isBN(value) ? value : new BN(value);
     if (bn.isNeg()) throw new Error("u64 value must be non-negative");
     return bn;
-  }
-
-  private defaultSessionExpiryBn(): BN {
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    return new BN(nowSeconds + DEFAULT_TRADE_SESSION_DURATION_SECONDS);
   }
 
   /** Returns the funding_state PDA if the account exists on-chain, otherwise null.
@@ -547,145 +504,6 @@ export class ShadowPerpClient {
     );
   }
 
-  // ============ DELEGATED SESSION ============
-
-  async createTradeSession(
-    market: PublicKey,
-    sessionId: BN | number,
-    relayer: PublicKey,
-    maxActions: number,
-    maxMarginPerAction: BN,
-    expiresAt?: BN
-  ): Promise<{ txSignature: string; sessionAddress: PublicKey }> {
-    const owner = this.provider.wallet.publicKey;
-    const sessionIdBn = this.toU64Bn(sessionId);
-    const expiresAtBn = expiresAt ?? this.defaultSessionExpiryBn();
-    const sessionAddress = this.getTradeSessionAddress(market, owner, sessionIdBn);
-
-    const tx = await this.program.methods
-      .createTradeSession(
-        sessionIdBn,
-        relayer,
-        maxActions,
-        maxMarginPerAction,
-        expiresAtBn
-      )
-      .accounts({
-        owner,
-        market,
-        session: sessionAddress,
-        systemProgram: SystemProgram.programId,
-      })
-      .transaction();
-
-    const txSignature = await this.sendTransactionWithPolling(tx);
-
-    return { txSignature, sessionAddress };
-  }
-
-  async createTradeSessionV2(
-    sessionId: BN | number,
-    relayer: PublicKey,
-    maxActions: number,
-    maxMarginPerAction: BN,
-    expiresAt?: BN
-  ): Promise<{ txSignature: string; sessionAddress: PublicKey }> {
-    const owner = this.provider.wallet.publicKey;
-    const sessionIdBn = this.toU64Bn(sessionId);
-    const expiresAtBn = expiresAt ?? this.defaultSessionExpiryBn();
-    const sessionAddress = this.getTradeSessionV2Address(owner, sessionIdBn);
-
-    const methods = (this.program as any).methods;
-    if (!methods?.createTradeSessionV2) {
-      throw new Error(
-        "createTradeSessionV2 is unavailable in the loaded IDL. Rebuild/sync IDL first."
-      );
-    }
-
-    const tx = await methods
-      .createTradeSessionV2(
-        sessionIdBn,
-        relayer,
-        maxActions,
-        maxMarginPerAction,
-        expiresAtBn
-      )
-      .accounts({
-        owner,
-        session: sessionAddress,
-        systemProgram: SystemProgram.programId,
-      })
-      .transaction();
-
-    const txSignature = await this.sendTransactionWithPolling(tx);
-    return { txSignature, sessionAddress };
-  }
-
-  async revokeTradeSession(market: PublicKey, sessionId: BN | number): Promise<string> {
-    const owner = this.provider.wallet.publicKey;
-    const sessionIdBn = this.toU64Bn(sessionId);
-    const sessionAddress = this.getTradeSessionAddress(market, owner, sessionIdBn);
-
-    const tx = await this.program.methods
-      .revokeTradeSession()
-      .accounts({
-        owner,
-        market,
-        session: sessionAddress,
-      })
-      .transaction();
-
-    return this.sendTransactionWithPolling(tx);
-  }
-
-  async revokeTradeSessionV2(sessionId: BN | number): Promise<string> {
-    const owner = this.provider.wallet.publicKey;
-    const sessionIdBn = this.toU64Bn(sessionId);
-    const sessionAddress = this.getTradeSessionV2Address(owner, sessionIdBn);
-    const methods = (this.program as any).methods;
-    if (!methods?.revokeTradeSessionV2) {
-      throw new Error(
-        "revokeTradeSessionV2 is unavailable in the loaded IDL. Rebuild/sync IDL first."
-      );
-    }
-
-    const tx = await methods
-      .revokeTradeSessionV2()
-      .accounts({
-        owner,
-        session: sessionAddress,
-      })
-      .transaction();
-
-    return this.sendTransactionWithPolling(tx);
-  }
-
-  /**
-   * Owner-authorized token delegate approval for session-based collateral deposits.
-   * This is the one-time token allowance grant to the relayer.
-   */
-  async approveCollateralDelegate(
-    market: PublicKey,
-    delegate: PublicKey,
-    amount: BN
-  ): Promise<string> {
-    const owner = this.provider.wallet.publicKey;
-    const marketAccount = await this.getMarket(market);
-    const ownerTokenAccount = await getAssociatedTokenAddress(
-      marketAccount.collateralMint,
-      owner
-    );
-
-    const approveIx = createApproveInstruction(
-      ownerTokenAccount,
-      delegate,
-      owner,
-      BigInt(amount.toString())
-    );
-    const tx = new Transaction().add(approveIx);
-    return this.sendTransactionWithPolling(tx);
-  }
-
   // ============ COLLATERAL ============
 
   async depositCollateral(market: PublicKey, amount: BN): Promise<string> {
@@ -706,91 +524,6 @@ export class ShadowPerpClient {
     return this.sendTransactionWithPolling(tx);
   }
 
-  /**
-   * Relayer path: deposit owner collateral under an active delegated session.
-   * Requires prior SPL delegate approval from owner -> relayer.
-   */
-  async depositCollateralWithSession(
-    market: PublicKey,
-    owner: PublicKey,
-    sessionId: BN | number,
-    amount: BN
-  ): Promise<string> {
-    const relayer = this.provider.wallet.publicKey;
-    const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(owner);
-    const ownerTokenAccount = await getAssociatedTokenAddress(
-      marketAccount.collateralMint,
-      owner
-    );
-    const sessionAddress = this.getTradeSessionAddress(
-      market,
-      owner,
-      this.toU64Bn(sessionId)
-    );
-
-    const methods = (this.program as any).methods;
-    if (!methods?.depositCollateralWithSession) {
-      throw new Error(
-        "depositCollateralWithSession is unavailable in the loaded IDL. Rebuild/sync IDL first."
-      );
-    }
-
-    const tx = await methods
-      .depositCollateralWithSession(amount)
-      .accounts({
-        relayer,
-        owner,
-        market,
-        session: sessionAddress,
-        marginAccount,
-        ownerTokenAccount,
-        vault: marketAccount.vault,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .transaction();
-    return this.sendTransactionWithPolling(tx);
-  }
-
-  async depositCollateralWithSessionV2(
-    market: PublicKey,
-    owner: PublicKey,
-    sessionId: BN | number,
-    amount: BN
-  ): Promise<string> {
-    const relayer = this.provider.wallet.publicKey;
-    const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(owner);
-    const ownerTokenAccount = await getAssociatedTokenAddress(
-      marketAccount.collateralMint,
-      owner
-    );
-    const sessionAddress = this.getTradeSessionV2Address(owner, this.toU64Bn(sessionId));
-
-    const methods = (this.program as any).methods;
-    if (!methods?.depositCollateralWithSessionV2) {
-      throw new Error(
-        "depositCollateralWithSessionV2 is unavailable in the loaded IDL. Rebuild/sync IDL first."
-      );
-    }
-
-    const tx = await methods
-      .depositCollateralWithSessionV2(amount)
-      .accounts({
-        relayer,
-        owner,
-        market,
-        session: sessionAddress,
-        marginAccount,
-        ownerTokenAccount,
-        vault: marketAccount.vault,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .transaction();
-    return this.sendTransactionWithPolling(tx);
-  }
 
   async withdrawCollateral(market: PublicKey, amount: BN): Promise<string> {
     const owner = this.provider.wallet.publicKey;
@@ -810,83 +543,6 @@ export class ShadowPerpClient {
     return this.sendTransactionWithPolling(tx);
   }
 
-  /**
-   * Relayer path: withdraw owner collateral under an active delegated session.
-   */
-  async withdrawCollateralWithSession(
-    market: PublicKey,
-    owner: PublicKey,
-    sessionId: BN | number,
-    amount: BN
-  ): Promise<string> {
-    const relayer = this.provider.wallet.publicKey;
-    const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(owner);
-    const ownerTokenAccount = await getAssociatedTokenAddress(
-      marketAccount.collateralMint,
-      owner
-    );
-    const sessionAddress = this.getTradeSessionAddress(
-      market,
-      owner,
-      this.toU64Bn(sessionId)
-    );
-
-    const tx = await this.program.methods
-      .withdrawCollateralWithSession(amount)
-      .accounts({
-        relayer,
-        owner,
-        market,
-        session: sessionAddress,
-        marginAccount,
-        ownerTokenAccount,
-        vault: marketAccount.vault,
-        sharedVaultAuthority: this.getSharedVaultAuthorityAddress(marketAccount.collateralMint),
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .transaction();
-    return this.sendTransactionWithPolling(tx);
-  }
-
-  async withdrawCollateralWithSessionV2(
-    market: PublicKey,
-    owner: PublicKey,
-    sessionId: BN | number,
-    amount: BN
-  ): Promise<string> {
-    const relayer = this.provider.wallet.publicKey;
-    const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(owner);
-    const ownerTokenAccount = await getAssociatedTokenAddress(
-      marketAccount.collateralMint,
-      owner
-    );
-    const sessionAddress = this.getTradeSessionV2Address(owner, this.toU64Bn(sessionId));
-
-    const methods = (this.program as any).methods;
-    if (!methods?.withdrawCollateralWithSessionV2) {
-      throw new Error(
-        "withdrawCollateralWithSessionV2 is unavailable in the loaded IDL. Rebuild/sync IDL first."
-      );
-    }
-
-    const tx = await methods
-      .withdrawCollateralWithSessionV2(amount)
-      .accounts({
-        relayer,
-        owner,
-        market,
-        session: sessionAddress,
-        marginAccount,
-        ownerTokenAccount,
-        vault: marketAccount.vault,
-        sharedVaultAuthority: this.getSharedVaultAuthorityAddress(marketAccount.collateralMint),
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .transaction();
-    return this.sendTransactionWithPolling(tx);
-  }
 
   // ============ POSITION OPERATIONS ============
 
@@ -998,193 +654,6 @@ export class ShadowPerpClient {
     return { txSignature: signature, positionAddress };
   }
 
-  /**
-   * Relayer path: open encrypted position under an owner-approved delegated session.
-   * The relayer signs/pays the tx; the owner's margin/position accounts are affected.
-   *
-   * This method confirms the queue transaction only. Use
-   * `openPositionWithSessionAndFinalize(...)` when the caller needs a real `Open` state.
-   */
-  async openPositionWithSession(
-    market: PublicKey,
-    owner: PublicKey,
-    sessionId: BN | number,
-    input: OpenPositionInput
-  ): Promise<{ txSignature: string; positionAddress: PublicKey }> {
-    if (!this.clientPublicKey || !this.cipher) {
-      await this.initializeEncryption();
-    }
-
-    const relayer = this.provider.wallet.publicKey;
-    const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(owner);
-    const marginSnapshot = await this.getMarginAccount(marginAccount);
-    const sessionAddress = this.getTradeSessionAddress(market, owner, this.toU64Bn(sessionId));
-
-    const { bytes: nonceBytes, value: nonceBN } = this.generateNonce();
-    const {
-      encryptedSize,
-      encryptedEntryPrice,
-      encryptedLeverage,
-      encryptedIsLong,
-      encryptedMargin,
-    } = this.encryptOpenTuple(input, nonceBytes);
-
-    const computationOffset = await this.nextComputationOffset();
-    const positionAddress = this.getPositionAddress(market, owner, marginSnapshot.positionsOpened);
-    const mxeAccount = this.getMXEPda();
-    const compDefAccount = marketAccount.openPositionCompDef;
-    if (!compDefAccount) {
-      throw new Error("Market open_position comp-def is not configured on-chain.");
-    }
-    const computationAccount = getComputationAccAddress(
-      this.config.clusterOffset,
-      computationOffset
-    );
-
-    const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
-    const isLong = input.direction === "long";
-
-    const fundingStatePda = await this.resolveFundingStatePda(market);
-    const [posFundingRefPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("pos-funding"), positionAddress.toBuffer()],
-      this.config.programId
-    );
-
-    const tx = await this.program.methods
-      .openPositionWithSession(
-        Array.from(encryptedSize),
-        Array.from(encryptedEntryPrice),
-        Array.from(encryptedLeverage),
-        Array.from(encryptedIsLong),
-        Array.from(encryptedMargin),
-        marginModeFlag,
-        input.margin,
-        isLong,
-        Array.from(this.clientPublicKey!),
-        nonceBN,
-        computationOffset
-      )
-      .accounts({
-        relayer,
-        owner,
-        market,
-        session: sessionAddress,
-        marginAccount,
-        position: positionAddress,
-        fundingState: fundingStatePda,
-        posFundingRef: posFundingRefPda,
-        mxeAccount,
-        compDefAccount,
-        clusterAccount: this.config.clusterAddress,
-        mempoolAccount: this.config.mempoolAccount,
-        executingPool: this.config.executingPool,
-        computationAccount,
-        poolAccount: this.config.poolAccount,
-        signPdaAccount: this.config.signPdaAccount,
-        arciumProgram: this.config.arciumProgramId,
-        systemProgram: SystemProgram.programId,
-        clockAccount: getClockAccAddress(),
-      })
-      .transaction();
-
-    const signature = await this.sendTransactionWithPolling(tx);
-
-    return { txSignature: signature, positionAddress };
-  }
-
-  async openPositionWithSessionV2(
-    market: PublicKey,
-    owner: PublicKey,
-    sessionId: BN | number,
-    input: OpenPositionInput
-  ): Promise<{ txSignature: string; positionAddress: PublicKey }> {
-    if (!this.clientPublicKey || !this.cipher) {
-      await this.initializeEncryption();
-    }
-
-    const relayer = this.provider.wallet.publicKey;
-    const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(owner);
-    const marginSnapshot = await this.getMarginAccount(marginAccount);
-    const sessionAddress = this.getTradeSessionV2Address(owner, this.toU64Bn(sessionId));
-
-    const { bytes: nonceBytes, value: nonceBN } = this.generateNonce();
-    const {
-      encryptedSize,
-      encryptedEntryPrice,
-      encryptedLeverage,
-      encryptedIsLong,
-      encryptedMargin,
-    } = this.encryptOpenTuple(input, nonceBytes);
-
-    const computationOffset = await this.nextComputationOffset();
-    const positionAddress = this.getPositionAddress(market, owner, marginSnapshot.positionsOpened);
-    const mxeAccount = this.getMXEPda();
-    const compDefAccount = marketAccount.openPositionCompDef;
-    if (!compDefAccount) {
-      throw new Error("Market open_position comp-def is not configured on-chain.");
-    }
-    const computationAccount = getComputationAccAddress(
-      this.config.clusterOffset,
-      computationOffset
-    );
-
-    const marginModeFlag = (input.marginMode ?? "cross") === "isolated" ? 1 : 0;
-    const isLong = input.direction === "long";
-    const methods = (this.program as any).methods;
-    if (!methods?.openPositionWithSessionV2) {
-      throw new Error(
-        "openPositionWithSessionV2 is unavailable in the loaded IDL. Rebuild/sync IDL first."
-      );
-    }
-
-    const fundingStatePda = await this.resolveFundingStatePda(market);
-    const [posFundingRefPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("pos-funding"), positionAddress.toBuffer()],
-      this.config.programId
-    );
-
-    const tx = await methods
-      .openPositionWithSessionV2(
-        Array.from(encryptedSize),
-        Array.from(encryptedEntryPrice),
-        Array.from(encryptedLeverage),
-        Array.from(encryptedIsLong),
-        Array.from(encryptedMargin),
-        marginModeFlag,
-        input.margin,
-        isLong,
-        Array.from(this.clientPublicKey!),
-        nonceBN,
-        computationOffset
-      )
-      .accounts({
-        relayer,
-        owner,
-        market,
-        session: sessionAddress,
-        marginAccount,
-        position: positionAddress,
-        fundingState: fundingStatePda,
-        posFundingRef: posFundingRefPda,
-        mxeAccount,
-        compDefAccount,
-        clusterAccount: this.config.clusterAddress,
-        mempoolAccount: this.config.mempoolAccount,
-        executingPool: this.config.executingPool,
-        computationAccount,
-        poolAccount: this.config.poolAccount,
-        signPdaAccount: this.config.signPdaAccount,
-        arciumProgram: this.config.arciumProgramId,
-        systemProgram: SystemProgram.programId,
-        clockAccount: getClockAccAddress(),
-      })
-      .transaction();
-
-    const signature = await this.sendTransactionWithPolling(tx);
-    return { txSignature: signature, positionAddress };
-  }
 
   async waitForOpenPositionFinalization(
     positionAddress: PublicKey,
@@ -1274,29 +743,6 @@ export class ShadowPerpClient {
     return { ...queued, position };
   }
 
-  async openPositionWithSessionAndFinalize(
-    market: PublicKey,
-    owner: PublicKey,
-    sessionId: BN | number,
-    input: OpenPositionInput,
-    options?: { timeoutMs?: number; pollMs?: number }
-  ): Promise<OpenPositionSubmission & { position: EncryptedPosition }> {
-    const queued = await this.openPositionWithSession(market, owner, sessionId, input);
-    const position = await this.waitForOpenPositionFinalization(queued.positionAddress, options);
-    return { ...queued, position };
-  }
-
-  async openPositionWithSessionV2AndFinalize(
-    market: PublicKey,
-    owner: PublicKey,
-    sessionId: BN | number,
-    input: OpenPositionInput,
-    options?: { timeoutMs?: number; pollMs?: number }
-  ): Promise<OpenPositionSubmission & { position: EncryptedPosition }> {
-    const queued = await this.openPositionWithSessionV2(market, owner, sessionId, input);
-    const position = await this.waitForOpenPositionFinalization(queued.positionAddress, options);
-    return { ...queued, position };
-  }
 
   /**
    * Close an existing position - triggers PnL computation and reveal
@@ -1338,101 +784,6 @@ export class ShadowPerpClient {
     return this.sendTransactionWithPolling(tx);
   }
 
-  /**
-   * Relayer path: close position under an owner-approved delegated session.
-   */
-  async closePositionWithSession(
-    market: PublicKey,
-    owner: PublicKey,
-    sessionId: BN | number,
-    positionIndex: BN
-  ): Promise<string> {
-    const relayer = this.provider.wallet.publicKey;
-    const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(owner);
-    const positionAddress = this.getPositionAddress(market, owner, positionIndex);
-    const sessionAddress = this.getTradeSessionAddress(market, owner, this.toU64Bn(sessionId));
-    const computationOffset = await this.nextComputationOffset();
-    const computationAccount = getComputationAccAddress(
-      this.config.clusterOffset,
-      computationOffset
-    );
-
-    const tx = await this.program.methods
-      .closePositionWithSession(computationOffset)
-      .accounts({
-        relayer,
-        owner,
-        market,
-        session: sessionAddress,
-        position: positionAddress,
-        marginAccount,
-        mxeAccount: this.getMXEPda(),
-        compDefAccount: marketAccount.closePositionCompDef,
-        clusterAccount: this.config.clusterAddress,
-        mempoolAccount: this.config.mempoolAccount,
-        executingPool: this.config.executingPool,
-        computationAccount,
-        poolAccount: this.config.poolAccount,
-        signPdaAccount: this.config.signPdaAccount,
-        arciumProgram: this.config.arciumProgramId,
-        systemProgram: SystemProgram.programId,
-        clockAccount: getClockAccAddress(),
-      })
-      .transaction();
-
-    return this.sendTransactionWithPolling(tx);
-  }
-
-  async closePositionWithSessionV2(
-    market: PublicKey,
-    owner: PublicKey,
-    sessionId: BN | number,
-    positionIndex: BN
-  ): Promise<string> {
-    const relayer = this.provider.wallet.publicKey;
-    const marketAccount = await this.getMarket(market);
-    const marginAccount = this.getMarginAccountAddress(owner);
-    const positionAddress = this.getPositionAddress(market, owner, positionIndex);
-    const sessionAddress = this.getTradeSessionV2Address(owner, this.toU64Bn(sessionId));
-    const computationOffset = await this.nextComputationOffset();
-    const computationAccount = getComputationAccAddress(
-      this.config.clusterOffset,
-      computationOffset
-    );
-
-    const methods = (this.program as any).methods;
-    if (!methods?.closePositionWithSessionV2) {
-      throw new Error(
-        "closePositionWithSessionV2 is unavailable in the loaded IDL. Rebuild/sync IDL first."
-      );
-    }
-
-    const tx = await methods
-      .closePositionWithSessionV2(computationOffset)
-      .accounts({
-        relayer,
-        owner,
-        market,
-        session: sessionAddress,
-        position: positionAddress,
-        marginAccount,
-        mxeAccount: this.getMXEPda(),
-        compDefAccount: marketAccount.closePositionCompDef,
-        clusterAccount: this.config.clusterAddress,
-        mempoolAccount: this.config.mempoolAccount,
-        executingPool: this.config.executingPool,
-        computationAccount,
-        poolAccount: this.config.poolAccount,
-        signPdaAccount: this.config.signPdaAccount,
-        arciumProgram: this.config.arciumProgramId,
-        systemProgram: SystemProgram.programId,
-        clockAccount: getClockAccAddress(),
-      })
-      .transaction();
-
-    return this.sendTransactionWithPolling(tx);
-  }
 
   /**
    * Check if a position can be liquidated (private health factor check)

@@ -28,7 +28,6 @@ import { getRequestIp, requirePrivySolanaWallet } from "../../lib/server/privy-a
 const DRIP_LAMPORTS = Math.floor(0.2 * LAMPORTS_PER_SOL);
 const ELIGIBILITY_LAMPORTS = Math.floor(0.05 * LAMPORTS_PER_SOL);
 const SPONSOR_RESERVE_LAMPORTS = Math.floor(0.25 * LAMPORTS_PER_SOL);
-const HISTORY_LOOKUP_LIMIT = 1000;
 const DEFAULT_RPC = "https://api.devnet.solana.com";
 const USER_RATE_LIMIT = 3;
 const IP_RATE_LIMIT = 20;
@@ -83,45 +82,15 @@ async function getHealthyConnection(): Promise<Connection> {
   throw new Error("No healthy RPC endpoint found.");
 }
 
-function getSponsorKeypair(): Keypair {
-  const secret = process.env.SOLANA_GAS_SPONSOR_SECRET_KEY ?? process.env.FAUCET_WALLET_SECRET_KEY;
-  if (!secret) throw new Error("Sponsor wallet not configured.");
+function getSolFaucetKeypair(): Keypair {
+  const secret = process.env.FAUCET_SOL_SECRET_KEY ?? process.env.FAUCET_WALLET_SECRET_KEY;
+  if (!secret) throw new Error("SOL faucet wallet not configured (set FAUCET_SOL_SECRET_KEY).");
   return Keypair.fromSecretKey(new Uint8Array(JSON.parse(secret) as number[]));
 }
 
-/**
- * One-time eligibility: returns true if the recipient has never received a SOL
- * transfer from the sponsor wallet. Uses sponsor's outgoing tx history.
- */
-async function hasReceivedSolFromSponsor(
-  connection: Connection,
-  sponsor: PublicKey,
-  recipient: PublicKey
-): Promise<boolean> {
-  const sigs = await connection.getSignaturesForAddress(sponsor, { limit: HISTORY_LOOKUP_LIMIT });
-  if (sigs.length === 0) return false;
-
-  const recipientStr = recipient.toBase58();
-  const sponsorStr = sponsor.toBase58();
-
-  for (const sigInfo of sigs) {
-    if (sigInfo.err) continue;
-    const tx = await connection.getParsedTransaction(sigInfo.signature, {
-      maxSupportedTransactionVersion: 0,
-      commitment: "confirmed",
-    });
-    if (!tx) continue;
-    for (const ix of tx.transaction.message.instructions) {
-      const parsed = (ix as { parsed?: { type?: string; info?: { source?: string; destination?: string } } }).parsed;
-      if (!parsed) continue;
-      if (parsed.type !== "transfer") continue;
-      if (parsed.info?.source === sponsorStr && parsed.info?.destination === recipientStr) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
+// In-memory set of wallets that have already claimed their one-time SOL drip.
+// Resets on cold start (acceptable for devnet — mirrors the rate-limit pattern in this codebase).
+const claimedWallets = new Set<string>();
 
 type FaucetResponse =
   | { success: true; signature: string; amount: number }
@@ -166,7 +135,7 @@ export default async function handler(
 
   try {
     const connection = await getHealthyConnection();
-    const sponsor = getSponsorKeypair();
+    const sponsor = getSolFaucetKeypair();
 
     const recipientBalance = await connection.getBalance(recipient);
     if (recipientBalance >= ELIGIBILITY_LAMPORTS) {
@@ -184,8 +153,9 @@ export default async function handler(
       });
     }
 
-    const alreadyClaimed = await hasReceivedSolFromSponsor(connection, sponsor.publicKey, recipient);
-    if (alreadyClaimed) {
+    // In-memory one-time claim guard. Resets on cold start (acceptable for devnet).
+    const recipientKey = recipient.toBase58();
+    if (claimedWallets.has(recipientKey)) {
       return res.status(400).json({
         success: false,
         error: "This wallet has already claimed its one-time SOL drip. Use https://faucet.solana.com/ for more.",
@@ -209,6 +179,7 @@ export default async function handler(
       preflightCommitment: "confirmed",
     });
     await connection.confirmTransaction(signature, "confirmed");
+    claimedWallets.add(recipientKey);
 
     return res.status(200).json({
       success: true,

@@ -36,6 +36,12 @@ const RATE_WINDOW_MS = 60_000;
 let lastRefreshAt = 0;
 let inFlightRefresh: Promise<OracleRefreshResponse> | null = null;
 
+function isOracleAdmin(userId: string): boolean {
+  const raw = process.env.ORACLE_ADMIN_USER_IDS?.trim();
+  if (!raw) return false;
+  return raw.split(",").map((s) => s.trim()).filter(Boolean).includes(userId);
+}
+
 function normalizeValue(raw?: string): string | null {
   if (!raw) return null;
   let value = raw.trim();
@@ -290,7 +296,7 @@ async function sendWithPolling(
   throw new Error("Oracle refresh confirmation timed out.");
 }
 
-async function refreshOracle(req: NextApiRequest): Promise<OracleRefreshResponse> {
+async function refreshOracle(req: NextApiRequest, userId: string): Promise<OracleRefreshResponse> {
   const body = (req.body ?? {}) as {
     market?: string;
     pairLabel?: string;
@@ -335,7 +341,8 @@ async function refreshOracle(req: NextApiRequest): Promise<OracleRefreshResponse
     : Math.floor(Date.now() / 1000);
   const ageSeconds = nowSeconds - lastUpdate;
 
-  if (!body.force && Number.isFinite(ageSeconds) && ageSeconds >= 0 && ageSeconds <= maxAgeSeconds) {
+  const forceRefresh = body.force === true && isOracleAdmin(userId);
+  if (!forceRefresh && Number.isFinite(ageSeconds) && ageSeconds >= 0 && ageSeconds <= maxAgeSeconds) {
     return {
       success: true,
       refreshed: false,
@@ -409,7 +416,7 @@ export default async function handler(
     });
   }
 
-  inFlightRefresh = refreshOracle(req)
+  inFlightRefresh = refreshOracle(req, userId)
     .then((result) => {
       if (result.success && result.refreshed) lastRefreshAt = Date.now();
       return result;

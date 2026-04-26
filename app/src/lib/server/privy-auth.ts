@@ -36,6 +36,7 @@ export function extractBearerToken(authorization?: string | null): string | null
   return token;
 }
 
+// Trusts x-forwarded-for as set by Vercel's edge proxy. Not safe on platforms without a trusted proxy.
 export function getRequestIp(req: NextApiRequest): string {
   const forwarded = req.headers["x-forwarded-for"];
   const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
@@ -64,13 +65,11 @@ export async function requirePrivySolanaWallet(
   walletAddress: string
 ): Promise<{ userId: string }> {
   const { userId, user } = await requirePrivyUser(req);
-  const normalizedWallet = walletAddress.toLowerCase();
-
   const hasLinkedWallet = user.linkedAccounts.some((account) => {
     if (account.type !== "wallet") return false;
     const wallet = account as { chainType?: string; address?: string };
     if (wallet.chainType && wallet.chainType !== "solana") return false;
-    return wallet.address?.toLowerCase() === normalizedWallet;
+    return wallet.address === walletAddress;
   });
 
   if (!hasLinkedWallet) {
