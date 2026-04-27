@@ -64,7 +64,7 @@ mod settle_private_position_circuit {
         };
 
         // New shielded balance = remaining + settlement
-        let new_balance = rem_balance.saturating_add(settlement_amount);
+        let new_balance = rem_balance + settlement_amount;
 
         (
             realized_pnl.reveal(),
