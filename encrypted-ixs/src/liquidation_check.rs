@@ -34,7 +34,7 @@ mod liquidation_check_circuit {
             .wrapping_mul(direction as i128);
         let unrealized_pnl = (pnl_num / BASE_SCALE) as i64;
 
-        let equity = (pos.4 as i64).saturating_add(unrealized_pnl);
+        let equity = (pos.4 as i64).wrapping_add(unrealized_pnl);
 
         let maintenance_u128 = ((pos.0 as u128)
             .wrapping_mul(mark_price as u128)

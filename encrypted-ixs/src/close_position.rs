@@ -48,7 +48,7 @@ mod close_position_circuit {
         // Settlement = margin + pnl - fees (clamped to 0)
         let margin_i64 = pos.4 as i64;
         let fee_i64 = fee as i64;
-        let settlement_i64 = margin_i64.saturating_add(realized_pnl).saturating_sub(fee_i64);
+        let settlement_i64 = margin_i64.wrapping_add(realized_pnl).wrapping_sub(fee_i64);
         let settlement_amount = if settlement_i64 > 0 {
             settlement_i64 as u64
         } else {
