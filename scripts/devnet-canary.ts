@@ -281,7 +281,7 @@ async function main(): Promise<void> {
   for (const entry of [
     { label: "open_position", key: openCompDef },
     { label: "close_position", key: closeCompDef },
-    { label: "check_liquidation", key: liquidationCompDef },
+    { label: "check_liquidation_v2", key: liquidationCompDef },
   ]) {
     const exists = entry.key instanceof PublicKey;
     checks.push({

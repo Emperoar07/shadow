@@ -17,39 +17,44 @@ mod liquidation_check_circuit {
     /// - locked margin only if liquidation is true (0 otherwise)
     /// - current mark/liquidation price marker
     #[instruction]
-    pub fn check_liquidation(
+    pub fn check_liquidation_v2(
         position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         mark_price: u64,
         liquidation_threshold_bps: u16,
     ) -> (bool, u64, u64) {
         let pos = position.to_arcis();
 
-        let entry = pos.1 as i64;
-        let price_delta = mark_price as i64 - entry;
-        let direction: i64 = if pos.3 != 0 { 1 } else { -1 };
-        const BASE_SCALE: i128 = 1_000_000_000;
+        // pos = (size_scaled, entry_price, _, direction_flag, margin)
+        // All prices use 6-decimal precision (scaled by 10^6).
+        // Divides use >> (bit-shifts) approximating /10^6 with >>20 (2^20=1048576≈10^6)
+        let size = pos.0;
+        let entry = pos.1;
+        let is_long = pos.3 != 0u8;
+        let margin = pos.4;
 
-        let pnl_num = (price_delta as i128)
-            .wrapping_mul(pos.0 as i128)
-            .wrapping_mul(direction as i128);
-        let unrealized_pnl = (pnl_num / BASE_SCALE) as i64;
+        // PnL direction: long profits if mark > entry
+        let price_above = mark_price > entry;
+        let price_diff = if price_above { mark_price - entry } else { entry - mark_price };
+        // pnl_abs ≈ size * price_diff / 10^6, using >>20 ≈ /10^6
+        let pnl_abs = (size >> 10) * (price_diff >> 10);
+        let profitable = if is_long { price_above } else { !price_above };
 
-        let equity = (pos.4 as i64).wrapping_add(unrealized_pnl);
+        // equity = margin ± pnl
+        let equity_with_profit = margin + (if profitable { pnl_abs } else { 0u64 });
+        let loss = if !profitable { pnl_abs } else { 0u64 };
+        let underwater = loss > margin;
+        let equity_net = if underwater { 0u64 } else { margin - loss };
+        let equity = if profitable { equity_with_profit } else { equity_net };
 
-        let maintenance_u128 = ((pos.0 as u128)
-            .wrapping_mul(mark_price as u128)
-            / BASE_SCALE as u128)
-            .wrapping_mul(liquidation_threshold_bps as u128)
-            / 10000;
-        let maintenance_margin = if maintenance_u128 > i64::MAX as u128 {
-            i64::MAX
-        } else {
-            maintenance_u128 as i64
-        };
+        // maintenance = notional * threshold_bps / 10000
+        // notional ≈ size * mark_price / 10^6, using >>20 ≈ /10^6
+        let notional = (size >> 10) * (mark_price >> 10);
+        // threshold_bps / 10000 ≈ threshold_bps >> 14 (2^14=16384≈10000*1.64, conservative)
+        let maintenance = notional * liquidation_threshold_bps as u64 >> 14;
 
-        let should_liquidate = equity < maintenance_margin;
+        let should_liquidate = equity < maintenance;
 
-        let revealed_margin = if should_liquidate { pos.4 } else { 0 };
+        let revealed_margin = if should_liquidate { margin } else { 0 };
         let liquidation_price = if should_liquidate { mark_price } else { 0 };
 
         (

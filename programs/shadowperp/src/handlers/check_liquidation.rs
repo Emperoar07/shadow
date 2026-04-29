@@ -11,9 +11,9 @@ use crate::state::{
     LiquidationSettlement, MarginAccount, Market, Position, PositionStatus,
 };
 
-use crate::handlers::callbacks::liquidation_callback::CheckLiquidationCallback;
+use crate::handlers::callbacks::liquidation_callback::CheckLiquidationV2Callback;
 
-#[queue_computation_accounts("check_liquidation", liquidator)]
+#[queue_computation_accounts("check_liquidation_v2", liquidator)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct CheckLiquidation<'info> {
@@ -179,7 +179,7 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
         computation_offset,
     )?;
 
-    let callback_ix = CheckLiquidationCallback::callback_ix(
+    let callback_ix = CheckLiquidationV2Callback::callback_ix(
         computation_offset,
         &ctx.accounts.mxe_account,
         &callback_accounts,

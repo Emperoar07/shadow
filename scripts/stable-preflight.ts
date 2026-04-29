@@ -254,7 +254,7 @@ async function main(): Promise<void> {
   const compDefs = [
     { label: "open_position", key: openCompDef },
     { label: "close_position", key: closeCompDef },
-    { label: "check_liquidation", key: liquidationCompDef },
+    { label: "check_liquidation_v2", key: liquidationCompDef },
   ];
 
   const arciumProgram = getArciumProgram(provider);

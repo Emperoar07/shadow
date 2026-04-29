@@ -280,7 +280,7 @@ pub fn init_close_position_handler(ctx: Context<InitClosePositionCompDef>) -> Re
 
 // ============ LIQUIDATION COMP DEF ============
 
-#[init_computation_definition_accounts("check_liquidation", payer)]
+#[init_computation_definition_accounts("check_liquidation_v2", payer)]
 #[derive(Accounts)]
 pub struct InitLiquidationCompDef<'info> {
     #[account(mut)]

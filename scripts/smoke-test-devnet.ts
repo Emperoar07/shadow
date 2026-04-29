@@ -265,7 +265,7 @@ async function main() {
   const circuits = [
     "open_position_probe_b",
     "close_position_v2",
-    "check_liquidation",
+    "check_liquidation_v2",
     "seed_open_interest_state_v3",
   ];
   const arciumProgram = new anchor.Program(

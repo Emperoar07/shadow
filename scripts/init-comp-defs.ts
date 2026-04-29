@@ -14,6 +14,7 @@ import {
   getCompDefAccOffset,
   getLookupTableAddress,
   getMXEAccAddress,
+  getRawCircuitAccAddress,
   initMxePart1,
   initMxePart2,
   uploadCircuit,
@@ -39,7 +40,7 @@ const EXPECTED_SIGNATURES: Record<string, { params: number; outputs: number }> =
   open_position_probe_b: { params: 9, outputs: 1 },
   close_position_v2: { params: 9, outputs: 4 },
   seed_open_interest_state_v3: { params: 1, outputs: 4 },
-  // check_liquidation: skip pre-check — will be validated after first finalization
+  check_liquidation_v2: { params: 9, outputs: 1 },
 };
 
 const COMP_DEFS = [
@@ -54,7 +55,7 @@ const COMP_DEFS = [
     marketField: "closePositionCompDef",
   },
   {
-    circuit: "check_liquidation",
+    circuit: "check_liquidation_v2",
     methodName: "initLiquidationCompDef",
     marketField: "liquidationCompDef",
   },
@@ -276,6 +277,46 @@ function describeLamportShortfall(error: unknown): string | null {
   return `short by ${shortfallSol.toFixed(6)} SOL (${shortfallLamports.toLocaleString()} lamports) for one resize step`;
 }
 
+const MAX_REALLOC_PER_IX = 10_240;
+const SAFE_EMBIGGEN_IX_PER_TX = 9; // Use 9 instead of SDK's 18 to avoid per-tx growth limit
+
+async function growRawCircuitAccount(
+  provider: anchor.AnchorProvider,
+  compDefPubkey: PublicKey,
+  compDefOffset: number,
+  mxeProgramId: PublicKey,
+  rawCircuitIndex: number,
+  requiredSize: number,
+  confirmOptions: anchor.web3.ConfirmOptions
+): Promise<void> {
+  const arciumProgram = getArciumProgram(provider);
+  const rawCircuitPda = getRawCircuitAccAddress(compDefPubkey, rawCircuitIndex);
+
+  while (true) {
+    const existingAcc = await provider.connection.getAccountInfo(rawCircuitPda);
+    const currentSize = existingAcc?.data.length ?? 0;
+    if (currentSize >= requiredSize) break;
+
+    const remaining = requiredSize - currentSize;
+    const ixCount = Math.min(SAFE_EMBIGGEN_IX_PER_TX, Math.ceil(remaining / MAX_REALLOC_PER_IX));
+
+    const ix = await (arciumProgram.methods as any)
+      .embiggenRawCircuitAcc(compDefOffset, mxeProgramId, rawCircuitIndex)
+      .accounts({ signer: provider.publicKey })
+      .instruction();
+
+    const tx = new anchor.web3.Transaction();
+    for (let i = 0; i < ixCount; i++) tx.add(ix);
+
+    const blockInfo = await provider.connection.getLatestBlockhash({ commitment: "confirmed" });
+    tx.recentBlockhash = blockInfo.blockhash;
+    tx.lastValidBlockHeight = blockInfo.lastValidBlockHeight;
+
+    console.log(`Growing raw circuit (${currentSize} → ${currentSize + ixCount * MAX_REALLOC_PER_IX} bytes, ${ixCount} ixs)`);
+    await provider.sendAndConfirm(tx, [], confirmOptions);
+  }
+}
+
 async function ensureMxeInitialized(
   provider: anchor.AnchorProvider,
   connection: Connection,
@@ -427,12 +468,27 @@ async function ensureCompDef(
 
     if (circuitPath) {
       const rawCircuit = new Uint8Array(fs.readFileSync(circuitPath));
+      // Pre-grow the raw circuit account using safe small batches (SDK uses 18 ixs/tx
+      // which hits a per-tx growth limit; growRawCircuitAccount uses 9 ixs/tx).
+      const requiredSize = rawCircuit.length + 9;
+      const rawCircuitIndex = 0;
+      await growRawCircuitAccount(
+        provider,
+        compDefAccount,
+        offset,
+        params.mxeProgramId,
+        rawCircuitIndex,
+        requiredSize,
+        { skipPreflight: true, commitment: "confirmed" }
+      );
       const uploadSigs = await uploadCircuit(
         provider,
         params.circuit,
         params.mxeProgramId,
         rawCircuit,
-        true
+        true,
+        500,
+        { skipPreflight: true, commitment: "confirmed" }
       );
       console.log(
         `Uploaded/finalized ${params.circuit} circuit from ${path.basename(circuitPath)} (${uploadSigs.length} txs).`
@@ -556,14 +612,14 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
     refreshedMarket.seedOpenInterestCompDef ?? refreshedMarket.seed_open_interest_comp_def;
   console.log("open_position_probe_b:", openCompDefPk.toBase58());
   console.log("close_position_v2:", closeCompDefPk.toBase58());
-  console.log("check_liquidation:", liqCompDefPk.toBase58());
+  console.log("check_liquidation_v2:", liqCompDefPk.toBase58());
   console.log("seed_open_interest_state_v3:", seedOiCompDefPk.toBase58());
 
   // Include all circuits (including those not stored on market account)
   const allCircuits = [
     "open_position_probe_b",
     "close_position_v2",
-    "check_liquidation",
+    "check_liquidation_v2",
     "seed_open_interest_state_v3",
     "execute_private_order",
     "open_position_tuple_probe_v1",
