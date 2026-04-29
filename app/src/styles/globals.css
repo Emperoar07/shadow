@@ -104,15 +104,15 @@ body {
   100% { background-position: 0% 50%; }
 }
 
-.shadow-pump-strip {
-  animation: shadow-pump-marquee 28s linear infinite;
+.shadow-movers-strip {
+  animation: shadow-movers-marquee 28s linear infinite;
 }
 
-.shadow-pump-strip:hover {
+.shadow-movers-strip:hover {
   animation-play-state: paused;
 }
 
-@keyframes shadow-pump-marquee {
+@keyframes shadow-movers-marquee {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }

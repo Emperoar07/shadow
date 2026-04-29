@@ -482,6 +482,10 @@ export default function TradingAppPage() {
                 onPairChange={handlePairChange}
                 onMarginReady={handleMarginReady}
               />
+            </div>
+
+            {/* Mobile: top movers strip in normal document flow */}
+            <div className="lg:hidden shrink-0">
               <MarketTickerBar activePair={selectedPair} onSelect={handlePairChange} />
             </div>
 
@@ -491,15 +495,15 @@ export default function TradingAppPage() {
                 selectedPair={selectedPair}
                 marketSnapshot={marketSnapshot}
                 marketInfoComponent={
-                  <div className="flex flex-col">
-                    <MarketInfo
-                      pair={selectedPair}
-                      snapshot={marketSnapshot}
-                      onPairChange={handlePairChange}
-                      onMarginReady={handleMarginReady}
-                    />
-                    <MarketTickerBar activePair={selectedPair} onSelect={handlePairChange} />
-                  </div>
+                  <MarketInfo
+                    pair={selectedPair}
+                    snapshot={marketSnapshot}
+                    onPairChange={handlePairChange}
+                    onMarginReady={handleMarginReady}
+                  />
+                }
+                topMoversComponent={
+                  <MarketTickerBar activePair={selectedPair} onSelect={handlePairChange} />
                 }
                 chartComponent={
                   <PriceChart

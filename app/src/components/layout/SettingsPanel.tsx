@@ -14,6 +14,7 @@ import {
 
 const PANEL_OPTIONS = [
   { key: "marketinfo", label: "Market Info" },
+  { key: "topmovers", label: "Top Movers" },
   { key: "chart", label: "Chart" },
   { key: "orderbook", label: "Orderbook" },
   { key: "trading", label: "Trading" },

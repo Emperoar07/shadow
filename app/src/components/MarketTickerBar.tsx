@@ -43,21 +43,21 @@ export default function MarketTickerBar({ activePair, onSelect }: MarketTickerBa
     return () => clearInterval(id);
   }, [refresh]);
 
-  const pumpers = tickers
+  const movers = tickers
     .filter(({ change24h }) => change24h > 0)
     .sort((a, b) => b.change24h - a.change24h)
     .slice(0, 5);
-  const stripItems = pumpers.length > 0 ? [...pumpers, ...pumpers] : [];
+  const stripItems = movers.length > 0 ? [...movers, ...movers] : [];
 
   return (
-    <div className="border-b border-shadow-600 bg-shadow-950/70 backdrop-blur-sm overflow-hidden">
-      <div className="flex items-center gap-3 px-3 py-1.5">
+    <div className="h-full min-h-[54px] overflow-hidden border-b border-shadow-600 bg-shadow-950/80 backdrop-blur-sm">
+      <div className="flex h-full min-h-[54px] items-center gap-3 px-3 py-1.5">
         <div className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300">
-          Top pumps
+          Top movers
         </div>
         <div className="min-w-0 flex-1 overflow-hidden">
           {stripItems.length > 0 ? (
-            <div className="shadow-pump-strip flex w-max items-center gap-2">
+            <div className="shadow-movers-strip flex w-max items-center gap-2">
               {stripItems.map(({ pair, price, change24h }, index) => {
           const isActive = pair.label === activePair.label;
           return (

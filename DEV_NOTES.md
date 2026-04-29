@@ -333,3 +333,14 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Verification for this pass:
   - `cd app && tsc --noEmit`
   - `cd app && npm run lint -- --quiet`
+- Arcium cluster check:
+  - repo/runtime cluster offset is `456`
+  - live cluster `DzaQ...br95` has 2 active nodes
+  - init-comp-defs builds at least 4 recovery peer entries by cycling active node offsets
+  - no repo config currently exposes a separate `--recovery-set-size 4` flag
+  - preflight remains blocked only by stale oracle; `oracle:once` failed because price sources timed out
+- Top movers layout update:
+  - renamed the strip from `Top pumps` to `Top movers`
+  - separated the strip from the Market Info panel in the desktop draggable grid
+  - bumped the desktop layout storage key to avoid old saved layouts placing the strip over chart/orderbook panels
+  - kept the mobile strip in normal document flow below Market Info

@@ -22,6 +22,7 @@ interface TerminalGridProps {
   tradingPanelComponent: React.ReactNode;
   positionsComponent: React.ReactNode;
   marketInfoComponent: React.ReactNode;
+  topMoversComponent: React.ReactNode;
   panelVisibility?: PanelVisibility;
   layoutLocked?: boolean;
   onResetRef?: (reset: () => void) => void;
@@ -33,6 +34,7 @@ export default function TerminalGrid({
   tradingPanelComponent,
   positionsComponent,
   marketInfoComponent,
+  topMoversComponent,
   panelVisibility = {},
   layoutLocked = false,
   onResetRef,
@@ -46,12 +48,20 @@ export default function TerminalGrid({
   const panelMap = useMemo(
     () => ({
       marketinfo: marketInfoComponent,
+      topmovers: topMoversComponent,
       chart: chartComponent,
       orderbook: orderbookComponent,
       trading: tradingPanelComponent,
       positions: positionsComponent,
     }),
-    [marketInfoComponent, chartComponent, orderbookComponent, tradingPanelComponent, positionsComponent]
+    [
+      marketInfoComponent,
+      topMoversComponent,
+      chartComponent,
+      orderbookComponent,
+      tradingPanelComponent,
+      positionsComponent,
+    ]
   );
 
   // Stash hidden panels' positions before filtering
