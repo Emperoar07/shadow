@@ -329,7 +329,7 @@ export default function DocsPage() {
               across supported markets, and your selected pair persists across page refreshes.
             </p>
             <Note>
-              ShadowPerp is currently deployed on <strong>Solana Devnet</strong> at program ID <Code>ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4</Code>. All balances are test funds.
+              ShadowPerp is currently deployed on <strong>Solana Devnet</strong> at program ID <Code>34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo</Code>. All balances are test funds.
             </Note>
             <Note>
               Current live status: direct wallet trading, direct collateral actions, shared collateral migration flows,

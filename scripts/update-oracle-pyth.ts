@@ -31,7 +31,7 @@ const HERMES_ENDPOINT = "https://hermes.pyth.network";
 
 const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
-    "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
+    "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo"
 );
 const COLLATERAL_MINT = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT ||

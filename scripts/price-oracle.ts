@@ -63,7 +63,7 @@ type PublishResult = {
   verified: MarketSnapshot;
 };
 
-const DEFAULT_PROGRAM_ID = "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4";
+const DEFAULT_PROGRAM_ID = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo";
 const DEFAULT_MARKET = "crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T";
 
 function ts(): string {

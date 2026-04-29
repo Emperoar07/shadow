@@ -80,6 +80,9 @@ for ext in arcis arcis.ir hash idarc profile.json ts weight; do
   if [ -f "build/close_position.$ext" ]; then
     cp -f "build/close_position.$ext" "build/close_position_v2.$ext"
   fi
+  if [ -f "build/check_liquidation.$ext" ]; then
+    cp -f "build/check_liquidation.$ext" "build/check_liquidation_v2.$ext"
+  fi
 done
 
 echo "Build artifacts:"

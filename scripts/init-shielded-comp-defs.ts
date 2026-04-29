@@ -29,7 +29,7 @@ import { resolveRpcEndpoint } from "./rpc";
 
 const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
-    "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
+    "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo"
 );
 const ARCIUM_PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_ARCIUM_PROGRAM_ID || getArciumProgramId()

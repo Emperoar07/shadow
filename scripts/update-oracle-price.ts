@@ -8,7 +8,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const PROGRAM_ID = new PublicKey("ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4");
+const PROGRAM_ID = new PublicKey("34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo");
 const MARKET = new PublicKey("crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T");
 
 function readArg(name: string): string | undefined {

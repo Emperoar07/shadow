@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Private Perpetual Futures Protocol"
 
 [mxe]
-program_id = "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
+program_id = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo"
 cluster_offset = 456
 
 [circuits]

@@ -6,7 +6,7 @@ ShadowPerp is a private perp DEX built for human traders who want less informati
 
 This repository contains the devnet product: frontend, on-chain program, Arcium circuits, and the supporting tooling used to run and debug the system.
 
-**Program ID (Devnet):** `ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4`
+**Program ID (Devnet):** `34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo`
 
 ## Features
 
