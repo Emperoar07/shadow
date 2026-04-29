@@ -76,6 +76,9 @@ pub enum ShadowPerpError {
     #[msg("Withdrawal delay not yet passed")]
     WithdrawalNotReady,
 
+    #[msg("Shielded withdrawal flow is gated: verify_withdrawal_proof requires merkle-path verification before this handler can run")]
+    ShieldedWithdrawalGated,
+
     #[msg("Commitment tree is full")]
     CommitmentTreeFull,
 

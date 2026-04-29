@@ -328,6 +328,11 @@ pub fn request_withdraw_private_handler(
     nullifier: [u8; 32],
     amount: u64,
 ) -> Result<()> {
+    // Gate: verify_withdrawal_proof has no merkle-path verification (audit 2026-04-29).
+    // Releasing funds via this flow lets any caller drain the shielded pool. Disabled
+    // until commitments are bound to the tree root inside the MPC circuit.
+    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
+
     require!(amount > 0, ShadowPerpError::ZeroAmount);
 
     // Basic sanity: reject all-zero nullifier (placeholder / uninitialized)
@@ -480,6 +485,10 @@ pub fn verify_withdrawal_proof_request_handler(
     nonce: u128,
     computation_offset: u64,
 ) -> Result<()> {
+    // Gate: paired with request_withdraw_private — circuit cannot prove commitment
+    // is in the tree without merkle-path verification. See audit 2026-04-29.
+    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
+
     require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
@@ -620,6 +629,11 @@ pub struct FinalizeWithdraw<'info> {
 }
 
 pub fn finalize_withdraw_handler(ctx: Context<FinalizeWithdraw>) -> Result<()> {
+    // Gate: paired with request_withdraw_private. The proof_verified flag is only set
+    // by verify_withdrawal_proof_callback consuming a circuit that does not bind
+    // (amount, secret) to the merkle tree root. See audit 2026-04-29.
+    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
+
     let clock = Clock::get()?;
     let withdrawal = &mut ctx.accounts.pending_withdrawal;
 

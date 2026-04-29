@@ -3,6 +3,8 @@ import Head from "next/head";
 import Link from "next/link";
 import ShadowLoader from "../components/ShadowLoader";
 
+const LANDING_CONSENT_KEY = "shadowperp:landing-consent:v1";
+
 function detectLightTheme(): boolean {
   if (typeof window === "undefined") return false;
   const saved = window.localStorage.getItem("shadow-theme");
@@ -21,6 +23,7 @@ export default function LandingPage() {
   const decryptRef = useRef<HTMLSpanElement>(null);
   const [isLight, setIsLight] = useState(false);
   const [ready, setReady] = useState(false);
+  const [showConsent, setShowConsent] = useState(false);
 
   // ── Intro loader ─────────────────────────────────────────────
   useEffect(() => {
@@ -34,12 +37,32 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
+    try {
+      setShowConsent(window.localStorage.getItem(LANDING_CONSENT_KEY) == null);
+    } catch {
+      setShowConsent(false);
+    }
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem("shadow-theme", isLight ? "light" : "dark");
     document.documentElement.classList.toggle("light", isLight);
   }, [isLight]);
 
   const toggleTheme = () => {
     setIsLight((current) => !current);
+  };
+
+  const resolveConsent = (value: "accepted" | "rejected") => {
+    try {
+      window.localStorage.setItem(
+        LANDING_CONSENT_KEY,
+        JSON.stringify({ value, savedAt: new Date().toISOString() })
+      );
+    } catch {
+      // If storage is blocked, the modal simply behaves like a normal temporary notice.
+    }
+    setShowConsent(false);
   };
 
   // ── Dot grid pulse canvas ────────────────────────────────────
@@ -363,7 +386,7 @@ export default function LandingPage() {
           }
           .lp-btn-primary:hover { transform:translateY(-2px);box-shadow:0 0 45px rgba(139,92,246,.5) }
           .lp-powered {
-            display:flex;align-items:center;justify-content:center;gap:20px;margin-top:48px;width:100%;
+            display:flex;align-items:center;justify-content:center;margin-top:48px;width:100%;
             font-size:11px;font-weight:600;color:${dark ? "#374151" : "#94a3b8"};letter-spacing:.1em;text-transform:uppercase;
             animation:lp-fade-up .7s .6s ease both;
           }
@@ -545,6 +568,39 @@ export default function LandingPage() {
           .lp-footer-social { display:flex;gap:12px;align-items:center }
           .lp-footer-social a { color:${dark ? "#4b5563" : "#94a3b8"};transition:color .15s }
           .lp-footer-social a:hover { color:#a78bfa }
+          .lp-consent-backdrop {
+            position:fixed;inset:0;z-index:300;
+            display:flex;align-items:flex-end;justify-content:center;
+            padding:18px;background:rgba(2,6,23,.62);backdrop-filter:blur(10px);
+          }
+          .lp-consent-modal {
+            width:min(620px,100%);border-radius:22px;
+            border:1px solid ${dark ? "rgba(167,139,250,.24)" : "rgba(124,58,237,.18)"};
+            background:${dark ? "linear-gradient(145deg,#111322,#080a14)" : "linear-gradient(145deg,#ffffff,#f5f7ff)"};
+            box-shadow:0 24px 80px rgba(0,0,0,.32);
+            padding:24px;color:${dark ? "#e5e7eb" : "#0f172a"};
+          }
+          .lp-consent-eyebrow {
+            font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;
+            color:#a78bfa;margin-bottom:8px;
+          }
+          .lp-consent-title { font-size:24px;font-weight:850;margin:0 0 8px;letter-spacing:-.02em }
+          .lp-consent-copy { font-size:14px;line-height:1.7;color:${dark ? "#94a3b8" : "#475569"};margin:0 0 16px }
+          .lp-consent-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0 18px }
+          .lp-consent-card {
+            border:1px solid ${dark ? "rgba(255,255,255,.08)" : "#e2e8f0"};
+            border-radius:16px;padding:14px;background:${dark ? "rgba(255,255,255,.035)" : "rgba(248,250,252,.9)"};
+          }
+          .lp-consent-card h3 { font-size:13px;font-weight:800;margin:0 0 6px;color:${dark ? "#f8fafc" : "#111827"} }
+          .lp-consent-card p { font-size:12px;line-height:1.6;margin:0;color:${dark ? "#94a3b8" : "#64748b"} }
+          .lp-consent-actions { display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap }
+          .lp-consent-btn {
+            border:0;border-radius:12px;padding:11px 16px;font-size:13px;font-weight:800;cursor:pointer;
+            transition:transform .15s,box-shadow .15s,background .15s;
+          }
+          .lp-consent-btn:active { transform:scale(.97) }
+          .lp-consent-reject { background:${dark ? "rgba(255,255,255,.07)" : "#eef2ff"};color:${dark ? "#cbd5e1" : "#475569"} }
+          .lp-consent-accept { background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:#fff;box-shadow:0 12px 30px rgba(139,92,246,.25) }
           /* REVEAL */
           .lp-reveal { opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease }
           .lp-reveal.lp-visible { opacity:1;transform:translateY(0) }
@@ -566,6 +622,9 @@ export default function LandingPage() {
             .lp-footer-inner{grid-template-columns:1fr;gap:14px;text-align:center}
             .lp-footer-brand-desc{margin:0 auto}
             .lp-footer-bottom{flex-direction:column;gap:8px;text-align:center;margin-top:12px;padding-top:8px}
+            .lp-consent-grid{grid-template-columns:1fr}
+            .lp-consent-actions{justify-content:stretch}
+            .lp-consent-btn{flex:1}
             .lp-session-card{grid-template-columns:1fr;padding:28px 24px}
             .lp-session-copy{max-width:none}
             .lp-session-title{font-size:24px}
@@ -611,11 +670,6 @@ export default function LandingPage() {
             <ShadowLogo className="lp-nav-logo-svg" dark={dark} />
             <span className="lp-nav-name">SHADOW</span>
           </Link>
-          <div className="lp-nav-links">
-            <a href="#privacy" className="lp-nav-link">Privacy</a>
-            <a href="#features" className="lp-nav-link">Features</a>
-            <a href="#wallets" className="lp-nav-link">Wallets</a>
-          </div>
           <div className="lp-nav-actions">
             <button
               type="button"
@@ -658,9 +712,7 @@ export default function LandingPage() {
             </Link>
           </div>
           <div className="lp-powered">
-            <span className="lp-powered-badge">Built on <span className="lp-sol">Solana</span></span>
-            <span style={{ color: dark ? "#1e293b" : "#c8d0e0" }}>&middot;</span>
-            <span className="lp-powered-badge">Powered by <span className="lp-arc">Arcium</span></span>
+            <span className="lp-powered-badge">Built on <span className="lp-arc">Arcium</span></span>
           </div>
           <div className="lp-scroll-hint">
             <span>Scroll</span>
@@ -828,9 +880,6 @@ export default function LandingPage() {
                 <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                 </a>
-                <a href="https://github.com/Emperoar07/shadow" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-                </a>
               </div>
             </div>
 
@@ -844,7 +893,6 @@ export default function LandingPage() {
             <div className="lp-footer-col">
               <h4>Resources</h4>
               <Link href="/docs">Documentation</Link>
-              <a href="https://github.com/Emperoar07/shadow" target="_blank" rel="noopener noreferrer">GitHub</a>
               <a href="https://docs.arcium.com/" target="_blank" rel="noopener noreferrer">Arcium Docs</a>
             </div>
 
@@ -861,6 +909,36 @@ export default function LandingPage() {
             <a href="https://x.com/emperoar007" target="_blank" rel="noopener noreferrer">Built by 0xb for the decentralized world.</a>
           </div>
         </footer>
+
+        {showConsent && (
+          <div className="lp-consent-backdrop" role="dialog" aria-modal="true" aria-labelledby="landing-consent-title">
+            <div className="lp-consent-modal">
+              <div className="lp-consent-eyebrow">A small note before you enter</div>
+              <h2 id="landing-consent-title" className="lp-consent-title">Cookies and terms, kept plain.</h2>
+              <p className="lp-consent-copy">
+                Shadow uses local browser storage for preferences like theme, wallet prompts, and this notice. By continuing, you agree to use the devnet app responsibly and understand that test funds have no real value.
+              </p>
+              <div className="lp-consent-grid">
+                <div className="lp-consent-card">
+                  <h3>Cookie Policy</h3>
+                  <p>We keep only simple site preferences in your browser. We do not need cookies to sell your data, and rejecting this notice will not block you from reading the site.</p>
+                </div>
+                <div className="lp-consent-card">
+                  <h3>Terms of Use</h3>
+                  <p>Shadow is a devnet trading workspace. Use it carefully, do not abuse public faucets or infrastructure, and remember that experimental software can fail.</p>
+                </div>
+              </div>
+              <div className="lp-consent-actions">
+                <button type="button" className="lp-consent-btn lp-consent-reject" onClick={() => resolveConsent("rejected")}>
+                  Reject
+                </button>
+                <button type="button" className="lp-consent-btn lp-consent-accept" onClick={() => resolveConsent("accepted")}>
+                  Accept and continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
 
       </div>

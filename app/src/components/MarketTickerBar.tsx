@@ -43,26 +43,33 @@ export default function MarketTickerBar({ activePair, onSelect }: MarketTickerBa
     return () => clearInterval(id);
   }, [refresh]);
 
+  const pumpers = tickers
+    .filter(({ change24h }) => change24h > 0)
+    .sort((a, b) => b.change24h - a.change24h)
+    .slice(0, 5);
+  const stripItems = pumpers.length > 0 ? [...pumpers, ...pumpers] : [];
+
   return (
-    <div className="border-b border-shadow-600 bg-shadow-900/60 backdrop-blur-sm overflow-hidden">
-      <div
-        className="flex items-center gap-0 overflow-x-auto scrollbar-none"
-        style={{ scrollbarWidth: "none" }}
-      >
-        {tickers.map(({ pair, price, change24h }) => {
+    <div className="border-b border-shadow-600 bg-shadow-950/70 backdrop-blur-sm overflow-hidden">
+      <div className="flex items-center gap-3 px-3 py-1.5">
+        <div className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300">
+          Top pumps
+        </div>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          {stripItems.length > 0 ? (
+            <div className="shadow-pump-strip flex w-max items-center gap-2">
+              {stripItems.map(({ pair, price, change24h }, index) => {
           const isActive = pair.label === activePair.label;
-          const isUp = change24h >= 0;
           return (
             <button
-              key={pair.label}
+              key={`${pair.label}-${index}`}
               onClick={() => onSelect(pair)}
-              className={`flex items-center gap-2.5 px-4 py-2 border-r border-shadow-700 flex-shrink-0 transition-colors group ${
+              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 transition-colors group ${
                 isActive
-                  ? "bg-accent-purple/10 border-b-2 border-b-accent-purple"
-                  : "hover:bg-shadow-700/50"
+                  ? "border-accent-purple/45 bg-accent-purple/15"
+                  : "border-shadow-600/80 bg-shadow-800/60 hover:border-emerald-400/35 hover:bg-shadow-700/70"
               }`}
             >
-              {/* Pair symbol */}
               <span
                 className={`text-xs font-semibold whitespace-nowrap ${
                   isActive ? "text-accent-purple" : "text-gray-300 group-hover:text-white"
@@ -83,16 +90,19 @@ export default function MarketTickerBar({ activePair, onSelect }: MarketTickerBa
 
               {/* 24h change */}
               <span
-                className={`text-[10px] font-medium whitespace-nowrap ${
-                  isUp ? "text-accent-green" : "text-accent-red"
-                }`}
+                className="text-[10px] font-semibold whitespace-nowrap text-accent-green"
               >
-                {isUp ? "+" : ""}
+                +
                 {change24h.toFixed(2)}%
               </span>
             </button>
           );
-        })}
+              })}
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-500">No positive movers on the current feed yet.</p>
+          )}
+        </div>
       </div>
     </div>
   );

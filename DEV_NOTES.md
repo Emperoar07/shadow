@@ -324,3 +324,12 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 - Do not claim the live open-position bug is fixed yet.
 - Current verified namespace is `34ws...` + `uGd...`; do not reintroduce stale `ESyr...` runtime defaults unless intentionally rolling back.
+- Landing/app polish in progress:
+  - added a moving top-pumps strip under the market panel
+  - removed landing header nav links and GitHub footer links
+  - added a first-visit cookies/terms modal backed by local storage
+  - kept a single centered landing badge labeled `Built on Arcium`
+  - reverted the broader write-up sweep so only the requested badge wording changed
+- Verification for this pass:
+  - `cd app && tsc --noEmit`
+  - `cd app && npm run lint -- --quiet`

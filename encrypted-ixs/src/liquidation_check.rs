@@ -26,7 +26,8 @@ mod liquidation_check_circuit {
 
         // pos = (size_scaled, entry_price, _, direction_flag, margin)
         // All prices use 6-decimal precision (scaled by 10^6).
-        // Divides use >> (bit-shifts) approximating /10^6 with >>20 (2^20=1048576≈10^6)
+        // Each operand pre-divided by 1000 keeps the product within u64 while
+        // preserving 3-decimal precision on each side, so the combined / 10^6 is exact.
         let size = pos.0;
         let entry = pos.1;
         let is_long = pos.3 != 0u8;
@@ -35,8 +36,8 @@ mod liquidation_check_circuit {
         // PnL direction: long profits if mark > entry
         let price_above = mark_price > entry;
         let price_diff = if price_above { mark_price - entry } else { entry - mark_price };
-        // pnl_abs ≈ size * price_diff / 10^6, using >>20 ≈ /10^6
-        let pnl_abs = (size >> 10) * (price_diff >> 10);
+        // pnl_abs = size * price_diff / 10^6 — pre-divide each by 1000 to avoid u64 overflow.
+        let pnl_abs = (size / 1000) * (price_diff / 1000);
         let profitable = if is_long { price_above } else { !price_above };
 
         // equity = margin ± pnl
@@ -46,11 +47,10 @@ mod liquidation_check_circuit {
         let equity_net = if underwater { 0u64 } else { margin - loss };
         let equity = if profitable { equity_with_profit } else { equity_net };
 
-        // maintenance = notional * threshold_bps / 10000
-        // notional ≈ size * mark_price / 10^6, using >>20 ≈ /10^6
-        let notional = (size >> 10) * (mark_price >> 10);
-        // threshold_bps / 10000 ≈ threshold_bps >> 14 (2^14=16384≈10000*1.64, conservative)
-        let maintenance = notional * liquidation_threshold_bps as u64 >> 14;
+        // notional = size * mark_price / 10^6 — same pre-division pattern.
+        let notional = (size / 1000) * (mark_price / 1000);
+        // maintenance = notional * threshold_bps / 10000 — exact division, no rebasing.
+        let maintenance = notional * liquidation_threshold_bps as u64 / 10000;
 
         let should_liquidate = equity < maintenance;
 

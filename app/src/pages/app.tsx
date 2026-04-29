@@ -23,6 +23,7 @@ import SettingsPanel, { useVisibility, useLayoutLocked } from "../components/lay
 import { useTradingSettings } from "../hooks/useTradingSettings";
 import ShadowLoader from "../components/ShadowLoader";
 import MarketInfo from "../components/MarketInfo";
+import MarketTickerBar from "../components/MarketTickerBar";
 import PrivateOrderbook from "../components/PrivateOrderbook";
 import TradingPanel from "../components/TradingPanel";
 import NetworkIndicator from "../components/NetworkIndicator";
@@ -481,6 +482,7 @@ export default function TradingAppPage() {
                 onPairChange={handlePairChange}
                 onMarginReady={handleMarginReady}
               />
+              <MarketTickerBar activePair={selectedPair} onSelect={handlePairChange} />
             </div>
 
             {/* Desktop: modular drag-and-drop grid layout */}
@@ -489,12 +491,15 @@ export default function TradingAppPage() {
                 selectedPair={selectedPair}
                 marketSnapshot={marketSnapshot}
                 marketInfoComponent={
-                  <MarketInfo
-                    pair={selectedPair}
-                    snapshot={marketSnapshot}
-                    onPairChange={handlePairChange}
-                    onMarginReady={handleMarginReady}
-                  />
+                  <div className="flex flex-col">
+                    <MarketInfo
+                      pair={selectedPair}
+                      snapshot={marketSnapshot}
+                      onPairChange={handlePairChange}
+                      onMarginReady={handleMarginReady}
+                    />
+                    <MarketTickerBar activePair={selectedPair} onSelect={handlePairChange} />
+                  </div>
                 }
                 chartComponent={
                   <PriceChart
