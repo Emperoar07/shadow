@@ -293,6 +293,7 @@ export default function LandingPage() {
           .lp-nav-links { display:flex;align-items:center;gap:28px }
           .lp-nav-link { font-size:13px;font-weight:500;color:${dark ? "#6b7280" : "#475569"};text-decoration:none;transition:color .15s }
           .lp-nav-link:hover { color:${dark ? "#e2e8f0" : "#7c3aed"} }
+          .lp-nav-actions { display:flex;align-items:center;gap:10px;min-width:0 }
           .lp-nav-cta {
             padding:8px 20px;border-radius:8px;font-size:13px;font-weight:700;
             background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:#fff;text-decoration:none;
@@ -550,11 +551,17 @@ export default function LandingPage() {
           .lp-delay-1 { transition-delay:.1s } .lp-delay-2 { transition-delay:.2s } .lp-delay-3 { transition-delay:.3s }
           @keyframes lp-fade-up { from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)} }
           @media(max-width:768px){
+            .lp-nav{height:60px;padding:0 16px;gap:12px}
+            .lp-nav-logo{min-width:0;gap:0}
+            .lp-nav-logo-svg{width:44px;height:44px}
+            .lp-nav-name{font-size:16px;letter-spacing:.02em}
             .lp-steps{grid-template-columns:1fr}
             .lp-steps::before{display:none}
             .lp-features-grid{grid-template-columns:1fr}
             .lp-privacy-inner{grid-template-columns:1fr}
             .lp-nav-links{display:none}
+            .lp-nav-actions{gap:8px;flex-shrink:0}
+            .lp-nav-cta{padding:9px 14px;font-size:12px;border-radius:10px;white-space:nowrap}
             .lp-footer{padding:12px 20px 8px}
             .lp-footer-inner{grid-template-columns:1fr;gap:14px;text-align:center}
             .lp-footer-brand-desc{margin:0 auto}
@@ -567,10 +574,21 @@ export default function LandingPage() {
             .lp-session-stat{padding:18px 14px}
             .lp-session-stat-val{font-size:28px}
             .lp-session-stat-lbl{font-size:10px}
-            .lp-theme-toggle-btn { width: 44px; height: 22px; right: 0.75rem; bottom: 0.75rem; }
+            .lp-theme-toggle-btn { width: 46px; height: 24px; border-radius:12px; padding:0 5px; }
+            .lp-toggle-knob{width:16px;height:16px;top:3px;left:3px;transform:translateX(22px)}
           }
           @media(max-width:560px){
+            .lp-nav{padding:0 14px}
+            .lp-nav-name{font-size:15px}
+            .lp-nav-logo-svg{width:40px;height:40px}
+            .lp-nav-actions{gap:7px}
+            .lp-nav-cta{padding:9px 12px;font-size:12px}
             .lp-session-stats{grid-template-columns:1fr}
+          }
+          @media(max-width:390px){
+            .lp-nav{padding:0 10px}
+            .lp-nav-name{display:none}
+            .lp-nav-cta{padding:8px 10px}
           }
         `}</style>
 
@@ -598,7 +616,7 @@ export default function LandingPage() {
             <a href="#features" className="lp-nav-link">Features</a>
             <a href="#wallets" className="lp-nav-link">Wallets</a>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div className="lp-nav-actions">
             <button
               type="button"
               className="lp-theme-toggle-btn"

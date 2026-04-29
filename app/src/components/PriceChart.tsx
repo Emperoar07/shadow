@@ -188,7 +188,7 @@ export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProp
     const config = {
       autosize: true,
       symbol: chartSymbol,
-      interval: isMobile ? "1" : "15",
+      interval: "15",
       timezone: "Etc/UTC",
       theme: tvTheme,
       style: "1", // candlestick
@@ -197,9 +197,9 @@ export default function PriceChart({ selectedPair, chartSymbol }: PriceChartProp
       enable_publishing: false,
       allow_symbol_change: false,
       save_image: false,
-      hide_top_toolbar: isMobile,
-      hide_side_toolbar: isMobile,
-      withdateranges: !isMobile,
+      hide_top_toolbar: false,
+      hide_side_toolbar: false,
+      withdateranges: true,
       overrides: {
         "paneProperties.background": colors.paneBackground,
         "paneProperties.backgroundType": "solid",

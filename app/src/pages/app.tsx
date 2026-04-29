@@ -385,7 +385,7 @@ export default function TradingAppPage() {
   }, []);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [openCollateralModal, setOpenCollateralModal] = useState<(() => void) | null>(null);
-  const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "book">("chart");
+  const [mobileMarketTab, setMobileMarketTab] = useState<"chart" | "trade">("chart");
   const resetLayoutRef = useRef<(() => void) | null>(null);
   const { snapshot: marketSnapshot } = useMarketSnapshot(selectedPair, 3_000);
   const { visibility: panelVisibility, update: updateVisibility } = useVisibility();
@@ -537,7 +537,7 @@ export default function TradingAppPage() {
               <div className="mb-1.5 flex rounded-xl border border-shadow-600 bg-shadow-900 p-1">
                 {([
                   ["chart", "Chart"],
-                  ["book", "Order Book"],
+                  ["trade", "Trade"],
                 ] as const).map(([tab, label]) => (
                   <button
                     key={tab}
@@ -555,29 +555,34 @@ export default function TradingAppPage() {
               </div>
 
               <div className="flex min-h-0 flex-col gap-1.5">
-                <div className="flex min-h-0 min-w-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900">
-                  <div className="trade-terminal-grid h-[280px] min-w-0 min-h-0 flex-1 grid grid-cols-1 sm:h-[360px]">
-                    <div className={`min-w-0 min-h-0 ${mobileMarketTab === "chart" ? "block" : "hidden"}`}>
-                      <PriceChart selectedPair={selectedPair} chartSymbol={marketSnapshot.chartSymbol} />
+                {mobileMarketTab === "chart" ? (
+                  <>
+                    <div className="flex min-h-0 min-w-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900">
+                      <div className="trade-terminal-grid h-[380px] min-w-0 min-h-0 flex-1 grid grid-cols-1 sm:h-[460px]">
+                        <div className="min-h-0 min-w-0">
+                          <PriceChart selectedPair={selectedPair} chartSymbol={marketSnapshot.chartSymbol} />
+                        </div>
+                      </div>
                     </div>
-                    <div className={`min-h-0 ${mobileMarketTab === "book" ? "block" : "hidden"}`}>
+
+                    <div className="h-[320px] min-h-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900 sm:h-[380px]">
                       <PrivateOrderbook
                         pair={selectedPair}
                         marketSnapshot={marketSnapshot}
                       />
                     </div>
+                  </>
+                ) : (
+                  <div className="w-full shrink-0 min-h-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900">
+                    <TradingPanel
+                      pair={selectedPair}
+                      layout="vertical"
+                      confirmOpen={tradingSettings.confirmOpenOrder}
+                      showNotifications={tradingSettings.showNotifications}
+                      depthSnapshot={marketSnapshot.depthSnapshot}
+                    />
                   </div>
-                </div>
-
-                <div className="w-full shrink-0 min-h-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900">
-                  <TradingPanel
-                    pair={selectedPair}
-                    layout="vertical"
-                    confirmOpen={tradingSettings.confirmOpenOrder}
-                    showNotifications={tradingSettings.showNotifications}
-                    depthSnapshot={marketSnapshot.depthSnapshot}
-                  />
-                </div>
+                )}
               </div>
             </div>
 

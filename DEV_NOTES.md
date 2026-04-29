@@ -240,6 +240,20 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
   - `cd app && npm run lint -- --quiet` -> PASS.
 
+### Mobile chart and landing header polish
+
+- Reworked mobile terminal tabs from `Chart / Order Book` to `Chart / Trade`.
+- Mobile `Chart` now stacks the TradingView chart and order book together for a CEX-style market-analysis view.
+- Mobile `Trade` now isolates the order-entry panel instead of always showing it under the chart.
+- TradingView mobile no longer hides top/side analysis toolbars, so timeframe and drawing tools are available.
+- Tightened the landing-page mobile nav so the theme toggle sits cleanly beside `Launch App`.
+- Verification:
+  - `npm run oracle:once` -> PASS after stale oracle preflight.
+  - `npm run check:preflight` -> PASS after refresh, oracle age `18s`.
+  - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
+  - `cd app && npm run lint -- --quiet` -> PASS.
+  - Playwright mobile screenshots captured for `/app` and `/`.
+
 ## Current Blocker
 
 ### 0. Live open/close smoke still needed
