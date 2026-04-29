@@ -229,6 +229,17 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `npm run check:release-hygiene -- --strict` currently fails only because the audit-fix working tree is intentionally dirty.
   - App prod audit improved from 45 to 43 vulnerabilities after safe dependency pins; remaining dependency findings require upstream Solana/Privy SDK migrations, not blind `npm audit fix`.
 
+### Faucet refill threshold adjustment
+
+- Lowered the wallet mUSDC faucet refill prompt threshold from `2,000` to `500`.
+- Updated the low-balance gate copy to describe wallet mUSDC, not margin collateral.
+- The faucet rule remains wallet-balance based; margin account balances are not used for refill availability.
+- Verification:
+  - `npm run oracle:once` -> PASS after preflight found a stale oracle.
+  - `npm run check:preflight` -> PASS after refresh, oracle age `8s`.
+  - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
+  - `cd app && npm run lint -- --quiet` -> PASS.
+
 ## Current Blocker
 
 ### 0. Live open/close smoke still needed
@@ -265,8 +276,6 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Remaining production hardening: move signer-route rate limits/cooldowns to a durable store if these routes remain public.
 - Resolve targeted dependency audit issues; do not run blind `npm audit fix`.
 - Correct product copy/docs around privacy boundaries and social-login availability when new copy lands.
-- Oracle refresh throttling can currently return a successful response without re-checking that the oracle is still fresh; frontend open-position code treats that as safe to proceed.
-- Collateral modal faucet availability still includes margin balance in one UI gate, even though the intended faucet rule is wallet-balance based.
 - CSP still permits broad inline/eval compatibility allowances for TradingView/Privy; keep this as an explicit production hardening item.
 
 ## Next Safe Step

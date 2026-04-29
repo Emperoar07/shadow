@@ -209,9 +209,9 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </div>
       {isTopUpMode ? (
         <>
-          <h2 className="text-2xl font-bold text-white mb-2">Your margin is running low</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">Your wallet mUSDC is running low</h2>
           <p className="text-gray-400 text-sm leading-relaxed mb-1 font-medium">
-            Balance below 2,000 mUSDC.
+            Add a little more test collateral before trading.
           </p>
           <p className="text-gray-500 text-[13px] leading-relaxed">
             Top up your wallet mUSDC to keep trading. We will send exactly what you need to reach 10,000 mUSDC.
@@ -232,7 +232,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         onClick={() => setStep(1)}
         className="mt-8 w-full py-3 rounded-xl font-bold text-sm bg-accent-purple hover:bg-accent-purple/85 text-white transition-colors flex items-center justify-center gap-2"
       >
-        {isTopUpMode ? "Top Up Margin" : "Next"}
+        {isTopUpMode ? "Top Up Wallet" : "Next"}
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
