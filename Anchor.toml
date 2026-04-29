@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-shadowperp = "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4"
+shadowperp = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo"
 
 [programs.localnet]
 shadowperp = "11111111111111111111111111111111"

@@ -23,7 +23,7 @@ type OracleRefreshResponse =
   | { success: false; error: string; stale?: boolean };
 
 const DEFAULT_RPC = "https://api.devnet.solana.com";
-const DEFAULT_PROGRAM_ID = "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4";
+const DEFAULT_PROGRAM_ID = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo";
 const DEFAULT_MARKET = "crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T";
 const DEFAULT_COLLATERAL_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 const DEFAULT_MAX_AGE_SECONDS = 240;

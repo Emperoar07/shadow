@@ -11,7 +11,7 @@ import { DEVNET_TOKENS, WALLET_DISPLAY_TOKENS } from "../lib/tokens";
 const EXPLORER_BASE = "https://explorer.solana.com/tx";
 const INITIAL_TX_COUNT = 5;
 const LOAD_MORE_COUNT = 10;
-const SHADOWPERP_PROGRAM_ID = process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ?? "ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4";
+const SHADOWPERP_PROGRAM_ID = process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ?? "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo";
 const TX_ACTIVITY_CACHE_PREFIX = "shadowperp:ui:activity:v2";
 const PARSED_TX_BATCH_SIZE = 3;
 const PARSED_TX_RETRIES = 2;
