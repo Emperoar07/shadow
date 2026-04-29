@@ -25,7 +25,7 @@ const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
 );
 const DEFAULT_ORACLE_MAX_AGE_SECONDS = 300;
 const DEFAULT_PROGRAM_ID = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo";
-const DEFAULT_MARKET = "crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T";
+const DEFAULT_MARKET = "uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy";
 
 type Check = {
   name: string;

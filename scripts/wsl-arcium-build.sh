@@ -11,7 +11,7 @@ fi
 
 # Prefer the active Linux Rust toolchain on PATH. Fall back to the historical
 # offline install path if it still exists on a given machine.
-DEFAULT_NATIVE_RUST_BIN="$HOME/.rust-native/install/bin"
+DEFAULT_NATIVE_RUST_BIN="$HOME/.cargo/bin"
 NATIVE_RUST_BIN="$(dirname "$(command -v cargo 2>/dev/null || true)")"
 if [ -z "$NATIVE_RUST_BIN" ] || [ "$NATIVE_RUST_BIN" = "." ]; then
   NATIVE_RUST_BIN="$DEFAULT_NATIVE_RUST_BIN"
@@ -41,12 +41,10 @@ fi
 
 # Use native Linux Anchor + Solana build lane. Windows bridge remains too fragile.
 if [ ! -x "$LINUX_CARGO_BIN/anchor" ]; then
-  echo "ERROR: Native Linux anchor not found at $LINUX_CARGO_BIN/anchor"
-  exit 1
+  echo "WARN: Native Linux anchor not found at $LINUX_CARGO_BIN/anchor; continuing because this script runs arcium build --skip-program."
 fi
 if [ ! -x "$LINUX_SOLANA_BIN/cargo-build-sbf" ]; then
-  echo "ERROR: Solana cargo-build-sbf not found at $LINUX_SOLANA_BIN"
-  exit 1
+  echo "WARN: Solana cargo-build-sbf not found at $LINUX_SOLANA_BIN; continuing because this script runs arcium build --skip-program."
 fi
 
 # Keep a separate target dir so Linux and Windows build artifacts don't mix.
@@ -62,11 +60,13 @@ cd "$REPO"
 echo "Using arcium: $(command -v arcium)"
 echo "Using cargo:  $(command -v cargo)"
 echo "Using rustc:  $(command -v rustc)"
-echo "Using anchor: $(command -v anchor)"
+echo "Using anchor: $(command -v anchor || true)"
 arcium --version
 cargo --version
 rustc --version
-anchor --version
+if command -v anchor >/dev/null 2>&1; then
+  anchor --version
+fi
 
 arcium build --skip-keys-sync --skip-program
 

@@ -4,12 +4,12 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 
 ## Last Updated
 
-- 2026-04-24 UTC
+- 2026-04-29 UTC
 
 ## Live Baseline
 
-- Active devnet program: `ESyrZFvBAbZmTgjEQwuNCrM7Jwaupt4jkNQE32pBt7N4`
-- Active market: `crEV9TSAU6xkiWFUAZebejHmWVh6VFx5EEFLcfX9L2T`
+- Active devnet program: `34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo`
+- Active market: `uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy`
 - Arcium cluster offset: `456`
 - Current product path:
   - Privy for auth + wallet connection
@@ -91,6 +91,38 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `protobufjs >=7.5.5`
   - patched `bn.js` ranges
 
+### Working-tree audit addendum
+
+- Added the 2026-04-29 working-tree findings into `CODEBASE_AUDIT_REPORT.md`.
+- Current dirty tree is not release/build clean.
+- Main new findings:
+  - partial `check_liquidation_v2` Arcium migration is missing generated artifacts, especially `build/check_liquidation_v2.idarc`
+  - runtime/config namespace is split between live `ESyr...` and new `34ws...`
+  - frontend IDL has a new address but stale liquidation instruction shapes
+  - liquidation math changed materially and needs deterministic fixtures before deploy
+
+### Post-push audit after `34ws...` program-ID commit
+
+- Latest pushed commits observed locally:
+  - `b640354` migrated liquidation wiring to `check_liquidation_v2`
+  - `9bc26a8` updated selected runtime files to program `34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo`
+- Audit result: the repo is still internally split.
+  - `Anchor.toml`, `programs/shadowperp/src/lib.rs`, app IDL address, wallet popup, and oracle-refresh default now point at `34ws...`
+  - `Arcium.toml`, live notes, and many ops scripts still default to `ESyr...`
+  - the prior default market `crEV...` is still owned by `ESyr...`, not `34ws...`
+  - the confirmed `34ws...` SOL market is `uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy`
+
+### Arcium artifact + namespace repair pass
+
+- Applied the Arcium and Arcium program-development workflows to the dirty tree.
+- Standardized runtime/script defaults that still pointed at the old `crEV...` SOL market onto the confirmed `34ws...` SOL market:
+  - `uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy`
+- Patched `scripts/wsl-arcium-build.sh` so `arcium build --skip-program` can run in WSL without incorrectly requiring Anchor/Solana SBF tooling.
+  - uses native Cargo from `$HOME/.cargo/bin`
+  - keeps missing Anchor/SBF as warnings for this Arcis-only build path
+- Regenerated the full `check_liquidation_v2` Arcium artifact set, including the previously missing:
+  - `build/check_liquidation_v2.idarc`
+
 ## What Was Verified
 
 - `cargo check -p shadowperp` -> PASS on 2026-04-24 UTC
@@ -129,8 +161,46 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `npm run check:preflight` -> PASS.
   - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
   - `cd app && npm run lint -- --quiet` -> PASS.
+- 2026-04-29 UTC: working-tree audit verification:
+  - `git diff --check` -> PASS, with line-ending warnings only.
+  - `cargo check -p shadowperp` -> FAIL because `check_liquidation_v2.idarc` and generated Arcium symbols are missing.
+  - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
+  - `npm run check:preflight` -> FAIL while querying the old `ESyr...` account path with `TypeError: fetch failed`.
+  - root `npm audit --omit=dev --json` -> FAIL: 15 prod vulnerabilities, 7 high, 0 critical.
+  - app `npm audit --omit=dev --json` -> FAIL: 45 prod vulnerabilities, 3 high, 0 critical.
+- 2026-04-29 UTC: post-push audit verification:
+  - `npm run oracle:once` -> PASS against the old `ESyr...` market, but only via guarded single-source fallback and RPC retries.
+  - `npm run check:preflight` -> PASS against the old `ESyr...` program after oracle refresh.
+  - `SHADOWPERP_PROGRAM_ID=34ws... npm run check:preflight` -> FAIL because the active market owner is still `ESyr...`.
+  - `cargo check -p shadowperp` -> FAIL because `build/check_liquidation_v2.idarc` and generated Arcium symbols are missing.
+  - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
+  - `cd app && npm run lint -- --quiet` -> PASS.
+  - `git diff --check` -> PASS, with line-ending warnings only.
+  - root `npm audit --omit=dev --json` -> FAIL: 15 prod vulnerabilities, 7 high, 0 critical.
+  - app `npm audit --omit=dev --json` -> FAIL: 45 prod vulnerabilities, 3 high, 0 critical.
+- 2026-04-29 UTC: Arcium artifact + namespace repair verification:
+  - `wsl bash scripts/wsl-arcium-build.sh` -> PASS and regenerated `check_liquidation_v2` artifacts.
+  - `cargo check -p shadowperp` -> PASS with warnings only.
+  - `npm run oracle:once` -> PASS against program `34ws...` and market `uGd...`.
+    - Latest refresh published `$84.9100`.
+    - Latest transaction: `3FgUXmohPR6f1hA2YMSk76kkM23jnXWipS9Y2ZSX1iw2ebtaWjGmDzfQNiByoJP2Zs5eHR9umXDH3CEi2p7VoPqZ`.
+    - Used guarded single-source fallback because Binance/Coinbase/Kraken DNS lookups failed and only CoinGecko responded.
+  - `npm run check:preflight` -> PASS against program `34ws...` and market `uGd...`.
+    - Default RPC had transient `fetch failed` retries after the refresh.
+    - `SOLANA_RPC_URL=https://api.devnet.solana.com npm run check:preflight` -> PASS.
+  - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
+  - `cd app && npm run lint -- --quiet` -> PASS.
+  - `git diff --check` -> PASS, with line-ending warnings only.
 
 ## Current Blocker
+
+### 0. Live open/close smoke still needed
+
+- The local build/preflight state is stable on `34ws...` + `uGd...`.
+- Do not claim "fully live" until an end-to-end browser or script smoke verifies:
+  - open position
+  - callback finalization
+  - close/settle path
 
 ### 1. Faucet/browser retest still needed
 
@@ -164,14 +234,15 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 1. Browser-retest faucet claim flow.
    - confirm the modal no longer fails on a bad RPC key
    - confirm the response-shape mismatch is gone
-2. Build and deploy the new Arcium diagnostic lane.
-3. Initialize `open_position_tuple_probe_u8_v1` comp-def on devnet.
-4. Run `scripts/diagnose-open-contract.ts`.
-5. Compare results:
+2. Run a devnet-safe open-position smoke on `34ws...` + `uGd...`.
+3. Build and deploy the new Arcium diagnostic lane if the current open-position callback still aborts.
+4. Initialize `open_position_tuple_probe_u8_v1` comp-def on devnet.
+5. Run `scripts/diagnose-open-contract.ts`.
+6. Compare results:
    - if old tuple aborts and `tuple-u8` passes, migrate the live shared tuple away from encrypted `bool`
    - if both abort, keep digging below the tuple-type layer
-6. Replace in-memory signer-route limits with durable rate limits before any production release claim.
-7. Resolve remaining dependency audit blockers via safe upstream-compatible updates.
+7. Replace in-memory signer-route limits with durable rate limits before any production release claim.
+8. Resolve remaining dependency audit blockers via safe upstream-compatible updates.
 
 ## Notes
 

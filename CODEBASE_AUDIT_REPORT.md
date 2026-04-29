@@ -1,12 +1,85 @@
 # ShadowPerp Codebase Audit Report
 
-Last updated: 2026-04-26
+Last updated: 2026-04-29
 
 Scope: repo-wide audit of UI, copy, docs, security posture, dependency health, Arcium MPC execution paths, and code quality. Three agents ran in parallel: security-review, Arcium circuit audit, and code simplify.
 
 ## Executive Summary
 
 ShadowPerp has a coherent devnet trading skeleton but is not release-clean. The most urgent blockers are: (1) the `AbortedComputation (6000)` on `open_position` traced to `encrypted_bool` inside a heterogeneous Arcium tuple — a known Arcium 0.9.3 abort vector with a clear patch; (2) a session-trading withdrawal handler that does not enforce the per-action margin cap, allowing users to drain their session account in a single call; (3) a SOL faucet that reuses the gas-sponsor key and has no durable drip record. All three need fixes before a public devnet. CSP, in-memory rate limits, and rent-harvesting findings are medium severity and can follow.
+
+---
+
+2026-04-29 working-tree addendum: the current dirty tree is not build-clean. The immediate blocker is no longer just protocol behavior; it is now a partial `check_liquidation_v2` Arcium migration plus a program namespace split between the live `ESyr...` deployment and a new `34ws...` program ID. Do not ship this working tree until the artifact set, program ID, generated IDL, and preflight target are made consistent.
+
+---
+
+## Working Tree Audit Addendum (2026-04-29)
+
+Scope: current dirty working tree only. Applied review lenses: Arcium program-development contracts, final codebase audit, and release-safety verification.
+
+### WT-H1. `check_liquidation_v2` migration is not build-clean
+
+- Files:
+  - `encrypted-ixs/src/liquidation_check.rs:20`
+  - `programs/shadowperp/src/handlers/callbacks/liquidation_callback.rs:13`
+  - `programs/shadowperp/src/handlers/init_comp_defs.rs:283`
+  - `programs/shadowperp/src/lib.rs:605`
+- Evidence: the Rust program now references `check_liquidation_v2`, but the `build/` directory only contains `check_liquidation_v2.arcis`. The companion `check_liquidation_v2.idarc` and generated type artifacts are missing.
+- Verification: `cargo check -p shadowperp` fails because Arcium macros cannot read `build/check_liquidation_v2.idarc`. Follow-on generated symbols are also missing: `CheckLiquidationV2Callback`, `CheckLiquidationV2Output`, `__client_accounts_check_liquidation_v2_callback`, and `InitLiquidationCompDef`.
+- Impact: the program cannot compile, so no deploy/init/smoke path is safe from this tree.
+- Recommendation: regenerate the full v2 artifact set with `arcium build`. If the Arcium CLI emits only old-name `check_liquidation` artifacts, update the build helper to produce deterministic v2 aliases and rewrite generated artifact names consistently. Then rerun `cargo check -p shadowperp`.
+
+### WT-H2. Program namespace is split between `ESyr...` and `34ws...`
+
+- Runtime defaults have now been moved to program `34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo` and market `uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy`; older `ESyr...`/`crEV...` references are historical only.
+- Dirty runtime changes point at `34ws...` in:
+  - `Anchor.toml:9`
+  - `programs/shadowperp/src/lib.rs:89`
+  - `app/src/idl/shadowperp.json:2`
+  - `app/src/components/WalletPopup.tsx:14`
+  - `app/src/pages/api/oracle-refresh.ts:26`
+- Impact: scripts, app IDL, program declaration, oracle route, and operational notes can target different deployments. That creates false positives in preflight and can make a local fix look broken on-chain.
+- Recommendation: choose one namespace before committing. If staying on the live devnet program, restore the `ESyr...` targets. If intentionally moving to `34ws...`, update `Arcium.toml`, env examples, scripts, `DEV_NOTES.md`, generated IDL, deployment notes, and rerun deploy/init/preflight against the new namespace.
+
+### WT-H3. Frontend IDL is stale/inconsistent
+
+- File: `app/src/idl/shadowperp.json`
+- Evidence: the IDL address was changed to the `34ws...` program, but instruction names still include old liquidation entries such as `check_liquidation` and `check_liquidation_callback`.
+- Impact: the frontend can point at a different program address while still describing old instruction/account shapes.
+- Recommendation: do not hand-edit the IDL address alone. Regenerate the IDL only after Rust compiles and the final namespace is chosen.
+
+### WT-H4. Liquidation math changed materially and needs fixtures
+
+- File: `encrypted-ixs/src/liquidation_check.rs`
+- Evidence: the circuit now uses bit-shift scaling such as `(size >> 10) * (price_diff >> 10)` and `notional * liquidation_threshold_bps as u64 >> 14`, replacing the previous decimal-scale arithmetic.
+- Impact: liquidation thresholds, PnL, and maintenance margin can drift from the intended contract math. This is especially risky because liquidation logic is safety-critical and runs under Arcium.
+- Recommendation: add deterministic fixtures comparing old and new liquidation outputs across long/short, profitable/loss cases, tiny sizes, large sizes, and threshold edges. Verify the intended scale before deployment; comments mention 6-decimal units while the prior scale constant was larger.
+
+### WT-M1. Build helpers do not guarantee v2 liquidation artifacts
+
+- Files:
+  - `scripts/wsl-arcium-build.sh`
+  - `scripts/run-arcium-build.sh`
+- Evidence: helper aliasing currently covers open/close position artifacts, but not the new `check_liquidation_v2` artifact family.
+- Impact: developers can run the normal build helper and still end up with an uncompilable program tree.
+- Recommendation: make the build helper fail fast unless every referenced Arcium artifact exists, including `.idarc` and generated TypeScript/Rust names for `check_liquidation_v2`.
+
+### WT-M2. Raw circuit account pre-growth path is unverified
+
+- File: `scripts/init-comp-defs.ts`
+- Evidence: the working tree adds a raw circuit account pre-growth helper, but compile and preflight are currently blocked before this path can be validated end-to-end.
+- Impact: the helper may be correct, but it is not yet proven against the current namespace/artifact set.
+- Recommendation: after WT-H1/WT-H2 are resolved, run comp-def initialization on the selected devnet namespace and record whether the raw account path is idempotent.
+
+### Verification snapshot
+
+- `git diff --check` passed, with only line-ending warnings.
+- `cargo check -p shadowperp` failed on missing `check_liquidation_v2.idarc` and missing generated Arcium types.
+- `cd app && .\node_modules\.bin\tsc.cmd --noEmit` passed.
+- `npm run check:preflight` failed while querying the old `ESyr...` account path with `TypeError: fetch failed`, consistent with the namespace split.
+- Root `npm audit --omit=dev --json`: 15 production vulnerabilities, 7 high, 0 critical.
+- App `npm audit --omit=dev --json`: 45 production vulnerabilities, 3 high, 0 critical.
 
 ---
 
