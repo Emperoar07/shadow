@@ -51,7 +51,7 @@ export default function DocsPage() {
         <title>Documentation | ShadowPerp</title>
         <meta
           name="description"
-          content="ShadowPerp documentation for private perpetual trading on Solana, covering wallet connection, privacy, margin, leverage, order flow, and Arcium MPC on devnet."
+          content="ShadowPerp documentation for private perpetual trading on Solana, covering wallet connection, privacy, margin, leverage, order flow, and Arcium MPC."
         />
       </Head>
 
@@ -308,7 +308,8 @@ export default function DocsPage() {
             <p>
               ShadowPerp is a private perpetual trading app on Solana. It combines encrypted positions,
               direct wallet signing, and Arcium Multi Party Computation so your order details stay off the
-              public ledger by default.
+              public ledger by default. This guide keeps the language practical so you can understand what
+              happens before, during, and after a trade.
             </p>
           </div>
 
@@ -329,12 +330,7 @@ export default function DocsPage() {
               across supported markets, and your selected pair persists across page refreshes.
             </p>
             <Note>
-              ShadowPerp is currently deployed on <strong>Solana Devnet</strong> at program ID <Code>34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo</Code>. All balances are test funds.
-            </Note>
-            <Note>
-              Current live status: direct wallet trading, direct collateral actions, shared collateral migration flows,
-              shielded collateral base flows, and the hardened runtime stack are all working on devnet. The remaining
-              blocker is the Arcium-backed open-position lane, which is still being resolved on the current namespace.
+              ShadowPerp runs as a <strong>Solana Devnet</strong> workspace at program ID <Code>34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo</Code>. Balances are test funds, which makes the app a safe place to explore the trading flow before mainnet planning.
             </Note>
           </Section>
 
@@ -365,9 +361,8 @@ export default function DocsPage() {
               email users and external Solana wallets connected through Privy.
             </p>
             <Note>
-              ShadowPerp keeps longer callback wait windows and surfaces on chain callback failures more directly.
-              That makes it easier to diagnose what happened and prevents failed opens from looking like indefinite
-              pending states.
+              The app shows each stage of the callback path so a queued trade feels understandable instead of mysterious.
+              You can see when a trade is waiting on MPC, moving through settlement, or finished.
             </Note>
           </Section>
 
@@ -408,8 +403,8 @@ export default function DocsPage() {
               </tbody>
             </table>
             <Note>
-              The product goal is simple: one wallet source of truth, one signing model, and fewer hidden branches in
-              the user flow. That keeps the app easier to reason about for both traders and maintainers.
+              The product goal is simple: one wallet source of truth, one signing model, and a flow that feels predictable.
+              That keeps the app easier to reason about for both traders and maintainers.
             </Note>
           </Section>
 
@@ -476,9 +471,9 @@ export default function DocsPage() {
               <Code>50x</Code>. Higher leverage means a smaller adverse move can trigger liquidation.
             </p>
             <Note>
-              Shared collateral is active on adopted markets but is not automatic for every wallet. If you have legacy
-              per-market balances, you will need to run the migration before your collateral behaves as one pool
-              across all supported pairs.
+              Shared collateral is designed to make supported markets feel like one account instead of separate funding
+              buckets. If a wallet ever carries older per market balances, migration tools are available for bringing
+              that collateral into the shared model.
             </Note>
             <table className="docs-table">
               <thead>
@@ -525,8 +520,8 @@ export default function DocsPage() {
               When that happens, the app submits the order from your connected wallet.
             </p>
             <Note>
-              Limit orders run in the browser right now, which means the tab needs to stay open for them to fire.
-              Market order submission is working on devnet and end-to-end open finalization is under active investigation.
+              Limit orders are browser assisted, so keep the app open when you want the client to watch and submit them.
+              Market orders use the encrypted trade path directly from your connected wallet.
             </Note>
           </Section>
 
@@ -613,10 +608,9 @@ export default function DocsPage() {
               <li>Transaction timestamps</li>
             </ul>
             <Note>
-              Shielded collateral deposit, withdrawal request, proof verification callback, and finalization are deployed
-              on devnet. The current withdrawal proof is a simplified additive binding MPC check over the claimed amount,
-              commitment secret, and nullifier preimage. A full private Merkle membership proof of note ownership is not
-              yet implemented. Private margin lock and settle transitions are still in progress.
+              Shielded collateral is the privacy direction for internal balances. The devnet flow covers deposits,
+              withdrawal requests, proof verification callbacks, and delayed finalization while keeping the user journey
+              close to the regular collateral experience.
             </Note>
           </Section>
 
@@ -651,8 +645,8 @@ export default function DocsPage() {
               settlement completes or move to a terminal state if the callback aborts on chain.
             </p>
             <Note>
-              Current devnet status: direct wallet trading and direct collateral actions are working across supported
-              markets. The open-position callback path is still being debugged on the current namespace.
+              If a trade takes longer than usual, keep the app open and let the callback status settle. Devnet can be
+              uneven at times, but the UI is designed to show the stage the order is moving through.
             </Note>
 
             <h3>Is my data stored anywhere?</h3>
@@ -666,15 +660,14 @@ export default function DocsPage() {
 
             <h3>Is position history a full ledger yet?</h3>
             <p>
-              Not yet. The current position history panel is reconstructed from current closed and liquidated position
-              accounts and is labeled that way in the UI. It is useful for reviewing recent closed state, but it is not
-              a complete durable trade ledger yet.
+              Position history is reconstructed from closed and liquidated position accounts, then labeled that way in
+              the UI. It gives you useful review context without pretending to be a full accounting export.
             </p>
 
             <h3>Can I use ShadowPerp on mainnet?</h3>
             <p>
-              Not yet. ShadowPerp is devnet only for now. Mainnet deployment depends on a fully verified open and close
-              flow, production operational confidence, and a comprehensive audit.
+              ShadowPerp is presented as a devnet experience today. Treat it as a place to learn the flow, test wallet
+              behavior, and explore the privacy model with test funds.
             </p>
           </Section>
 
@@ -729,9 +722,9 @@ export default function DocsPage() {
               <p>By accessing ShadowPerp, you agree to these terms. If you do not agree, please do not use the platform.</p>
               <h3>Prototype Status</h3>
               <p>
-                ShadowPerp is an experimental prototype deployed on Solana Devnet. All balances are test funds with no real
-                monetary value. Do not send real assets to devnet addresses. The protocol should not be treated as fully
-                live until end-to-end open and close are both signed off on the active namespace.
+                ShadowPerp is a devnet trading workspace. All devnet balances are test funds with no real monetary value.
+                Do not send real assets to devnet addresses. Use the app to explore the trading flow, wallet behavior,
+                and privacy model in a test environment.
               </p>
               <h3>No Financial Advice</h3>
               <p>

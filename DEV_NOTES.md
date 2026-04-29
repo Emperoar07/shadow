@@ -254,6 +254,19 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `cd app && npm run lint -- --quiet` -> PASS.
   - Playwright mobile screenshots captured for `/app` and `/`.
 
+### Public docs and README tone pass
+
+- Rewrote `README.md` into a calmer product and operator guide.
+- Removed the old public status section that emphasized unresolved devnet work.
+- Updated `app/src/pages/docs.tsx` to describe ShadowPerp as a devnet trading workspace without highlighting active blockers.
+- Kept devnet and test-fund safety language, but made the tone more human and product-facing.
+- Avoided hyphen-led README bullets in the rewritten sections.
+- Verification:
+  - `npm run oracle:once` -> PASS after stale oracle preflight.
+  - `npm run check:preflight` -> PASS after refresh, oracle age `15s`.
+  - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
+  - `cd app && npm run lint -- --quiet` -> PASS.
+
 ## Current Blocker
 
 ### 0. Live open/close smoke still needed

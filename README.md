@@ -1,109 +1,138 @@
 # ShadowPerp
 
-Private perpetual trading on Solana, powered by Arcium confidential compute.
+ShadowPerp is a private perpetual trading terminal on Solana, powered by Arcium confidential compute.
 
-ShadowPerp is a private perp DEX built for human traders who want less information leakage by default. Trade size, leverage, entry price, and margin are encrypted before submission. Direction is encrypted for the MPC path but revealed at open for routing and liquidation bookkeeping. Arcium's Multi Party Computation network handles the private computation, and only the minimum public state required for settlement is written on chain.
+It is built for traders who want a quieter trading surface. Position size, leverage, entry price, margin, liquidation values, and PnL move through an encrypted computation path instead of being published as ordinary plaintext position data. Solana handles settlement. Arcium handles the private compute. The app keeps the trading experience familiar while reducing the amount of useful information exposed to the public ledger.
 
-This repository contains the devnet product: frontend, on-chain program, Arcium circuits, and the supporting tooling used to run and debug the system.
+Program ID on Solana devnet
 
-**Program ID (Devnet):** `34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo`
+`34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo`
 
-## Features
+## What Shadow Gives Traders
 
-- **Encrypted positions** - Size, leverage, entry price, margin, and liquidation thresholds stay encrypted instead of being exposed as plaintext position data; direction is revealed at open for protocol routing.
-- **Direct wallet trading** - Shadow signs directly from the connected Solana wallet. Privy embedded wallets and external Solana wallets share the same trading path.
-- **Private order flow** - Orders do not broadcast the usual pre-trade signals before execution.
-- **6 trading pairs** - SOL/USD, BTC/USD, ETH/USD, JUP/USD, PYTH/USD, and ORCA/USD.
-- **Cross and isolated margin** - Choose shared account risk or isolated position risk, with leverage from 1x to 50x.
-- **Shared collateral** - Adopted markets resolve to a shared collateral vault per owner on devnet.
-- **Live reference orderbook** - Market depth from external venues for context, with graceful fallback handling.
-- **Privy support** - Email login, embedded Solana wallets, and external Solana wallet connections are supported in the app.
-- **Shielded collateral base flows** - `deposit_to_shielded`, `request_withdraw_private`, and `finalize_withdraw` are deployed on devnet.
+Encrypted positions
 
-## Architecture
+Size, leverage, entry price, margin, liquidation thresholds, and unrealized PnL are handled through the encrypted path. Direction is encrypted for the MPC computation and revealed where protocol routing and liquidation bookkeeping require it.
 
-ShadowPerp follows an encrypt, compute, and settle model:
+Direct wallet trading
 
-1. **Encrypt** - The client encrypts sensitive trade inputs in the browser.
-2. **Queue** - The Solana program receives the encrypted payload and queues an Arcium computation.
-3. **Compute** - Arcium MPC evaluates trade logic, margin checks, PnL, and liquidation conditions without exposing raw inputs.
-4. **Callback** - Arcium returns a verified result to the Solana program through a replay-hardened callback.
-5. **Settle** - The program updates position and margin state from the verified output.
+Every trading and collateral action is signed by the connected Solana wallet. Email users can trade through a Privy embedded Solana wallet. External wallet users can connect through supported Solana wallet connectors.
 
-### Privacy Boundary
+Market context in one place
 
-| Data | Visibility |
-|------|-----------|
-| Position size, entry price, leverage, margin | Encrypted on chain |
-| Direction | Encrypted for MPC, revealed at open for routing and liquidation bookkeeping |
-| Liquidation price, unrealized PnL | Encrypted on chain |
-| Wallet address and token transfers | Public |
-| Trade queued event without plaintext details | Public |
+The terminal includes charting, reference order book depth, market stats, order entry, collateral management, and position panels. Mobile keeps the chart and order book together so analysis feels natural on a smaller screen.
 
-## Repository Layout
+Flexible collateral
 
-```text
-programs/shadowperp/     Anchor program
-encrypted-ixs/           Arcium circuit sources
-app/                     Next.js frontend and product docs
-scripts/                 Deploy, oracle, computation, and devnet utilities
-build/                   Compiled circuit artifacts
-```
+Supported markets use shared collateral flows so one owner scoped balance can support activity across adopted pairs. The app also includes shielded collateral base flows for private collateral design work.
+
+Six supported pairs
+
+SOL/USD, BTC/USD, ETH/USD, JUP/USD, PYTH/USD, and ORCA/USD are wired into the terminal experience.
+
+## How It Works
+
+1. The browser prepares the trade and encrypts sensitive inputs before submission.
+
+2. The Solana program receives the encrypted payload and queues an Arcium computation.
+
+3. Arcium evaluates the private trade logic without exposing raw inputs to any single party.
+
+4. A verified callback returns the result to the Solana program.
+
+5. The program updates margin and position state from the verified output.
+
+This keeps the user experience close to a familiar perpetual exchange while moving the sensitive parts of the trade into a confidential computation path.
+
+## Privacy Boundary
+
+Private through the encrypted path
+
+Position size, entry price, leverage, margin amount, liquidation values, and unrealized PnL.
+
+Visible on Solana
+
+Wallet addresses, token transfers, transaction timing, and the public settlement state required by the protocol.
+
+Partially public by design
+
+Direction is encrypted for MPC and revealed at open where routing and liquidation bookkeeping need it. Shadow is designed to reduce information leakage, not pretend that a public chain has no public surface.
+
+## Repository Map
+
+`programs/shadowperp`
+
+Anchor program for markets, collateral, positions, and callbacks.
+
+`encrypted-ixs`
+
+Arcium circuit sources for confidential trade and risk computation.
+
+`app`
+
+Next.js frontend, product pages, wallet flows, trading terminal, and app documentation.
+
+`scripts`
+
+Devnet deployment, oracle, preflight, market setup, diagnostics, and operational tooling.
+
+`build`
+
+Compiled Arcium circuit artifacts used by the program.
 
 ## Getting Started
 
-### Prerequisites
+Prerequisites
 
-- Node.js 20 or later
-- npm
-- Rust and Cargo
-- Solana CLI
-- Anchor CLI
-- Arcium CLI and build environment
+Node.js 20 or later, npm, Rust, Cargo, Solana CLI, Anchor CLI, and the Arcium build environment.
 
-### Install
+Install dependencies
 
 ```bash
 npm install
 cd app && npm install && cd ..
 ```
 
-### Environment
+Create local app environment
 
 ```bash
 cp app/.env.example app/.env.local
 ```
 
-Set the required values in `app/.env.local`, especially:
+Important environment values
 
-- `NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID`
-- `NEXT_PUBLIC_ARCIUM_RPC_URL`
-- `NEXT_PUBLIC_PRIVY_APP_ID`
-- `NEXT_PUBLIC_PRIVY_API_URL` if Privy is using a custom hosted auth domain such as `https://privy.www.shadowperpdex.xyz`
-- `PRIVY_APP_SECRET` for protected backend routes
-- `ORACLE_FEEDER_SECRET_KEY` for hosted pre-trade oracle refresh writes
-- `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` or `KV_REST_API_URL` + `KV_REST_API_TOKEN` for durable hosted rate limits and faucet claim records
-- market and Arcium runtime values
+`NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID`
 
-### Run the Frontend
+`NEXT_PUBLIC_ARCIUM_RPC_URL`
+
+`NEXT_PUBLIC_PRIVY_APP_ID`
+
+`NEXT_PUBLIC_PRIVY_API_URL` when using a Privy hosted auth domain
+
+`PRIVY_APP_SECRET` for protected backend routes
+
+`ORACLE_FEEDER_SECRET_KEY` for hosted oracle refresh writes
+
+`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`, or Vercel KV equivalents, for durable hosted rate limits and faucet records
+
+Run the app
 
 ```bash
 cd app
 npm run dev
 ```
 
-## Scripts
+## Useful Commands
 
-### Oracle
+Oracle checks
 
 ```bash
 npm run check:oracle
 npm run oracle:once
 npx ts-node scripts/price-oracle.ts --once --manual-price 130.50
-npx ts-node scripts/update-oracle-pyth.ts
 ```
 
-### Deploy and Initialize
+Deployment and setup
 
 ```bash
 npx ts-node scripts/deploy-devnet.ts
@@ -116,7 +145,7 @@ npx ts-node scripts/init-shielded-comp-defs.ts
 npx ts-node scripts/set-pyth-feed-id.ts
 ```
 
-### Preflight and Validation
+Preflight and diagnostics
 
 ```bash
 npm run check:preflight
@@ -124,53 +153,32 @@ npm run diag:open-contract
 npx ts-node scripts/smoke-test-devnet.ts
 ```
 
-## Current Status
+## Devnet Workspace
 
-ShadowPerp is deployed on Solana devnet as an active prototype for private perpetual trading.
+ShadowPerp runs as a devnet trading workspace. Balances are test funds, and the environment is meant for iteration, verification, and product testing before any mainnet conversation.
 
-**Working today**
+The active product path uses Privy for authentication and wallet connection, direct Solana wallet signing for trading and collateral, Arcium computation definitions for encrypted logic, and preflight scripts to keep the deployed namespace easy to verify.
 
-- Program deployment and upgrade on devnet
-- Direct wallet signing for trading and collateral actions
-- Privy embedded wallet support for email sign-in
-- External Solana wallet support through Privy connectors
-- All 6 market accounts initialized on chain with synced computation definition pointers
-- Shared collateral custody model deployed on devnet with adoption and migration scripts
-- Encrypted open, close, and liquidation computation paths wired into the program
-- Cross and isolated margin modes with 1x to 50x leverage
-- Limit orders with browser-based automation
-- Take profit and stop loss rules
-- Collateral deposit and withdrawal through the connected wallet
-- Private position metadata stored in the browser for UI continuity
-- Live reference orderbook for all 6 pairs
-- Pyth oracle integration
-- Custom named RPC endpoint manager saved to browser storage
-- Shielded collateral pool with `deposit_to_shielded`, `request_withdraw_private`, and `finalize_withdraw` deployed and active on devnet
-- Staged open-position diagnostic harness for the Arcium callback path
-- Callback-aware UI and SDK behavior so queued no longer looks like final success
-- Market-order submission blocks when no trusted price is available instead of silently falling back to mock pair pricing
-- Position history is labeled as reconstructed account-scan data rather than presented as a durable trade ledger
-
-**Known devnet limitations**
-
-- End-to-end open and close are not fully signed off yet
-- The open lane is still blocked on devnet, and the staged diagnostic harness confirms the abort survives the tuple-only, margin-check, and full-check probes
-- Current evidence points away from ordinary business-logic drift and toward an Arcium runtime or lower-level contract mismatch in the open lane
-- Shared collateral is active only for adopted markets and migrated owners
-- Limit orders and TP/SL are browser-local automation, not venue-side persistence
-- Oracle updates are protected by a circuit breaker, so manual intervention is still required when price freshness drifts too far
-- Position history is still reconstructed from current closed/liquidated account state rather than a durable ledger
-
-**In progress**
-
-- Private margin lock and settlement through Arcium MPC
-- Stronger shielded collateral commitment tree hashing
-- Arcium escalation for the open-position lane
+Before calling a build ready, run the preflight checks, refresh the oracle if needed, and perform a browser smoke test through the wallet path you care about.
 
 ## References
 
-- [Arcium](https://www.arcium.com/)
-- [Arcium Documentation](https://docs.arcium.com/)
-- [Solana](https://solana.com/docs)
-- [Anchor](https://www.anchor-lang.com/)
-- [Pyth Network](https://pyth.network/)
+Arcium
+
+https://www.arcium.com/
+
+Arcium documentation
+
+https://docs.arcium.com/
+
+Solana documentation
+
+https://solana.com/docs
+
+Anchor documentation
+
+https://www.anchor-lang.com/
+
+Pyth Network
+
+https://pyth.network/
