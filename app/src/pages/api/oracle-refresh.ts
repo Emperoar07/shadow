@@ -8,7 +8,7 @@ import * as path from "path";
 import shadowperpIdl from "../../idl/shadowperp.json";
 import { getOrderedReferenceProviders, type ReferenceProviderConfig } from "../../lib/market-feeds";
 import { TRADING_PAIRS } from "../../lib/tokens";
-import { checkRateLimit } from "../../lib/server/rate-limit";
+import { checkRateLimitAsync } from "../../lib/server/rate-limit";
 import { getRequestIp, requirePrivyUser } from "../../lib/server/privy-auth";
 
 type OracleRefreshResponse =
@@ -28,12 +28,10 @@ const DEFAULT_MARKET = "uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy";
 const DEFAULT_COLLATERAL_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 const DEFAULT_MAX_AGE_SECONDS = 240;
 const DEFAULT_MIN_SOURCES = 2;
-const REFRESH_THROTTLE_MS = 8_000;
 const USER_RATE_LIMIT = 12;
 const IP_RATE_LIMIT = 30;
 const RATE_WINDOW_MS = 60_000;
 
-let lastRefreshAt = 0;
 let inFlightRefresh: Promise<OracleRefreshResponse> | null = null;
 
 function isOracleAdmin(userId: string): boolean {
@@ -395,32 +393,18 @@ export default async function handler(
   }
 
   if (
-    !checkRateLimit(`oracle-refresh:user:${userId}`, USER_RATE_LIMIT, RATE_WINDOW_MS) ||
-    !checkRateLimit(`oracle-refresh:ip:${getRequestIp(req)}`, IP_RATE_LIMIT, RATE_WINDOW_MS)
+    !(await checkRateLimitAsync(`oracle-refresh:user:${userId}`, USER_RATE_LIMIT, RATE_WINDOW_MS)) ||
+    !(await checkRateLimitAsync(`oracle-refresh:ip:${getRequestIp(req)}`, IP_RATE_LIMIT, RATE_WINDOW_MS))
   ) {
     return res.status(429).json({ success: false, error: "Rate limit exceeded." });
   }
 
-  const now = Date.now();
   if (inFlightRefresh) {
     const result = await inFlightRefresh;
     return res.status(result.success ? 200 : 500).json(result);
   }
-  if (now - lastRefreshAt < REFRESH_THROTTLE_MS) {
-    return res.status(200).json({
-      success: true,
-      refreshed: false,
-      price: 0,
-      ageSeconds: 0,
-      providers: [],
-    });
-  }
 
   inFlightRefresh = refreshOracle(req, userId)
-    .then((result) => {
-      if (result.success && result.refreshed) lastRefreshAt = Date.now();
-      return result;
-    })
     .catch((error) => ({
       success: false as const,
       error: error instanceof Error ? error.message : String(error),

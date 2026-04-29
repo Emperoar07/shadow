@@ -191,6 +191,43 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
   - `cd app && npm run lint -- --quiet` -> PASS.
   - `git diff --check` -> PASS, with line-ending warnings only.
+- 2026-04-29 UTC: deep audit verification after latest push:
+  - `git status --short --branch` -> clean on `master...origin/master`.
+  - Active runtime/config was checked against program `34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo` and market `uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy`.
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com npm run check:preflight` -> PASS.
+    - Program, market, comp-def pointers, owners, and finalized Arcium defs all passed.
+    - Oracle was still fresh but close to the limit: about `280s / 300s`.
+  - `npm run check:oracle` -> PASS, also near the freshness limit at about `279s / 300s`.
+  - `cargo check -p shadowperp` -> PASS with warnings only.
+  - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS.
+  - `cd app && npm run lint -- --quiet` -> PASS.
+  - `npm run check:release-hygiene -- --strict` -> PASS.
+  - `git diff --check` -> PASS.
+  - `cd app && npm run build` -> timed out locally after about 240s; no compile/type error appeared before timeout.
+  - Root `npm audit --omit=dev --json` -> FAIL: 15 prod vulnerabilities, 7 high, 0 critical.
+  - App `npm audit --omit=dev --json` -> FAIL: 45 prod vulnerabilities, 3 high, 0 critical.
+- 2026-04-29 UTC: audit fix implementation pass:
+  - Removed the fake successful oracle-refresh throttle response so `/api/oracle-refresh` no longer returns `success: true` with `price: 0` / `ageSeconds: 0`.
+  - Faucet modal availability now gates only on the connected wallet mUSDC balance, not wallet + margin balance.
+  - Public mutation/signer routes now call async rate limiting with optional durable Redis/KV REST support:
+    - `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`
+    - or `KV_REST_API_URL` + `KV_REST_API_TOKEN`
+  - mUSDC faucet cooldowns and SOL drip claim records also use the same durable store when configured, with local memory fallback for dev.
+  - CSP was tightened safely by narrowing Shadow frame sources to known Privy custom domains and adding `base-uri 'self'`, `object-src 'none'`, and `form-action 'self'`.
+  - Corrected stale Arcium open-position comments from encrypted `bool` direction to encrypted `u8`.
+  - Removed the unused Rust `market` binding from `deposit_collateral`.
+  - App dependency hardening: pinned `postcss` to `8.5.10` and reverted bad `lodash` / `lodash-es` override pins to stable releases.
+  - Verification:
+    - forced public-RPC oracle refresh -> PASS, latest tx `wzNq9NtoQ2a5LiSLavpMV7oy7eUdui8xN1SnAzrYEp9UZ7iUmxVsTNG2UT11LSDB3QxjNFmoAE4ryEQ4t2PzdHi`
+    - `SOLANA_RPC_URL=https://api.devnet.solana.com npm run check:preflight` -> PASS, oracle age `8s`
+    - `npm run check:oracle` -> PASS, oracle age `26s`
+    - `cargo check -p shadowperp` -> PASS with warnings only
+    - `cd app && .\node_modules\.bin\tsc.cmd --noEmit` -> PASS
+    - `cd app && npm run lint -- --quiet` -> PASS
+    - `cd app && npm run build` -> PASS
+    - `git diff --check` -> PASS, line-ending warnings only
+  - `npm run check:release-hygiene -- --strict` currently fails only because the audit-fix working tree is intentionally dirty.
+  - App prod audit improved from 45 to 43 vulnerabilities after safe dependency pins; remaining dependency findings require upstream Solana/Privy SDK migrations, not blind `npm audit fix`.
 
 ## Current Blocker
 
@@ -228,6 +265,9 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Remaining production hardening: move signer-route rate limits/cooldowns to a durable store if these routes remain public.
 - Resolve targeted dependency audit issues; do not run blind `npm audit fix`.
 - Correct product copy/docs around privacy boundaries and social-login availability when new copy lands.
+- Oracle refresh throttling can currently return a successful response without re-checking that the oracle is still fresh; frontend open-position code treats that as safe to proceed.
+- Collateral modal faucet availability still includes margin balance in one UI gate, even though the intended faucet rule is wallet-balance based.
+- CSP still permits broad inline/eval compatibility allowances for TradingView/Privy; keep this as an explicit production hardening item.
 
 ## Next Safe Step
 
@@ -247,4 +287,4 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 ## Notes
 
 - Do not claim the live open-position bug is fixed yet.
-- Do not rotate away from the live `ESyr...` namespace unless intentionally starting a fresh namespace.
+- Current verified namespace is `34ws...` + `uGd...`; do not reintroduce stale `ESyr...` runtime defaults unless intentionally rolling back.

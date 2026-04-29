@@ -211,13 +211,13 @@ pub fn handler(
     position.encrypted_data = encrypted_data;
 
     // Build encrypted arguments for the MPC computation using ArgBuilder.
-    // Circuit: open_position(inputs: Enc<Shared,(u64,u64,u8,bool,u64)>, ...)
+    // Circuit: open_position_probe_b(inputs: Enc<Shared,(u64,u64,u8,u8,u64)>, ...)
     // All five user-encrypted values share one pubkey+nonce (batched Enc<Shared, tuple>).
     // This reduces the argument count from 23 → 15, keeping within Arcium's
     // computation account space budget.
     //
     // Param layout (9 total):
-    //   inputs: Enc<Shared, (u64,u64,u8,bool,u64)>
+    //   inputs: Enc<Shared, (u64,u64,u8,u8,u64)>
     //     1. x25519_pubkey (shared for all 5 values)
     //     2. plaintext_u128 (shared nonce)
     //     3. encrypted_u64  (size ciphertext)
@@ -228,7 +228,7 @@ pub fn handler(
     //   requested_margin: u64     8.
     //   max_leverage: u8          9.
     let args = ArgBuilder::new()
-        // inputs: Enc<Shared, (u64, u64, u8, bool, u64)>
+        // inputs: Enc<Shared, (u64, u64, u8, u8, u64)>
         .x25519_pubkey(client_pubkey)
         .plaintext_u128(nonce)
         .encrypted_u64(encrypted_size)

@@ -80,6 +80,9 @@ Set the required values in `app/.env.local`, especially:
 - `NEXT_PUBLIC_ARCIUM_RPC_URL`
 - `NEXT_PUBLIC_PRIVY_APP_ID`
 - `NEXT_PUBLIC_PRIVY_API_URL` if Privy is using a custom hosted auth domain such as `https://privy.www.shadowperpdex.xyz`
+- `PRIVY_APP_SECRET` for protected backend routes
+- `ORACLE_FEEDER_SECRET_KEY` for hosted pre-trade oracle refresh writes
+- `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` or `KV_REST_API_URL` + `KV_REST_API_TOKEN` for durable hosted rate limits and faucet claim records
 - market and Arcium runtime values
 
 ### Run the Frontend

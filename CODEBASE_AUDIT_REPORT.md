@@ -6,7 +6,7 @@ Scope: repo-wide audit of UI, copy, docs, security posture, dependency health, A
 
 ## Executive Summary
 
-ShadowPerp has a coherent devnet trading skeleton but is not release-clean. The most urgent blockers are: (1) the `AbortedComputation (6000)` on `open_position` traced to `encrypted_bool` inside a heterogeneous Arcium tuple — a known Arcium 0.9.3 abort vector with a clear patch; (2) a session-trading withdrawal handler that does not enforce the per-action margin cap, allowing users to drain their session account in a single call; (3) a SOL faucet that reuses the gas-sponsor key and has no durable drip record. All three need fixes before a public devnet. CSP, in-memory rate limits, and rent-harvesting findings are medium severity and can follow.
+ShadowPerp has a coherent devnet trading skeleton but is not release-clean. The most urgent blockers are: (1) the `AbortedComputation (6000)` on `open_position` traced to `encrypted_bool` inside a heterogeneous Arcium tuple — a known Arcium 0.9.3 abort vector with a clear patch; (2) a session-trading withdrawal handler that does not enforce the per-action margin cap, allowing users to drain their session account in a single call; (3) faucet and public signer controls need hosted KV/Upstash envs enabled for durable production enforcement. CSP, dependency-chain upgrades, and rent-harvesting findings are medium severity and can follow.
 
 ---
 
@@ -106,17 +106,17 @@ Scope: current dirty working tree only. Applied review lenses: Arcium program-de
 - Impact: High-activity wallets can receive unlimited SOL drips.
 - Recommendation: Store drip records in a server-side KV store (Redis, Vercel KV, or a Solana PDA per wallet) instead of scanning tx history.
 
-### H4. Oracle refresh endpoint — rate limit is in-memory (carry-over from prior audit)
+### H4. Oracle refresh endpoint — rate limit durability (carry-over from prior audit)
 
 - File: `app/src/pages/api/oracle-refresh.ts`
-- Status: Partially remediated. The route requires Privy bearer token auth and rejects unsupported inputs.
-- Remaining risk: In-memory rate limiting resets on cold start. For production, move to a durable store or make oracle writes daemon-only.
+- Status: Remediated in code. The route requires Privy bearer token auth, rejects unsupported inputs, and uses `checkRateLimitAsync`, which is durable when `UPSTASH_REDIS_REST_*` or `KV_REST_API_*` is configured.
+- Remaining operational risk: Hosted production must configure the durable store envs, otherwise local/dev falls back to memory.
 
-### H5. mUSDC faucet cooldown is in-memory (carry-over)
+### H5. mUSDC faucet cooldown durability (carry-over)
 
 - File: `app/src/pages/api/faucet-mock-usdc.ts`
-- Status: Partially remediated. Requires Privy auth, wallet ownership check, IP + user rate limits, and no local-keypair fallback in production.
-- Remaining risk: Cooldown resets on cold start. Persist by user + wallet + IP.
+- Status: Remediated in code. Requires Privy auth, wallet ownership check, durable-capable IP + user rate limits, no local-keypair fallback in production, and wallet cooldown persistence through the same optional KV/Upstash backend.
+- Remaining operational risk: Hosted production must configure the durable store envs, otherwise local/dev falls back to memory.
 
 ### H6. Open position blocked by Arcium AbortedComputation (6000) — root cause confirmed (carry-over + new detail)
 
@@ -270,7 +270,7 @@ Scope: current dirty working tree only. Applied review lenses: Arcium program-de
 
 ### Before public devnet
 4. **H2** — Provision dedicated `FAUCET_SOL_SECRET_KEY`; stop reusing gas-sponsor key.
-5. **H3** — Replace tx-history scan with a durable KV drip record.
+5. **H3** — Configure hosted KV/Upstash so the SOL faucet durable drip record is active in production.
 6. **M1** — Change `close = payer` to `close = position.owner` in `settle_close_position`.
 7. **M2** — Use checked/saturating arithmetic in `settle_private_position` PnL math.
 8. **M3** — Gate oracle `force: true` behind admin allowlist.
@@ -280,7 +280,7 @@ Scope: current dirty working tree only. Applied review lenses: Arcium program-de
 12. **L7** — Add `require!(market.max_leverage > 0)` in `open_position` handler.
 
 ### Before mainnet / production hardening
-13. **H4/H5/M6** — Replace all in-memory rate limits and cooldowns with durable KV store (Redis, Vercel KV, or Solana PDA).
+13. **H4/H5/M6** — Ensure hosted production has Redis/Vercel KV envs set so durable rate limits and cooldowns are active.
 14. **H7** — Resolve dependency audit blockers with targeted upstream-compatible updates.
 15. **M5** — Split dev/prod CSP; narrow `connect-src` to exact allowed domains.
 16. **L2** — Fix gas sponsor body size check to operate on decoded bytes.

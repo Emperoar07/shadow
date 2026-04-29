@@ -47,8 +47,6 @@ pub fn handler(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
     require!(amount > 0, ShadowPerpError::ZeroAmount);
 
     let margin_account = &mut ctx.accounts.margin_account;
-    let market = &ctx.accounts.market;
-
     // Initialize margin account if new — belt-and-suspenders guard alongside the
     // init_if_needed constraint, ensuring no caller can overwrite an existing account.
     if margin_account.owner == Pubkey::default() {

@@ -22,7 +22,7 @@ import {
   Transaction,
 } from "@solana/web3.js";
 
-import { checkRateLimit } from "../../lib/server/rate-limit";
+import { checkRateLimitAsync, readDurableValue, writeDurableValue } from "../../lib/server/rate-limit";
 import { getRequestIp, requirePrivySolanaWallet } from "../../lib/server/privy-auth";
 
 const DRIP_LAMPORTS = Math.floor(0.2 * LAMPORTS_PER_SOL);
@@ -88,8 +88,7 @@ function getSolFaucetKeypair(): Keypair {
   return Keypair.fromSecretKey(new Uint8Array(JSON.parse(secret) as number[]));
 }
 
-// In-memory set of wallets that have already claimed their one-time SOL drip.
-// Resets on cold start (acceptable for devnet — mirrors the rate-limit pattern in this codebase).
+// Local fallback for one-time SOL drip tracking. Durable KV is used when configured.
 const claimedWallets = new Set<string>();
 
 type FaucetResponse =
@@ -127,8 +126,8 @@ export default async function handler(
   }
 
   if (
-    !checkRateLimit(`faucet-sol:user:${userId}`, USER_RATE_LIMIT, RATE_WINDOW_MS) ||
-    !checkRateLimit(`faucet-sol:ip:${getRequestIp(req)}`, IP_RATE_LIMIT, RATE_WINDOW_MS)
+    !(await checkRateLimitAsync(`faucet-sol:user:${userId}`, USER_RATE_LIMIT, RATE_WINDOW_MS)) ||
+    !(await checkRateLimitAsync(`faucet-sol:ip:${getRequestIp(req)}`, IP_RATE_LIMIT, RATE_WINDOW_MS))
   ) {
     return res.status(429).json({ success: false, error: "Too many faucet attempts. Try again later." });
   }
@@ -153,9 +152,10 @@ export default async function handler(
       });
     }
 
-    // In-memory one-time claim guard. Resets on cold start (acceptable for devnet).
     const recipientKey = recipient.toBase58();
-    if (claimedWallets.has(recipientKey)) {
+    const claimKey = `faucet:sol:${recipientKey}`;
+    const durableClaim = await readDurableValue(claimKey);
+    if (durableClaim || claimedWallets.has(recipientKey)) {
       return res.status(400).json({
         success: false,
         error: "This wallet has already claimed its one-time SOL drip. Use https://faucet.solana.com/ for more.",
@@ -180,6 +180,11 @@ export default async function handler(
     });
     await connection.confirmTransaction(signature, "confirmed");
     claimedWallets.add(recipientKey);
+    try {
+      await writeDurableValue(claimKey, String(Date.now()));
+    } catch (error) {
+      console.error("[faucet-sol] durable claim write failed", error);
+    }
 
     return res.status(200).json({
       success: true,

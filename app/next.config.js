@@ -7,8 +7,9 @@ const privyFrameSources = [
   "https://s.tradingview.com",
   "https://auth.privy.io",
   "https://*.privy.io",
-  // Privy constructs its iframe at privy.<your-domain> — allow all subdomains
-  "https://*.shadowperpdex.xyz",
+  // Privy custom wallet proxy domains used by hosted Shadow deployments.
+  "https://privy.shadowperpdex.xyz",
+  "https://privy.www.shadowperpdex.xyz",
 ];
 
 if (privyApiOrigin) {
@@ -38,6 +39,8 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
+              "base-uri 'self'",
+              "object-src 'none'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://s.tradingview.com https://s3.tradingview.com https://*.privy.io",
               "style-src 'self' 'unsafe-inline' https://s.tradingview.com https://s3.tradingview.com",
               "img-src 'self' data: blob: https:",
@@ -46,6 +49,7 @@ const nextConfig = {
               "worker-src 'self' blob:",
               `frame-src ${privyFrameSources.join(" ")}`,
               "frame-ancestors 'self'",
+              "form-action 'self'",
             ].join("; "),
           },
           // Disable access to sensitive browser features

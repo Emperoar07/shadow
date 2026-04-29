@@ -29,7 +29,7 @@ import * as path from "path";
 import * as os from "os";
 
 import { FAUCET_FIRST_CLAIM_USDC, FAUCET_CAP_USDC, FAUCET_TRIGGER_USDC, MUSDC_DECIMALS } from "../../lib/faucet-constants";
-import { checkRateLimit } from "../../lib/server/rate-limit";
+import { checkRateLimitAsync, readDurableValue, writeDurableValue } from "../../lib/server/rate-limit";
 import { getRequestIp, requirePrivySolanaWallet } from "../../lib/server/privy-auth";
 
 const CAP_USDC     = FAUCET_CAP_USDC;
@@ -187,8 +187,8 @@ export default async function handler(
   }
 
   if (
-    !checkRateLimit(`faucet:user:${userId}`, USER_RATE_LIMIT, RATE_WINDOW_MS) ||
-    !checkRateLimit(`faucet:ip:${getRequestIp(req)}`, IP_RATE_LIMIT, RATE_WINDOW_MS)
+    !(await checkRateLimitAsync(`faucet:user:${userId}`, USER_RATE_LIMIT, RATE_WINDOW_MS)) ||
+    !(await checkRateLimitAsync(`faucet:ip:${getRequestIp(req)}`, IP_RATE_LIMIT, RATE_WINDOW_MS))
   ) {
     return res.status(429).json({
       success: false,
@@ -196,9 +196,12 @@ export default async function handler(
     });
   }
 
-  // Cooldown check (in-memory, best-effort)
+  // Cooldown check. Durable store is used when configured; memory is local fallback.
   const now = Date.now();
-  const lastClaim = cooldowns.get(wallet);
+  const cooldownKey = `faucet:mockusdc:${wallet}`;
+  const durableLastClaimRaw = await readDurableValue(cooldownKey);
+  const durableLastClaim = durableLastClaimRaw ? Number(durableLastClaimRaw) : Number.NaN;
+  const lastClaim = Number.isFinite(durableLastClaim) ? durableLastClaim : cooldowns.get(wallet);
   if (lastClaim !== undefined) {
     const elapsed = now - lastClaim;
     if (elapsed < COOLDOWN_MS) {
@@ -278,6 +281,11 @@ export default async function handler(
     await connection.confirmTransaction(signature, "confirmed");
 
     cooldowns.set(wallet, now);
+    try {
+      await writeDurableValue(cooldownKey, String(now), COOLDOWN_MS);
+    } catch (error) {
+      console.error("[faucet-mock-usdc] durable cooldown write failed", error);
+    }
 
     return res.status(200).json({ success: true, signature, amount: sendUsdc });
   } catch (err: any) {
