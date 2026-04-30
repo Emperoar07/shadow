@@ -439,7 +439,7 @@ pub struct VerifyWithdrawalProofRequest<'info> {
     // --- Arcium accounts (populated by queue_computation_accounts macro) ---
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
-    #[account()]
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_VERIFY_WITHDRAWAL_PROOF_QUEUE))]
     pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
     #[account(
         mut,
@@ -759,6 +759,8 @@ pub fn init_shielded_margin_ref_handler(ctx: Context<InitShieldedMarginRef>) -> 
 // lock_margin_private
 // ---------------------------------------------------------------------------
 
+const COMP_DEF_OFFSET_LOCK_MARGIN_PRIVATE_QUEUE: u32 = comp_def_offset("lock_margin_private");
+
 #[queue_computation_accounts("lock_margin_private", owner)]
 #[derive(Accounts)]
 #[instruction(
@@ -807,8 +809,7 @@ pub struct LockMarginPrivate<'info> {
     // --- Arcium accounts (populated by queue_computation_accounts macro) ---
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
-    // Comp def validated by Arcium CPI
-    #[account()]
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_LOCK_MARGIN_PRIVATE_QUEUE))]
     pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
     #[account(
         mut,
@@ -938,6 +939,9 @@ pub fn lock_margin_private_handler(
 // settle_private_position
 // ---------------------------------------------------------------------------
 
+const COMP_DEF_OFFSET_SETTLE_PRIVATE_POSITION_QUEUE: u32 =
+    comp_def_offset("settle_private_position");
+
 #[queue_computation_accounts("settle_private_position", owner)]
 #[derive(Accounts)]
 #[instruction(
@@ -989,8 +993,7 @@ pub struct SettlePrivatePosition<'info> {
     // --- Arcium accounts ---
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
-    // Comp def validated by Arcium CPI
-    #[account()]
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_SETTLE_PRIVATE_POSITION_QUEUE))]
     pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
     #[account(
         mut,

@@ -95,6 +95,13 @@ pub fn settle_private_position_callback_handler(
     let tree = &mut ctx.accounts.commitment_tree;
     let margin_ref = &mut ctx.accounts.shielded_margin_ref;
 
+    // Bind callback to the exact computation queued for this margin ref so a
+    // back-to-back queue cannot finalise state for the wrong computation.
+    require!(
+        margin_ref.pending_computation_account == ctx.accounts.computation_account.key(),
+        ShadowPerpError::InvalidAccountData
+    );
+
     // Extract circuit outputs: (realized_pnl, settlement_amount, fee, new_balance)
     let _realized_pnl = verified_output.field_0.field_0;
     let settlement_amount = verified_output.field_0.field_1;

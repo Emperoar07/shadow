@@ -13,6 +13,8 @@ use crate::ID;
 use crate::ID_CONST;
 use crate::handlers::callbacks::execute_private_order_callback::ExecutePrivateOrderCallback;
 
+const COMP_DEF_OFFSET_EXECUTE_PRIVATE_ORDER: u32 = comp_def_offset("execute_private_order");
+
 #[derive(Accounts)]
 pub struct InitPrivateOrderBook<'info> {
     #[account(mut)]
@@ -158,7 +160,7 @@ pub struct ExecutePrivateOrder<'info> {
     // --- Arcium accounts (populated by queue_computation_accounts macro) ---
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Box<Account<'info, MXEAccount>>,
-    #[account()]
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_EXECUTE_PRIVATE_ORDER))]
     pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
     #[account(
         mut,
