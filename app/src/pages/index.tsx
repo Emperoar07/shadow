@@ -803,16 +803,6 @@ export default function LandingPage() {
             <div className="lp-ac-item">
               <div className="lp-ac-header">
                 <div className="lp-ac-left">
-                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg></div>
-                  <span className="lp-ac-title">Human Wallet UX</span>
-                </div>
-                <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-              </div>
-                      <div className="lp-ac-body"><p className="lp-ac-desc">Email users get an embedded Solana wallet automatically. Existing Solana users connect the wallet they already trust through the same direct signing flow.</p></div>
-            </div>
-            <div className="lp-ac-item">
-              <div className="lp-ac-header">
-                <div className="lp-ac-left">
                   <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M9 7V4M12 7V4M15 7V4M9 17v3M12 17v3M15 17v3M7 9H4M7 12H4M7 15H4M17 9h3M17 12h3M17 15h3"/></svg></div>
                   <span className="lp-ac-title">Arcium MPC</span>
                 </div>
@@ -839,16 +829,6 @@ export default function LandingPage() {
                 <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
               </div>
               <div className="lp-ac-body"><p className="lp-ac-desc">On adopted devnet markets, one owner scoped balance can fund multiple pairs. Free and locked collateral stay visible separately so the numbers always make sense.</p></div>
-            </div>
-            <div className="lp-ac-item">
-              <div className="lp-ac-header">
-                <div className="lp-ac-left">
-                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="2" fill="rgba(167,139,250,.2)"/><circle cx="15" cy="12" r="2" fill="rgba(167,139,250,.2)"/><circle cx="10" cy="18" r="2" fill="rgba(167,139,250,.2)"/></svg></div>
-                  <span className="lp-ac-title">Trader First UX</span>
-                </div>
-                <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-              </div>
-              <div className="lp-ac-body"><p className="lp-ac-desc">Faster repeated actions, cleaner state handling, and privacy that stays in the background until you want to look at it.</p></div>
             </div>
           </div>
         </div>

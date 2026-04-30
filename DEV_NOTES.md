@@ -347,3 +347,16 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - reduced the default Top Movers panel height by 50%
   - removed mobile-only 24H Change and 24H Volume cards from Market Info
   - squared the mobile chart, orderbook, and trade panel shells to match desktop panel edges
+- Program artifact rebuild:
+  - `cargo-build-sbf -- -p shadowperp` compiled the `shadowperp` program crate via WSL
+  - post-processing exited non-zero because `shadowperp_circuits.so` was not produced in the package-only build
+  - fresh program artifact was still emitted and copied to `target/deploy/shadowperp.so`
+  - artifact size: `2,087,896` bytes
+  - artifact sha256: `3f07bd102d552c77e30d165afadf95b54d03b07a892440eb3fb131dbbcee9a42`
+  - artifact is ignored by git under `target/`
+- Landing feature cleanup:
+  - removed the `Human Wallet UX` and `Trader First UX` rows from the landing feature accordion
+  - changed the `Top movers` strip label from a pill badge to plain text
+  - `cd app && tsc --noEmit` passed
+  - `cd app && npm run lint -- --quiet` passed
+  - `npm run check:preflight` initially failed on stale oracle, `npm run oracle:once` refreshed it, then preflight passed

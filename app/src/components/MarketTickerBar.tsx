@@ -52,7 +52,7 @@ export default function MarketTickerBar({ activePair, onSelect }: MarketTickerBa
   return (
     <div className="h-full min-h-[30px] overflow-hidden border-b border-shadow-600 bg-shadow-950/80 backdrop-blur-sm">
       <div className="flex h-full min-h-[30px] items-center gap-2 px-3 py-1">
-        <div className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+        <div className="shrink-0 px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
           Top movers
         </div>
         <div className="min-w-0 flex-1 overflow-hidden">
