@@ -347,7 +347,12 @@ export default function CollateralModal({
     if (!publicKey) { toast.error("Connect your wallet"); return; }
     setIsBusy(true);
     try {
-      const amountBN = new BN(Math.round(amt * 1_000_000));
+      const amountRaw = BigInt(Math.round(amt * 1_000_000));
+      if (walletTokenBalanceRaw !== null && walletTokenBalanceRaw < amountRaw) {
+        toast.error("Not enough mUSDC in this wallet. Claim faucet funds first or lower the deposit amount.");
+        return;
+      }
+      const amountBN = new BN(amountRaw.toString());
       if (!anchorWallet || !publicKey) { throw new Error("Connect your wallet"); }
       const { client } = createShadowPerpClient(connection, anchorWallet, walletExecutionMode);
       const marketAddress = getSelectedMarketAddress();
@@ -391,6 +396,7 @@ export default function CollateralModal({
     onSuccess,
     publicKey,
     refreshWalletTokenBalance,
+    walletTokenBalanceRaw,
     walletExecutionMode,
   ]);
 

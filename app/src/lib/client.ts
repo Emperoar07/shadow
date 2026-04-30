@@ -8,6 +8,7 @@ import {
 import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 import {
@@ -513,6 +514,7 @@ export class ShadowPerpClient {
     const userTokenAccount = await getAssociatedTokenAddress(
       marketAccount.collateralMint, owner
     );
+    const userTokenAccountInfo = await this.provider.connection.getAccountInfo(userTokenAccount);
     const tx = await this.program.methods
       .depositCollateral(amount)
       .accounts({
@@ -521,6 +523,21 @@ export class ShadowPerpClient {
         systemProgram: SystemProgram.programId,
       })
       .transaction();
+    if (!userTokenAccountInfo) {
+      const sponsorPubkey = resolveSponsorPubkey();
+      const ataPayer =
+        canUseGasSponsorship(this.walletMode) && sponsorPubkey
+          ? sponsorPubkey
+          : owner;
+      tx.instructions.unshift(
+        createAssociatedTokenAccountInstruction(
+          ataPayer,
+          userTokenAccount,
+          owner,
+          marketAccount.collateralMint
+        )
+      );
+    }
     return this.sendTransactionWithPolling(tx);
   }
 
