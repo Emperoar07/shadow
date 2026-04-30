@@ -857,6 +857,12 @@ pub fn lock_margin_private_handler(
     requested_margin: u64,
     computation_offset: u64,
 ) -> Result<()> {
+    // Gate: lock_margin_private circuit reveals new_balance via .reveal(), defeating
+    // the whole point of the shielded pool (audit WT-11). Lifting the gate requires
+    // refactoring the circuit to emit Enc<Mxe, u64> for balance and adapting the
+    // commitment-tree update so plaintext never leaves the MPC.
+    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
+
     require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
@@ -1043,6 +1049,11 @@ pub fn settle_private_position_handler(
     _trading_fee_bps: u16,
     computation_offset: u64,
 ) -> Result<()> {
+    // Gate: settle_private_position circuit reveals new_balance via .reveal(),
+    // defeating the shielded pool (audit WT-11). Lifting requires the same
+    // Enc<Mxe, u64> refactor as lock_margin_private.
+    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
+
     require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;

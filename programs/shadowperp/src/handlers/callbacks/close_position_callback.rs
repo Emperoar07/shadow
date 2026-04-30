@@ -135,12 +135,10 @@ pub fn close_position_callback_handler(
     let realized_pnl = verified_output.field_0.field_0;
     let settlement_amount = verified_output.field_0.field_1;
     let fee = verified_output.field_0.field_2;
-    let revealed_locked_margin = verified_output.field_0.field_3;
-    let locked_margin = if revealed_locked_margin > 0 {
-        revealed_locked_margin
-    } else {
-        position.margin
-    };
+    // open_position_callback zeroes position.margin for privacy, so the previous
+    // fallback to position.margin always evaluated to 0 — equivalent to failing
+    // the require! below. Trust the MPC value directly (audit WT-10).
+    let locked_margin = verified_output.field_0.field_3;
     require!(locked_margin > 0, ShadowPerpError::InvalidComputationResult);
 
     // Update position — PnL is now public.
