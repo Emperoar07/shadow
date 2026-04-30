@@ -366,9 +366,3 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - bumped layout storage key to `shadowperp-layout-v11`
   - `cd app && tsc --noEmit` passed
   - `cd app && npm run lint -- --quiet` passed
-- Market panel height adjustment:
-  - reduced the default `Market` panel height from `2` rows to `1.6` rows
-  - shifted `Top Movers`, `Chart`, `Order Book`, `Trade`, and `Positions` up to keep the desktop grid compact
-  - bumped layout storage key to `shadowperp-layout-v12`
-  - `cd app && tsc --noEmit` passed
-  - `cd app && npm run lint -- --quiet` passed
