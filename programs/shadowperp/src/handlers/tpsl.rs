@@ -49,6 +49,12 @@ pub struct SetTpSl<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// STUB — TP/SL on private positions requires an MPC circuit that proves the
+// trigger condition without revealing position direction or size. Until that
+// circuit and the matching close-position settlement path land, this handler
+// returns TpSlPrivateDirectionUnsupported so clients fail fast instead of
+// silently writing TpSlOrder accounts that no triggerer will ever evaluate.
+// See audit 2026-04-29 §WT-8 and the close_position_v2 settlement flow.
 pub fn set_tpsl_handler(
     ctx: Context<SetTpSl>,
     tp_price: u64,
@@ -191,6 +197,7 @@ pub struct TriggerTpSl<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// STUB — pair of set_tpsl_handler. See note above for why this is disabled.
 pub fn trigger_tpsl_handler(
     ctx: Context<TriggerTpSl>,
     computation_offset: u64,

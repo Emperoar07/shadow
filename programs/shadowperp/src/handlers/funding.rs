@@ -115,12 +115,14 @@ pub fn update_funding_rate_handler(ctx: Context<UpdateFundingRate>) -> Result<()
     let max = funding_state.max_funding_rate as i64;
     let rate = funding_state.premium_bps.clamp(-max, max);
 
-    // elapsed_hours may be fractional; we use integer hours for accumulation to keep
-    // arithmetic simple and avoid fixed-point division errors.
-    let elapsed_hours = elapsed / 3600;
-
+    // delta = rate * elapsed / 3600 — multiply before dividing so sub-hour intervals
+    // accrue proportionally instead of truncating to zero. rate is bounded by
+    // max_funding_rate and elapsed is wall-clock seconds, so the product fits i64
+    // comfortably for any realistic funding interval.
     let delta = rate
-        .checked_mul(elapsed_hours)
+        .checked_mul(elapsed)
+        .ok_or(ShadowPerpError::ArithmeticOverflow)?
+        .checked_div(3600)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
     funding_state.cumulative_funding = funding_state

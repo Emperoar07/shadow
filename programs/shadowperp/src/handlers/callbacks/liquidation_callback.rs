@@ -57,6 +57,18 @@ pub fn check_liquidation_callback_handler(
     ctx: Context<CheckLiquidationV2Callback>,
     output: SignedComputationOutputs<CheckLiquidationV2Output>,
 ) -> Result<()> {
+    // Validate cluster + comp-def bindings BEFORE invoking verify_output. A forged
+    // cluster_account would otherwise pass verify_output's signature path and then
+    // trigger the error-cleanup branch, clearing a real liquidator's pending lock.
+    require!(
+        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
+        ShadowPerpError::Unauthorized
+    );
+    require!(
+        ctx.accounts.comp_def_account.key() == ctx.accounts.market.liquidation_comp_def,
+        ShadowPerpError::Unauthorized
+    );
+
     let verified_output = match output.verify_output(
         &ctx.accounts.cluster_account,
         &ctx.accounts.computation_account,
@@ -82,16 +94,6 @@ pub fn check_liquidation_callback_handler(
             return Err(ShadowPerpError::InvalidComputationResult.into());
         }
     };
-
-    // Callback must be bound to this market's configured Arcium cluster + comp-def.
-    require!(
-        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
-        ShadowPerpError::Unauthorized
-    );
-    require!(
-        ctx.accounts.comp_def_account.key() == ctx.accounts.market.liquidation_comp_def,
-        ShadowPerpError::Unauthorized
-    );
 
     let market = &mut ctx.accounts.market;
     let margin_account = &mut ctx.accounts.margin_account;
