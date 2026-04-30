@@ -354,6 +354,8 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - artifact size: `2,087,896` bytes
   - artifact sha256: `3f07bd102d552c77e30d165afadf95b54d03b07a892440eb3fb131dbbcee9a42`
   - artifact is ignored by git under `target/`
+  - live dump for `34wszdEv...` is also `2,087,896` bytes but sha256 `0ef7ad76278f01f52740d72f13e6c6311e60c58b54fc02ee98d0f856355fa301`
+  - conclusion: rebuilt local artifact exists, but the fresh artifact is not deployed yet
 - Landing feature cleanup:
   - removed the `Human Wallet UX` and `Trader First UX` rows from the landing feature accordion
   - changed the `Top movers` strip label from a pill badge to plain text
@@ -364,5 +366,10 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - set `Top Movers` to the same default width as the chart panel (`14/24` grid columns)
   - moved `Order Book` and `Trade` up one row and increased their default height to fill the freed space
   - bumped layout storage key to `shadowperp-layout-v11`
+  - `cd app && tsc --noEmit` passed
+  - `cd app && npm run lint -- --quiet` passed
+- Landing feature list update:
+  - removed the `Confidential Liquidations` feature row
+  - changed `Confidential Order Flow` to use the lock icon from the removed row
   - `cd app && tsc --noEmit` passed
   - `cd app && npm run lint -- --quiet` passed

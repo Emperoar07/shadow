@@ -783,22 +783,12 @@ export default function LandingPage() {
             <div className="lp-ac-item">
               <div className="lp-ac-header">
                 <div className="lp-ac-left">
-                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg></div>
+                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="15" x2="12" y2="17"/></svg></div>
                   <span className="lp-ac-title">Confidential Order Flow</span>
                 </div>
                 <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
               </div>
               <div className="lp-ac-body"><p className="lp-ac-desc">Orders do not broadcast the usual signals before execution. Size, direction, leverage, and liquidation details stay off the public ledger entirely.</p></div>
-            </div>
-            <div className="lp-ac-item">
-              <div className="lp-ac-header">
-                <div className="lp-ac-left">
-                  <div className="lp-ac-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="15" x2="12" y2="17"/></svg></div>
-                  <span className="lp-ac-title">Confidential Liquidations</span>
-                </div>
-                <svg className="lp-ac-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-              </div>
-              <div className="lp-ac-body"><p className="lp-ac-desc">Liquidation thresholds are hidden from observers. Traders are not forced to reveal one of the most exploitable parts of any open position.</p></div>
             </div>
             <div className="lp-ac-item">
               <div className="lp-ac-header">
