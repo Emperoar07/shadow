@@ -50,9 +50,9 @@ export default function MarketTickerBar({ activePair, onSelect }: MarketTickerBa
   const stripItems = movers.length > 0 ? [...movers, ...movers] : [];
 
   return (
-    <div className="h-full min-h-[54px] overflow-hidden border-b border-shadow-600 bg-shadow-950/80 backdrop-blur-sm">
-      <div className="flex h-full min-h-[54px] items-center gap-3 px-3 py-1.5">
-        <div className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300">
+    <div className="h-full min-h-[30px] overflow-hidden border-b border-shadow-600 bg-shadow-950/80 backdrop-blur-sm">
+      <div className="flex h-full min-h-[30px] items-center gap-2 px-3 py-1">
+        <div className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
           Top movers
         </div>
         <div className="min-w-0 flex-1 overflow-hidden">
@@ -64,7 +64,7 @@ export default function MarketTickerBar({ activePair, onSelect }: MarketTickerBa
             <button
               key={`${pair.label}-${index}`}
               onClick={() => onSelect(pair)}
-              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 transition-colors group ${
+              className={`flex items-center gap-2 rounded-full border px-2.5 py-1 transition-colors group ${
                 isActive
                   ? "border-accent-purple/45 bg-accent-purple/15"
                   : "border-shadow-600/80 bg-shadow-800/60 hover:border-emerald-400/35 hover:bg-shadow-700/70"

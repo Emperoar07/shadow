@@ -344,3 +344,6 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - separated the strip from the Market Info panel in the desktop draggable grid
   - bumped the desktop layout storage key to avoid old saved layouts placing the strip over chart/orderbook panels
   - kept the mobile strip in normal document flow below Market Info
+  - reduced the default Top Movers panel height by 50%
+  - removed mobile-only 24H Change and 24H Volume cards from Market Info
+  - squared the mobile chart, orderbook, and trade panel shells to match desktop panel edges

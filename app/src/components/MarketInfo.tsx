@@ -80,14 +80,6 @@ export default function MarketInfo({
 
       <div className="overflow-x-auto pb-1 sm:hidden">
         <div className="flex min-w-max items-center gap-4 pr-4">
-          <MarketStat
-            label="24H Change"
-            value={changeFormatted}
-            valueClass={changePositive ? "text-accent-green" : "text-accent-red"}
-          />
-          <div className="w-px h-5 bg-shadow-600 shrink-0" />
-          <MarketStat label="24H Volume" value={formattedVolume24h} />
-          <div className="w-px h-5 bg-shadow-600 shrink-0" />
           <MarketStat label="24H High" value={formattedHigh24h} />
           <div className="w-px h-5 bg-shadow-600 shrink-0" />
           <MarketStat label="24H Low" value={formattedLow24h} />

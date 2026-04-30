@@ -543,7 +543,7 @@ export default function TradingAppPage() {
 
             {/* Mobile: stacked tab layout */}
             <div className="lg:hidden shrink-0 border-b border-shadow-600 p-1.5">
-              <div className="mb-1.5 flex rounded-xl border border-shadow-600 bg-shadow-900 p-1">
+              <div className="mb-1.5 flex border border-shadow-600 bg-shadow-900 p-1">
                 {([
                   ["chart", "Chart"],
                   ["trade", "Trade"],
@@ -566,7 +566,7 @@ export default function TradingAppPage() {
               <div className="flex min-h-0 flex-col gap-1.5">
                 {mobileMarketTab === "chart" ? (
                   <>
-                    <div className="flex min-h-0 min-w-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900">
+                    <div className="flex min-h-0 min-w-0 overflow-hidden border border-shadow-600 bg-shadow-900">
                       <div className="trade-terminal-grid h-[380px] min-w-0 min-h-0 flex-1 grid grid-cols-1 sm:h-[460px]">
                         <div className="min-h-0 min-w-0">
                           <PriceChart selectedPair={selectedPair} chartSymbol={marketSnapshot.chartSymbol} />
@@ -574,7 +574,7 @@ export default function TradingAppPage() {
                       </div>
                     </div>
 
-                    <div className="h-[320px] min-h-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900 sm:h-[380px]">
+                    <div className="h-[320px] min-h-0 overflow-hidden border border-shadow-600 bg-shadow-900 sm:h-[380px]">
                       <PrivateOrderbook
                         pair={selectedPair}
                         marketSnapshot={marketSnapshot}
@@ -582,7 +582,7 @@ export default function TradingAppPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="w-full shrink-0 min-h-0 overflow-hidden rounded-xl border border-shadow-600 bg-shadow-900">
+                  <div className="w-full shrink-0 min-h-0 overflow-hidden border border-shadow-600 bg-shadow-900">
                     <TradingPanel
                       pair={selectedPair}
                       layout="vertical"
