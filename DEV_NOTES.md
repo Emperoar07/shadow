@@ -360,3 +360,9 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - `cd app && tsc --noEmit` passed
   - `cd app && npm run lint -- --quiet` passed
   - `npm run check:preflight` initially failed on stale oracle, `npm run oracle:once` refreshed it, then preflight passed
+- Desktop layout adjustment:
+  - set `Top Movers` to the same default width as the chart panel (`14/24` grid columns)
+  - moved `Order Book` and `Trade` up one row and increased their default height to fill the freed space
+  - bumped layout storage key to `shadowperp-layout-v11`
+  - `cd app && tsc --noEmit` passed
+  - `cd app && npm run lint -- --quiet` passed
