@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import ShadowLoader from "../components/ShadowLoader";
@@ -53,7 +53,7 @@ export default function LandingPage() {
     setIsLight((current) => !current);
   };
 
-  const resolveConsent = (value: "accepted" | "rejected") => {
+  const resolveConsent = useCallback((value: "accepted" | "rejected") => {
     try {
       window.localStorage.setItem(
         LANDING_CONSENT_KEY,
@@ -63,7 +63,16 @@ export default function LandingPage() {
       // If storage is blocked, the modal simply behaves like a normal temporary notice.
     }
     setShowConsent(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!showConsent) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") resolveConsent("rejected");
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [resolveConsent, showConsent]);
 
   // ── Dot grid pulse canvas ────────────────────────────────────
   useEffect(() => {
@@ -549,7 +558,7 @@ export default function LandingPage() {
           }
           .lp-footer-inner {
             max-width:1200px;margin:0 auto;
-            display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:18px;
+            display:grid;grid-template-columns:2fr 1fr 1fr;gap:18px;
           }
           .lp-footer-brand { display:flex;flex-direction:column;gap:5px }
           .lp-footer-brand-name { font-size:18px;font-weight:800;display:flex;align-items:center;gap:2px;background:linear-gradient(90deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text }
@@ -570,32 +579,32 @@ export default function LandingPage() {
           .lp-footer-social a:hover { color:#a78bfa }
           .lp-consent-backdrop {
             position:fixed;inset:0;z-index:300;
-            display:flex;align-items:flex-end;justify-content:center;
+            display:flex;align-items:center;justify-content:center;
             padding:18px;background:rgba(2,6,23,.62);backdrop-filter:blur(10px);
           }
           .lp-consent-modal {
-            width:min(620px,100%);border-radius:22px;
+            width:min(480px,100%);border-radius:18px;
             border:1px solid ${dark ? "rgba(167,139,250,.24)" : "rgba(124,58,237,.18)"};
             background:${dark ? "linear-gradient(145deg,#111322,#080a14)" : "linear-gradient(145deg,#ffffff,#f5f7ff)"};
             box-shadow:0 24px 80px rgba(0,0,0,.32);
-            padding:24px;color:${dark ? "#e5e7eb" : "#0f172a"};
+            padding:18px;color:${dark ? "#e5e7eb" : "#0f172a"};
           }
           .lp-consent-eyebrow {
-            font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;
-            color:#a78bfa;margin-bottom:8px;
+            font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+            color:#a78bfa;margin-bottom:6px;
           }
-          .lp-consent-title { font-size:24px;font-weight:850;margin:0 0 8px;letter-spacing:-.02em }
-          .lp-consent-copy { font-size:14px;line-height:1.7;color:${dark ? "#94a3b8" : "#475569"};margin:0 0 16px }
-          .lp-consent-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0 18px }
+          .lp-consent-title { font-size:20px;font-weight:850;margin:0 0 7px;letter-spacing:-.02em }
+          .lp-consent-copy { font-size:13px;line-height:1.55;color:${dark ? "#94a3b8" : "#475569"};margin:0 0 12px }
+          .lp-consent-grid { display:grid;grid-template-columns:1fr;gap:8px;margin:10px 0 14px }
           .lp-consent-card {
             border:1px solid ${dark ? "rgba(255,255,255,.08)" : "#e2e8f0"};
-            border-radius:16px;padding:14px;background:${dark ? "rgba(255,255,255,.035)" : "rgba(248,250,252,.9)"};
+            border-radius:12px;padding:11px 12px;background:${dark ? "rgba(255,255,255,.035)" : "rgba(248,250,252,.9)"};
           }
-          .lp-consent-card h3 { font-size:13px;font-weight:800;margin:0 0 6px;color:${dark ? "#f8fafc" : "#111827"} }
-          .lp-consent-card p { font-size:12px;line-height:1.6;margin:0;color:${dark ? "#94a3b8" : "#64748b"} }
+          .lp-consent-card h3 { font-size:12px;font-weight:800;margin:0 0 4px;color:${dark ? "#f8fafc" : "#111827"} }
+          .lp-consent-card p { font-size:11.5px;line-height:1.5;margin:0;color:${dark ? "#94a3b8" : "#64748b"} }
           .lp-consent-actions { display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap }
           .lp-consent-btn {
-            border:0;border-radius:12px;padding:11px 16px;font-size:13px;font-weight:800;cursor:pointer;
+            border:0;border-radius:11px;padding:10px 14px;font-size:12px;font-weight:800;cursor:pointer;
             transition:transform .15s,box-shadow .15s,background .15s;
           }
           .lp-consent-btn:active { transform:scale(.97) }
@@ -622,7 +631,6 @@ export default function LandingPage() {
             .lp-footer-inner{grid-template-columns:1fr;gap:14px;text-align:center}
             .lp-footer-brand-desc{margin:0 auto}
             .lp-footer-bottom{flex-direction:column;gap:8px;text-align:center;margin-top:12px;padding-top:8px}
-            .lp-consent-grid{grid-template-columns:1fr}
             .lp-consent-actions{justify-content:stretch}
             .lp-consent-btn{flex:1}
             .lp-session-card{grid-template-columns:1fr;padding:28px 24px}
@@ -854,13 +862,6 @@ export default function LandingPage() {
             </div>
 
             <div className="lp-footer-col">
-              <h4>Products</h4>
-              <Link href="/app">Exchange</Link>
-              <a href="#features">Features</a>
-              <a href="#privacy">Privacy</a>
-            </div>
-
-            <div className="lp-footer-col">
               <h4>Resources</h4>
               <Link href="/docs">Documentation</Link>
               <a href="https://docs.arcium.com/" target="_blank" rel="noopener noreferrer">Arcium Docs</a>
@@ -883,19 +884,19 @@ export default function LandingPage() {
         {showConsent && (
           <div className="lp-consent-backdrop" role="dialog" aria-modal="true" aria-labelledby="landing-consent-title">
             <div className="lp-consent-modal">
-              <div className="lp-consent-eyebrow">A small note before you enter</div>
-              <h2 id="landing-consent-title" className="lp-consent-title">Cookies and terms, kept plain.</h2>
+              <div className="lp-consent-eyebrow">Before you continue</div>
+              <h2 id="landing-consent-title" className="lp-consent-title">A quick privacy note.</h2>
               <p className="lp-consent-copy">
-                Shadow uses local browser storage for preferences like theme, wallet prompts, and this notice. By continuing, you agree to use the devnet app responsibly and understand that test funds have no real value.
+                Shadow saves a few preferences in this browser, like theme and whether you have seen this note. No ad tracking, no selling data.
               </p>
               <div className="lp-consent-grid">
                 <div className="lp-consent-card">
-                  <h3>Cookie Policy</h3>
-                  <p>We keep only simple site preferences in your browser. We do not need cookies to sell your data, and rejecting this notice will not block you from reading the site.</p>
+                  <h3>Cookies</h3>
+                  <p>Accept stores this choice locally. Reject keeps browsing open, but this note may return later.</p>
                 </div>
                 <div className="lp-consent-card">
-                  <h3>Terms of Use</h3>
-                  <p>Shadow is a devnet trading workspace. Use it carefully, do not abuse public faucets or infrastructure, and remember that experimental software can fail.</p>
+                  <h3>Terms</h3>
+                  <p>This is devnet software. Test funds have no real value, and things can break while we improve the app.</p>
                 </div>
               </div>
               <div className="lp-consent-actions">

@@ -356,6 +356,8 @@ Internal handoff notes for the next engineer. Do not publish secrets.
   - artifact is ignored by git under `target/`
   - live dump for `34wszdEv...` is also `2,087,896` bytes but sha256 `0ef7ad76278f01f52740d72f13e6c6311e60c58b54fc02ee98d0f856355fa301`
   - conclusion: rebuilt local artifact exists, but the fresh artifact is not deployed yet
+  - JS deployer resume on public devnet advanced the buffer to `nextChunkIndex: 707` (`708/2088` was the failed write), then stopped on repeated `fetch failed` blockhash errors
+  - persistent buffer remains `St17a1Pqsg7Dab3hZdKTJXd1cv73K88ZwcUVADqSFPb`; rerun `scripts/js-deploy.ts` to resume from that point
 - Landing feature cleanup:
   - removed the `Human Wallet UX` and `Trader First UX` rows from the landing feature accordion
   - changed the `Top movers` strip label from a pill badge to plain text
@@ -371,5 +373,12 @@ Internal handoff notes for the next engineer. Do not publish secrets.
 - Landing feature list update:
   - removed the `Confidential Liquidations` feature row
   - changed `Confidential Order Flow` to use the lock icon from the removed row
+  - `cd app && tsc --noEmit` passed
+  - `cd app && npm run lint -- --quiet` passed
+- Landing consent/footer update:
+  - made the first-visit cookies/terms modal more compact and centered
+  - softened the consent copy while keeping the localStorage accept/reject behavior
+  - added Escape-to-dismiss behavior, stored as a rejected choice
+  - removed the `Products` footer column and its `Exchange`, `Features`, and `Privacy` links
   - `cd app && tsc --noEmit` passed
   - `cd app && npm run lint -- --quiet` passed
