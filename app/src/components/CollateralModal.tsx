@@ -35,6 +35,20 @@ async function fetchWalletMockUsdcBalanceRaw(
   }
 }
 
+async function waitForWalletMockUsdcBalanceRaw(
+  connection: ReturnType<typeof useConnection>["connection"],
+  owner: PublicKey,
+  minBalance: bigint
+): Promise<bigint> {
+  let latest = BigInt(0);
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    latest = await fetchWalletMockUsdcBalanceRaw(connection, owner);
+    if (latest >= minBalance) return latest;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  return latest;
+}
+
 type Tab = "deposit" | "withdraw";
 interface CollateralModalProps {
   isOpen: boolean;
@@ -237,14 +251,23 @@ export default function CollateralModal({
           await connection.confirmTransaction(signature, "confirmed");
         } else if (!data.signature) {
           throw new Error("No faucet transaction or signature returned.");
+        } else {
+          await connection.confirmTransaction(data.signature, "confirmed");
         }
 
         const claimedAmount = data.amount ?? faucetSuggestedAmount;
+        const claimedRaw = BigInt(claimedAmount) * BigInt(10 ** MUSDC_DECIMALS);
+        const refreshedBalance = await waitForWalletMockUsdcBalanceRaw(
+          connection,
+          publicKey,
+          claimedRaw
+        );
+        if (refreshedBalance < claimedRaw) {
+          throw new Error("Faucet transaction confirmed, but mUSDC is not visible yet. Refresh and try again.");
+        }
         setTab("deposit");
         setAmount(String(claimedAmount));
-        const claimedRaw = BigInt(claimedAmount) * BigInt(10 ** MUSDC_DECIMALS);
-        setWalletTokenBalanceRaw((current) => (current ?? BigInt(0)) + claimedRaw);
-        void refreshWalletTokenBalance();
+        setWalletTokenBalanceRaw(refreshedBalance);
         toast.success(`${claimedAmount.toLocaleString()} mUSDC sent to your wallet. Deposit it to margin below.`, { id: toastId });
         const nextAt = now + 7 * 24 * 60 * 60 * 1000;
         setNextClaimAt(nextAt);

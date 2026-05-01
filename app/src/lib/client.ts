@@ -8,7 +8,6 @@ import {
 import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
 import {
@@ -515,6 +514,14 @@ export class ShadowPerpClient {
       marketAccount.collateralMint, owner
     );
     const userTokenAccountInfo = await this.provider.connection.getAccountInfo(userTokenAccount);
+    if (!userTokenAccountInfo) {
+      throw new Error("No mUSDC found in this wallet. Claim faucet funds first, then deposit to margin.");
+    }
+    const balance = await this.provider.connection.getTokenAccountBalance(userTokenAccount);
+    if (new BN(balance.value.amount).lt(amount)) {
+      throw new Error("Not enough mUSDC in this wallet. Claim faucet funds first or lower the deposit amount.");
+    }
+
     const tx = await this.program.methods
       .depositCollateral(amount)
       .accounts({
@@ -523,26 +530,6 @@ export class ShadowPerpClient {
         systemProgram: SystemProgram.programId,
       })
       .transaction();
-    if (!userTokenAccountInfo) {
-      const sponsorPubkey = resolveSponsorPubkey();
-      const ataPayer =
-        canUseGasSponsorship(this.walletMode) && sponsorPubkey
-          ? sponsorPubkey
-          : owner;
-      tx.instructions.unshift(
-        createAssociatedTokenAccountInstruction(
-          ataPayer,
-          userTokenAccount,
-          owner,
-          marketAccount.collateralMint
-        )
-      );
-    } else {
-      const balance = await this.provider.connection.getTokenAccountBalance(userTokenAccount);
-      if (new BN(balance.value.amount).lt(amount)) {
-        throw new Error("Not enough mUSDC in this wallet. Claim faucet funds first or lower the deposit amount.");
-      }
-    }
     return this.sendTransactionWithPolling(tx);
   }
 
