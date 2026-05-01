@@ -638,6 +638,7 @@ export default function TradingAppPage() {
 }
 
 const WALLET_RESTORE_HINT_KEY = "shadowperp:wallet:last-connected:v1";
+const WALLET_AUTO_RECOVERY_KEY = "shadowperp:wallet:auto-recovery:v1";
 
 type WalletRestoreHint = {
   address: string;
@@ -688,6 +689,7 @@ function ConnectWalletButton() {
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [hydrationTimedOut, setHydrationTimedOut] = useState(false);
+  const [autoRecoveryRunning, setAutoRecoveryRunning] = useState(false);
   const [restoreHint, setRestoreHint] = useState<WalletRestoreHint | null>(null);
   useEffect(() => {
     setMounted(true);
@@ -718,6 +720,43 @@ function ConnectWalletButton() {
       });
     }
   }, [login]);
+
+  const handleRecoverWalletSession = useCallback(async () => {
+    setOpen(false);
+    setAutoRecoveryRunning(true);
+    clearWalletRestoreHint();
+    setRestoreHint(null);
+    setHydrationTimedOut(false);
+
+    for (const wallet of [...wallets, ...solanaWallets]) {
+      try {
+        await wallet.disconnect?.();
+      } catch {
+        // Best-effort cleanup; Privy logout below clears the stuck auth session.
+      }
+    }
+
+    try {
+      await logout();
+      window.setTimeout(() => {
+        setAutoRecoveryRunning(false);
+        try {
+          login();
+        } catch (error) {
+          console.error("[Shadow][Privy reconnect]", error);
+          toast.error("Reconnect could not open. Refresh once and try again.", {
+            duration: 7000,
+          });
+        }
+      }, 150);
+    } catch (error) {
+      console.error("[Shadow][Privy recover session]", error);
+      toast.error("Could not reset this wallet session. Refresh once and try again.", {
+        duration: 7000,
+      });
+      setAutoRecoveryRunning(false);
+    }
+  }, [login, logout, solanaWallets, wallets]);
 
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
   const addr = connectedAddress ?? embeddedAddr ?? null;
@@ -755,6 +794,33 @@ function ConnectWalletButton() {
   }, [authenticated, isConnected, hasStrongRestoreEvidence]);
 
   useEffect(() => {
+    if (!hydrationTimedOut || !shouldRestoreWallet || autoRecoveryRunning) return;
+    const recoveryKey = `${WALLET_AUTO_RECOVERY_KEY}:${user?.id ?? restoreHint?.address ?? "unknown"}`;
+    try {
+      if (window.sessionStorage.getItem(recoveryKey) === "1") {
+        setAutoRecoveryRunning(true);
+        void logout().finally(() => setAutoRecoveryRunning(false));
+        return;
+      }
+      window.sessionStorage.setItem(recoveryKey, "1");
+    } catch {
+      // If sessionStorage is unavailable, still try once for this component instance.
+    }
+    toast.loading("Restoring wallet session...", { id: "wallet-recovery" });
+    void handleRecoverWalletSession().finally(() => {
+      toast.dismiss("wallet-recovery");
+    });
+  }, [
+    autoRecoveryRunning,
+    handleRecoverWalletSession,
+    hydrationTimedOut,
+    logout,
+    restoreHint?.address,
+    shouldRestoreWallet,
+    user?.id,
+  ]);
+
+  useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -770,7 +836,7 @@ function ConnectWalletButton() {
 
   const isHydrating = authenticated && !isConnected && !hydrationTimedOut;
 
-  if (isHydrating || (shouldRestoreWallet && hydrationTimedOut)) return (
+  if (isHydrating || autoRecoveryRunning || (shouldRestoreWallet && hydrationTimedOut)) return (
     <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
   );
 

@@ -537,6 +537,11 @@ export class ShadowPerpClient {
           marketAccount.collateralMint
         )
       );
+    } else {
+      const balance = await this.provider.connection.getTokenAccountBalance(userTokenAccount);
+      if (new BN(balance.value.amount).lt(amount)) {
+        throw new Error("Not enough mUSDC in this wallet. Claim faucet funds first or lower the deposit amount.");
+      }
     }
     return this.sendTransactionWithPolling(tx);
   }

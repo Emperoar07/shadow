@@ -170,10 +170,11 @@ export default function App({ Component, pageProps }: AppProps) {
       loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
-          // Disable auto-reconnect: installed wallet extensions were hijacking
-          // email-login sessions on refresh and replacing the active wallet.
+          // Preserve external Solana wallet sessions across refresh. The app's
+          // wallet resolver still prefers Privy's active wallet first, so email
+          // embedded wallets are not replaced just because an extension exists.
           connectors: toSolanaWalletConnectors({
-            shouldAutoConnect: false,
+            shouldAutoConnect: true,
           }),
         },
       },
