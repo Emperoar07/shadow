@@ -24,6 +24,20 @@ function readArg(name: string): string | undefined {
   return args[index + 1];
 }
 
+function loadEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return;
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const sep = line.indexOf("=");
+    if (sep <= 0) continue;
+    const key = line.slice(0, sep).trim();
+    const value = line.slice(sep + 1).trim();
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
+
 function parsePublicKey(name: string, value?: string): PublicKey {
   if (!value) throw new Error(`Missing --${name}`);
   return new PublicKey(value);
@@ -81,6 +95,7 @@ function deriveCompDef(mxeProgramId: PublicKey, circuit: string): PublicKey {
 }
 
 async function main(): Promise<void> {
+  loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"));
   const args = parseArgs();
   const wallet = Keypair.fromSecretKey(
     new Uint8Array(JSON.parse(fs.readFileSync(resolveWalletPath(), "utf8")))

@@ -91,6 +91,20 @@ const COMP_DEFS = [
   },
 ] as const;
 
+function loadEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return;
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const sep = line.indexOf("=");
+    if (sep <= 0) continue;
+    const key = line.slice(0, sep).trim();
+    const value = line.slice(sep + 1).trim();
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
+
 function parseArgs(): InitArgs {
   const args = process.argv.slice(2);
   const readArg = (name: string): string | undefined => {
@@ -759,6 +773,7 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
 }
 
 async function main() {
+  loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"));
   const args = parseArgs();
   await initCompDefs(args);
 }
