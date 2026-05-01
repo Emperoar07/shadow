@@ -178,7 +178,7 @@ Note:
 - The delegated lifecycle remains part of the protocol and relay surface, but it is not the primary live frontend UX anymore.
 - `TradeSessionV2` is deployed on devnet and reflected in the generated IDL.
 - One wallet-scoped delegated session has been smoke-tested across multiple markets for delegated collateral actions.
-- The separate `open_position_probe_b` callback issue remains an independent blocker and is not part of the v2 session smoke proof.
+- Open-position and delegated-session smoke status should be checked in local `DEV_NOTES.md` before making live-readiness claims.
 
 ## 5. Oracle Flow
 

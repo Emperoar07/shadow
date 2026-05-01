@@ -54,7 +54,7 @@ These are hard rules for product, code, and operational quality.
 ## 7. Documentation Rules
 
 - Every meaningful change updates:
-  - `DEV_NOTES.md` (live status + actions + blockers)
+  - local untracked `DEV_NOTES.md` (live status + actions + blockers)
   - relevant onboarding docs in repo root
 - Keep documentation ASCII and explicit.
 - Prefer concrete addresses, script names, and file paths over vague text.

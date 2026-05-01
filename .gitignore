@@ -52,6 +52,8 @@ app/.env.*
 # =============================
 .playwright-cli/
 DEV_NOTES.md
+CODEBASE_AUDIT_REPORT.md
+docs/*escalation*.md
 .runtime/
 output/
 .tmp_app_job_id

@@ -1,7 +1,8 @@
 # ShadowPerp Architecture
 
 This document is the stable architecture reference for engineers and agents.
-For live status, addresses, and active blockers, read `DEV_NOTES.md` first.
+For local live status, addresses, and active blockers, read your untracked
+`DEV_NOTES.md`. Use `DEV_NOTES.template.md` as the public structure reference.
 
 For the private collateral redesign plan, read `PRIVATE_COLLATERAL_SPEC.md`.
 
