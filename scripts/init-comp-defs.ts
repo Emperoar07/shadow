@@ -23,7 +23,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { execSync } from "child_process";
-import { resolveRpcEndpoint } from "./rpc";
+import { resolveRpcEndpoint, sendAndConfirmWithPolling } from "./rpc";
 
 type InitArgs = {
   programId: PublicKey;
@@ -40,7 +40,7 @@ const EXPECTED_SIGNATURES: Record<string, { params: number; outputs: number }> =
   open_position_probe_b: { params: 9, outputs: 1 },
   close_position_v2: { params: 9, outputs: 4 },
   seed_open_interest_state_v3: { params: 1, outputs: 4 },
-  check_liquidation_v2: { params: 9, outputs: 1 },
+  check_liquidation_v2: { params: 9, outputs: 3 },
 };
 
 const COMP_DEFS = [
@@ -278,7 +278,17 @@ function describeLamportShortfall(error: unknown): string | null {
 }
 
 const MAX_REALLOC_PER_IX = 10_240;
+const MAX_UPLOAD_PER_TX_BYTES = 814;
 const SAFE_EMBIGGEN_IX_PER_TX = 9; // Use 9 instead of SDK's 18 to avoid per-tx growth limit
+const DEFAULT_UPLOAD_CHUNK_SIZE = 25;
+const SEQUENTIAL_UPLOAD_CONFIRM_TIMEOUT_MS = 300_000;
+
+function readUploadChunkSize(): number {
+  const raw = process.env.ARCIUM_UPLOAD_CHUNK_SIZE;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_UPLOAD_CHUNK_SIZE;
+  return Math.min(parsed, 500);
+}
 
 async function growRawCircuitAccount(
   provider: anchor.AnchorProvider,
@@ -315,6 +325,88 @@ async function growRawCircuitAccount(
     console.log(`Growing raw circuit (${currentSize} → ${currentSize + ixCount * MAX_REALLOC_PER_IX} bytes, ${ixCount} ixs)`);
     await provider.sendAndConfirm(tx, [], confirmOptions);
   }
+}
+
+async function uploadRawCircuitSequential(
+  params: {
+    provider: anchor.AnchorProvider;
+    arciumProgram: any;
+    payer: Keypair;
+    compDefOffset: number;
+    mxeProgramId: PublicKey;
+    rawCircuitIndex: number;
+    rawCircuit: Uint8Array;
+    label: string;
+  }
+): Promise<string[]> {
+  const signatures: string[] = [];
+  const txCount = Math.ceil(params.rawCircuit.length / MAX_UPLOAD_PER_TX_BYTES);
+
+  console.log(`Sequentially uploading ${params.label} (${txCount} txs)`);
+
+  for (let i = 0; i < txCount; i += 1) {
+    const offset = i * MAX_UPLOAD_PER_TX_BYTES;
+    let bytes = Buffer.copyBytesFrom(
+      params.rawCircuit,
+      offset,
+      MAX_UPLOAD_PER_TX_BYTES
+    );
+    if (bytes.length < MAX_UPLOAD_PER_TX_BYTES) {
+      const padded = Buffer.allocUnsafe(MAX_UPLOAD_PER_TX_BYTES);
+      padded.fill(0);
+      padded.set(bytes);
+      bytes = padded;
+    }
+
+    const tx = await (params.arciumProgram.methods as any)
+      .uploadCircuit(
+        params.compDefOffset,
+        params.mxeProgramId,
+        params.rawCircuitIndex,
+        Array.from(bytes),
+        offset
+      )
+      .accounts({ signer: params.payer.publicKey })
+      .transaction();
+
+    const sig = await sendAndConfirmWithPolling(
+      params.provider.connection,
+      params.payer,
+      tx,
+      {
+        commitment: "confirmed",
+        timeoutMs: SEQUENTIAL_UPLOAD_CONFIRM_TIMEOUT_MS,
+        pollMs: 2_000,
+        sendOptions: { skipPreflight: true, preflightCommitment: "confirmed" },
+      }
+    );
+    signatures.push(sig);
+
+    if ((i + 1) % 25 === 0 || i + 1 === txCount) {
+      console.log(`Uploaded ${params.label} chunk ${i + 1}/${txCount}`);
+    }
+  }
+
+  const finalizeTx = await buildFinalizeCompDefTx(
+    params.provider,
+    params.compDefOffset,
+    params.mxeProgramId
+  );
+  const finalizeSig = await sendAndConfirmWithPolling(
+    params.provider.connection,
+    params.payer,
+    finalizeTx,
+    {
+      commitment: "confirmed",
+      timeoutMs: SEQUENTIAL_UPLOAD_CONFIRM_TIMEOUT_MS,
+      pollMs: 2_000,
+      sendOptions: { skipPreflight: true, preflightCommitment: "confirmed" },
+    }
+  );
+  signatures.push(finalizeSig);
+  console.log(`Finalized ${params.label}. Tx: ${finalizeSig}`);
+
+  return signatures;
 }
 
 async function ensureMxeInitialized(
@@ -414,6 +506,7 @@ async function ensureCompDef(
     arciumProgramId: PublicKey;
     mxeProgramId: PublicKey;
     arciumProgram: any;
+    payerKeypair: Keypair;
   }
 ): Promise<void> {
   const offset = readCompDefOffset(params.circuit);
@@ -468,30 +561,52 @@ async function ensureCompDef(
 
     if (circuitPath) {
       const rawCircuit = new Uint8Array(fs.readFileSync(circuitPath));
-      // Pre-grow the raw circuit account using safe small batches (SDK uses 18 ixs/tx
-      // which hits a per-tx growth limit; growRawCircuitAccount uses 9 ixs/tx).
       const requiredSize = rawCircuit.length + 9;
       const rawCircuitIndex = 0;
-      await growRawCircuitAccount(
-        provider,
-        compDefAccount,
-        offset,
-        params.mxeProgramId,
-        rawCircuitIndex,
-        requiredSize,
-        { skipPreflight: true, commitment: "confirmed" }
-      );
+      const rawCircuitPda = getRawCircuitAccAddress(compDefAccount, rawCircuitIndex);
+      const existingRawCircuit = await provider.connection.getAccountInfo(rawCircuitPda);
+
+      if (existingRawCircuit) {
+        // Pre-grow existing raw circuit accounts using smaller transactions. Missing
+        // raw accounts must be initialized by uploadCircuit before they can grow.
+        await growRawCircuitAccount(
+          provider,
+          compDefAccount,
+          offset,
+          params.mxeProgramId,
+          rawCircuitIndex,
+          requiredSize,
+          { skipPreflight: true, commitment: "confirmed" }
+        );
+
+        const uploadSigs = await uploadRawCircuitSequential({
+          provider,
+          arciumProgram: params.arciumProgram,
+          payer: params.payerKeypair,
+          compDefOffset: offset,
+          mxeProgramId: params.mxeProgramId,
+          rawCircuitIndex,
+          rawCircuit,
+          label: params.circuit,
+        });
+        console.log(
+          `Uploaded/finalized ${params.circuit} circuit from ${path.basename(circuitPath)} (${uploadSigs.length} txs, sequential).`
+        );
+        return;
+      }
+
+      const uploadChunkSize = readUploadChunkSize();
       const uploadSigs = await uploadCircuit(
         provider,
         params.circuit,
         params.mxeProgramId,
         rawCircuit,
         true,
-        500,
+        uploadChunkSize,
         { skipPreflight: true, commitment: "confirmed" }
       );
       console.log(
-        `Uploaded/finalized ${params.circuit} circuit from ${path.basename(circuitPath)} (${uploadSigs.length} txs).`
+        `Uploaded/finalized ${params.circuit} circuit from ${path.basename(circuitPath)} (${uploadSigs.length} txs, chunk=${uploadChunkSize}).`
       );
     } else {
       const finalizeTx = await buildFinalizeCompDefTx(provider, offset, params.mxeProgramId);
@@ -597,6 +712,7 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
       arciumProgramId: args.arciumProgramId,
       mxeProgramId: args.mxeProgramId,
       arciumProgram: arciumProgram,
+      payerKeypair: walletKeypair,
     });
   }
 
