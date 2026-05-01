@@ -171,20 +171,13 @@ export default function CollateralModal({
       ? Math.max(0, marginBalance - freeCollateral)
       : null);
 
-  const getSelectedMarketAddress = useCallback(() => {
+  const getCollateralMarketAddress = useCallback(() => {
     if (!anchorWallet) {
       throw new Error("Connect your wallet");
     }
     const { runtime } = createShadowPerpClient(connection, anchorWallet);
-    if (!pairLabel) {
-      return runtime.marketAddress;
-    }
-    const marketAddress = runtime.marketRegistry[pairLabel];
-    if (!marketAddress) {
-      throw new Error(`Unknown trading pair: ${pairLabel}`);
-    }
-    return marketAddress;
-  }, [anchorWallet, connection, pairLabel]);
+    return runtime.marketAddress;
+  }, [anchorWallet, connection]);
 
   const getRuntimeErrorMessage = useCallback((rawMessage: string, action: "deposit" | "withdraw") => {
     if (!rawMessage.includes("env var")) return null;
@@ -203,7 +196,7 @@ export default function CollateralModal({
     const toastId = "faucet-claim";
     toast.loading("Claiming test mUSDC...", { id: toastId });
     try {
-      const marketAddress = getSelectedMarketAddress();
+      const marketAddress = getCollateralMarketAddress();
       const accessToken = await getAccessToken();
       if (!accessToken) {
         throw new Error("Sign in again before claiming faucet funds.");
@@ -293,7 +286,7 @@ export default function CollateralModal({
     connection,
     faucetCooldownKey,
     faucetSuggestedAmount,
-    getSelectedMarketAddress,
+    getCollateralMarketAddress,
     getAccessToken,
     isClaiming,
     nextClaimAt,
@@ -378,7 +371,7 @@ export default function CollateralModal({
       const amountBN = new BN(amountRaw.toString());
       if (!anchorWallet || !publicKey) { throw new Error("Connect your wallet"); }
       const { client } = createShadowPerpClient(connection, anchorWallet, walletExecutionMode);
-      const marketAddress = getSelectedMarketAddress();
+      const marketAddress = getCollateralMarketAddress();
       toast.loading("Depositing collateral...", { id: "collateral" });
       const tx = await client.depositCollateral(marketAddress, amountBN);
       toast.success(
@@ -414,7 +407,7 @@ export default function CollateralModal({
     amount,
     anchorWallet,
     connection,
-    getSelectedMarketAddress,
+    getCollateralMarketAddress,
     getRuntimeErrorMessage,
     onSuccess,
     publicKey,
@@ -438,7 +431,7 @@ export default function CollateralModal({
         throw new Error("Connect your wallet");
       }
       const { client } = createShadowPerpClient(connection, anchorWallet, walletExecutionMode);
-      const marketAddress = getSelectedMarketAddress();
+      const marketAddress = getCollateralMarketAddress();
       toast.loading("Withdrawing collateral...", { id: "collateral" });
       const tx = await client.withdrawCollateral(marketAddress, amountBN);
       toast.success(
@@ -474,7 +467,7 @@ export default function CollateralModal({
     amount,
     anchorWallet,
     connection,
-    getSelectedMarketAddress,
+    getCollateralMarketAddress,
     getRuntimeErrorMessage,
     availableCollateral,
     onSuccess,
