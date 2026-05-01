@@ -57,6 +57,12 @@ function getDurableConfig(): DurableRateLimitConfig | null {
   return { url, token };
 }
 
+function requireDurableRateLimitInProduction(): boolean {
+  const raw = process.env.REQUIRE_DURABLE_RATE_LIMITS?.trim().toLowerCase();
+  if (raw && ["0", "false", "no", "off"].includes(raw)) return false;
+  return process.env.NODE_ENV === "production";
+}
+
 function makeDurableKey(key: string, windowMs: number): string {
   const bucket = Math.floor(Date.now() / windowMs);
   return `shadowperp:rl:${key}:${bucket}`;
@@ -96,7 +102,10 @@ export async function checkRateLimitAsync(
   windowMs: number
 ): Promise<boolean> {
   const config = getDurableConfig();
-  if (!config) return checkRateLimit(key, limit, windowMs);
+  if (!config) {
+    if (requireDurableRateLimitInProduction()) return false;
+    return checkRateLimit(key, limit, windowMs);
+  }
 
   const durableKey = makeDurableKey(key, windowMs);
   try {

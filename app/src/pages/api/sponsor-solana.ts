@@ -6,7 +6,7 @@ import {
 } from "@solana/spl-token";
 import { ComputeBudgetProgram, SystemProgram } from "@solana/web3.js";
 import { checkRateLimitAsync } from "../../lib/server/rate-limit";
-import { extractBearerToken, getPrivyServerClient } from "../../lib/server/privy-auth";
+import { extractBearerToken, getPrivyServerClient, getRequestIp } from "../../lib/server/privy-auth";
 
 type SponsorResponse =
   | { ok: true; signature: string }
@@ -14,6 +14,7 @@ type SponsorResponse =
 
 const MAX_BODY_BYTES = 64_000;
 const RATE_LIMIT = 10;
+const IP_RATE_LIMIT = 30;
 const RATE_WINDOW_MS = 60_000;
 
 function normalizeFlag(raw?: string): boolean {
@@ -138,6 +139,9 @@ async function authenticateSponsoredTransaction(
   const claims = await privy.verifyAuthToken(token);
 
   if (!(await checkRateLimitAsync(`sponsor:${claims.userId}`, RATE_LIMIT, RATE_WINDOW_MS))) {
+    throw new Error("Rate limit exceeded. Try again later.");
+  }
+  if (!(await checkRateLimitAsync(`sponsor:ip:${getRequestIp(req)}`, IP_RATE_LIMIT, RATE_WINDOW_MS))) {
     throw new Error("Rate limit exceeded. Try again later.");
   }
 
