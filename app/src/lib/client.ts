@@ -398,7 +398,10 @@ export class ShadowPerpClient {
     return info ? pda : null;
   }
 
-  private async sendTransactionWithPolling(tx: Transaction): Promise<string> {
+  private async sendTransactionWithPolling(
+    tx: Transaction,
+    options: { skipExternalPreflight?: boolean } = {}
+  ): Promise<string> {
     const connection = this.provider.connection;
     const sponsorFeePayer = canUseGasSponsorship(this.walletMode) ? resolveSponsorPubkey() : null;
     const feePayer = sponsorFeePayer ?? this.provider.wallet.publicKey;
@@ -441,6 +444,7 @@ export class ShadowPerpClient {
     }
 
     const serialized = signed.serialize();
+    const skipExternalPreflight = options.skipExternalPreflight ?? true;
 
     let signature: string;
     try {
@@ -449,7 +453,7 @@ export class ShadowPerpClient {
       // "insufficient SOL" failures when nodes are slightly out of sync.
       signature = await connection.sendRawTransaction(serialized, {
         preflightCommitment: "confirmed",
-        skipPreflight: this.walletMode === "external",
+        skipPreflight: this.walletMode === "external" && skipExternalPreflight,
         maxRetries: 3,
       });
     } catch (sendErr: any) {
@@ -530,7 +534,7 @@ export class ShadowPerpClient {
         systemProgram: SystemProgram.programId,
       })
       .transaction();
-    return this.sendTransactionWithPolling(tx);
+    return this.sendTransactionWithPolling(tx, { skipExternalPreflight: false });
   }
 
 
@@ -549,7 +553,7 @@ export class ShadowPerpClient {
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .transaction();
-    return this.sendTransactionWithPolling(tx);
+    return this.sendTransactionWithPolling(tx, { skipExternalPreflight: false });
   }
 
 

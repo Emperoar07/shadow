@@ -1,7 +1,11 @@
 import type { Connection, VersionedTransaction, Transaction } from "@solana/web3.js";
 import type { PublicKey } from "@solana/web3.js";
 import { EncryptedPosition, PositionStatus } from "../types";
-import { extractErrorMessage, isMissingAccountError } from "./account-errors";
+import {
+  extractErrorMessage,
+  extractMissingAccountContext,
+  isMissingAccountError,
+} from "./account-errors";
 
 const ANCHOR_ENUM_MAP: Record<string, number> = {
   pending: 0, open: 1, closing: 2, closed: 3, liquidated: 4,
@@ -213,8 +217,9 @@ export function classifyArciumError(error: unknown): ArciumErrorInfo {
 
   // --- Account not found / not initialized ---
   if (isMissingAccountError(error)) {
+    const detail = extractMissingAccountContext(error);
     return {
-      message: "Account not initialized",
+      message: detail ? `Account not initialized: ${detail}` : "Account not initialized",
       isRetryable: false,
       category: "program",
     };

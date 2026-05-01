@@ -86,6 +86,23 @@ async function sendWithFallback(
   throw lastError;
 }
 
+function describeSolanaSendError(error: unknown): string {
+  if (!(error instanceof Error)) return "Gas sponsorship failed.";
+
+  const maybeLogs = (error as { logs?: unknown }).logs;
+  if (Array.isArray(maybeLogs)) {
+    const anchorLine = maybeLogs.find(
+      (entry): entry is string =>
+        typeof entry === "string" &&
+        (/AnchorError caused by account:/i.test(entry) ||
+          /Error Code: AccountNotInitialized/i.test(entry))
+    );
+    if (anchorLine) return `${error.message}\n${anchorLine}`;
+  }
+
+  return error.message;
+}
+
 function resolveSponsorKeypair(): Keypair {
   const rawJson = process.env.SOLANA_GAS_SPONSOR_SECRET_KEY?.trim();
   if (rawJson) {
@@ -217,7 +234,7 @@ export default async function handler(
 
     res.status(200).json({ ok: true, signature });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Gas sponsorship failed.";
+    const message = describeSolanaSendError(error);
     res.status(400).json({ ok: false, error: message });
   }
 }
