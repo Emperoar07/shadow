@@ -39,26 +39,56 @@ function isConnectedSolanaWalletLike(value: unknown): value is ConnectedSolanaWa
 }
 
 export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
+  const { ready, authenticated, user } = usePrivy();
   const { wallet: activeWallet } = useActiveWallet();
   const { wallets } = useWallets();
   const { wallets: embeddedWallets } = useSolanaWallets();
 
   return useMemo(() => {
+    // While Privy is still hydrating its session, do not pick a wallet at all.
+    // Otherwise a browser-extension auto-connect (Phantom/Solflare with
+    // shouldAutoConnect: true) wins the race and hijacks an embedded-wallet
+    // login on refresh.
+    if (!ready) return null;
+
     // useSolanaWallets() is the authoritative source for signTransaction — always
     // resolve wallets through it by address so signing methods are available.
     const solanaByAddress = new Map(embeddedWallets.map((w) => [w.address, w]));
 
     // Privy's active wallet is the source of truth for which wallet the user
-    // intentionally selected. Resolve it first — if Privy says the active wallet
-    // is external, use it; if it's embedded (email login), don't let a browser
-    // extension override it just because the extension is installed.
+    // intentionally selected. If Privy has resolved one, trust it.
     if (isConnectedSolanaWalletLike(activeWallet)) {
-      const rich = solanaByAddress.get(activeWallet.address) ?? activeWallet;
-      return rich;
+      return solanaByAddress.get(activeWallet.address) ?? activeWallet;
     }
 
-    // No active wallet from Privy yet — fall through to connected list.
+    // Privy is ready but has no active wallet yet — figure out the user's intent
+    // from linkedAccounts so we don't let an auto-connected extension override
+    // an email/social login that owns an embedded wallet.
+    const userOwnsEmbeddedSolana = (user?.linkedAccounts ?? []).some((a: any) => {
+      const t = a?.type ?? a?.linkedAccountType;
+      const ct = a?.chainType;
+      const wct = a?.walletClientType;
+      return t === "wallet" && ct === "solana" && wct === "privy";
+    });
+
     const connected = wallets.filter(isConnectedSolanaWalletLike);
+
+    if (authenticated && userOwnsEmbeddedSolana) {
+      // Prefer the embedded wallet whenever the authenticated user owns one,
+      // even if an external extension has auto-connected.
+      const embeddedFromConnected = connected.find(
+        (w) => w.walletClientType === "privy"
+      );
+      if (embeddedFromConnected) {
+        return solanaByAddress.get(embeddedFromConnected.address) ?? embeddedFromConnected;
+      }
+      const embeddedFromSdk = embeddedWallets.find(
+        (w) => w.walletClientType === "privy" && typeof w.address === "string"
+      );
+      if (embeddedFromSdk) return embeddedFromSdk;
+    }
+
+    // External-only login (no embedded wallet on the account): use external.
     const externalDetected = connected.find((w) => w.walletClientType !== "privy");
     if (externalDetected) {
       return solanaByAddress.get(externalDetected.address) ?? externalDetected;
@@ -69,7 +99,6 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
       return solanaByAddress.get(embeddedDetected.address) ?? embeddedDetected;
     }
 
-    // Pure useSolanaWallets() fallbacks
     const embeddedFallback = embeddedWallets.find(
       (w) => w.walletClientType === "privy" && typeof w.address === "string"
     );
@@ -78,7 +107,7 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
     return embeddedWallets.find(
       (w) => w.walletClientType !== "privy" && typeof w.address === "string"
     ) ?? null;
-  }, [activeWallet, wallets, embeddedWallets]);
+  }, [ready, authenticated, user, activeWallet, wallets, embeddedWallets]);
 }
 
 export function useWalletConnectionState() {

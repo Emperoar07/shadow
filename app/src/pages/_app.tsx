@@ -170,11 +170,13 @@ export default function App({ Component, pageProps }: AppProps) {
       loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
-          // Preserve external Solana wallet sessions across refresh. The app's
-          // wallet resolver still prefers Privy's active wallet first, so email
-          // embedded wallets are not replaced just because an extension exists.
+          // shouldAutoConnect: false — auto-connecting hijacks email/embedded
+          // logins on refresh because the extension fires before Privy's
+          // session has hydrated. External wallets must be reconnected
+          // explicitly, which Privy's session restore does for users who
+          // actually logged in with the extension.
           connectors: toSolanaWalletConnectors({
-            shouldAutoConnect: true,
+            shouldAutoConnect: false,
           }),
         },
       },
