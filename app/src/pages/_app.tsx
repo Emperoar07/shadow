@@ -170,13 +170,13 @@ export default function App({ Component, pageProps }: AppProps) {
       loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
-          // shouldAutoConnect: false — auto-connecting hijacks email/embedded
-          // logins on refresh because the extension fires before Privy's
-          // session has hydrated. External wallets must be reconnected
-          // explicitly, which Privy's session restore does for users who
-          // actually logged in with the extension.
+          // shouldAutoConnect: true so users who logged in with Phantom/Solflare
+          // get reconnected on refresh. The hijack of embedded logins is
+          // prevented at the resolver layer (see use-anchor-wallet.ts), which
+          // gates on usePrivy().ready and prefers the user's embedded wallet
+          // whenever they own one.
           connectors: toSolanaWalletConnectors({
-            shouldAutoConnect: false,
+            shouldAutoConnect: true,
           }),
         },
       },
