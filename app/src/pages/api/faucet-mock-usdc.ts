@@ -16,6 +16,7 @@ import {
   Connection,
   Keypair,
   PublicKey,
+  SendTransactionError,
   Transaction,
 } from "@solana/web3.js";
 import {
@@ -40,6 +41,7 @@ const DEFAULT_RPC = "https://api.devnet.solana.com";
 const USER_RATE_LIMIT = 3;
 const IP_RATE_LIMIT = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
+const MIN_FAUCET_SOL = 0.01;
 
 // In-memory cooldown resets on cold start; Privy auth + rate limits provide the server-side abuse gate.
 const cooldowns = new Map<string, number>();
@@ -149,6 +151,27 @@ async function fetchWalletTokenBalanceRaw(
   }
 }
 
+function formatRawUsdc(raw: bigint): string {
+  const whole = raw / BigInt(10 ** DECIMALS);
+  const fraction = raw % BigInt(10 ** DECIMALS);
+  if (fraction === BigInt(0)) return whole.toLocaleString();
+  return `${whole.toLocaleString()}.${fraction.toString().padStart(DECIMALS, "0").replace(/0+$/, "")}`;
+}
+
+async function getSendTransactionErrorMessage(
+  err: unknown,
+  connection: Connection
+): Promise<string | null> {
+  if (!(err instanceof SendTransactionError)) return null;
+  try {
+    const logs = await err.getLogs(connection);
+    const detail = logs?.find((line) => /Error|failed|insufficient|custom program error/i.test(line));
+    return detail ? `${err.message.split("\n")[0]} (${detail})` : err.message.split("\n")[0];
+  } catch {
+    return err.message.split("\n")[0];
+  }
+}
+
 type FaucetResponse =
   | { success: true; signature: string; amount: number }
   | { success: false; error: string; nextClaimAt?: number };
@@ -243,6 +266,31 @@ export default async function handler(
     const faucetAta    = await getAssociatedTokenAddress(mintAddress, faucet.publicKey);
     const recipientAta = await getAssociatedTokenAddress(mintAddress, recipientPubkey);
 
+    const faucetSol = await connection.getBalance(faucet.publicKey);
+    if (faucetSol < MIN_FAUCET_SOL * 1_000_000_000) {
+      return res.status(503).json({
+        success: false,
+        error: `mUSDC faucet needs devnet SOL for fees. Faucet SOL is ${(faucetSol / 1_000_000_000).toFixed(4)} SOL.`,
+      });
+    }
+
+    const faucetAtaInfo = await connection.getAccountInfo(faucetAta);
+    if (!faucetAtaInfo) {
+      return res.status(503).json({
+        success: false,
+        error: "mUSDC faucet needs refill for the current devnet mint. Faucet token account is missing.",
+      });
+    }
+
+    const faucetBalance = await connection.getTokenAccountBalance(faucetAta);
+    const faucetBalanceRaw = BigInt(faucetBalance.value.amount);
+    if (faucetBalanceRaw < sendRaw) {
+      return res.status(503).json({
+        success: false,
+        error: `mUSDC faucet needs refill. Available ${formatRawUsdc(faucetBalanceRaw)} mUSDC, needed ${sendUsdc.toLocaleString()} mUSDC.`,
+      });
+    }
+
     const tx = new Transaction();
 
     // Create recipient ATA if needed — faucet pays rent
@@ -274,10 +322,16 @@ export default async function handler(
     tx.feePayer = faucet.publicKey;
     tx.sign(faucet);
 
-    const signature = await connection.sendRawTransaction(tx.serialize(), {
-      skipPreflight: false,
-      preflightCommitment: "confirmed",
-    });
+    let signature: string;
+    try {
+      signature = await connection.sendRawTransaction(tx.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+      });
+    } catch (error) {
+      const detail = await getSendTransactionErrorMessage(error, connection);
+      throw new Error(detail ?? "mUSDC faucet transaction simulation failed.");
+    }
     await connection.confirmTransaction(signature, "confirmed");
 
     cooldowns.set(wallet, now);
