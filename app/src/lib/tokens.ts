@@ -34,7 +34,7 @@ export const DEVNET_TOKENS: Record<string, TokenInfo> = {
     name: "Mock USDC (Shadow)",
     // Use deployed MockUSDC mint; falls back to devnet USDC if env not set
     mint: new PublicKey(
-      process.env.NEXT_PUBLIC_MOCKUSDC_MINT ?? "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+      process.env.NEXT_PUBLIC_MOCKUSDC_MINT ?? "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6"
     ),
     decimals: 6,
     color: "#2775CA",

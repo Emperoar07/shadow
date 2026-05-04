@@ -31,7 +31,7 @@ import WalletPopup from "../components/WalletPopup";
 import { useMarketSnapshot } from "../hooks/useMarketSnapshot";
 import { TRADING_PAIRS, TradingPair } from "../lib/tokens";
 
-const DEFAULT_MOCK_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+const DEFAULT_MOCK_USDC_MINT = "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6";
 
 function getMockUsdcMint(): PublicKey {
   return new PublicKey(
