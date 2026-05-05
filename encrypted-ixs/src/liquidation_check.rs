@@ -21,7 +21,7 @@ mod liquidation_check_circuit {
         position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         mark_price: u64,
         liquidation_threshold_bps: u16,
-    ) -> (bool, u64, u64) {
+    ) -> (u8, u64, u64) {
         let pos = position.to_arcis();
 
         // pos = (size_scaled, entry_price, _, direction_flag, margin)
@@ -53,12 +53,13 @@ mod liquidation_check_circuit {
         let maintenance = notional * liquidation_threshold_bps as u64 / 10000;
 
         let should_liquidate = equity < maintenance;
+        let liq_flag = if should_liquidate { 1u8 } else { 0u8 };
 
         let revealed_margin = if should_liquidate { margin } else { 0 };
         let liquidation_price = if should_liquidate { mark_price } else { 0 };
 
         (
-            should_liquidate.reveal(),
+            liq_flag.reveal(),
             revealed_margin.reveal(),
             liquidation_price.reveal(),
         )

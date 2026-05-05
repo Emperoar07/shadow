@@ -19,7 +19,7 @@ mod open_position_circuit {
         inputs: Enc<Shared, (u64, u64, u8, u8, u64)>,
         requested_margin: u64,
         max_leverage: u8,
-    ) -> bool {
+    ) -> u8 {
         let (size, _entry_price, leverage, _is_long, margin) = inputs.to_arcis();
 
         let size_ok = size > 0u64;
@@ -28,6 +28,7 @@ mod open_position_circuit {
         let leverage_min_ok = leverage >= 1u8;
         let leverage_max_ok = leverage <= max_leverage;
 
-        (size_ok && margin_ok && requested_margin_ok && leverage_min_ok && leverage_max_ok).reveal()
+        let valid = size_ok && margin_ok && requested_margin_ok && leverage_min_ok && leverage_max_ok;
+        (if valid { 1u8 } else { 0u8 }).reveal()
     }
 }
