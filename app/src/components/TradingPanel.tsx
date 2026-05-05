@@ -851,7 +851,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
 
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <label className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Size <span className="normal-case text-gray-600">(notional)</span></label>
+              <label className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Size</label>
               <div className="flex overflow-hidden rounded-md border border-shadow-500 text-[10px]">
                 <button
                   onClick={() => setSizeUnit("base")}
