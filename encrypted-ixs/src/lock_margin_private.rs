@@ -1,4 +1,4 @@
-//! Lock Margin Private Circuit
+﻿//! Lock Margin Private Circuit
 //!
 //! Validates a shielded margin lock request. The circuit verifies that the
 //! user's commitment contains sufficient balance to cover the requested margin,
@@ -7,11 +7,11 @@
 //! Privacy: The commitment balance and locked amount remain encrypted.
 //! Only a boolean validity flag and the new root hash are revealed.
 
-use arcis_imports::*;
+use arcis::*;
 
 #[encrypted]
 mod lock_margin_private_circuit {
-    use arcis_imports::*;
+    use arcis::*;
 
     /// Lock margin from a shielded commitment for opening a position.
     ///

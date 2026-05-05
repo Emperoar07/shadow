@@ -1,13 +1,13 @@
-//! Open Position Diagnostic Circuits
+﻿//! Open Position Diagnostic Circuits
 //!
 //! These probes isolate the failing `open_position_probe_b` contract into
 //! smaller Arcium computations so we can identify which layer starts aborting.
 
-use arcis_imports::*;
+use arcis::*;
 
 #[encrypted]
 mod open_position_diagnostics_circuit {
-    use arcis_imports::*;
+    use arcis::*;
 
     #[instruction]
     pub fn open_position_tuple_probe_v1(

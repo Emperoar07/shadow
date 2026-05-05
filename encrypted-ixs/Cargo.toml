@@ -10,4 +10,3 @@ name = "shadowperp_circuits"
 
 [dependencies]
 arcis = "=0.9.7"
-arcis-imports = "=0.9.7"

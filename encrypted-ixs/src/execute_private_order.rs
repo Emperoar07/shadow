@@ -1,4 +1,4 @@
-//! Execute Private Order Circuit
+﻿//! Execute Private Order Circuit
 //!
 //! Validates a private limit order against the current market price and
 //! produces the decrypted order parameters needed to open a position,
@@ -6,28 +6,28 @@
 //!
 //! Privacy: Order size, price, and direction remain encrypted until the
 //! trigger fires. Only the trigger decision and output position parameters
-//! are revealed — and only when the order actually executes.
+//! are revealed â€” and only when the order actually executes.
 
-use arcis_imports::*;
+use arcis::*;
 
 #[encrypted]
 mod execute_private_order_circuit {
-    use arcis_imports::*;
+    use arcis::*;
 
     /// Evaluate a private limit order against the current market price.
     ///
     /// Inputs:
     ///   - order: Enc<Shared, (u64, u64, bool)>
-    ///       field_0 = size          — order size (encrypted)
-    ///       field_1 = trigger_price — limit price set by the trader (encrypted)
-    ///       field_2 = is_long       — direction (encrypted)
-    ///   - mark_price: u64  — current oracle price (plaintext)
+    ///       field_0 = size          â€” order size (encrypted)
+    ///       field_1 = trigger_price â€” limit price set by the trader (encrypted)
+    ///       field_2 = is_long       â€” direction (encrypted)
+    ///   - mark_price: u64  â€” current oracle price (plaintext)
     ///
     /// Returns:
-    ///   - triggered: bool — whether the limit condition is met
-    ///   - size: u64       — revealed only if triggered (0 otherwise)
-    ///   - entry_price: u64 — mark price at trigger time (revealed if triggered)
-    ///   - is_long: bool   — direction (revealed if triggered)
+    ///   - triggered: bool â€” whether the limit condition is met
+    ///   - size: u64       â€” revealed only if triggered (0 otherwise)
+    ///   - entry_price: u64 â€” mark price at trigger time (revealed if triggered)
+    ///   - is_long: bool   â€” direction (revealed if triggered)
     #[instruction]
     pub fn execute_private_order(
         order: Enc<Shared, (u64, u64, bool)>,
@@ -47,7 +47,7 @@ mod execute_private_order_circuit {
         let out_price = if triggered { mark_price } else { 0 };
         // Always reveal the same sentinel (false) when not triggered so that
         // repeated calls at different prices cannot leak direction via the
-        // is_long output changing from false→true at the threshold.
+        // is_long output changing from falseâ†’true at the threshold.
         // The caller must only act on is_long when triggered=true.
         let out_long = if triggered { is_long } else { false };
 

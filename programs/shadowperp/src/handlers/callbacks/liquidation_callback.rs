@@ -133,8 +133,8 @@ pub fn check_liquidation_callback_handler(
         ShadowPerpError::PositionNotOpen
     );
 
-    // Extract revealed liquidation decision (u8: 1=liquidate, 0=healthy).
-    let should_liquidate = verified_output.field_0.field_0 != 0u8;
+    // Extract revealed liquidation decision (bool: true=liquidate, false=healthy).
+    let should_liquidate = verified_output.field_0.field_0;
     let revealed_margin = verified_output.field_0.field_1;
     let _liquidation_price = verified_output.field_0.field_2;
 

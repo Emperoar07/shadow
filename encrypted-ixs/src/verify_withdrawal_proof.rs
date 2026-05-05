@@ -1,4 +1,4 @@
-//! Verify Withdrawal Proof Circuit
+﻿//! Verify Withdrawal Proof Circuit
 //!
 //! Validates a shielded withdrawal request by verifying that the caller
 //! owns a commitment in the pool's Merkle tree without revealing the
@@ -20,22 +20,22 @@
 //! fold) and will be upgraded to a proper hash once Poseidon is available
 //! in arcis_imports.
 
-use arcis_imports::*;
+use arcis::*;
 
 #[encrypted]
 mod verify_withdrawal_proof_circuit {
-    use arcis_imports::*;
+    use arcis::*;
 
     /// Verify a shielded withdrawal proof.
     ///
     /// Inputs:
     ///   - secrets: Enc<Shared, (u64, u64, u64)>
-    ///       field_0 = amount       — deposited amount for this note (encrypted)
-    ///       field_1 = secret       — commitment preimage secret (encrypted)
-    ///       field_2 = nullifier_lo — lower 64 bits of nullifier preimage (encrypted)
-    ///   - claimed_amount: u64  — plaintext amount the caller claims to withdraw
-    ///   - expected_nullifier_lo: u64 — lower 64 bits of the on-chain nullifier
-    ///   - expected_nullifier_hi: u64 — upper 64 bits of the on-chain nullifier
+    ///       field_0 = amount       â€” deposited amount for this note (encrypted)
+    ///       field_1 = secret       â€” commitment preimage secret (encrypted)
+    ///       field_2 = nullifier_lo â€” lower 64 bits of nullifier preimage (encrypted)
+    ///   - claimed_amount: u64  â€” plaintext amount the caller claims to withdraw
+    ///   - expected_nullifier_lo: u64 â€” lower 64 bits of the on-chain nullifier
+    ///   - expected_nullifier_hi: u64 â€” upper 64 bits of the on-chain nullifier
     ///
     /// Returns:
     ///   - valid: whether the proof is valid

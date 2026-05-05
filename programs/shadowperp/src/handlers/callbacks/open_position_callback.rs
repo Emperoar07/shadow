@@ -126,8 +126,8 @@ pub fn open_position_callback_handler(
     // Consume the binding so this callback result cannot be replayed.
     position.consume_pending_computation(ctx.accounts.computation_account.key())?;
 
-    // Enforce MPC validation outcome (circuit returns u8: 1=valid, 0=rejected).
-    if verified_output.field_0 == 0u8 {
+    // Enforce MPC validation outcome (circuit returns bool: true=valid, false=rejected).
+    if !verified_output.field_0 {
         // MPC rejected the position (e.g. insufficient margin, invalid params).
         // Persist a terminal state so the account is not stuck in Pending.
         position.status = PositionStatus::Closed;

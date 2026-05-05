@@ -1,13 +1,13 @@
-//! Liquidation Check Circuit
+﻿//! Liquidation Check Circuit
 //!
 //! This circuit checks if a position should be liquidated based on its health factor.
 //! CRITICAL: The health factor itself is NEVER revealed - only a boolean decision.
 
-use arcis_imports::*;
+use arcis::*;
 
 #[encrypted]
 mod liquidation_check_circuit {
-    use arcis_imports::*;
+    use arcis::*;
 
     /// Check if a position should be liquidated
     ///
@@ -21,7 +21,7 @@ mod liquidation_check_circuit {
         position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         mark_price: u64,
         liquidation_threshold_bps: u16,
-    ) -> (u8, u64, u64) {
+    ) -> (bool, u64, u64) {
         let pos = position.to_arcis();
 
         // pos = (size_scaled, entry_price, _, direction_flag, margin)
@@ -36,30 +36,28 @@ mod liquidation_check_circuit {
         // PnL direction: long profits if mark > entry
         let price_above = mark_price > entry;
         let price_diff = if price_above { mark_price - entry } else { entry - mark_price };
-        // pnl_abs = size * price_diff / 10^6 — pre-divide each by 1000 to avoid u64 overflow.
+        // pnl_abs = size * price_diff / 10^6 â€” pre-divide each by 1000 to avoid u64 overflow.
         let pnl_abs = (size / 1000) * (price_diff / 1000);
         let profitable = if is_long { price_above } else { !price_above };
 
-        // equity = margin ± pnl
+        // equity = margin Â± pnl
         let equity_with_profit = margin + (if profitable { pnl_abs } else { 0u64 });
         let loss = if !profitable { pnl_abs } else { 0u64 };
         let underwater = loss > margin;
         let equity_net = if underwater { 0u64 } else { margin - loss };
         let equity = if profitable { equity_with_profit } else { equity_net };
 
-        // notional = size * mark_price / 10^6 — same pre-division pattern.
+        // notional = size * mark_price / 10^6 â€” same pre-division pattern.
         let notional = (size / 1000) * (mark_price / 1000);
-        // maintenance = notional * threshold_bps / 10000 — exact division, no rebasing.
+        // maintenance = notional * threshold_bps / 10000 â€” exact division, no rebasing.
         let maintenance = notional * liquidation_threshold_bps as u64 / 10000;
 
         let should_liquidate = equity < maintenance;
-        let liq_flag = if should_liquidate { 1u8 } else { 0u8 };
-
         let revealed_margin = if should_liquidate { margin } else { 0 };
         let liquidation_price = if should_liquidate { mark_price } else { 0 };
 
         (
-            liq_flag.reveal(),
+            should_liquidate.reveal(),
             revealed_margin.reveal(),
             liquidation_price.reveal(),
         )

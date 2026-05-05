@@ -1,4 +1,4 @@
-//! Settle Private Position Circuit
+﻿//! Settle Private Position Circuit
 //!
 //! Applies PnL, fees, and funding to a shielded position settlement.
 //! The circuit computes the net settlement amount and new shielded balance
@@ -7,11 +7,11 @@
 //! Privacy: Position details remain encrypted. Only the settlement outputs
 //! needed for on-chain state updates are revealed.
 
-use arcis_imports::*;
+use arcis::*;
 
 #[encrypted]
 mod settle_private_position_circuit {
-    use arcis_imports::*;
+    use arcis::*;
 
     /// Settle a closed position against the shielded collateral pool.
     ///

@@ -1,12 +1,12 @@
-//! Seed Open Interest State Circuit
+﻿//! Seed Open Interest State Circuit
 //!
 //! Bootstraps a valid MXE-owned encrypted zero open-interest state for a new market.
 
-use arcis_imports::*;
+use arcis::*;
 
 #[encrypted]
 mod seed_open_interest_state_circuit {
-    use arcis_imports::*;
+    use arcis::*;
 
     #[instruction]
     pub fn seed_open_interest_state_v3(dummy: u8) -> (bool, Enc<Mxe, (u64, u64)>) {
