@@ -21,9 +21,9 @@ app/out/
 test-ledger/
 mxconfig.yaml
 
-# Generated IDL/build artifacts
-idl/
-build/
+# Generated IDL/build artifacts (root-level only)
+/idl/
+/build/
 artifacts/
 ci_artifacts/
 
