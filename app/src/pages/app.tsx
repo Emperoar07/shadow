@@ -75,7 +75,8 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   const [mounted, setMounted] = useState(false);
   // Bumped when gate is dismissed — re-triggers the balance check so the modal
   // can reappear on the same session if the wallet is still below the trigger.
-  const [checkKey, setCheckKey] = useState(0);
+  // Set to true when user explicitly dismisses — suppresses re-check until page refresh.
+  const [dismissed, setDismissed] = useState(false);
   // null = first-time (no/zero balance), string = top-up mode (existing balance)
   const [currentBalanceRaw, setCurrentBalanceRaw] = useState<string | null>(null);
   const [topUpAmount, setTopUpAmount] = useState<number>(FAUCET_FIRST_CLAIM_USDC);
@@ -85,10 +86,10 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   const CAP_USDC    = FAUCET_CAP_USDC;
 
   useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
-  useEffect(() => { setStep(0); setShowGate(false); setCurrentBalanceRaw(null); }, [walletAddr]);
+  useEffect(() => { setStep(0); setShowGate(false); setDismissed(false); setCurrentBalanceRaw(null); }, [walletAddr]);
 
   useEffect(() => {
-    if (!walletAddr) return;
+    if (!walletAddr || dismissed) return;
 
     let cancelled = false;
 
@@ -146,11 +147,9 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
 
     // 3s delay — gives Privy time to fully hydrate both embedded and external
     // wallet sessions before the balance check fires.
-    // Re-runs on checkKey bump (dismiss) with a shorter delay since wallet is known
-    const delay = checkKey > 0 ? 1_000 : 3_000;
-    const timer = setTimeout(() => { void check(); }, delay);
+    const timer = setTimeout(() => { void check(); }, 3_000);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [walletAddr, connection, checkKey]);
+  }, [walletAddr, connection, dismissed]);
 
   const handleClaim = async () => {
     if (!walletAddr || isClaiming) return;
@@ -253,7 +252,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </button>
       <button
         type="button"
-        onClick={() => { setShowGate(false); setCheckKey((k) => k + 1); }}
+        onClick={() => { setShowGate(false); setDismissed(true); }}
         className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
       >
         {isTopUpMode ? "Dismiss for now" : "Skip for now"}
@@ -308,7 +307,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </button>
       <button
         type="button"
-        onClick={() => { setShowGate(false); setCheckKey((k) => k + 1); }}
+        onClick={() => { setShowGate(false); setDismissed(true); }}
         className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
       >
         Skip for now
@@ -344,14 +343,14 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </div>
       <button
         type="button"
-        onClick={() => { setShowGate(false); setCheckKey((k) => k + 1); onOpenDeposit?.(); }}
+        onClick={() => { setShowGate(false); setDismissed(true); onOpenDeposit?.(); }}
         className="w-full py-3 rounded-xl font-bold text-sm bg-accent-purple hover:bg-accent-purple/85 text-white transition-colors"
       >
         {isTopUpMode ? "Deposit to Margin" : "Deposit & Start Trading"}
       </button>
       <button
         type="button"
-        onClick={() => { setShowGate(false); setCheckKey((k) => k + 1); }}
+        onClick={() => { setShowGate(false); setDismissed(true); }}
         className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
       >
         I&apos;ll deposit later
