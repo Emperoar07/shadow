@@ -851,7 +851,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
 
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <label className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Size</label>
+              <label className="text-[10px] uppercase tracking-[0.12em] text-gray-500">Size <span className="normal-case text-gray-600">(notional)</span></label>
               <div className="flex overflow-hidden rounded-md border border-shadow-500 text-[10px]">
                 <button
                   onClick={() => setSizeUnit("base")}
@@ -887,6 +887,23 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
                 {sizeUnit === "usd" ? "mUSDC" : activePair.base.symbol}
               </span>
             </div>
+            {margin > 0 && (
+              <div className="mt-1 flex items-center justify-between text-[10px]">
+                <span className="text-gray-600">Margin cost</span>
+                <span className={
+                  (availableMarginBalance ?? marginBalance ?? 0) > 0 && margin > (availableMarginBalance ?? marginBalance ?? 0)
+                    ? "text-red-400 font-semibold"
+                    : "text-gray-400"
+                }>
+                  ${margin.toFixed(2)}
+                  {(availableMarginBalance ?? marginBalance) != null && (
+                    <span className="text-gray-600 ml-1">
+                      / ${(availableMarginBalance ?? marginBalance)!.toFixed(2)} free
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
             <div className="mt-1">
               {(() => {
                 const effectiveMarginBalance = availableMarginBalance ?? marginBalance;
