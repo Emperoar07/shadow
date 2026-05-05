@@ -101,9 +101,12 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
           .catch(() => null);
         if (cancelled) return;
 
-        // Check cooldown for both zero-balance and low-balance cases — prevents
-        // the modal from reopening immediately after a successful claim while the
-        // tx is still settling on-chain.
+        const mintUsed = getMockUsdcMint().toBase58();
+        console.debug("[Shadow][faucet-gate] mint:", mintUsed, "tokenBalance:", tokenBalance?.value?.uiAmount ?? "no ATA");
+
+        // Check cooldown — prevents modal reopening right after a claim while tx settles.
+        // Exception: if wallet has NO ATA on the current mint, always show regardless of
+        // cooldown — the cooldown may be from a claim on a different (old) mint.
         let inCooldown = false;
         try {
           const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
@@ -111,7 +114,8 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         } catch {}
 
         if (!tokenBalance) {
-          if (inCooldown) return;
+          // No ATA on current mint — clear stale cooldown and always show
+          try { localStorage.removeItem(`mockusdc_faucet_${walletAddr}`); } catch {}
           setCurrentBalanceRaw(null);
           setTopUpAmount(FAUCET_FIRST_CLAIM_USDC);
           setShowGate(true);
@@ -119,6 +123,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
         }
 
         const balance = BigInt(tokenBalance.value.amount);
+        console.debug("[Shadow][faucet-gate] balance:", balance.toString(), "trigger:", TRIGGER_RAW.toString());
 
         if (balance < TRIGGER_RAW) {
           if (inCooldown) return;
