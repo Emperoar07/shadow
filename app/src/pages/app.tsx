@@ -73,6 +73,9 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
   const [showGate, setShowGate] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // Bumped when gate is dismissed — re-triggers the balance check so the modal
+  // can reappear on the same session if the wallet is still below the trigger.
+  const [checkKey, setCheckKey] = useState(0);
   // null = first-time (no/zero balance), string = top-up mode (existing balance)
   const [currentBalanceRaw, setCurrentBalanceRaw] = useState<string | null>(null);
   const [topUpAmount, setTopUpAmount] = useState<number>(FAUCET_FIRST_CLAIM_USDC);
@@ -98,13 +101,17 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
           .catch(() => null);
         if (cancelled) return;
 
-        // No wallet mUSDC account — first-time user. Check cooldown before showing
-        // to avoid reopening immediately after a successful claim while tx settles.
+        // Check cooldown for both zero-balance and low-balance cases — prevents
+        // the modal from reopening immediately after a successful claim while the
+        // tx is still settling on-chain.
+        let inCooldown = false;
+        try {
+          const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
+          if (stored && parseInt(stored, 10) > Date.now()) inCooldown = true;
+        } catch {}
+
         if (!tokenBalance) {
-          try {
-            const stored = localStorage.getItem(`mockusdc_faucet_${walletAddr}`);
-            if (stored && parseInt(stored, 10) > Date.now()) return;
-          } catch {}
+          if (inCooldown) return;
           setCurrentBalanceRaw(null);
           setTopUpAmount(FAUCET_FIRST_CLAIM_USDC);
           setShowGate(true);
@@ -113,9 +120,8 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
 
         const balance = BigInt(tokenBalance.value.amount);
 
-        // Always show top-up gate when below trigger — regardless of cooldown,
-        // because low wallet balance blocks deposits and must be surfaced.
         if (balance < TRIGGER_RAW) {
+          if (inCooldown) return;
           const balanceUsdc = Number(balance) / 10 ** 6;
           const delta = Math.max(1, CAP_USDC - Math.floor(balanceUsdc));
           setCurrentBalanceRaw(balance.toString());
@@ -135,9 +141,11 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
 
     // 3s delay — gives Privy time to fully hydrate both embedded and external
     // wallet sessions before the balance check fires.
-    const timer = setTimeout(() => { void check(); }, 3_000);
+    // Re-runs on checkKey bump (dismiss) with a shorter delay since wallet is known
+    const delay = checkKey > 0 ? 1_000 : 3_000;
+    const timer = setTimeout(() => { void check(); }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [walletAddr, connection]);
+  }, [walletAddr, connection, checkKey]);
 
   const handleClaim = async () => {
     if (!walletAddr || isClaiming) return;
@@ -240,7 +248,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </button>
       <button
         type="button"
-        onClick={() => setShowGate(false)}
+        onClick={() => { setShowGate(false); setCheckKey((k) => k + 1); }}
         className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
       >
         {isTopUpMode ? "Dismiss for now" : "Skip for now"}
@@ -295,7 +303,7 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </button>
       <button
         type="button"
-        onClick={() => setShowGate(false)}
+        onClick={() => { setShowGate(false); setCheckKey((k) => k + 1); }}
         className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
       >
         Skip for now
@@ -331,14 +339,14 @@ function MockUsdcGate({ onOpenDeposit }: { onOpenDeposit?: () => void }) {
       </div>
       <button
         type="button"
-        onClick={() => { setShowGate(false); onOpenDeposit?.(); }}
+        onClick={() => { setShowGate(false); setCheckKey((k) => k + 1); onOpenDeposit?.(); }}
         className="w-full py-3 rounded-xl font-bold text-sm bg-accent-purple hover:bg-accent-purple/85 text-white transition-colors"
       >
         {isTopUpMode ? "Deposit to Margin" : "Deposit & Start Trading"}
       </button>
       <button
         type="button"
-        onClick={() => setShowGate(false)}
+        onClick={() => { setShowGate(false); setCheckKey((k) => k + 1); }}
         className="mt-2 w-full py-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
       >
         I&apos;ll deposit later
