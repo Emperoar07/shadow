@@ -90,18 +90,21 @@ Main handlers:
 
 State accounts:
 
-- `Market`
-- `MarginAccount`
-- `Position`
-- `LiquidationSettlement` (authorized liquidator binding for deferred liquidation settlement)
-- `TradeSession` (market-scoped owner-approved relayer window with action/margin caps + expiry)
-- `TradeSessionV2` (wallet-scoped owner-approved relayer window reusable across supported markets; deployed and smoke-verified for delegated collateral across multiple markets on devnet, but no longer the primary frontend trading path)
-- `SharedCollateral` migration-backed custody model (deployed on devnet; each owner with legacy balances still needs migration):
+- `Market` — per-pair market config, oracle price, comp-def pointers, cluster binding
+- `MarginAccount` — owner-scoped collateral ledger (`[b"margin", owner]`); shared across all adopted pairs
+- `Position` — encrypted trade state with pending computation binding (`pending_computation_account`, `pending_callback_seq`, `pending_callback_kind`)
+- `LiquidationSettlement` — authorized liquidator binding for deferred liquidation settlement; rent reclaims to liquidator
+- `TradeSession` — market-scoped owner-approved relayer window with action/margin caps + expiry (delegated path, not primary UX)
+- `TradeSessionV2` — wallet-scoped owner-approved relayer window reusable across markets (delegated path, not primary UX)
+- `ConfidentialOrderBook` (alias `PrivateOrderBook`) — encrypted private limit order storage per owner per market:
+  - seeds: `[b"private-orderbook", market, owner]`
+  - `bids` and `asks` vecs of `EncryptedOrder` (max 128 each)
+  - `pending_computation_account: Pubkey` — computation binding lock; prevents concurrent MPC evaluations
+  - `pending_order_index: u32` + `pending_order_is_bid: bool` — identifies the slot being evaluated so the callback can `swap_remove` on trigger
+- `SharedCollateral` migration-backed custody model:
   - shared vault PDA per collateral mint
-  - owner-scoped `MarginAccount` PDA (`[b"margin", owner]`)
   - adoption instruction for existing market vaults
   - legacy margin migration instruction for existing per-market balances
-- optional private orderbook state
 - feature-gated shielded collateral state (`shielded-collateral` feature only):
   - `ShieldedPool` (per-market pool with commitment tree root, vault, accounting)
   - `CommitmentTree` (append-only leaf storage with 16-root rolling ring buffer)
@@ -111,21 +114,25 @@ State accounts:
 
 ### 3. Arcium MPC Layer
 
+Arcium SDK version: 0.9.7. All circuit sources use `use arcis::*`.
+
 Circuit sources:
 
-- `encrypted-ixs/src/open_position.rs`
-- `encrypted-ixs/src/close_position.rs`
-- `encrypted-ixs/src/liquidation_check.rs`
-- `encrypted-ixs/src/lock_margin_private.rs` (stub — shielded collateral)
-- `encrypted-ixs/src/settle_private_position.rs` (stub — shielded collateral)
+- `encrypted-ixs/src/open_position.rs` — validates encrypted position inputs (`open_position_probe_b`), returns bool
+- `encrypted-ixs/src/close_position.rs` — computes encrypted PnL and settlement values
+- `encrypted-ixs/src/liquidation_check.rs` — evaluates health factor, returns `(bool, u64, u64)` — decision, margin, price
+- `encrypted-ixs/src/execute_private_order.rs` — evaluates encrypted limit order trigger, returns `(bool, u64, u64, bool)` — triggered, size, price, direction
+- `encrypted-ixs/src/settle_private_position.rs` — shielded collateral settlement (feature-gated)
+- `encrypted-ixs/src/lock_margin_private.rs` — shielded margin lock (feature-gated)
 
-Build artifacts:
+Build artifacts (compiled `.arcis` files in `build/`):
 
-- `build/open_position.arcis`
-- `build/close_position.arcis`
-- `build/check_liquidation.arcis`
+- `open_position_probe_b.arcis`
+- `close_position.arcis`
+- `check_liquidation_v2.arcis`
+- `execute_private_order.arcis`
 
-Arcium-related account pointers are stored in market state and validated in callbacks.
+Arcium-related account pointers are stored in market state and validated in callbacks before `verify_output` is called.
 
 ## Data and Account Boundaries
 
@@ -191,11 +198,16 @@ Arcium-related account pointers are stored in market state and validated in call
 
 ## Security Design Decisions
 
-- **Zombie position prevention** — If `verify_output` fails in any callback, the position is immediately set to `PositionStatus::Closed` and `consume_pending_computation` is called before returning an error. This prevents positions from being permanently stuck in Pending status.
+- **Cluster and comp-def validation before verify_output** — All callbacks validate `cluster_account.key() == market.mxe_cluster` and the comp-def address before calling `verify_output`. A forged cluster account that passed `verify_output` would otherwise clear a legitimate pending lock on the error path.
+- **Computation binding on positions** — `Position` stores `pending_computation_account`, `pending_callback_seq`, and `pending_callback_kind`. Callbacks verify the exact computation account before consuming output, preventing replay of a different computation's result against an existing position.
+- **Computation binding on private order books** — `ConfidentialOrderBook` stores `pending_computation_account`, `pending_order_index`, and `pending_order_is_bid`. `execute_private_order` rejects new queuing while a computation is in-flight (`ComputationInProgress`). The callback verifies the binding and clears all three fields on both success and failure paths, preventing permanent lock.
+- **Vec pruning on trigger** — When an order triggers, `execute_private_order_callback` calls `swap_remove` on the correct vec slot using the stored `pending_order_index` and `pending_order_is_bid`. This keeps `total_orders()` (used to enforce `MAX_PRIVATE_ORDERS`) accurate and frees the slot for future orders.
+- **Zombie position prevention** — If `verify_output` fails in any position callback, the position is immediately set to `PositionStatus::Closed` and `consume_pending_computation` is called before returning. This prevents positions from being permanently stuck in Pending status.
 - **Rent reclaim targets** — `LiquidationSettlement` uses `close = liquidator`, not `close = payer`. Rent lamports go to the authorized liquidator, not an arbitrary caller.
-- **Computation offset validation** — All queue handlers (`open_position`, `close_position`, `check_liquidation`, session variants) require `computation_offset > 0`. Zero offset is not a valid comp-def.
+- **Computation offset validation** — All queue handlers require `computation_offset > 0`. Zero offset is not a valid comp-def.
 - **Oracle future-dating guard** — `update_price` rejects price data with `publish_time > clock.unix_timestamp`, preventing acceptance of fabricated future timestamps.
 - **Session withdraw exemption** — Session-delegated withdrawals are not subject to `max_margin_per_action` caps. The cap applies to opens and deposits only.
+- **Realloc safety** — Account realloc operations use `realloc::zero = true` so grown regions are zeroed before deserialization. This prevents garbage bytes from landing in binding fields on account migration.
 
 ## Deploy/Init Pipeline
 

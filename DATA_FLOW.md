@@ -90,7 +90,38 @@ Current product note:
 5. Liquidator submits `settle_liquidation`
 6. Program verifies the recorded liquidator, transfers the liquidation reward, and marks the position `Liquidated`
 
-## 4. Collateral Flow
+## 4. Private Order Book Flow
+
+### Add Order
+
+1. Client encrypts order parameters (size, trigger price, direction) client-side using the MXE public key
+2. Connected wallet signs and submits `add_private_order` with the ciphertext payloads and a client nonce
+3. Program appends an `EncryptedOrder` to the owner's `ConfidentialOrderBook` bids or asks vec
+4. `order_count` increments; total vec length enforces the `MAX_PRIVATE_ORDERS` cap
+
+### Execute (Trigger Evaluation)
+
+1. Owner (or keeper acting on their behalf) signs and submits `execute_private_order` with the order index and a fresh computation offset
+2. Program checks oracle freshness and that no other computation is in-flight (`pending_computation_account == Pubkey::default()`)
+3. Program builds `ArgBuilder` with the encrypted order ciphertext and the current oracle price as plaintext
+4. Program stores `pending_computation_account`, `pending_order_index`, and `pending_order_is_bid` on the order book
+5. Arcium MPC evaluates the `execute_private_order` circuit on the encrypted order
+6. `execute_private_order_callback` fires:
+   - validates cluster and comp-def bindings
+   - calls `verify_output`
+   - checks `pending_computation_account == computation_account.key()`
+   - clears `pending_computation_account`, `pending_order_index`, `pending_order_is_bid`
+   - if triggered: calls `swap_remove` on the correct vec slot using the stored index/side, decrements `order_count`, logs revealed parameters
+   - if not triggered: returns without modifying orders
+
+### State Effects
+
+- `pending_computation_account` acts as a mutex; only one evaluation per order book can be in-flight
+- On trigger: the `EncryptedOrder` is removed from the vec via `swap_remove`, freeing the slot for future orders
+- On MPC failure: lock is cleared, order remains in vec for re-evaluation
+- Actual position opening from a triggered order flows through the standard `open_position` path
+
+## 5. Collateral Flow
 
 ### Deposit
 
@@ -155,7 +186,7 @@ Note:
 - Privacy target is internal collateral ownership, allocation, and margin transitions.
 - Full design in `PRIVATE_COLLATERAL_SPEC.md`.
 
-## 4.1 Direct Wallet Lifecycle
+## 5.1 Direct Wallet Lifecycle
 
 1. User connects through Privy with either:
    - an embedded Solana wallet
@@ -164,7 +195,7 @@ Note:
 3. The app encrypts sensitive order inputs before queueing Arcium computation
 4. Callback and settlement complete on-chain without a delegated relayer being required in the primary frontend path
 
-## 4.2 Delegated Session Lifecycle
+## 5.2 Delegated Session Lifecycle
 
 1. `create_trade_session`: owner signs once, defines relayer + limits
 2. `open_position_with_session` / `close_position_with_session`: relayer executes within limits

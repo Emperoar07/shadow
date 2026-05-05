@@ -24,7 +24,11 @@ The terminal includes charting, reference order book depth, market stats, order 
 
 Flexible collateral
 
-Supported markets use shared collateral flows so one owner scoped balance can support activity across adopted pairs. The app also includes shielded collateral base flows for private collateral design work.
+Supported markets use shared collateral flows so one owner-scoped balance can support activity across adopted pairs.
+
+Private order book
+
+Encrypted limit orders are stored on-chain as client-side ciphertext. The Arcium MPC circuit evaluates trigger conditions on encrypted order data and reveals parameters only when a trigger fires. Each order book enforces a single in-flight computation lock to prevent concurrent evaluation races.
 
 Six supported pairs
 
@@ -62,11 +66,11 @@ Direction is encrypted for MPC and revealed at open where routing and liquidatio
 
 `programs/shadowperp`
 
-Anchor program for markets, collateral, positions, and callbacks.
+Anchor program for markets, collateral, positions, private order books, and callbacks.
 
 `encrypted-ixs`
 
-Arcium circuit sources for confidential trade and risk computation.
+Arcium circuit sources (Arcis 0.9.7) for confidential trade and risk computation.
 
 `app`
 
@@ -141,7 +145,6 @@ npx ts-node scripts/init-markets.ts
 npx ts-node scripts/adopt-shared-collateral.ts
 npx ts-node scripts/migrate-shared-margin.ts
 npx ts-node scripts/init-comp-defs.ts
-npx ts-node scripts/init-shielded-comp-defs.ts
 npx ts-node scripts/set-pyth-feed-id.ts
 ```
 
@@ -151,6 +154,18 @@ Preflight and diagnostics
 npm run check:preflight
 npm run diag:open-contract
 npx ts-node scripts/smoke-test-devnet.ts
+npx ts-node scripts/verify-markets.ts
+npx ts-node scripts/check-mxe-status.ts
+```
+
+Build
+
+```bash
+# Full Arcium + Anchor build (run from WSL)
+bash scripts/wsl-arcium-build.sh
+
+# Anchor-only build
+bash scripts/wsl-anchor-build.sh
 ```
 
 ## Devnet Workspace
