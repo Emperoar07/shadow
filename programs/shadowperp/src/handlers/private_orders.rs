@@ -154,6 +154,9 @@ pub struct ExecutePrivateOrder<'info> {
         has_one = market @ ShadowPerpError::InvalidAccountData,
         seeds = [b"private-orderbook", market.key().as_ref(), owner.key().as_ref()],
         bump = private_order_book.bump,
+        realloc = PrivateOrderBook::LEN,
+        realloc::payer = owner,
+        realloc::zero = true,
     )]
     pub private_order_book: Account<'info, PrivateOrderBook>,
 
@@ -210,6 +213,12 @@ pub fn execute_private_order_handler(
     require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+
+    // Reject if a previous execution is still pending MPC settlement.
+    require!(
+        ctx.accounts.private_order_book.pending_computation_account == Pubkey::default(),
+        ShadowPerpError::ComputationInProgress
+    );
 
     let order_book = &ctx.accounts.private_order_book;
     let market = &ctx.accounts.market;
@@ -274,6 +283,13 @@ pub fn execute_private_order_handler(
         1,
         0,
     )?;
+
+    // Bind the computation account + order coordinates so the callback can verify
+    // replay safety and remove the exact order from the vec on trigger.
+    ctx.accounts.private_order_book.pending_computation_account =
+        ctx.accounts.computation_account.key();
+    ctx.accounts.private_order_book.pending_order_index = order_index;
+    ctx.accounts.private_order_book.pending_order_is_bid = is_bid;
 
     msg!(
         "execute_private_order: queued order_index={}, is_bid={}, mark_price={}",

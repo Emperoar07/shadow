@@ -440,10 +440,7 @@ export default function TradeConfirmationModal({
             </button>
           )}
           {!isTerminal && (
-            <div className="flex items-center justify-center gap-1.5 text-[10px] text-gray-600">
-              <svg className="h-2.5 w-2.5 text-accent-purple/50" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-              </svg>
+            <div className="flex items-center justify-center text-[10px] text-gray-600">
               Protected by Arcium MPC
             </div>
           )}

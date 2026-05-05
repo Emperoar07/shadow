@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: oracle-price-feed
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   update-price:
@@ -23,9 +23,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
 
       - name: Install JS deps
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
 
       - name: Configure Solana wallet
         env:

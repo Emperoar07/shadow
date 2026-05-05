@@ -34,7 +34,14 @@ pub struct ConfidentialOrderBook {
     /// Encrypted ask-side orders.
     pub asks: Vec<EncryptedOrder>,
     pub bump: u8,
-    pub _reserved: [u8; 64],
+    /// Bound computation account — set by execute_private_order, cleared by callback.
+    /// Prevents two concurrent MPC computations from racing on the same order book.
+    pub pending_computation_account: Pubkey,
+    /// Index into bids or asks vec for the order currently being evaluated by MPC.
+    pub pending_order_index: u32,
+    /// true = pending order is in bids, false = asks.
+    pub pending_order_is_bid: bool,
+    pub _reserved: [u8; 59],
 }
 
 impl Default for ConfidentialOrderBook {
@@ -46,7 +53,10 @@ impl Default for ConfidentialOrderBook {
             bids: Vec::new(),
             asks: Vec::new(),
             bump: 0,
-            _reserved: [0u8; 64],
+            pending_computation_account: Pubkey::default(),
+            pending_order_index: 0,
+            pending_order_is_bid: false,
+            _reserved: [0u8; 59],
         }
     }
 }
@@ -59,7 +69,10 @@ impl ConfidentialOrderBook {
         4 + (MAX_PRIVATE_ORDERS * EncryptedOrder::LEN) + // bids vec prefix + max encrypted bids
         4 + (MAX_PRIVATE_ORDERS * EncryptedOrder::LEN) + // asks vec prefix + max encrypted asks
         1 +  // bump
-        64; // reserved
+        32 + // pending_computation_account
+        4 +  // pending_order_index
+        1 +  // pending_order_is_bid
+        59; // reserved (was 64; 5 bytes consumed by pending_order_index + pending_order_is_bid)
 
     pub fn total_orders(&self) -> usize {
         self.bids.len() + self.asks.len()

@@ -48,6 +48,17 @@ pub fn execute_private_order_callback_handler(
     ctx: Context<ExecutePrivateOrderCallback>,
     output: SignedComputationOutputs<ExecutePrivateOrderOutput>,
 ) -> Result<()> {
+    // Validate cluster + comp-def bindings BEFORE verify_output to prevent forged accounts.
+    require!(
+        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
+        ShadowPerpError::Unauthorized
+    );
+    require!(
+        ctx.accounts.comp_def_account.key()
+            == derive_comp_def_pda!(COMP_DEF_OFFSET_EXECUTE_PRIVATE_ORDER),
+        ShadowPerpError::Unauthorized
+    );
+
     let verified_output = match output.verify_output(
         &ctx.accounts.cluster_account,
         &ctx.accounts.computation_account,
@@ -58,22 +69,31 @@ pub fn execute_private_order_callback_handler(
                 "MPC verify failed for execute_private_order: {}",
                 error
             );
-            return Err(ShadowPerpError::InvalidComputationResult.into());
+            // Clear the pending binding so the order book isn't permanently stuck.
+            let order_book = &mut ctx.accounts.private_order_book;
+            if order_book.pending_computation_account == ctx.accounts.computation_account.key() {
+                order_book.pending_computation_account = Pubkey::default();
+                order_book.pending_order_index = 0;
+                order_book.pending_order_is_bid = false;
+            }
+            return Ok(());
         }
     };
 
-    // Callback must be bound to this market's configured Arcium cluster.
-    // The comp-def account itself is already pinned by the callback account address
-    // constraint because Market does not currently persist this auxiliary comp-def.
+    // Verify this callback is consuming the exact computation that was authorised.
+    let order_book = &mut ctx.accounts.private_order_book;
     require!(
-        ctx.accounts.cluster_account.key() == ctx.accounts.market.mxe_cluster,
-        ShadowPerpError::Unauthorized
+        order_book.pending_computation_account != Pubkey::default(),
+        ShadowPerpError::InvalidAccountData
     );
     require!(
-        ctx.accounts.comp_def_account.key()
-            == derive_comp_def_pda!(COMP_DEF_OFFSET_EXECUTE_PRIVATE_ORDER),
-        ShadowPerpError::Unauthorized
+        order_book.pending_computation_account == ctx.accounts.computation_account.key(),
+        ShadowPerpError::InvalidAccountData
     );
+    // Clear binding immediately — even if order was not triggered.
+    order_book.pending_computation_account = Pubkey::default();
+    order_book.pending_order_index = 0;
+    order_book.pending_order_is_bid = false;
 
     // Extract circuit outputs: (triggered, size, entry_price, is_long)
     let triggered = verified_output.field_0.field_0;
@@ -88,8 +108,6 @@ pub fn execute_private_order_callback_handler(
 
     // Order triggered — log the execution parameters.
     // The actual position opening flows through the standard open_position path.
-    // This callback records the trigger event and the order is removed from the book
-    // by the on-chain keeper that called the instruction.
     msg!(
         "execute_private_order callback: triggered, size={}, entry_price={}, is_long={}",
         size,
@@ -97,8 +115,17 @@ pub fn execute_private_order_callback_handler(
         is_long,
     );
 
-    // Decrement active order count so the book slot is freed.
-    let order_book = &mut ctx.accounts.private_order_book;
+    // Remove the triggered order from its vec so the slot is freed for future orders.
+    // swap_remove is O(1) and preserves vec length invariants that total_orders() depends on.
+    let idx = order_book.pending_order_index as usize;
+    if order_book.pending_order_is_bid {
+        if idx < order_book.bids.len() {
+            order_book.bids.swap_remove(idx);
+        }
+    } else if idx < order_book.asks.len() {
+        order_book.asks.swap_remove(idx);
+    }
+
     if order_book.order_count > 0 {
         order_book.order_count = order_book.order_count.saturating_sub(1);
     }
