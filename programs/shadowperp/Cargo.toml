@@ -23,9 +23,9 @@ default = []
 [dependencies]
 anchor-lang = { version = "=0.32.1", features = ["init-if-needed"] }
 anchor-spl = "=0.32.1"
-arcium-anchor = "=0.9.3"
-arcium-client = { version = "=0.9.3", default-features = false }
-arcium-macros = "=0.9.3"
+arcium-anchor = "=0.9.7"
+arcium-client = { version = "=0.9.7", default-features = false }
+arcium-macros = "=0.9.7"
 bytemuck = { version = "1.14", features = ["derive"] }
 sha2 = "0.10"
 pyth-solana-receiver-sdk = "=1.1.0"

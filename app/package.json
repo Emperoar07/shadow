@@ -10,7 +10,7 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
-    "@arcium-hq/client": "0.9.3",
+    "@arcium-hq/client": "0.9.7",
     "@coral-xyz/anchor": "0.32.1",
     "@noble/curves": "^1.3.0",
     "@privy-io/react-auth": "^1.99.1",
