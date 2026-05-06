@@ -23,10 +23,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
 
       - name: Install JS deps
-        run: npm ci --ignore-scripts
+        run: npm install --ignore-scripts
 
       - name: Configure Solana wallet
         env:
@@ -46,6 +45,7 @@ jobs:
           SOLANA_RPC_URL_FALLBACK: ${{ vars.SOLANA_RPC_URL }}
           NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID: ${{ vars.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID }}
           NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT: ${{ vars.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT }}
+          NEXT_PUBLIC_MOCKUSDC_MINT: ${{ vars.NEXT_PUBLIC_MOCKUSDC_MINT }}
           NEXT_PUBLIC_SOLANA_RPC_URL: ${{ vars.NEXT_PUBLIC_SOLANA_RPC_URL }}
         run: |
           # Fall back to .env.local values if repo vars not set
