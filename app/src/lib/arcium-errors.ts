@@ -132,11 +132,12 @@ export function classifyArciumError(error: unknown): ArciumErrorInfo {
     };
   }
 
-  if (code === ANCHOR_ERROR_OFFSET + 0 || msg.includes("AbortedComputation")) {
+  // 6000 = own program abort; 6204 = Arcium AbortedComputation (error index 204 in Arcium's enum)
+  if (code === 6000 || code === 6204 || msg.includes("AbortedComputation")) {
     return {
-      message: "Privacy computation was aborted. Please retry.",
+      message: "The MPC cluster rejected this order. Your funds are safe and nothing was debited.",
       isRetryable: true,
-      errorCode: 6000,
+      errorCode: code ?? 6204,
       category: "arcium",
     };
   }

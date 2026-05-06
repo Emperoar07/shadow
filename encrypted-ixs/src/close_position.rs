@@ -31,19 +31,17 @@ mod close_position_circuit {
         let entry = pos.1 as i64;
         let price_delta = exit_price as i64 - entry;
         let direction: i64 = if pos.3 != 0 { 1 } else { -1 };
-        // Size is stored in base units scaled to 1e9. Prices and margins are
-        // stored in quote-token units scaled to 1e6.
-        const BASE_SCALE: i128 = 1_000_000_000;
 
-        let pnl_num = (price_delta as i128)
-            .wrapping_mul(pos.0 as i128)
-            .wrapping_mul(direction as i128);
-        let realized_pnl = (pnl_num / BASE_SCALE) as i64;
+        // Stay in i64/u64 throughout — no u128/i128 intermediates.
+        // Pre-divide size by 1e3 and price by 1e6 before multiplying so the
+        // product (size * price / 1e9) stays within u64/i64 range.
+        // Equivalent to the original BASE_SCALE=1e9 division but cast-free.
+        let size_reduced = (pos.0 / 1_000) as i64;
+        let realized_pnl = size_reduced * (price_delta / 1_000_000) * direction;
 
-        let position_value = (pos.0 as u128)
-            .wrapping_mul(exit_price as u128)
-            / BASE_SCALE as u128;
-        let fee = ((position_value * trading_fee_bps as u128) / 10000) as u64;
+        // Fee: position_value = size/1e3 * exit_price/1e6 (= size*price/1e9)
+        let position_value: u64 = (pos.0 / 1_000) * (exit_price / 1_000_000);
+        let fee: u64 = position_value * trading_fee_bps as u64 / 10_000;
 
         // Settlement = margin + pnl - fees (clamped to 0)
         let margin_i64 = pos.4 as i64;
