@@ -1216,25 +1216,49 @@ export default function BottomPositionsPanel({
           historyLoading ? (
             <div className="py-6 text-center text-xs text-gray-500">Loading funding activity...</div>
           ) : fundingActivity.length === 0 ? (
-            <div className="mx-4 my-6 rounded-xl border border-shadow-600 bg-shadow-800/60 px-4 py-4 text-xs leading-relaxed text-gray-400">
-              Funding history is not wired as a standalone Shadow ledger yet. When recurring funding settlements are exposed in the app, they will appear here.
-            </div>
+            <div className="py-6 text-center text-xs text-gray-500">No funding events yet.</div>
           ) : (
-            <div className="space-y-3 p-4">
-              {fundingActivity.map((row) => (
-                <div key={row.sig} className="rounded-xl border border-shadow-600 bg-shadow-800/60 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className={`text-sm font-semibold ${row.txType?.color ?? "text-white"}`}>
+            <table className={PANEL_TABLE_CLASS} style={PANEL_TABLE_STYLE}>
+              <thead className="sticky top-0 z-10 bg-shadow-900">
+                <tr className="text-[10px] uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-1.5 text-left font-medium">Event</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Status</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Detail</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Time</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Explorer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fundingActivity.map((row) => (
+                  <tr key={row.sig} className="position-row group">
+                    <td className="px-3 py-2.5">
+                      <div className={`font-medium ${row.txType?.color ?? "text-white"}`}>
                         {row.txType?.label ?? "Funding event"}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500">{row.txType?.detail ?? row.memo ?? "--"}</p>
-                    </div>
-                    <span className="text-xs text-gray-400">{formatTimestamp(row.blockTime)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      </div>
+                    </td>
+                    <td className="px-2 py-2.5">
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${statusChipClass(row.err)}`}>
+                        {row.err ? "Failed" : "Confirmed"}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5 text-gray-400">
+                      {row.txType?.detail ?? row.memo ?? "--"}
+                    </td>
+                    <td className="px-2 py-2.5 text-right text-gray-400">{formatTimestamp(row.blockTime)}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      <a
+                        href={getExplorerTxUrl(row.sig)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-accent-purple hover:underline"
+                      >
+                        View
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )
         ) : activeTab === "openOrders" ? (
           openOrders.length === 0 ? (

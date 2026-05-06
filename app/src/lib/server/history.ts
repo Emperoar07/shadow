@@ -24,6 +24,11 @@ const INSTRUCTION_TYPE_MAP: Record<string, HistoryTxType> = {
   addprivateorder: { label: "Order Submitted", color: "text-accent-purple", icon: "ref", detail: "Submitted through the private flow" },
   settleprivateposition: { label: "Position Settled", color: "text-yellow-300", icon: "close" },
   liquidateposition: { label: "Liquidation", color: "text-accent-red", icon: "close" },
+  updatefundingrate: { label: "Funding Rate Update", color: "text-blue-400", icon: "generic" },
+  initfundingstate: { label: "Funding Initialized", color: "text-gray-400", icon: "generic" },
+  setfundingpremium: { label: "Funding Premium Set", color: "text-gray-400", icon: "generic" },
+  setoicaps: { label: "OI Cap Update", color: "text-gray-400", icon: "generic" },
+  updatemarkprice: { label: "Mark Price Update", color: "text-gray-400", icon: "generic" },
 };
 
 // Helius Enhanced Transaction shape (subset we use)
