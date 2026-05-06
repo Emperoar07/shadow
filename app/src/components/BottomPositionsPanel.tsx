@@ -1031,59 +1031,55 @@ export default function BottomPositionsPanel({
           ) : balancesLoading ? (
             <div className="py-6 text-center text-xs text-gray-500">Refreshing balances...</div>
           ) : (
-            <div className="grid gap-4 p-4 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-xl border border-shadow-600 bg-shadow-800/60 p-4">
-                <div className="mb-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Wallet</p>
-                  <p className="mt-1 text-xs text-gray-400">Live balances available in your connected wallet.</p>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between rounded-lg border border-shadow-600/70 bg-shadow-900/40 px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
-                      <span className="text-sm text-gray-300">SOL</span>
+            <div className="flex flex-wrap gap-6 px-4 py-3">
+              {/* Wallet */}
+              <div className="min-w-[200px]">
+                <p className="mb-2 text-[10px] uppercase tracking-widest text-gray-500">Wallet</p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-8">
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-2 w-2 rounded-full" style={{ background: "linear-gradient(135deg, #9945FF, #14F195)" }} />
+                      <span className="text-xs text-gray-400">SOL</span>
                     </div>
-                    <span className="text-sm font-semibold text-white">{formatAssetBalance(walletSolBalance)}</span>
+                    <span className="text-xs font-medium text-white">{formatAssetBalance(walletSolBalance)}</span>
                   </div>
                   {walletTokenBalances.length === 0 ? (
-                    <p className="text-xs text-gray-500">No tracked SPL balances detected for this wallet.</p>
+                    <p className="text-[11px] text-gray-600">No SPL tokens found.</p>
                   ) : (
                     walletTokenBalances.map((token) => (
-                      <div key={token.symbol} className="flex items-center justify-between rounded-lg border border-shadow-600/70 bg-shadow-900/40 px-3 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: token.color }} />
-                          <span className="text-sm text-gray-300">{token.symbol}</span>
+                      <div key={token.symbol} className="flex items-center justify-between gap-8">
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-2 w-2 rounded-full" style={{ backgroundColor: token.color }} />
+                          <span className="text-xs text-gray-400">{token.symbol}</span>
                         </div>
-                        <span className="text-sm font-semibold text-white">{formatAssetBalance(token.balance)}</span>
+                        <span className="text-xs font-medium text-white">{formatAssetBalance(token.balance)}</span>
                       </div>
                     ))
                   )}
                 </div>
               </div>
-              <div className="rounded-xl border border-shadow-600 bg-shadow-800/60 p-4">
-                <div className="mb-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Trading Account</p>
-                  <p className="mt-1 text-xs text-gray-400">Collateral currently tracked by the Shadow margin account.</p>
-                </div>
-                <div className="grid gap-3">
-                  <div className="rounded-lg border border-shadow-600/70 bg-shadow-900/40 px-3 py-3">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Account Total</p>
-                    <p className="mt-1 text-xl font-semibold text-white">{formatDollarAmount(accountTotal)}</p>
+
+              {/* Divider */}
+              <div className="hidden w-px self-stretch bg-shadow-600/60 lg:block" />
+
+              {/* Trading Account */}
+              <div className="min-w-[260px]">
+                <p className="mb-2 text-[10px] uppercase tracking-widest text-gray-500">Trading Account</p>
+                <div className="flex items-end gap-6">
+                  <div>
+                    <p className="text-[10px] text-gray-500">Total</p>
+                    <p className="text-base font-semibold text-white">{formatDollarAmount(accountTotal)}</p>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-lg border border-shadow-600/70 bg-shadow-900/40 px-3 py-3">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Available Now</p>
-                      <p className="mt-1 text-lg font-semibold text-accent-green">{formatDollarAmount(freeCollateral)}</p>
-                    </div>
-                    <div className="rounded-lg border border-shadow-600/70 bg-shadow-900/40 px-3 py-3">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Locked</p>
-                      <p className="mt-1 text-lg font-semibold text-yellow-300">{formatDollarAmount(lockedCollateral)}</p>
-                    </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500">Available</p>
+                    <p className="text-base font-semibold text-accent-green">{formatDollarAmount(freeCollateral)}</p>
                   </div>
-                  <p className="text-xs leading-relaxed text-gray-500">
-                    Locked collateral is reserved by open positions. Available now is what can still back a new trade or a withdrawal.
-                  </p>
+                  <div>
+                    <p className="text-[10px] text-gray-500">Locked</p>
+                    <p className="text-base font-semibold text-yellow-300">{formatDollarAmount(lockedCollateral)}</p>
+                  </div>
                 </div>
+                <p className="mt-2 text-[11px] text-gray-600">Locked collateral is held by open positions.</p>
               </div>
             </div>
           )
