@@ -38,7 +38,7 @@ const DEFAULT_CLUSTER_OFFSET = 456;
 const EXPECTED_SIGNATURES: Record<string, { params: number; outputs: number }> = {
   // Actual on-chain param counts (from finalized comp-defs)
   open_position_probe_b: { params: 9, outputs: 1 },
-  close_position_v2: { params: 9, outputs: 4 },
+  close_position_v3: { params: 9, outputs: 4 },
   seed_open_interest_state_v3: { params: 1, outputs: 4 },
   check_liquidation_v2: { params: 9, outputs: 3 },
 };
@@ -50,7 +50,7 @@ const COMP_DEFS = [
     marketField: "openPositionCompDef",
   },
   {
-    circuit: "close_position_v2",
+    circuit: "close_position_v3",
     methodName: "initClosePositionCompDef",
     marketField: "closePositionCompDef",
   },
@@ -741,14 +741,14 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
   const seedOiCompDefPk =
     refreshedMarket.seedOpenInterestCompDef ?? refreshedMarket.seed_open_interest_comp_def;
   console.log("open_position_probe_b:", openCompDefPk.toBase58());
-  console.log("close_position_v2:", closeCompDefPk.toBase58());
+  console.log("close_position_v3:", closeCompDefPk.toBase58());
   console.log("check_liquidation_v2:", liqCompDefPk.toBase58());
   console.log("seed_open_interest_state_v3:", seedOiCompDefPk.toBase58());
 
   // Include all circuits (including those not stored on market account)
   const allCircuits = [
     "open_position_probe_b",
-    "close_position_v2",
+    "close_position_v3",
     "check_liquidation_v2",
     "seed_open_interest_state_v3",
     "execute_private_order",

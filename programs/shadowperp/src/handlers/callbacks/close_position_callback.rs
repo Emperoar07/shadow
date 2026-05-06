@@ -5,17 +5,17 @@ use arcium_anchor::prelude::*;
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
-const COMP_DEF_OFFSET_CLOSE_POSITION_V2: u32 = comp_def_offset("close_position_v2");
+const COMP_DEF_OFFSET_CLOSE_POSITION_V3: u32 = comp_def_offset("close_position_v3");
 
 /// Callback account for receiving PnL result from MPC.
 /// Token transfer is deferred to a separate `settle_close_position` instruction
 /// so that this callback only needs 3 custom accounts (within Arcium's comp-account budget).
-#[callback_accounts("close_position_v2")]
+#[callback_accounts("close_position_v3")]
 #[derive(Accounts)]
-pub struct ClosePositionV2Callback<'info> {
+pub struct ClosePositionV3Callback<'info> {
     // Standard Arcium callback accounts — address constraints required by #[callback_accounts] macro
     pub arcium_program: Program<'info, Arcium>,
-    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_CLOSE_POSITION_V2))]
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_CLOSE_POSITION_V3))]
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Account<'info, MXEAccount>,
@@ -54,8 +54,8 @@ pub struct ClosePositionV2Callback<'info> {
 /// Handler logic for the close_position callback (called from lib.rs via #[arcium_callback]).
 /// Updates state only — token settlement is handled by `settle_close_position`.
 pub fn close_position_callback_handler(
-    ctx: Context<ClosePositionV2Callback>,
-    output: SignedComputationOutputs<ClosePositionV2Output>,
+    ctx: Context<ClosePositionV3Callback>,
+    output: SignedComputationOutputs<ClosePositionV3Output>,
 ) -> Result<()> {
     // Guard first: reject any callback not bound to this market's cluster + comp-def BEFORE
     // processing or trusting any MPC output. This prevents a forged cluster from injecting

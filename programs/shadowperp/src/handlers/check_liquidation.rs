@@ -134,7 +134,7 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
     // Build arguments for liquidation check MPC circuit
     // position: Enc<Shared, Position> - encrypted position data (client x25519 key)
     // mark_price: u64 - plaintext current price
-    // liquidation_threshold_bps: only market field used by the liquidation circuit
+    // liquidation_threshold_bps: widened before Arcis so the circuit avoids threshold casts
     let args = ArgBuilder::new()
         // position: Enc<Shared, Position> - client x25519 key needed for decryption
         .x25519_pubkey(position.client_pubkey)
@@ -147,7 +147,7 @@ pub fn handler(ctx: Context<CheckLiquidation>, computation_offset: u64) -> Resul
         // mark_price: u64 (plaintext)
         .plaintext_u64(mark_price)
         // liquidation_threshold_bps: only market field needed by the liquidation circuit
-        .plaintext_u16(market.liquidation_threshold)
+        .plaintext_u64(u64::from(market.liquidation_threshold))
         .build();
 
     // Build callback accounts (3 only — token settlement deferred to settle_liquidation)

@@ -445,7 +445,7 @@ async function main() {
   hr("7. COMP-DEF STATUS");
   const circuits = [
     "open_position_probe_b",
-    "close_position_v2",
+    "close_position_v3",
     "check_liquidation_v2",
     "seed_open_interest_state_v3",
   ];

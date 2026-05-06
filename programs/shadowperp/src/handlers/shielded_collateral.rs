@@ -1086,7 +1086,7 @@ pub fn settle_private_position_handler(
     // Circuit: settle_private_position(
     //   position: Enc<Shared, (u64, u64, u8, bool, u64)>,  // (size, entry_price, leverage, is_long, locked_margin)
     //   exit_price: u64,
-    //   trading_fee_bps: u16,
+    //   trading_fee_bps: u64,
     //   remaining_balance: Enc<Shared, u64>,
     // )
     require!(encrypted_payload.len() >= 192, ShadowPerpError::InvalidAccountData);
@@ -1116,7 +1116,7 @@ pub fn settle_private_position_handler(
         // exit_price: plaintext (from market oracle, NOT caller-supplied)
         .plaintext_u64(exit_price)
         // trading_fee_bps: plaintext (from market state, NOT caller-supplied)
-        .plaintext_u16(trading_fee_bps)
+        .plaintext_u64(u64::from(trading_fee_bps))
         // remaining_balance: Enc<Shared, u64> — separate Shared group needs its own pubkey+nonce
         .x25519_pubkey(balance_client_pubkey)
         .plaintext_u128(balance_nonce)

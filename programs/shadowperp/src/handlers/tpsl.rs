@@ -54,7 +54,7 @@ pub struct SetTpSl<'info> {
 // circuit and the matching close-position settlement path land, this handler
 // returns TpSlPrivateDirectionUnsupported so clients fail fast instead of
 // silently writing TpSlOrder accounts that no triggerer will ever evaluate.
-// See audit 2026-04-29 §WT-8 and the close_position_v2 settlement flow.
+// See audit 2026-04-29 §WT-8 and the close_position_v3 settlement flow.
 pub fn set_tpsl_handler(
     ctx: Context<SetTpSl>,
     tp_price: u64,
@@ -116,7 +116,7 @@ pub fn cancel_tpsl_handler(ctx: Context<CancelTpSl>) -> Result<()> {
 
 /// Permissionless keeper call: checks mark_price against TP/SL levels and
 /// queues MPC close computation if triggered. The keeper pays computation fees.
-#[queue_computation_accounts("close_position_v2", keeper)]
+#[queue_computation_accounts("close_position_v3", keeper)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct TriggerTpSl<'info> {

@@ -21,10 +21,10 @@ mod close_position_circuit {
     /// locked_margin is revealed only during close settlement so active
     /// positions do not need a plaintext margin slot on-chain.
     #[instruction]
-    pub fn close_position_v2(
+    pub fn close_position_v3(
         position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         exit_price: u64,
-        trading_fee_bps: u16,
+        trading_fee_bps: u64,
     ) -> (i64, u64, u64, u64) {
         let pos = position.to_arcis();
 
@@ -41,7 +41,7 @@ mod close_position_circuit {
 
         // Fee: position_value = size/1e3 * exit_price/1e6 (= size*price/1e9)
         let position_value: u64 = (pos.0 / 1_000) * (exit_price / 1_000_000);
-        let fee: u64 = position_value * trading_fee_bps as u64 / 10_000;
+        let fee: u64 = position_value * trading_fee_bps / 10_000;
 
         // Settlement = margin + pnl - fees (clamped to 0)
         let margin_i64 = pos.4 as i64;

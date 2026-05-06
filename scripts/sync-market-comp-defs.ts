@@ -116,7 +116,7 @@ async function main(): Promise<void> {
   const program = new anchor.Program(idl as anchor.Idl, provider);
 
   const openCompDef = args.openCompDef ?? deriveCompDef(args.mxeProgramId, "open_position_probe_b");
-  const closeCompDef = args.closeCompDef ?? deriveCompDef(args.mxeProgramId, "close_position_v2");
+  const closeCompDef = args.closeCompDef ?? deriveCompDef(args.mxeProgramId, "close_position_v3");
   const liqCompDef = args.liquidationCompDef ?? deriveCompDef(args.mxeProgramId, "check_liquidation_v2");
   const seedOiCompDef = deriveCompDef(args.mxeProgramId, "seed_open_interest_state_v3");
 
@@ -135,7 +135,7 @@ async function main(): Promise<void> {
   console.log("sync_comp_defs signature:", signature);
   console.log("rpc:", rpcSelection.rpcUrl);
   console.log("open_position_probe_b:", openCompDef.toBase58());
-  console.log("close_position_v2:", closeCompDef.toBase58());
+  console.log("close_position_v3:", closeCompDef.toBase58());
   console.log("check_liquidation_v2:", liqCompDef.toBase58());
   console.log("seed_open_interest_state_v3:", seedOiCompDef.toBase58());
 }

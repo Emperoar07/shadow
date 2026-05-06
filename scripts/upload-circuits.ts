@@ -31,7 +31,7 @@ const CIRCUITS = [
   { name: "open_position_tuple_probe_v1", file: "build/open_position_tuple_probe_v1.arcis" },
   { name: "open_position_margin_probe_v1", file: "build/open_position_margin_probe_v1.arcis" },
   { name: "open_position_full_probe_v1", file: "build/open_position_full_probe_v1.arcis" },
-  { name: "close_position_v2", file: "build/close_position_v2.arcis" },
+  { name: "close_position_v3", file: "build/close_position_v3.arcis" },
   { name: "check_liquidation_v2", file: "build/check_liquidation_v2.arcis" },
   { name: "seed_open_interest_state_v3", file: "build/seed_open_interest_state_v3.arcis" },
 ];

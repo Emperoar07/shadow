@@ -43,13 +43,46 @@ function stepIndex(step: TradeStep): number {
 
 function isRetryableError(msg: string | undefined): boolean {
   const m = msg ?? "";
-  return !(
+  // MPC aborts are safe to retry: the program callback resets the position
+  // to a clean state (open: Closed with no margin lock, close: back to Open),
+  // and a fresh executeOpen() generates a new computation_offset and nonce.
+  if (
     /callback already failed on-chain/i.test(m) ||
     /resolved to Closed instead of Open/i.test(m) ||
     /unexpected status Closed/i.test(m) ||
     /AbortedComputation/i.test(m) ||
     /InvalidComputationResult/i.test(m)
-  );
+  ) {
+    return true;
+  }
+  if (
+    /Oracle is stale/i.test(m) ||
+    /Insufficient oracle sources/i.test(m) ||
+    /Price feed catching up/i.test(m) ||
+    /timeout/i.test(m) ||
+    /timed out/i.test(m) ||
+    /finalization/i.test(m) ||
+    /network/i.test(m) ||
+    /blockhash/i.test(m) ||
+    /429/i.test(m) ||
+    /rate limit/i.test(m)
+  ) {
+    return true;
+  }
+  // Hard failures that won't change on retry
+  if (
+    /Insufficient margin/i.test(m) ||
+    /InsufficientMargin/i.test(m) ||
+    /User rejected/i.test(m) ||
+    /Transaction cancelled/i.test(m) ||
+    /ConstraintAddress/i.test(m) ||
+    /Account not initialized/i.test(m) ||
+    /missing account/i.test(m) ||
+    /env var/i.test(m)
+  ) {
+    return false;
+  }
+  return false;
 }
 
 function humanError(msg: string | undefined, hasQueuedTx: boolean): {

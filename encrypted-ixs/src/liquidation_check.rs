@@ -20,7 +20,7 @@ mod liquidation_check_circuit {
     pub fn check_liquidation_v2(
         position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         mark_price: u64,
-        liquidation_threshold_bps: u16,
+        liquidation_threshold_bps: u64,
     ) -> (bool, u64, u64) {
         let pos = position.to_arcis();
 
@@ -50,7 +50,7 @@ mod liquidation_check_circuit {
         // notional = size * mark_price / 10^6 â€” same pre-division pattern.
         let notional = (size / 1000) * (mark_price / 1000);
         // maintenance = notional * threshold_bps / 10000 â€” exact division, no rebasing.
-        let maintenance = notional * liquidation_threshold_bps as u64 / 10000;
+        let maintenance = notional * liquidation_threshold_bps / 10000;
 
         let should_liquidate = equity < maintenance;
         let revealed_margin = if should_liquidate { margin } else { 0 };

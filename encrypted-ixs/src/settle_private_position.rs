@@ -30,7 +30,7 @@ mod settle_private_position_circuit {
     pub fn settle_private_position(
         position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         exit_price: u64,
-        trading_fee_bps: u16,
+        trading_fee_bps: u64,
         remaining_balance: Enc<Shared, u64>,
     ) -> (i64, u64, u64, u64) {
         let pos = position.to_arcis();
@@ -48,7 +48,7 @@ mod settle_private_position_circuit {
 
         // Fee: position_value = size/1e3 * exit_price/1e6 (= size*price/1e9)
         let position_value: u64 = (pos.0 / 1_000) * (exit_price / 1_000_000);
-        let fee: u64 = position_value * trading_fee_bps as u64 / 10_000;
+        let fee: u64 = position_value * trading_fee_bps / 10_000;
 
         // Settlement = margin + pnl - fees
         let margin_i64 = pos.4 as i64;

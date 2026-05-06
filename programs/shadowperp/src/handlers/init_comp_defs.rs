@@ -234,7 +234,7 @@ pub fn init_open_position_full_probe_handler(
 
 // ============ CLOSE POSITION COMP DEF ============
 
-#[init_computation_definition_accounts("close_position_v2", payer)]
+#[init_computation_definition_accounts("close_position_v3", payer)]
 #[derive(Accounts)]
 pub struct InitClosePositionCompDef<'info> {
     #[account(mut)]

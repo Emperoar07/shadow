@@ -53,7 +53,7 @@ const TRADING_FEE = 10;
 // Comp-def circuit names → init method names
 const COMP_DEFS = [
   { circuit: "open_position_probe_b", method: "initOpenPositionCompDef" },
-  { circuit: "close_position_v2",      method: "initClosePositionCompDef" },
+  { circuit: "close_position_v3",      method: "initClosePositionCompDef" },
   { circuit: "check_liquidation_v2",    method: "initLiquidationCompDef" },
   { circuit: "seed_open_interest_state_v3", method: "initSeedOpenInterestCompDef" },
 ] as const;
@@ -208,7 +208,7 @@ async function syncCompDefs(
   label: string
 ): Promise<void> {
   const openDef   = getCompDefPda("open_position_probe_b");
-  const closeDef  = getCompDefPda("close_position_v2");
+  const closeDef  = getCompDefPda("close_position_v3");
   const liqDef    = getCompDefPda("check_liquidation_v2");
   const seedDef   = getCompDefPda("seed_open_interest_state_v3");
 

@@ -9,9 +9,9 @@ use arcium_client::idl::arcium::types::CallbackAccount;
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
-use crate::handlers::callbacks::close_position_callback::ClosePositionV2Callback;
+use crate::handlers::callbacks::close_position_callback::ClosePositionV3Callback;
 
-#[queue_computation_accounts("close_position_v2", owner)]
+#[queue_computation_accounts("close_position_v3", owner)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct ClosePosition<'info> {
@@ -116,10 +116,10 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         computation_offset,
     )?;
 
-    // Build arguments for close_position_v2 MPC circuit
+    // Build arguments for close_position_v3 MPC circuit
     // position: Enc<Shared, Position> - pass the encrypted position data stored on-chain
     // exit_price: u64 - plaintext oracle price
-    // trading_fee_bps: u16 - only market field used by the close circuit
+    // trading_fee_bps: u64 - widened before Arcis so the circuit avoids fee-rate casts
     let nonce = u128::from_le_bytes(position.nonce);
     let encrypted_size: [u8; 32] = position.encrypted_data[0..32]
         .try_into()
@@ -151,7 +151,7 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         // exit_price: fresh mark_price or oracle_price as fallback
         .plaintext_u64(exit_price)
         // trading_fee_bps: only market field needed by the close circuit
-        .plaintext_u16(market.trading_fee)
+        .plaintext_u64(u64::from(market.trading_fee))
         .build();
 
     // Build callback accounts (3 only — token settlement deferred to settle_close_position)
@@ -170,7 +170,7 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         },
     ];
 
-    let callback_ix = ClosePositionV2Callback::callback_ix(
+    let callback_ix = ClosePositionV3Callback::callback_ix(
         computation_offset,
         &ctx.accounts.mxe_account,
         &callback_accounts,

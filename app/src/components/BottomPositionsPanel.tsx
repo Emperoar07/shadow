@@ -536,13 +536,41 @@ export default function BottomPositionsPanel({
       } catch (error: any) {
         const classified = error?.classified ?? classifyArciumError(error);
         const msg = classified.message || "Failed to close position";
-        if (!msg.includes("env var")) toast.error(msg, { id: pos.address });
+        if (!msg.includes("env var")) {
+          if (classified.isRetryable && showNotifications) {
+            toast.error(
+              (t) => (
+                <div className="flex items-center gap-3">
+                  <span>{msg}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.dismiss(t.id);
+                      void executeCloseRef.current?.(pos);
+                    }}
+                    className="rounded-md bg-accent-purple/20 px-2.5 py-1 text-xs font-medium text-accent-purple hover:bg-accent-purple/30"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ),
+              { id: pos.address, duration: 12_000 }
+            );
+          } else {
+            toast.error(msg, { id: pos.address });
+          }
+        }
       } finally {
         setClosingAddress(null);
       }
     },
-    [publicKey, anchorWallet, connection, loadPositions, toastSuccess, toastLoading]
+    [publicKey, anchorWallet, connection, loadPositions, toastSuccess, toastLoading, showNotifications, walletExecutionMode]
   );
+
+  const executeCloseRef = useRef<typeof executeClose | null>(null);
+  useEffect(() => {
+    executeCloseRef.current = executeClose;
+  }, [executeClose]);
 
   const handleClose = useCallback(
     (pos: UiPosition) => {
