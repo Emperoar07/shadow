@@ -582,9 +582,19 @@ export default function CollateralModal({
         {/* Body */}
         <div className="px-5 py-5 space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs text-gray-400">
-              {actionLabel} (mUSDC)
-            </label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs text-gray-400">
+                {actionLabel} (mUSDC)
+              </label>
+              {tab === "deposit" && walletTokenBalanceUsdc !== null && (
+                <span className="text-[10px] text-gray-500">
+                  Wallet:{" "}
+                  <span className="text-gray-300 font-medium">
+                    ${walletTokenBalanceUsdc.toFixed(2)} mUSDC
+                  </span>
+                </span>
+              )}
+            </div>
             <div className="relative">
               <input
                 type="number"
