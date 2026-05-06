@@ -57,6 +57,7 @@ interface CollateralModalProps {
   lockedCollateral?: number | null;
   onClose: () => void;
   onSuccess: () => void;
+  onBalanceChange?: () => void;
   pairLabel?: string;
   initialTab?: Tab;
 }
@@ -68,6 +69,7 @@ export default function CollateralModal({
   lockedCollateral,
   onClose,
   onSuccess,
+  onBalanceChange,
   pairLabel = "SOL-USD",
   initialTab,
 }: CollateralModalProps) {
@@ -263,6 +265,7 @@ export default function CollateralModal({
         setTab("deposit");
         setAmount(String(claimedAmount));
         setWalletTokenBalanceRaw(refreshedBalance);
+        onBalanceChange?.();
         toast.success(`${claimedAmount.toLocaleString()} mUSDC sent to your wallet. Deposit it to margin below.`, { id: toastId });
         const nextAt = now + 7 * 24 * 60 * 60 * 1000;
         setNextClaimAt(nextAt);
@@ -292,6 +295,7 @@ export default function CollateralModal({
     getAccessToken,
     isClaiming,
     nextClaimAt,
+    onBalanceChange,
     publicKey,
     refreshWalletTokenBalance,
   ]);
@@ -325,6 +329,7 @@ export default function CollateralModal({
         const key = `sol_drip_claimed_${publicKey.toBase58()}`;
         try { localStorage.setItem(key, String(Date.now())); } catch {}
         setSolClaimedKey(key);
+        onBalanceChange?.();
         void refreshWalletSolBalance();
       } else {
         toast.error(data.error ?? "SOL drip failed", { id: toastId });
@@ -334,7 +339,7 @@ export default function CollateralModal({
     } finally {
       setIsClaimingSol(false);
     }
-  }, [publicKey, isClaimingSol, getAccessToken, refreshWalletSolBalance]);
+  }, [publicKey, isClaimingSol, getAccessToken, onBalanceChange, refreshWalletSolBalance]);
 
   useEffect(() => {
     setMounted(true);
@@ -393,6 +398,7 @@ export default function CollateralModal({
       );
       setAmount("");
       void refreshWalletTokenBalance();
+      onBalanceChange?.();
       onSuccess();
     } catch (error: any) {
       const classified = error?.classified ?? classifyArciumError(error);
@@ -412,6 +418,7 @@ export default function CollateralModal({
     connection,
     getCollateralMarketAddress,
     getRuntimeErrorMessage,
+    onBalanceChange,
     onSuccess,
     publicKey,
     refreshWalletTokenBalance,
@@ -453,6 +460,7 @@ export default function CollateralModal({
       );
       setAmount("");
       void refreshWalletTokenBalance();
+      onBalanceChange?.();
       onSuccess();
     } catch (error: any) {
       const classified = error?.classified ?? classifyArciumError(error);
@@ -473,6 +481,7 @@ export default function CollateralModal({
     getCollateralMarketAddress,
     getRuntimeErrorMessage,
     availableCollateral,
+    onBalanceChange,
     onSuccess,
     publicKey,
     refreshWalletTokenBalance,

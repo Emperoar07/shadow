@@ -263,6 +263,7 @@ export default function BottomPositionsPanel({
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
   const [collateralModalTab, setCollateralModalTab] = useState<"deposit" | "withdraw">("deposit");
+  const [balancesRefreshTick, setBalancesRefreshTick] = useState(0);
 
   // Reset cached client when wallet or wallet mode changes
   useEffect(() => {
@@ -885,7 +886,7 @@ export default function BottomPositionsPanel({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, anchorWallet, connection, publicKey]);
+  }, [activeTab, anchorWallet, balancesRefreshTick, connection, publicKey, walletExecutionMode]);
 
   const updateOrderField = useCallback(
     (orderId: string, field: "limitPrice" | "takeProfit" | "stopLoss", raw: string) => {
@@ -1598,6 +1599,7 @@ export default function BottomPositionsPanel({
         freeCollateral={freeCollateral}
         lockedCollateral={lockedCollateral}
         onClose={() => setCollateralModalOpen(false)}
+        onBalanceChange={() => setBalancesRefreshTick((tick) => tick + 1)}
         onSuccess={() => {
           setCollateralModalOpen(false);
           setActiveTab("balances");
