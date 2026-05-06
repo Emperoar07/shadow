@@ -76,7 +76,7 @@ function humanError(msg: string | undefined, hasQueuedTx: boolean): {
   ) {
     return {
       headline: "Order cancelled by MPC",
-      hint: "The order reached the network but was rejected during private settlement. Your funds are safe — nothing was debited.",
+      hint: "The MPC cluster rejected this order. Your funds are safe and nothing was debited.",
       detail: m,
     };
   }
