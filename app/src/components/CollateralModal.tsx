@@ -58,6 +58,7 @@ interface CollateralModalProps {
   onClose: () => void;
   onSuccess: () => void;
   pairLabel?: string;
+  initialTab?: Tab;
 }
 
 export default function CollateralModal({
@@ -68,6 +69,7 @@ export default function CollateralModal({
   onClose,
   onSuccess,
   pairLabel = "SOL-USD",
+  initialTab,
 }: CollateralModalProps) {
   const anchorWallet = useAnchorWalletCompat();
   const walletExecutionMode = useWalletExecutionMode();
@@ -342,11 +344,12 @@ export default function CollateralModal({
   useEffect(() => {
     if (isOpen) {
       setAmount("");
+      if (initialTab) setTab(initialTab);
       requestAnimationFrame(() => setVisible(true));
     } else {
       setVisible(false);
     }
-  }, [isOpen]);
+  }, [isOpen, initialTab]);
 
   // Close on Escape
   useEffect(() => {

@@ -15,6 +15,7 @@ import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
 import OrderConfirmModal from "./OrderConfirmModal";
+import CollateralModal from "./CollateralModal";
 import {
   PendingLimitOrder,
   OwnerPositionView,
@@ -260,6 +261,8 @@ export default function BottomPositionsPanel({
   const [lockedCollateral, setLockedCollateral] = useState<number | null>(null);
   const autoCloseInFlightRef = useRef<Set<string>>(new Set());
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
+  const [collateralModalOpen, setCollateralModalOpen] = useState(false);
+  const [collateralModalTab, setCollateralModalTab] = useState<"deposit" | "withdraw">("deposit");
 
   // Reset cached client when wallet or wallet mode changes
   useEffect(() => {
@@ -1081,6 +1084,25 @@ export default function BottomPositionsPanel({
                 </div>
                 <p className="mt-2 text-[11px] text-gray-600">Locked collateral is held by open positions.</p>
               </div>
+
+              {/* Divider */}
+              <div className="hidden w-px self-stretch bg-shadow-600/60 lg:block" />
+
+              {/* Actions */}
+              <div className="flex flex-col justify-center gap-2">
+                <button
+                  onClick={() => { setCollateralModalTab("deposit"); setCollateralModalOpen(true); }}
+                  className="rounded-lg bg-accent-purple/20 px-4 py-1.5 text-xs font-medium text-accent-purple transition-colors hover:bg-accent-purple/30"
+                >
+                  Deposit
+                </button>
+                <button
+                  onClick={() => { setCollateralModalTab("withdraw"); setCollateralModalOpen(true); }}
+                  className="rounded-lg bg-shadow-700/60 px-4 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-shadow-600/60"
+                >
+                  Withdraw
+                </button>
+              </div>
             </div>
           )
         ) : activeTab === "orderHistory" ? (
@@ -1568,6 +1590,18 @@ export default function BottomPositionsPanel({
           setCloseConfirmPos(null);
         }}
         onCancel={() => setCloseConfirmPos(null)}
+      />
+      <CollateralModal
+        isOpen={collateralModalOpen}
+        initialTab={collateralModalTab}
+        marginBalance={accountTotal}
+        freeCollateral={freeCollateral}
+        lockedCollateral={lockedCollateral}
+        onClose={() => setCollateralModalOpen(false)}
+        onSuccess={() => {
+          setCollateralModalOpen(false);
+          setActiveTab("balances");
+        }}
       />
     </div>
   );
