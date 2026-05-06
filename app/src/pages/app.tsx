@@ -615,7 +615,7 @@ export default function TradingAppPage() {
           </main>
 
           {/* ── Footer ── */}
-          <footer className="sticky bottom-0 border-t-[5px] border-shadow-600 shrink-0 bg-shadow-900 relative z-[190]">
+          <footer className="sticky bottom-0 shrink-0 bg-shadow-900 relative z-[190]">
             <div className="max-w-[1600px] mx-auto px-4 py-2.5 flex flex-col gap-2 text-center text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between sm:text-left">
               {/* Status indicator */}
               <div className="flex items-center justify-center gap-4 sm:justify-start">

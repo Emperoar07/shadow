@@ -553,7 +553,7 @@ export default function LandingPage() {
             position:relative;z-index:1;
             border-top:1px solid ${dark ? "rgba(255,255,255,.06)" : "#e8ebf4"};
             background: ${dark ? "rgba(10,10,18,0.8)" : "#ffffff"};
-            padding:14px 40px 9px;
+            padding:10px 40px 6px;
             font-size:13px;color:${dark ? "#6b7280" : "#64748b"};
           }
           .lp-footer-inner {
@@ -567,7 +567,7 @@ export default function LandingPage() {
           .lp-footer-col a { display:block;color:${dark ? "#6b7280" : "#94a3b8"};text-decoration:none;transition:color .15s;padding:2px 0;font-size:13px }
           .lp-footer-col a:hover { color:#a78bfa }
           .lp-footer-bottom {
-            max-width:1200px;margin:14px auto 0;padding-top:10px;
+            max-width:1200px;margin:10px auto 0;padding-top:7px;
             border-top:1px solid ${dark ? "rgba(255,255,255,.04)" : "#e8ebf4"};
             display:flex;align-items:center;justify-content:space-between;font-size:12px;
             color:${dark ? "#374151" : "#94a3b8"};
@@ -711,8 +711,8 @@ export default function LandingPage() {
             <span className="lp-accent"><span ref={decryptRef}>the Dark.</span></span>
           </h1>
           <p className="lp-hero-sub">
-            Private perpetual trading on Solana.<br />
-            Shadow keeps your trade size, direction, leverage, and margin encrypted. Solana handles settlement. Arcium handles the confidential compute.
+            Trade perps on Solana with your positions staying private.<br />
+            Your size, direction, leverage and margin are encrypted. Settlement happens on chain. The math runs inside Arcium.
           </p>
           <div className="lp-hero-ctas">
             <Link href="/app" className="lp-btn-primary">
