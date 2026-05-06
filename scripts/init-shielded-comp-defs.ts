@@ -173,7 +173,9 @@ async function ensureShieldedCompDef(
 
 async function main() {
   const rpcArg = process.argv.find((a) => a.startsWith("--rpc="))?.split("=")[1] ||
-    process.argv[process.argv.indexOf("--rpc") + 1] ||
+    (process.argv.includes("--rpc")
+      ? process.argv[process.argv.indexOf("--rpc") + 1]
+      : undefined) ||
     process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
   const rpcSelection = await resolveRpcEndpoint({

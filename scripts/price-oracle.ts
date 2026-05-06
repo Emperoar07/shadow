@@ -64,7 +64,7 @@ type PublishResult = {
 };
 
 const DEFAULT_PROGRAM_ID = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo";
-const DEFAULT_MARKET = "uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy";
+const DEFAULT_MARKET = "BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4";
 
 function ts(): string {
   return new Date().toISOString();

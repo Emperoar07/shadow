@@ -18,7 +18,7 @@ import * as os from "os";
 import * as path from "path";
 
 const PROGRAM_ID = new PublicKey("34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo");
-const MARKET = new PublicKey("uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy");
+const MARKET = new PublicKey("BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4");
 const ARCIUM_PROGRAM_ID = new PublicKey("Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ");
 const CLUSTER_OFFSET = 456;
 const RPC = process.argv[2] || "https://cool-boldest-yard.solana-devnet.quiknode.pro/3513dd000b0bf11aae344e55c52d9281969d0808";

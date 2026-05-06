@@ -136,7 +136,7 @@ Arcium-related account pointers are stored in market state and validated in call
 
 ## Data and Account Boundaries
 
-- User funds: SPL token accounts and program vault (canonical devnet USDC by default)
+- User funds: SPL token accounts and program vault using Shadow mUSDC on devnet
 - Public state: market-level metadata, balances, lifecycle statuses
 - Sensitive trade details: encrypted payloads and MPC outputs
 - Oracle: on-chain price feeder authority updates market price with freshness checks and future-date guard

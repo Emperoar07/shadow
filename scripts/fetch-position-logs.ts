@@ -9,7 +9,7 @@ import * as os from "os";
 import * as path from "path";
 
 const PROGRAM_ID = new PublicKey("34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo");
-const MARKET = new PublicKey("uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy");
+const MARKET = new PublicKey("BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4");
 
 function readArg(name: string): string | undefined {
   const args = process.argv.slice(2);

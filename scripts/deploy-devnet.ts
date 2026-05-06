@@ -53,8 +53,8 @@ import { resolveRpcEndpoint } from "./rpc";
 const ARCIUM_PROGRAM_ID = getArciumProgramId();
 const ARCIUM_CLUSTER_OFFSET = 456;
 const ARCIUM_CLUSTER_ACCOUNT = getClusterAccAddress(ARCIUM_CLUSTER_OFFSET);
-const CANONICAL_DEVNET_USDC = new PublicKey(
-  "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+const DEFAULT_MUSDC_MINT = new PublicKey(
+  "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6"
 );
 
 function resolveAnchorBin(): string {
@@ -211,7 +211,7 @@ async function main() {
   console.log("Anchor binary:", anchorBin);
   console.log(
     "Collateral mode:",
-    useMockCollateral ? "mock mint (local authority)" : "canonical devnet USDC"
+    useMockCollateral ? "new mock mint (local authority)" : "Shadow mUSDC"
   );
   console.log("Anchor deploy step:", skipDeploy ? "skipped" : "enabled");
   console.log("Fresh namespace:", freshNamespace ? "enabled" : "disabled");
@@ -493,7 +493,7 @@ async function main() {
 
   // 4. Resolve collateral mint
   console.log("\nStep 3: Resolving collateral mint...");
-  let collateralMint = CANONICAL_DEVNET_USDC;
+  let collateralMint = DEFAULT_MUSDC_MINT;
   if (useMockCollateral) {
     collateralMint = await createMint(
       connection,
@@ -504,7 +504,7 @@ async function main() {
     );
     console.log("Mock USDC mint:", collateralMint.toBase58());
   } else {
-    console.log("Using canonical devnet USDC:", collateralMint.toBase58());
+    console.log("Using Shadow mUSDC:", collateralMint.toBase58());
   }
 
   // SOL mint — base asset for the SOL-USD market
@@ -613,9 +613,9 @@ async function main() {
     console.error("Failed to set price:", e.message);
   }
 
-  // 11. Optionally mint test USDC (mock-only)
+  // 11. Optionally mint test mUSDC (new mock mint only)
   if (useMockCollateral) {
-    console.log("\nStep 9: Minting test USDC...");
+    console.log("\nStep 9: Minting test mUSDC...");
     const deployerAta = await getOrCreateAssociatedTokenAccount(
       connection,
       walletKeypair,
@@ -628,11 +628,11 @@ async function main() {
       collateralMint,
       deployerAta.address,
       walletKeypair,
-      10_000_000_000 // 10,000 USDC
+      10_000_000_000 // 10,000 mUSDC
     );
-    console.log("Minted 10,000 USDC to deployer");
+    console.log("Minted 10,000 mUSDC to deployer");
   } else {
-    console.log("\nStep 9: Skipping mint (canonical devnet USDC has external faucet/swap routes).");
+    console.log("\nStep 9: Skipping mint (using existing Shadow mUSDC).");
   }
 
   // 12. Write .env.local

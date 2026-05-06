@@ -19,13 +19,13 @@ import * as os from "os";
 import * as path from "path";
 import { resolveRpcEndpoint } from "./rpc";
 
-const CANONICAL_DEVNET_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+const DEFAULT_MUSDC_MINT = "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6";
 const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111"
 );
 const DEFAULT_ORACLE_MAX_AGE_SECONDS = 300;
 const DEFAULT_PROGRAM_ID = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo";
-const DEFAULT_MARKET = "uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy";
+const DEFAULT_MARKET = "BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4";
 
 type Check = {
   name: string;
@@ -154,6 +154,12 @@ async function main(): Promise<void> {
     process.env.SHADOWPERP_MARKET ||
       process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT ||
       DEFAULT_MARKET
+  );
+  const expectedCollateralMint = parsePublicKey(
+    "NEXT_PUBLIC_MOCKUSDC_MINT",
+    process.env.NEXT_PUBLIC_MOCKUSDC_MINT ||
+      process.env.NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT ||
+      DEFAULT_MUSDC_MINT
   );
   const arciumProgramId = parsePublicKey(
     "NEXT_PUBLIC_ARCIUM_PROGRAM_ID",
@@ -326,11 +332,11 @@ async function main(): Promise<void> {
 
   const collateralMint = pickField<PublicKey>(market, "collateralMint", "collateral_mint");
   if (collateralMint && wallet) {
-    const canonical = collateralMint.toBase58() === CANONICAL_DEVNET_USDC;
+    const expected = collateralMint.equals(expectedCollateralMint);
     checks.push({
       name: "Collateral mint",
-      ok: canonical,
-      detail: `${collateralMint.toBase58()}${canonical ? " (canonical devnet USDC)" : ""}`,
+      ok: expected,
+      detail: `${collateralMint.toBase58()}${expected ? " (mUSDC)" : ` (expected ${expectedCollateralMint.toBase58()})`}`,
     });
 
     const ownerAta = getAssociatedTokenAddressSync(collateralMint, wallet.publicKey);
@@ -338,20 +344,20 @@ async function main(): Promise<void> {
     if (ownerAtaInfo.value) {
       const bal = await connection.getTokenAccountBalance(ownerAta, "confirmed");
       checks.push({
-        name: "Operator USDC balance",
+        name: "Operator mUSDC balance",
         ok: true,
-        detail: `${bal.value.uiAmountString ?? "0"} USDC in ${ownerAta.toBase58()}`,
+        detail: `${bal.value.uiAmountString ?? "0"} mUSDC in ${ownerAta.toBase58()}`,
       });
     } else {
       checks.push({
-        name: "Operator USDC balance",
+        name: "Operator mUSDC balance",
         ok: false,
         detail: `ATA missing (${ownerAta.toBase58()})`,
       });
     }
   } else if (collateralMint) {
     checks.push({
-      name: "Operator USDC balance",
+      name: "Operator mUSDC balance",
       ok: true,
       detail: "skipped (operator wallet unavailable in this environment)",
     });

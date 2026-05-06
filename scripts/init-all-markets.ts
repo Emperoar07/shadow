@@ -39,7 +39,7 @@ const PROGRAM_ID = new PublicKey(
 );
 const COLLATERAL_MINT = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT ||
-    "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+    "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6"
 );
 const ARCIUM_CLUSTER_OFFSET = Number(
   process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET || "456"
@@ -270,7 +270,7 @@ async function main() {
   console.log(`\nRPC:        ${rpcSelection.rpcUrl}`);
   console.log(`Wallet:     ${walletKeypair.publicKey.toBase58()}`);
   console.log(`Program:    ${PROGRAM_ID.toBase58()}`);
-  console.log(`USDC mint:  ${COLLATERAL_MINT.toBase58()}`);
+  console.log(`mUSDC mint: ${COLLATERAL_MINT.toBase58()}`);
   console.log(`Cluster:    offset=${ARCIUM_CLUSTER_OFFSET}`);
   console.log(`\nBootstrapping ${TRADING_PAIRS.length} market(s)...\n`);
 

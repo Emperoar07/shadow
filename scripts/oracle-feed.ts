@@ -24,7 +24,8 @@ const PROGRAM_ID = new PublicKey(
 );
 const COLLATERAL_MINT = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT ||
-    "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+    process.env.NEXT_PUBLIC_MOCKUSDC_MINT ||
+    "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6"
 );
 
 // Market config: label, base mint, CoinGecko id, Binance symbol

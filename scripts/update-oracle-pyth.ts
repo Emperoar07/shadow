@@ -35,7 +35,7 @@ const PROGRAM_ID = new PublicKey(
 );
 const COLLATERAL_MINT = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT ||
-    "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+    "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6"
 );
 
 function resolveWalletPath(): string {
@@ -187,7 +187,9 @@ async function updateAll(
 async function main() {
   const rpcArg =
     process.argv.find((a) => a.startsWith("--rpc="))?.split("=")[1] ||
-    process.argv[process.argv.indexOf("--rpc") + 1] ||
+    (process.argv.includes("--rpc")
+      ? process.argv[process.argv.indexOf("--rpc") + 1]
+      : undefined) ||
     process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
 
   const once = process.argv.includes("--once");

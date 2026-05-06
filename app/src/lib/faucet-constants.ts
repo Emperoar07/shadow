@@ -1,5 +1,5 @@
 /** Faucet threshold: show top-up prompts when wallet mUSDC falls below this amount. */
-export const FAUCET_TRIGGER_USDC = 100;
+export const FAUCET_TRIGGER_USDC = 500;
 
 /** First-time claim amount for new wallets (in USDC). */
 export const FAUCET_FIRST_CLAIM_USDC = 10_000;

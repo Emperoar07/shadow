@@ -28,7 +28,7 @@ import { randomBytes } from "crypto";
 import { resolveRpcEndpoint, sendAndConfirmWithPolling } from "./rpc";
 
 const DEFAULT_PROGRAM_ID = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo";
-const DEFAULT_MARKET = "uGdPR4kmFWR3HwJ8esEjbeMwnuBKVD7oA9ENRv32uvy";
+const DEFAULT_MARKET = "BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4";
 const DEFAULT_ARCIUM_PROGRAM_ID = "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ";
 const DEFAULT_CLUSTER_OFFSET = 456;
 
