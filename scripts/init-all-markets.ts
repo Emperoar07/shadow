@@ -30,7 +30,7 @@ import {
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { resolveRpcEndpoint } from "./rpc";
+import { resolveRpcEndpoint, sendAndConfirmWithPolling } from "./rpc";
 import { TRADING_PAIRS } from "../app/src/lib/tokens";
 
 const PROGRAM_ID = new PublicKey(
@@ -204,6 +204,7 @@ async function initCompDefsForMarket(
 async function syncCompDefs(
   program: anchor.Program,
   walletKeypair: Keypair,
+  connection: Connection,
   marketPda: PublicKey,
   label: string
 ): Promise<void> {
@@ -224,8 +225,12 @@ async function syncCompDefs(
         liquidationCompDef: liqDef,
         seedOpenInterestCompDef: seedDef,
       })
-      .rpc({ commitment: "confirmed" });
-    console.log(`ok  tx=${tx.slice(0, 16)}...`);
+      .transaction();
+    const sig = await sendAndConfirmWithPolling(connection, walletKeypair, tx, {
+      commitment: "confirmed",
+      timeoutMs: 90_000,
+    });
+    console.log(`ok  tx=${sig.slice(0, 16)}...`);
   } catch (err: any) {
     const msg = String(err?.message || err);
     // Already synced — comp-defs fields already set
@@ -296,7 +301,7 @@ async function main() {
     // ── Phase 3: sync comp-def addresses into market account ───────────
     console.log("\n=== Phase 3: Sync comp-def addresses into market accounts ===");
     for (const { label, pda } of results) {
-      await syncCompDefs(program, walletKeypair, pda, label);
+      await syncCompDefs(program, walletKeypair, connection, pda, label);
     }
   }
 
