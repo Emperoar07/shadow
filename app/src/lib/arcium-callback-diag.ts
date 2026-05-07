@@ -9,6 +9,17 @@ export function extractOpenCallbackFailureMessage(
     return null;
   }
 
+  // 6204 = AlreadyCallbackedComputation — original callback already settled the trade.
+  // This is NOT a failure; treat it as already-settled so the UI refreshes instead of retrying.
+  const alreadyCallbacked = logs.find(
+    (line) =>
+      line.includes("AlreadyCallbackedComputation") ||
+      line.includes("Callback computation already called")
+  );
+  if (alreadyCallbacked) {
+    return `AlreadyCallbackedComputation: this order already settled on-chain (cluster ${clusterOffset}). Refresh to see the latest state.`;
+  }
+
   const aborted = logs.find((line) => line.includes("AbortedComputation"));
   const invalidResult = logs.find((line) => line.includes("InvalidComputationResult"));
 
