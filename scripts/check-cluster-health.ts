@@ -446,7 +446,7 @@ async function main() {
   const circuits = [
     "open_position_probe_b",
     "close_position_v3",
-    "check_liquidation_v2",
+    "check_liquidation_v3",
     "seed_open_interest_state_v3",
   ];
   for (const circuit of circuits) {

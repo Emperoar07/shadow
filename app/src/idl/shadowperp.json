@@ -656,19 +656,19 @@
       ]
     },
     {
-      "name": "check_liquidation_v2_callback",
+      "name": "check_liquidation_v3_callback",
       "docs": [
         "Callback after liquidation check"
       ],
       "discriminator": [
-        136,
-        217,
-        95,
-        96,
-        84,
-        124,
-        171,
-        34
+        88,
+        186,
+        147,
+        173,
+        16,
+        116,
+        38,
+        50
       ],
       "accounts": [
         {
@@ -794,7 +794,7 @@
                   "kind": "type",
                   "type": {
                     "defined": {
-                      "name": "CheckLiquidationV2Output"
+                      "name": "CheckLiquidationV3Output"
                     }
                   }
                 }
@@ -9192,7 +9192,7 @@
       }
     },
     {
-      "name": "CheckLiquidationV2Output",
+      "name": "CheckLiquidationV3Output",
       "docs": [
         "The output of the callback instruction. Provided as a struct with ordered fields",
         "as anchor does not support tuples and tuple structs yet."
@@ -9204,7 +9204,7 @@
             "name": "field_0",
             "type": {
               "defined": {
-                "name": "CheckLiquidationV2OutputStruct0"
+                "name": "CheckLiquidationV3OutputStruct0"
               }
             }
           }
@@ -9212,7 +9212,7 @@
       }
     },
     {
-      "name": "CheckLiquidationV2OutputStruct0",
+      "name": "CheckLiquidationV3OutputStruct0",
       "type": {
         "kind": "struct",
         "fields": [

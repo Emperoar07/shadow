@@ -17,7 +17,7 @@ mod liquidation_check_circuit {
     /// - locked margin only if liquidation is true (0 otherwise)
     /// - current mark/liquidation price marker
     #[instruction]
-    pub fn check_liquidation_v2(
+    pub fn check_liquidation_v3(
         position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         mark_price: u64,
         liquidation_threshold_bps: u64,

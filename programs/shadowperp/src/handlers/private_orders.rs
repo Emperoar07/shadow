@@ -146,7 +146,7 @@ pub struct ExecutePrivateOrder<'info> {
         seeds = [b"market", market.collateral_mint.as_ref(), market.base_asset_mint.as_ref()],
         bump = market.bump,
     )]
-    pub market: Account<'info, Market>,
+    pub market: Box<Account<'info, Market>>,
 
     #[account(
         mut,
@@ -158,7 +158,7 @@ pub struct ExecutePrivateOrder<'info> {
         realloc::payer = owner,
         realloc::zero = true,
     )]
-    pub private_order_book: Account<'info, PrivateOrderBook>,
+    pub private_order_book: Box<Account<'info, PrivateOrderBook>>,
 
     // --- Arcium accounts (populated by queue_computation_accounts macro) ---
     #[account(address = derive_mxe_pda!())]

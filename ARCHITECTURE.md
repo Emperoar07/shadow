@@ -129,7 +129,7 @@ Build artifacts (compiled `.arcis` files in `build/`):
 
 - `open_position_probe_b.arcis`
 - `close_position.arcis`
-- `check_liquidation_v2.arcis`
+- `check_liquidation_v3.arcis`
 - `execute_private_order.arcis`
 
 Arcium-related account pointers are stored in market state and validated in callbacks before `verify_output` is called.

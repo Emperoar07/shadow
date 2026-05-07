@@ -40,7 +40,7 @@ const EXPECTED_SIGNATURES: Record<string, { params: number; outputs: number }> =
   open_position_probe_b: { params: 9, outputs: 1 },
   close_position_v3: { params: 9, outputs: 4 },
   seed_open_interest_state_v3: { params: 1, outputs: 4 },
-  check_liquidation_v2: { params: 9, outputs: 3 },
+  check_liquidation_v3: { params: 9, outputs: 3 },
 };
 
 const COMP_DEFS = [
@@ -55,7 +55,7 @@ const COMP_DEFS = [
     marketField: "closePositionCompDef",
   },
   {
-    circuit: "check_liquidation_v2",
+    circuit: "check_liquidation_v3",
     methodName: "initLiquidationCompDef",
     marketField: "liquidationCompDef",
   },
@@ -742,14 +742,14 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
     refreshedMarket.seedOpenInterestCompDef ?? refreshedMarket.seed_open_interest_comp_def;
   console.log("open_position_probe_b:", openCompDefPk.toBase58());
   console.log("close_position_v3:", closeCompDefPk.toBase58());
-  console.log("check_liquidation_v2:", liqCompDefPk.toBase58());
+  console.log("check_liquidation_v3:", liqCompDefPk.toBase58());
   console.log("seed_open_interest_state_v3:", seedOiCompDefPk.toBase58());
 
   // Include all circuits (including those not stored on market account)
   const allCircuits = [
     "open_position_probe_b",
     "close_position_v3",
-    "check_liquidation_v2",
+    "check_liquidation_v3",
     "seed_open_interest_state_v3",
     "execute_private_order",
     "open_position_tuple_probe_v1",
