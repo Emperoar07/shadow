@@ -132,12 +132,25 @@ export function classifyArciumError(error: unknown): ArciumErrorInfo {
     };
   }
 
-  // 6000 = own program abort; 6204 = Arcium AbortedComputation (error index 204 in Arcium's enum)
-  if (code === 6000 || code === 6204 || msg.includes("AbortedComputation")) {
+  // 6204 = Arcium `AlreadyCallbackedComputation` ("Callback computation already called").
+  // This means the original callback already fired and the trade SETTLED. A second
+  // invocation hit this error. Do NOT retry — retrying queues a duplicate computation
+  // and can cause double-trades. The UI should refresh on-chain state instead.
+  if (code === 6204 || msg.includes("AlreadyCallbackedComputation") || msg.includes("Callback computation already called")) {
     return {
-      message: "The MPC cluster rejected this order. Your funds are safe and nothing was debited.",
+      message: "Order already settled on-chain. Refresh to see the latest state.",
+      isRetryable: false,
+      errorCode: 6204,
+      category: "arcium",
+    };
+  }
+
+  // 6000 = own program AbortedComputation (genuine MPC abort — circuit aborted, output never produced)
+  if (code === 6000 || msg.includes("AbortedComputation")) {
+    return {
+      message: "The MPC cluster aborted this computation. Your funds are safe and nothing was debited.",
       isRetryable: true,
-      errorCode: code ?? 6204,
+      errorCode: code ?? 6000,
       category: "arcium",
     };
   }

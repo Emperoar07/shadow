@@ -43,6 +43,16 @@ function stepIndex(step: TradeStep): number {
 
 function isRetryableError(msg: string | undefined): boolean {
   const m = msg ?? "";
+  // 6204 = Arcium AlreadyCallbackedComputation — original callback already
+  // settled the trade. Retrying would create a duplicate computation. Refresh,
+  // do not retry.
+  if (
+    /AlreadyCallbackedComputation/i.test(m) ||
+    /Callback computation already called/i.test(m) ||
+    /already settled on-chain/i.test(m)
+  ) {
+    return false;
+  }
   // MPC aborts are safe to retry: the program callback resets the position
   // to a clean state (open: Closed with no margin lock, close: back to Open),
   // and a fresh executeOpen() generates a new computation_offset and nonce.
@@ -98,6 +108,18 @@ function humanError(msg: string | undefined, hasQueuedTx: boolean): {
       hint: hasQueuedTx
         ? "Your order is in the queue — check back in a moment."
         : "The order didn't go through. Try again.",
+    };
+  }
+
+  if (
+    /AlreadyCallbackedComputation/i.test(m) ||
+    /Callback computation already called/i.test(m) ||
+    /already settled on-chain/i.test(m)
+  ) {
+    return {
+      headline: "Already settled",
+      hint: "This order already settled on-chain. Refresh to see the latest state.",
+      detail: m,
     };
   }
 
