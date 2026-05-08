@@ -122,12 +122,12 @@ export function classifyArciumError(error: unknown): ArciumErrorInfo {
     };
   }
 
-  // --- Arcium: AbortedComputation (6000) ---
-  if (msg.includes("callback already failed on-chain")) {
+  // --- Arcium: AbortedComputation ---
+  if (isArciumAbortMessage(msg)) {
     return {
       message: trimmedMessage(msg),
       isRetryable: true,
-      errorCode: 6000,
+      errorCode: code ?? 6000,
       category: "arcium",
     };
   }
@@ -145,15 +145,9 @@ export function classifyArciumError(error: unknown): ArciumErrorInfo {
     };
   }
 
-  // 6000 = own program AbortedComputation (genuine MPC abort — circuit aborted, output never produced)
-  if (code === 6000 || msg.includes("AbortedComputation")) {
-    return {
-      message: "The MPC cluster aborted this computation. Your funds are safe and nothing was debited.",
-      isRetryable: true,
-      errorCode: code ?? 6000,
-      category: "arcium",
-    };
-  }
+  // Do not classify bare Custom(6000) as an MPC abort. Anchor error numbers are
+  // program-local: ShadowPerp's own IDL also starts at 6000 (`Unauthorized`).
+  // Only the log/message proof above should mark 6000 as AbortedComputation.
 
   // --- Arcium: GameAlreadyActive / stale PDA (6004) ---
   if (code === ANCHOR_ERROR_OFFSET + 4 || msg.includes("GameAlreadyActive")) {
@@ -557,6 +551,18 @@ export async function waitForPositionStatus(
 
 function trimmedMessage(message: string): string {
   return message.length > 240 ? `${message.slice(0, 240)}...` : message;
+}
+
+function isArciumAbortMessage(message: string): boolean {
+  return (
+    message.includes("AbortedComputation") ||
+    message.includes("MPC verify failed") ||
+    message.includes("callback already failed on-chain") ||
+    message.includes("Privacy computation was aborted") ||
+    message.includes("computation was aborted") ||
+    message.includes("Position callback appears to have been aborted") ||
+    message.includes("The MPC cluster aborted this computation")
+  );
 }
 
 function extractErrorCode(error: unknown): number | null {
