@@ -866,6 +866,7 @@ export class ShadowPerpClient {
       .accounts({
         payer,
         position: positionAddress,
+        positionOwner,
         market,
         ownerTokenAccount,
         vault: marketAccount.vault,

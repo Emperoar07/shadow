@@ -74,18 +74,23 @@ pub fn open_position_callback_handler(
                 ctx.accounts.position.key(),
                 error
             );
-            // Persist a terminal cleanup state instead of returning an error.
-            // Solana rolls back account writes on error, which would otherwise
-            // leave this position stuck in Pending forever.
-            ctx.accounts.position.status = PositionStatus::Closed;
-            ctx.accounts.position.consume_pending_computation(
-                ctx.accounts.computation_account.key(),
-            )?;
-            msg!(
-                "open_position callback cleanup committed for aborted computation {}",
-                ctx.accounts.computation_account.key()
-            );
-            return Ok(());
+            let position = &mut ctx.accounts.position;
+            if position.status == PositionStatus::Pending
+                && position.pending_computation_account == ctx.accounts.computation_account.key()
+                && position.pending_callback_kind() == Position::CALLBACK_KIND_OPEN
+            {
+                // Persist a terminal cleanup state instead of returning an error.
+                // Solana rolls back account writes on error, which would otherwise
+                // leave this position stuck in Pending forever.
+                position.consume_pending_computation(ctx.accounts.computation_account.key())?;
+                position.status = PositionStatus::Closed;
+                msg!(
+                    "open_position callback cleanup committed for aborted computation {}",
+                    ctx.accounts.computation_account.key()
+                );
+                return Ok(());
+            }
+            return Err(ShadowPerpError::InvalidComputationResult.into());
         }
     };
 

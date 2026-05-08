@@ -81,13 +81,19 @@ pub fn close_position_callback_handler(
                 error
             );
             let position = &mut ctx.accounts.position;
-            position.consume_pending_computation(ctx.accounts.computation_account.key())?;
-            position.status = PositionStatus::Open;
-            msg!(
-                "close_position callback cleanup restored position {} to Open",
-                position.key()
-            );
-            return Ok(());
+            if position.status == PositionStatus::Closing
+                && position.pending_computation_account == ctx.accounts.computation_account.key()
+                && position.pending_callback_kind() == Position::CALLBACK_KIND_CLOSE
+            {
+                position.consume_pending_computation(ctx.accounts.computation_account.key())?;
+                position.status = PositionStatus::Open;
+                msg!(
+                    "close_position callback cleanup restored position {} to Open",
+                    position.key()
+                );
+                return Ok(());
+            }
+            return Err(ShadowPerpError::InvalidComputationResult.into());
         }
     };
 
