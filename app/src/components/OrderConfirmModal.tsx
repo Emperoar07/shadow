@@ -92,8 +92,16 @@ export default function OrderConfirmModal({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             ) : (
-              <svg className="h-5 w-5 text-accent-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg className="h-6 w-6" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="shadow-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="1" />
+                  </linearGradient>
+                </defs>
+                <path d="M50 8 L92 30 L50 52 L8 30 Z" fill="url(#shadow-logo-grad)" opacity="0.4" />
+                <path d="M50 20 L92 42 L50 64 L8 42 Z" fill="url(#shadow-logo-grad)" opacity="0.65" />
+                <path d="M50 32 L92 54 L50 76 L8 54 Z" fill="url(#shadow-logo-grad)" />
               </svg>
             )}
           </div>

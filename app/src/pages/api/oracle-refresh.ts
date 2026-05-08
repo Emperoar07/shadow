@@ -230,6 +230,23 @@ async function fetchProviderPrice(config: ReferenceProviderConfig): Promise<numb
       const price = Number.parseFloat(payload[0]?.last ?? "");
       return Number.isFinite(price) && price > 0 ? price : null;
     }
+
+    if (config.provider === "kraken") {
+      const response = await fetch(
+        `https://api.kraken.com/0/public/Ticker?pair=${encodeURIComponent(config.symbol)}`,
+        { signal }
+      );
+      if (!response.ok) return null;
+      const payload = (await response.json()) as {
+        error: string[];
+        result?: Record<string, { c: [string, string] }>;
+      };
+      if (payload.error?.length > 0 || !payload.result) return null;
+      const key = Object.keys(payload.result)[0];
+      if (!key) return null;
+      const price = Number.parseFloat(payload.result[key].c[0] ?? "");
+      return Number.isFinite(price) && price > 0 ? price : null;
+    }
   } catch {
     return null;
   }
