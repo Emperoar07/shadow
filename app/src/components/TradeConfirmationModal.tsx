@@ -152,14 +152,6 @@ function humanError(msg: string | undefined, hasQueuedTx: boolean): {
     };
   }
 
-  if (/Transaction failed with error code 1\b/i.test(m)) {
-    return {
-      headline: "Insufficient token balance",
-      hint: "Your wallet may not have enough mUSDC to cover the margin. Tap Faucet to top up, then retry.",
-      detail: m,
-    };
-  }
-
   if (/Transaction failed with error code 3007/i.test(m) || /ConstraintAddress/i.test(m)) {
     return {
       headline: "Market not ready",
