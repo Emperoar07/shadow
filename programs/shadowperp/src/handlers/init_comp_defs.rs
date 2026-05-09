@@ -1,8 +1,20 @@
 use crate::ID;
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
+use arcium_client::idl::arcium::types::{CircuitSource, OffChainCircuitSource};
+use arcium_macros::circuit_hash;
 
 use crate::state::Market;
+
+const OFFCHAIN_CIRCUIT_BASE_URL: &str =
+    "https://npywafkaealcegkfnhjl.supabase.co/storage/v1/object/public/arcium-circuits";
+
+fn offchain_source(circuit: &'static str, hash: [u8; 32]) -> CircuitSource {
+    CircuitSource::OffChain(OffChainCircuitSource {
+        source: format!("{}/{}.arcis", OFFCHAIN_CIRCUIT_BASE_URL, circuit),
+        hash,
+    })
+}
 
 // ============ OPEN POSITION COMP DEF ============
 
@@ -42,7 +54,14 @@ pub struct InitOpenPositionCompDef<'info> {
 }
 
 pub fn init_open_position_handler(ctx: Context<InitOpenPositionCompDef>) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "open_position_probe_b",
+            circuit_hash!("open_position_probe_b"),
+        )),
+        None,
+    )?;
 
     let market = &mut ctx.accounts.market;
     market.open_position_comp_def = ctx.accounts.comp_def_account.key();
@@ -89,7 +108,14 @@ pub struct InitOpenPositionTupleProbeCompDef<'info> {
 pub fn init_open_position_tuple_probe_handler(
     ctx: Context<InitOpenPositionTupleProbeCompDef>,
 ) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "open_position_tuple_probe_v1",
+            circuit_hash!("open_position_tuple_probe_v1"),
+        )),
+        None,
+    )?;
     msg!(
         "open_position_tuple_probe_v1 comp def: {}",
         ctx.accounts.comp_def_account.key()
@@ -134,7 +160,14 @@ pub struct InitOpenPositionTupleProbeU8CompDef<'info> {
 pub fn init_open_position_tuple_probe_u8_handler(
     ctx: Context<InitOpenPositionTupleProbeU8CompDef>,
 ) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "open_position_tuple_probe_u8_v1",
+            circuit_hash!("open_position_tuple_probe_u8_v1"),
+        )),
+        None,
+    )?;
     msg!(
         "open_position_tuple_probe_u8_v1 comp def: {}",
         ctx.accounts.comp_def_account.key()
@@ -179,7 +212,14 @@ pub struct InitOpenPositionMarginProbeCompDef<'info> {
 pub fn init_open_position_margin_probe_handler(
     ctx: Context<InitOpenPositionMarginProbeCompDef>,
 ) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "open_position_margin_probe_v1",
+            circuit_hash!("open_position_margin_probe_v1"),
+        )),
+        None,
+    )?;
     msg!(
         "open_position_margin_probe_v1 comp def: {}",
         ctx.accounts.comp_def_account.key()
@@ -224,7 +264,14 @@ pub struct InitOpenPositionFullProbeCompDef<'info> {
 pub fn init_open_position_full_probe_handler(
     ctx: Context<InitOpenPositionFullProbeCompDef>,
 ) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "open_position_full_probe_v1",
+            circuit_hash!("open_position_full_probe_v1"),
+        )),
+        None,
+    )?;
     msg!(
         "open_position_full_probe_v1 comp def: {}",
         ctx.accounts.comp_def_account.key()
@@ -270,7 +317,14 @@ pub struct InitClosePositionCompDef<'info> {
 }
 
 pub fn init_close_position_handler(ctx: Context<InitClosePositionCompDef>) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "close_position_v3",
+            circuit_hash!("close_position_v3"),
+        )),
+        None,
+    )?;
 
     let market = &mut ctx.accounts.market;
     market.close_position_comp_def = ctx.accounts.comp_def_account.key();
@@ -316,7 +370,14 @@ pub struct InitLiquidationCompDef<'info> {
 }
 
 pub fn init_liquidation_handler(ctx: Context<InitLiquidationCompDef>) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "check_liquidation_v3",
+            circuit_hash!("check_liquidation_v3"),
+        )),
+        None,
+    )?;
 
     let market = &mut ctx.accounts.market;
     market.liquidation_comp_def = ctx.accounts.comp_def_account.key();
@@ -362,7 +423,14 @@ pub struct InitSeedOpenInterestCompDef<'info> {
 }
 
 pub fn init_seed_open_interest_handler(ctx: Context<InitSeedOpenInterestCompDef>) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "seed_open_interest_state_v3",
+            circuit_hash!("seed_open_interest_state_v3"),
+        )),
+        None,
+    )?;
 
     let market = &mut ctx.accounts.market;
     market.seed_open_interest_comp_def = ctx.accounts.comp_def_account.key();
@@ -410,9 +478,19 @@ pub struct InitLockMarginPrivateCompDef<'info> {
 
 #[cfg(feature = "shielded-collateral")]
 pub fn init_lock_margin_private_handler(ctx: Context<InitLockMarginPrivateCompDef>) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "lock_margin_private",
+            circuit_hash!("lock_margin_private"),
+        )),
+        None,
+    )?;
 
-    msg!("lock_margin_private comp def: {}", ctx.accounts.comp_def_account.key());
+    msg!(
+        "lock_margin_private comp def: {}",
+        ctx.accounts.comp_def_account.key()
+    );
 
     Ok(())
 }
@@ -459,9 +537,19 @@ pub struct InitSettlePrivatePositionCompDef<'info> {
 pub fn init_settle_private_position_handler(
     ctx: Context<InitSettlePrivatePositionCompDef>,
 ) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "settle_private_position",
+            circuit_hash!("settle_private_position"),
+        )),
+        None,
+    )?;
 
-    msg!("settle_private_position comp def: {}", ctx.accounts.comp_def_account.key());
+    msg!(
+        "settle_private_position comp def: {}",
+        ctx.accounts.comp_def_account.key()
+    );
 
     Ok(())
 }
@@ -507,8 +595,18 @@ pub struct InitVerifyWithdrawalProofCompDef<'info> {
 pub fn init_verify_withdrawal_proof_handler(
     ctx: Context<InitVerifyWithdrawalProofCompDef>,
 ) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
-    msg!("verify_withdrawal_proof comp def: {}", ctx.accounts.comp_def_account.key());
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "verify_withdrawal_proof",
+            circuit_hash!("verify_withdrawal_proof"),
+        )),
+        None,
+    )?;
+    msg!(
+        "verify_withdrawal_proof comp def: {}",
+        ctx.accounts.comp_def_account.key()
+    );
     Ok(())
 }
 
@@ -552,7 +650,17 @@ pub struct InitExecutePrivateOrderCompDef<'info> {
 pub fn init_execute_private_order_handler(
     ctx: Context<InitExecutePrivateOrderCompDef>,
 ) -> Result<()> {
-    init_comp_def(ctx.accounts, None, None)?;
-    msg!("execute_private_order comp def: {}", ctx.accounts.comp_def_account.key());
+    init_comp_def(
+        ctx.accounts,
+        Some(offchain_source(
+            "execute_private_order",
+            circuit_hash!("execute_private_order"),
+        )),
+        None,
+    )?;
+    msg!(
+        "execute_private_order comp def: {}",
+        ctx.accounts.comp_def_account.key()
+    );
     Ok(())
 }

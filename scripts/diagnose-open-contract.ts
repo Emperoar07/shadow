@@ -27,8 +27,8 @@ import * as path from "path";
 import { randomBytes } from "crypto";
 import { resolveRpcEndpoint, sendAndConfirmWithPolling } from "./rpc";
 
-const DEFAULT_PROGRAM_ID = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo";
-const DEFAULT_MARKET = "BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4";
+const DEFAULT_PROGRAM_ID = "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD";
+const DEFAULT_MARKET = "AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ";
 const DEFAULT_ARCIUM_PROGRAM_ID = "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ";
 const DEFAULT_CLUSTER_OFFSET = 456;
 
@@ -173,10 +173,18 @@ function readDiagnosticBool(account: Record<string, unknown>, key: string): bool
 
 function isCompDefCompleted(account: Record<string, unknown>): boolean {
   const record = account as any;
-  return Boolean(
+  const onchainCompleted =
     record?.circuitSource?.onChain?.[0]?.isCompleted ??
-      record?.circuit_source?.on_chain?.[0]?.is_completed
-  );
+    record?.circuitSource?.onChain?.isCompleted ??
+    record?.circuit_source?.on_chain?.[0]?.is_completed ??
+    record?.circuit_source?.on_chain?.is_completed ??
+    false;
+  const offchainSource =
+    record?.circuitSource?.offChain ??
+    record?.circuit_source?.off_chain ??
+    record?.circuitSource?.OffChain ??
+    record?.circuit_source?.OffChain;
+  return Boolean(onchainCompleted || offchainSource);
 }
 
 function rewriteProbeError(error: unknown, programId: PublicKey): never {

@@ -284,7 +284,7 @@ async function main() {
   const useWslDeploy =
     process.platform === "win32" &&
     process.env.USE_WSL_DEPLOY !== "0";
-  const solanaBinWsl = "$HOME/.local/share/solana-2.3.13/active_release/bin";
+  const solanaBinWsl = "$HOME/.local/share/solana/install/active_release/bin";
   const walletPath = process.env.SOLANA_WALLET || path.resolve(process.env.HOME || process.env.USERPROFILE || "~", ".config", "solana", "id.json");
   const walletWsl = toWslPath(walletPath);
 

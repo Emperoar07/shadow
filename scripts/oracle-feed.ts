@@ -20,7 +20,7 @@ import { resolveRpcEndpoint, sendAndConfirmWithPolling } from "./rpc";
 
 const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
-    "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo"
+    "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD"
 );
 const COLLATERAL_MINT = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_COLLATERAL_MINT ||

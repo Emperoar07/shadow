@@ -24,8 +24,8 @@ const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111"
 );
 const DEFAULT_ORACLE_MAX_AGE_SECONDS = 300;
-const DEFAULT_PROGRAM_ID = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo";
-const DEFAULT_MARKET = "BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4";
+const DEFAULT_PROGRAM_ID = "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD";
+const DEFAULT_MARKET = "AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ";
 
 type Check = {
   name: string;
@@ -123,11 +123,18 @@ function toNumber(value: any): number {
 }
 
 function isCompDefCompleted(account: any): boolean {
-  return (
+  const onchainCompleted =
     account?.circuitSource?.onChain?.[0]?.isCompleted ??
+    account?.circuitSource?.onChain?.isCompleted ??
     account?.circuit_source?.on_chain?.[0]?.is_completed ??
-    false
-  );
+    account?.circuit_source?.on_chain?.is_completed ??
+    false;
+  const offchainSource =
+    account?.circuitSource?.offChain ??
+    account?.circuit_source?.off_chain ??
+    account?.circuitSource?.OffChain ??
+    account?.circuit_source?.OffChain;
+  return Boolean(onchainCompleted || offchainSource);
 }
 
 function formatCheck(check: Check): string {

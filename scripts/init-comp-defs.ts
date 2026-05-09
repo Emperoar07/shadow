@@ -35,6 +35,8 @@ type InitArgs = {
 };
 
 const DEFAULT_CLUSTER_OFFSET = 456;
+const OFFCHAIN_CIRCUIT_BASE_URL =
+  "https://npywafkaealcegkfnhjl.supabase.co/storage/v1/object/public/arcium-circuits";
 const EXPECTED_SIGNATURES: Record<string, { params: number; outputs: number }> = {
   // Actual on-chain param counts (from finalized comp-defs)
   open_position_probe_b: { params: 9, outputs: 1 },
@@ -214,11 +216,87 @@ function parseNodeOffset(value: any): number {
 }
 
 function isCompDefCompleted(account: any): boolean {
-  return (
+  const onchainCompleted =
     account?.circuitSource?.onChain?.[0]?.isCompleted ??
+    account?.circuitSource?.onChain?.isCompleted ??
     account?.circuit_source?.on_chain?.[0]?.is_completed ??
-    false
+    account?.circuit_source?.on_chain?.is_completed ??
+    false;
+  return Boolean(onchainCompleted || readOffchainCircuitSource(account));
+}
+
+function expectedOffchainCircuitUrl(circuit: string): string {
+  return `${OFFCHAIN_CIRCUIT_BASE_URL}/${circuit}.arcis`;
+}
+
+function readVariantPayload(value: any): any | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value;
+}
+
+function readOffchainCircuitSource(account: any): { source?: string; hash?: unknown } | null {
+  const payload = readVariantPayload(
+    account?.circuitSource?.offChain ??
+      account?.circuit_source?.off_chain ??
+      account?.circuitSource?.OffChain ??
+      account?.circuit_source?.OffChain
   );
+  if (!payload || typeof payload.source !== "string") return null;
+  return payload;
+}
+
+function readExpectedCircuitHash(circuit: string): number[] | null {
+  const hashPath = path.resolve(process.cwd(), "build", `${circuit}.hash`);
+  if (!fs.existsSync(hashPath)) return null;
+  const parsed = JSON.parse(fs.readFileSync(hashPath, "utf8"));
+  return Array.isArray(parsed) ? parsed.map((value) => Number(value)) : null;
+}
+
+function normalizeHash(value: unknown): number[] | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value.map((item) => Number(item));
+  if (Buffer.isBuffer(value)) return Array.from(value);
+  if (value instanceof Uint8Array) return Array.from(value);
+  if (typeof value === "object" && value && Array.isArray((value as any).data)) {
+    return (value as any).data.map((item: unknown) => Number(item));
+  }
+  return null;
+}
+
+function validateOffchainCircuitSource(circuit: string, account: any): void {
+  const source = readOffchainCircuitSource(account);
+  if (!source) return;
+
+  const expectedUrl = expectedOffchainCircuitUrl(circuit);
+  if (source.source !== expectedUrl) {
+    throw new Error(
+      [
+        `FRESH_NAMESPACE_REQUIRED: offchain circuit URL mismatch for ${circuit}.`,
+        `  expected: ${expectedUrl}`,
+        `  actual:   ${source.source}`,
+        "A finalized comp-def cannot be repointed in-place safely; rotate to a fresh namespace and re-init comp-defs.",
+      ].join("\n")
+    );
+  }
+
+  const expectedHash = readExpectedCircuitHash(circuit);
+  const actualHash = normalizeHash(source.hash);
+  if (
+    expectedHash &&
+    actualHash &&
+    (actualHash.length !== expectedHash.length ||
+      actualHash.some((value, index) => value !== expectedHash[index]))
+  ) {
+    throw new Error(
+      [
+        `FRESH_NAMESPACE_REQUIRED: offchain circuit hash mismatch for ${circuit}.`,
+        `  expected: [${expectedHash.join(",")}]`,
+        `  actual:   [${actualHash.join(",")}]`,
+        "A finalized comp-def cannot be repointed in-place safely; rotate to a fresh namespace and re-init comp-defs.",
+      ].join("\n")
+    );
+  }
 }
 
 function readCompDefSignature(account: any): { params: number; outputs: number; circuitLen: number | null } {
@@ -563,9 +641,13 @@ async function ensureCompDef(
   );
   if (isCompDefCompleted(existingCompDef)) {
     validateCompDefAgainstExpected(params.circuit, compDefAccount, existingCompDef);
+    validateOffchainCircuitSource(params.circuit, existingCompDef);
     const actual = readCompDefSignature(existingCompDef);
+    const offchain = readOffchainCircuitSource(existingCompDef);
     console.log(
-      `Comp-def already finalized for ${params.circuit} (params=${actual.params}, outputs=${actual.outputs}, circuit_len=${actual.circuitLen ?? "n/a"})`
+      offchain
+        ? `Comp-def already offchain for ${params.circuit} (params=${actual.params}, outputs=${actual.outputs}, circuit_len=${actual.circuitLen ?? "n/a"})`
+        : `Comp-def already finalized for ${params.circuit} (params=${actual.params}, outputs=${actual.outputs}, circuit_len=${actual.circuitLen ?? "n/a"})`
     );
     return;
   }
@@ -659,6 +741,7 @@ async function ensureCompDef(
   );
   if (isCompDefCompleted(refreshed)) {
     validateCompDefAgainstExpected(params.circuit, compDefAccount, refreshed);
+    validateOffchainCircuitSource(params.circuit, refreshed);
   }
 }
 
@@ -765,7 +848,10 @@ export async function initCompDefs(args: InitArgs): Promise<void> {
     try {
       const account = await (arciumProg.account as any).computationDefinitionAccount.fetch(compDefPk);
       const isCompleted = isCompDefCompleted(account);
-      console.log(`- ${circuit}: ${isCompleted ? "completed" : "pending upload/finalize"}`);
+      const source = readOffchainCircuitSource(account) ? "offchain" : "onchain";
+      console.log(
+        `- ${circuit}: ${isCompleted ? `completed (${source})` : "pending upload/finalize"}`
+      );
     } catch {
       console.log(`- ${circuit}: not initialized`);
     }

@@ -13,8 +13,8 @@ import * as path from "path";
 import { resolveRpcEndpoint } from "./rpc";
 
 const DEFAULT_MAX_AGE_SECONDS = 300;
-const DEFAULT_PROGRAM_ID = "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo";
-const DEFAULT_MARKET = "BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4";
+const DEFAULT_PROGRAM_ID = "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD";
+const DEFAULT_MARKET = "AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ";
 
 function readArg(name: string): string | undefined {
   const args = process.argv.slice(2);

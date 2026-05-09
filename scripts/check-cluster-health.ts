@@ -29,8 +29,8 @@ import * as path from "path";
 // ── Configuration ───────────────────────────────────────────────────
 const RPC_URL =
   "https://cool-boldest-yard.solana-devnet.quiknode.pro/3513dd000b0bf11aae344e55c52d9281969d0808";
-const PROGRAM_ID = new PublicKey("34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo");
-const MARKET = new PublicKey("BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4");
+const PROGRAM_ID = new PublicKey("DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD");
+const MARKET = new PublicKey("AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ");
 const ARCIUM_PROGRAM_ID = new PublicKey("Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ");
 const CLUSTER_OFFSET = 456;
 
@@ -456,8 +456,15 @@ async function main() {
       const compDef = await (arciumProgram.account as any).computationDefinitionAccount.fetch(compDefAddr);
       const isCompleted =
         compDef?.circuitSource?.onChain?.[0]?.isCompleted ??
+        compDef?.circuitSource?.onChain?.isCompleted ??
         compDef?.circuit_source?.on_chain?.[0]?.is_completed ??
-        false;
+        compDef?.circuit_source?.on_chain?.is_completed ??
+        Boolean(
+          compDef?.circuitSource?.offChain ??
+            compDef?.circuit_source?.off_chain ??
+            compDef?.circuitSource?.OffChain ??
+            compDef?.circuit_source?.OffChain
+        );
       console.log(
         `  ${circuit}: ${isCompleted ? "FINALIZED" : "NOT FINALIZED"} (${compDefAddr.toBase58()})`
       );

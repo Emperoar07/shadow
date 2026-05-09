@@ -29,7 +29,7 @@ import { resolveRpcEndpoint } from "./rpc";
 
 const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
-    "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo"
+    "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD"
 );
 const ARCIUM_PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_ARCIUM_PROGRAM_ID || getArciumProgramId()
@@ -82,11 +82,18 @@ function readCompDefOffset(circuit: string): number {
 }
 
 function isCompDefCompleted(account: any): boolean {
-  return (
+  const onchainCompleted =
     account?.circuitSource?.onChain?.[0]?.isCompleted ??
+    account?.circuitSource?.onChain?.isCompleted ??
     account?.circuit_source?.on_chain?.[0]?.is_completed ??
-    false
-  );
+    account?.circuit_source?.on_chain?.is_completed ??
+    false;
+  const offchainSource =
+    account?.circuitSource?.offChain ??
+    account?.circuit_source?.off_chain ??
+    account?.circuitSource?.OffChain ??
+    account?.circuit_source?.OffChain;
+  return Boolean(onchainCompleted || offchainSource);
 }
 
 async function ensureShieldedCompDef(

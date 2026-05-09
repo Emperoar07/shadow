@@ -45,10 +45,51 @@ import { resolveRpcEndpoint } from "./rpc";
 // Config
 // ---------------------------------------------------------------------------
 
-const PROGRAM_ID = new PublicKey("34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo");
-const MARKET_ACCOUNT = new PublicKey("BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4");
-const ARCIUM_PROGRAM_ID = new PublicKey("Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ");
-const CLUSTER_OFFSET = 456;
+const DEFAULT_PROGRAM_ID = "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD";
+const DEFAULT_MARKET_ACCOUNT = "AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ";
+const DEFAULT_ARCIUM_PROGRAM_ID = "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ";
+const DEFAULT_CLUSTER_OFFSET = 456;
+
+function loadEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return;
+  const raw = fs.readFileSync(filePath, "utf8");
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const idx = trimmed.indexOf("=");
+    if (idx <= 0) continue;
+    const key = trimmed.slice(0, idx).trim();
+    const value = trimmed.slice(idx + 1).trim();
+    if (key && !(key in process.env)) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"));
+
+const PROGRAM_ID = new PublicKey(
+  readArg("program") ||
+    process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
+    process.env.SHADOWPERP_PROGRAM_ID ||
+    DEFAULT_PROGRAM_ID
+);
+const MARKET_ACCOUNT = new PublicKey(
+  readArg("market") ||
+    process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT ||
+    process.env.SHADOWPERP_MARKET ||
+    DEFAULT_MARKET_ACCOUNT
+);
+const ARCIUM_PROGRAM_ID = new PublicKey(
+  readArg("arcium-program") ||
+    process.env.NEXT_PUBLIC_ARCIUM_PROGRAM_ID ||
+    DEFAULT_ARCIUM_PROGRAM_ID
+);
+const CLUSTER_OFFSET = Number(
+  readArg("cluster-offset") ||
+    process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET ||
+    DEFAULT_CLUSTER_OFFSET
+);
 
 function readArg(name: string): string | undefined {
   const args = process.argv.slice(2);

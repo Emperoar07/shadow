@@ -6,7 +6,7 @@ It is built for traders who want a quieter trading surface. Position size, lever
 
 Program ID on Solana devnet
 
-`34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo`
+`DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD`
 
 ## What Shadow Gives Traders
 
@@ -48,6 +48,26 @@ SOL/USD, BTC/USD, ETH/USD, JUP/USD, PYTH/USD, and ORCA/USD are wired into the te
 
 This keeps the user experience close to a familiar perpetual exchange while moving the sensitive parts of the trade into a confidential computation path.
 
+## Current Devnet Namespace
+
+Active devnet program
+
+`DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD`
+
+Active SOL/USD market
+
+`AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ`
+
+Collateral mint
+
+`DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6`
+
+Arcium cluster
+
+`Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ` at cluster offset `456`
+
+The active computation definitions use offchain Arcium circuit sources. The compiled `.arcis` artifacts are hosted in public Supabase Storage and the on-chain comp-defs pin them with `circuit_hash!`, so Arcium nodes fetch the circuit offchain while still verifying the expected bytecode hash.
+
 ## Privacy Boundary
 
 Private through the encrypted path
@@ -82,7 +102,7 @@ Devnet deployment, oracle, preflight, market setup, diagnostics, and operational
 
 `build`
 
-Compiled Arcium circuit artifacts used by the program.
+Compiled Arcium circuit artifacts used by the program and uploaded as offchain Arcium circuit sources during devnet rollout.
 
 ## Getting Started
 
@@ -119,6 +139,8 @@ Important environment values
 
 `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`, or Vercel KV equivalents, for durable hosted rate limits and faucet records
 
+`NEXT_PUBLIC_ARCIUM_CLUSTER_ACCOUNT` when pinning the deployed Arcium cluster account explicitly
+
 Run the app
 
 ```bash
@@ -139,7 +161,7 @@ npx ts-node scripts/price-oracle.ts --once --manual-price 130.50
 Deployment and setup
 
 ```bash
-npx ts-node scripts/deploy-devnet.ts
+npx ts-node scripts/deploy-devnet.ts --fresh-namespace
 npx ts-node scripts/create-devnet-mints.ts
 npx ts-node scripts/init-markets.ts
 npx ts-node scripts/adopt-shared-collateral.ts
@@ -154,6 +176,7 @@ Preflight and diagnostics
 npm run check:preflight
 npm run diag:open-contract
 npx ts-node scripts/smoke-test-devnet.ts
+npx ts-node scripts/smoke-test-devnet.ts --trade
 npx ts-node scripts/verify-markets.ts
 npx ts-node scripts/check-mxe-status.ts
 ```
@@ -197,3 +220,27 @@ https://www.anchor-lang.com/
 Pyth Network
 
 https://pyth.network/
+
+Privy
+
+https://www.privy.io/
+
+Privy documentation
+
+https://docs.privy.io/
+
+Supabase
+
+https://supabase.com/
+
+Supabase Storage documentation
+
+https://supabase.com/docs/guides/storage
+
+Vercel
+
+https://vercel.com/
+
+Vercel documentation
+
+https://vercel.com/docs

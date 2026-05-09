@@ -24,7 +24,7 @@ import * as path from "path";
 import * as os from "os";
 import { resolveRpcEndpoint } from "./rpc";
 
-const PROGRAM_ID = new PublicKey("34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo");
+const PROGRAM_ID = new PublicKey("DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD");
 
 const CIRCUITS = [
   { name: "open_position_probe_b", file: "build/open_position_probe_b.arcis" },

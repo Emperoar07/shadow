@@ -6,6 +6,7 @@ const NAV = [
     group: "Guide",
     items: [
       { id: "overview", label: "Overview" },
+      { id: "devnet-namespace", label: "Devnet Namespace" },
       { id: "how-it-works", label: "How It Works" },
       { id: "wallet-connection", label: "Wallet Connection" },
       { id: "privacy", label: "Privacy Model" },
@@ -330,7 +331,43 @@ export default function DocsPage() {
               across supported markets, and your selected pair persists across page refreshes.
             </p>
             <Note>
-              ShadowPerp runs as a <strong>Solana Devnet</strong> workspace at program ID <Code>34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo</Code>. Balances are test funds, which makes the app a safe place to explore the trading flow before mainnet planning.
+              ShadowPerp runs as a <strong>Solana Devnet</strong> workspace at program ID <Code>DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD</Code>. Balances are test funds, which makes the app a safe place to explore the trading flow before mainnet planning.
+            </Note>
+          </Section>
+
+          <Section id="devnet-namespace" title="Devnet Namespace">
+            <p>
+              The current devnet rollout uses a fresh ShadowPerp program and market namespace. These addresses are useful
+              when checking transactions in Solana Explorer or comparing app configuration against on chain state.
+            </p>
+            <table className="docs-table">
+              <tbody>
+                <tr>
+                  <td>Program</td>
+                  <td><Code>DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD</Code></td>
+                </tr>
+                <tr>
+                  <td>SOL/USD market</td>
+                  <td><Code>AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ</Code></td>
+                </tr>
+                <tr>
+                  <td>Collateral mint</td>
+                  <td><Code>DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6</Code></td>
+                </tr>
+                <tr>
+                  <td>Arcium program</td>
+                  <td><Code>Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ</Code></td>
+                </tr>
+                <tr>
+                  <td>Cluster offset</td>
+                  <td><Code>456</Code></td>
+                </tr>
+              </tbody>
+            </table>
+            <Note>
+              Arcium circuit bytecode is served from offchain storage for this rollout. The on chain computation
+              definitions store the offchain source plus a pinned circuit hash, so nodes can fetch the artifact without
+              relying on an oversized on chain circuit account.
             </Note>
           </Section>
 
@@ -702,9 +739,11 @@ export default function DocsPage() {
               </p>
               <h3>Third Party Services</h3>
               <p>
-                ShadowPerp uses Pyth Network for primary oracle price feeds, with public APIs from Coinbase and Binance for
-                reference data. ShadowPerp does not intentionally send personal profile data to these services.
-                Arcium processes encrypted trade inputs, and individual MPC nodes do not get access to the plaintext data.
+                ShadowPerp uses Privy for wallet authentication, Pyth Network for primary oracle price feeds, and public
+                exchange APIs for reference market data. Supabase Storage may host public Arcium circuit artifacts for
+                offchain computation definitions, and Vercel hosts the web app. ShadowPerp does not intentionally send
+                plaintext trade inputs to these services. Arcium processes encrypted trade inputs, and individual MPC
+                nodes do not get access to the plaintext data.
               </p>
               <h3>Contact</h3>
               <p>
