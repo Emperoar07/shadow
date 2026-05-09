@@ -58,10 +58,12 @@ interface UiPosition {
 }
 
 type Direction = "long" | "short";
-type RuleDraft = {
-  side: Direction;
-  takeProfit: string;
-  stopLoss: string;
+type TpSlMode = "price" | "yield" | "percentage";
+type TpSlDraft = {
+  takeProfitMode: TpSlMode;
+  takeProfitValue: string;
+  stopLossMode: TpSlMode;
+  stopLossValue: string;
 };
 
 interface TokenBalance {
@@ -161,9 +163,41 @@ function parseOptionalPositive(value: string): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function formatOptionalPrice(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "--";
+  return value < 0.01 ? value.toFixed(8) : value.toFixed(2);
+}
+
 function formatPrice(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "--";
   return value < 0.01 ? `$${value.toFixed(8)}` : `$${value.toFixed(2)}`;
+}
+
+function calculateTriggerPrice(
+  mode: TpSlMode,
+  valueRaw: string,
+  trigger: "takeProfit" | "stopLoss",
+  side: Direction,
+  entryPrice: number | null,
+  leverage: number | null
+): number | null {
+  const value = parseOptionalPositive(valueRaw);
+  if (value === null) return null;
+  if (mode === "price") return value;
+  if (!entryPrice || entryPrice <= 0) return null;
+
+  const bounded = Math.min(value, 100);
+  const isLong = side === "long";
+  const shouldIncrease =
+    trigger === "takeProfit"
+      ? isLong
+      : !isLong;
+  const movePct =
+    mode === "yield" && leverage && leverage > 0
+      ? bounded / leverage
+      : bounded;
+  const multiplier = shouldIncrease ? 1 + movePct / 100 : 1 - movePct / 100;
+  return entryPrice * Math.max(0.000001, multiplier);
 }
 
 function clampPercent(value: number): number {
@@ -197,6 +231,80 @@ function statusChipClass(error: boolean): string {
   return error
     ? "bg-accent-red/15 text-accent-red"
     : "bg-accent-green/15 text-accent-green";
+}
+
+function TpSlEditor({
+  label,
+  tone,
+  mode,
+  value,
+  preview,
+  onModeChange,
+  onValueChange,
+}: {
+  label: string;
+  tone: "tp" | "sl";
+  mode: TpSlMode;
+  value: string;
+  preview: number | null;
+  onModeChange: (mode: TpSlMode) => void;
+  onValueChange: (value: string) => void;
+}) {
+  const isSliderMode = mode !== "price";
+  const accent = tone === "tp" ? "text-cyan-300" : "text-accent-red";
+  const suffix = mode === "price" ? "Price" : mode === "yield" ? "ROI %" : "Move %";
+
+  return (
+    <div className="rounded-lg border border-shadow-600 bg-shadow-800/50 p-2.5">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className={`text-[11px] font-semibold ${accent}`}>{label}</span>
+        <span className="text-[10px] text-gray-500">{formatPrice(preview)}</span>
+      </div>
+      <div className="mb-2 grid grid-cols-[1fr_1.2fr] gap-2">
+        <select
+          value={mode}
+          onChange={(event) => onModeChange(event.target.value as TpSlMode)}
+          className="rounded border border-shadow-500 bg-shadow-900 px-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-accent-purple/60"
+        >
+          <option value="price">By price</option>
+          <option value="yield">By ROI</option>
+          <option value="percentage">By percentage</option>
+        </select>
+        <div className="relative">
+          <input
+            type="number"
+            value={value}
+            min={0}
+            max={isSliderMode ? 100 : undefined}
+            step={mode === "price" ? "any" : 1}
+            onChange={(event) => onValueChange(event.target.value)}
+            placeholder={suffix}
+            className="w-full rounded border border-shadow-500 bg-shadow-900 px-2 py-1.5 pr-12 text-right text-[11px] text-white outline-none focus:border-accent-purple/60"
+          />
+          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] text-gray-500">
+            {mode === "price" ? "USD" : "%"}
+          </span>
+        </div>
+      </div>
+      {isSliderMode ? (
+        <div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.min(parseOptionalPositive(value) ?? 0, 100)}
+            onChange={(event) => onValueChange(event.target.value)}
+            className="h-1 w-full cursor-pointer appearance-none rounded-full accent-accent-purple"
+          />
+          <div className="mt-1 flex justify-between text-[9px] text-gray-600">
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 const PANEL_TABLE_CLASS = "w-full min-w-[800px] text-[11px]";
@@ -242,7 +350,13 @@ export default function BottomPositionsPanel({
   const [historyPositionsNotice, setHistoryPositionsNotice] = useState<string | null>(null);
   const [activityRows, setActivityRows] = useState<IndexedRecentTx[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [ruleDrafts, setRuleDrafts] = useState<Record<string, RuleDraft>>({});
+  const [tpSlModalAddress, setTpSlModalAddress] = useState<string | null>(null);
+  const [tpSlDraft, setTpSlDraft] = useState<TpSlDraft>({
+    takeProfitMode: "price",
+    takeProfitValue: "",
+    stopLossMode: "price",
+    stopLossValue: "",
+  });
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [closeConfirmPos, setCloseConfirmPos] = useState<UiPosition | null>(null);
   const [oraclePrice, setOraclePrice] = useState<number | null>(null);
@@ -457,33 +571,6 @@ export default function BottomPositionsPanel({
     return subscribeAutomationUpdates(loadAutomationState);
   }, [loadAutomationState]);
 
-  useEffect(() => {
-    setRuleDrafts((current) => {
-      const next = { ...current };
-      let changed = false;
-
-      for (const position of positions) {
-        if (next[position.address]) continue;
-        const rule = positionRules[position.address];
-        const view = ownerPositionViews[position.address];
-        next[position.address] = {
-          side: view?.side ?? rule?.side ?? "long",
-          takeProfit: rule?.takeProfit?.toString() ?? "",
-          stopLoss: rule?.stopLoss?.toString() ?? "",
-        };
-        changed = true;
-      }
-
-      for (const address of Object.keys(next)) {
-        if (positions.some((position) => position.address === address)) continue;
-        delete next[address];
-        changed = true;
-      }
-
-      return changed ? next : current;
-    });
-  }, [ownerPositionViews, positionRules, positions]);
-
   const executeClose = useCallback(
     async (pos: UiPosition) => {
       if (!publicKey || !anchorWallet) return;
@@ -589,24 +676,39 @@ export default function BottomPositionsPanel({
     [confirmClose, executeClose]
   );
 
-  const updateRuleDraft = useCallback(
-    (address: string, field: "takeProfit" | "stopLoss", value: string) => {
-      setRuleDrafts((current) => ({
-        ...current,
-        [address]: {
-          ...(current[address] ?? { side: "long" as Direction, takeProfit: "", stopLoss: "" }),
-          [field]: value,
-        },
-      }));
-    },
-    []
-  );
+  const openTpSlModal = useCallback((pos: UiPosition) => {
+    const rule = positionRules[pos.address];
+    setTpSlDraft({
+      takeProfitMode: "price",
+      takeProfitValue: rule?.takeProfit ? formatOptionalPrice(rule.takeProfit) : "",
+      stopLossMode: "price",
+      stopLossValue: rule?.stopLoss ? formatOptionalPrice(rule.stopLoss) : "",
+    });
+    setTpSlModalAddress(pos.address);
+  }, [positionRules]);
 
-  const saveRule = useCallback((address: string) => {
-    const draft = ruleDrafts[address];
-    if (!draft) return;
-    const tp = parseOptionalPositive(draft.takeProfit);
-    const sl = parseOptionalPositive(draft.stopLoss);
+  const saveTpSlRule = useCallback((address: string, card: {
+    side: Direction | null;
+    entryPrice: number | null;
+    leverage: number | null;
+  }) => {
+    const side = card.side ?? positionRules[address]?.side ?? "long";
+    const tp = calculateTriggerPrice(
+      tpSlDraft.takeProfitMode,
+      tpSlDraft.takeProfitValue,
+      "takeProfit",
+      side,
+      card.entryPrice,
+      card.leverage
+    );
+    const sl = calculateTriggerPrice(
+      tpSlDraft.stopLossMode,
+      tpSlDraft.stopLossValue,
+      "stopLoss",
+      side,
+      card.entryPrice,
+      card.leverage
+    );
     const existingRule = positionRules[address];
     const view = ownerPositionViews[address];
     const position = positions.find((item) => item.address === address);
@@ -615,18 +717,20 @@ export default function BottomPositionsPanel({
     if (tp === null && sl === null) {
       removePositionRule(address);
       toastSuccess("TP/SL rule removed");
+      setTpSlModalAddress(null);
       return;
     }
     setPositionRule({
       positionAddress: address,
       pairLabel,
-      side: draft.side,
+      side,
       takeProfit: tp,
       stopLoss: sl,
       updatedAt: Date.now(),
     });
     toastSuccess("TP/SL rule saved");
-  }, [activePairLabel, ownerPositionViews, positionRules, positions, ruleDrafts]);
+    setTpSlModalAddress(null);
+  }, [activePairLabel, ownerPositionViews, positionRules, positions, toastSuccess, tpSlDraft]);
 
   const openPositions = useMemo(
     () => positions.filter((p) => ["open", "pending", "closing", "settling"].includes(p.status)),
@@ -969,6 +1073,31 @@ export default function BottomPositionsPanel({
     { key: "fundingHistory", label: "Funding History", count: fundingActivity.length },
     { key: "positionHistory", label: "Position History", count: historyPositions.length },
   ];
+
+  const tpSlModalPosition = tpSlModalAddress
+    ? positions.find((position) => position.address === tpSlModalAddress) ?? null
+    : null;
+  const tpSlModalCard = tpSlModalPosition ? derivePositionCard(tpSlModalPosition) : null;
+  const tpPreview = tpSlModalCard
+    ? calculateTriggerPrice(
+        tpSlDraft.takeProfitMode,
+        tpSlDraft.takeProfitValue,
+        "takeProfit",
+        tpSlModalCard.side ?? "long",
+        tpSlModalCard.entryPrice,
+        tpSlModalCard.leverage
+      )
+    : null;
+  const slPreview = tpSlModalCard
+    ? calculateTriggerPrice(
+        tpSlDraft.stopLossMode,
+        tpSlDraft.stopLossValue,
+        "stopLoss",
+        tpSlModalCard.side ?? "long",
+        tpSlModalCard.entryPrice,
+        tpSlModalCard.leverage
+      )
+    : null;
 
   return (
     <div className="trade-bottom-panel position-card flex flex-col h-full">
@@ -1456,12 +1585,7 @@ export default function BottomPositionsPanel({
                 const isFinal = pos.status === "closed" || pos.status === "liquidated";
                 const card = derivePositionCard(pos);
                 const rule = positionRules[pos.address];
-                const draft = ruleDrafts[pos.address] ?? {
-                  side: card.side ?? rule?.side ?? "long",
-                  takeProfit: rule?.takeProfit?.toString() ?? "",
-                  stopLoss: rule?.stopLoss?.toString() ?? "",
-                };
-                const displaySide = card.side ?? draft.side;
+                const displaySide = card.side ?? rule?.side ?? "long";
                 const pnlValue = card.unrealizedPnl;
                 const pnlPercent = card.pnlPercent;
                 const health = card.healthPercent;
@@ -1541,20 +1665,20 @@ export default function BottomPositionsPanel({
                     {/* TP/SL */}
                     {activeTab === "positions" && (
                       <td className="px-2 py-2.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1">
-                          <div className="relative">
-                            <input type="number" value={draft.takeProfit} onChange={(e) => updateRuleDraft(pos.address, "takeProfit", e.target.value)}
-                              className="w-[60px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 pr-5 text-[10px] text-white text-right focus:border-cyan-400/50 focus:outline-none" />
-                            <span className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[9px] font-bold text-cyan-300">TP</span>
-                          </div>
-                          <div className="relative">
-                            <input type="number" value={draft.stopLoss} onChange={(e) => updateRuleDraft(pos.address, "stopLoss", e.target.value)}
-                              className="w-[60px] rounded border border-shadow-500 bg-shadow-800 px-1.5 py-0.5 pr-5 text-[10px] text-white text-right focus:border-accent-red/50 focus:outline-none" />
-                            <span className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[9px] font-bold text-accent-red">SL</span>
-                          </div>
-                          <button onClick={() => saveRule(pos.address)}
-                            className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-medium text-cyan-300 hover:bg-cyan-500/25">
-                            Save
+                        <div className="flex items-center justify-end gap-1.5">
+                          {rule?.takeProfit ? (
+                            <span className="rounded border border-cyan-400/20 bg-cyan-400/10 px-1.5 py-0.5 text-[9px] font-medium text-cyan-300">
+                              TP {formatPrice(rule.takeProfit)}
+                            </span>
+                          ) : null}
+                          {rule?.stopLoss ? (
+                            <span className="rounded border border-accent-red/20 bg-accent-red/10 px-1.5 py-0.5 text-[9px] font-medium text-accent-red">
+                              SL {formatPrice(rule.stopLoss)}
+                            </span>
+                          ) : null}
+                          <button onClick={() => openTpSlModal(pos)}
+                            className="rounded bg-cyan-500/15 px-2 py-0.5 text-[9px] font-medium text-cyan-300 hover:bg-cyan-500/25">
+                            TP/SL
                           </button>
                         </div>
                       </td>
@@ -1607,10 +1731,61 @@ export default function BottomPositionsPanel({
       </div>
 
       <OrderConfirmModal
+        isOpen={tpSlModalPosition !== null && tpSlModalCard !== null}
+        title="TP/SL Settings"
+        description="Set full-position trigger rules by price, ROI, or entry-price percentage."
+        confirmLabel="Save TP/SL"
+        details={tpSlModalPosition && tpSlModalCard ? [
+          { label: "Pair", value: tpSlModalCard.pairLabel },
+          { label: "Side", value: (tpSlModalCard.side ?? "long").toUpperCase() },
+          { label: "Entry", value: formatPrice(tpSlModalCard.entryPrice) },
+          { label: "Take profit trigger", value: formatPrice(tpPreview) },
+          { label: "Stop loss trigger", value: formatPrice(slPreview) },
+        ] : []}
+        onConfirm={() => {
+          if (tpSlModalPosition && tpSlModalCard) {
+            saveTpSlRule(tpSlModalPosition.address, tpSlModalCard);
+          }
+        }}
+        onCancel={() => setTpSlModalAddress(null)}
+      >
+        <div className="mb-3 space-y-3 rounded-xl border border-shadow-600 bg-shadow-900/60 p-3">
+          <TpSlEditor
+            label="Take Profit"
+            tone="tp"
+            mode={tpSlDraft.takeProfitMode}
+            value={tpSlDraft.takeProfitValue}
+            preview={tpPreview}
+            onModeChange={(mode) =>
+              setTpSlDraft((current) => ({ ...current, takeProfitMode: mode, takeProfitValue: "" }))
+            }
+            onValueChange={(value) =>
+              setTpSlDraft((current) => ({ ...current, takeProfitValue: value }))
+            }
+          />
+          <TpSlEditor
+            label="Stop Loss"
+            tone="sl"
+            mode={tpSlDraft.stopLossMode}
+            value={tpSlDraft.stopLossValue}
+            preview={slPreview}
+            onModeChange={(mode) =>
+              setTpSlDraft((current) => ({ ...current, stopLossMode: mode, stopLossValue: "" }))
+            }
+            onValueChange={(value) =>
+              setTpSlDraft((current) => ({ ...current, stopLossValue: value }))
+            }
+          />
+          <p className="text-[10px] leading-relaxed text-gray-500">
+            These triggers apply to the entire open position. Percentage sliders calculate trigger prices only; partial take-profit needs protocol-level partial close support.
+          </p>
+        </div>
+      </OrderConfirmModal>
+
+      <OrderConfirmModal
         isOpen={closeConfirmPos !== null}
         title="Close Position"
         description="This will send the close through Arcium MPC and finish settlement on-chain."
-        variant="danger"
         confirmLabel="Close Position"
         details={closeConfirmPos ? [
           { label: "Opened", value: closeConfirmPos.openedAt.toLocaleDateString() },

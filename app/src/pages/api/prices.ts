@@ -1,5 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getOrderedReferenceProviders, type MarketFeedProvider } from "../../lib/market-feeds";
+import {
+  getMarketFeed,
+  getOrderedReferenceProviders,
+  type MarketFeedProvider,
+} from "../../lib/market-feeds";
 import { TRADING_PAIRS } from "../../lib/tokens";
 import { checkRateLimit } from "../../lib/server/rate-limit";
 import { getRequestIp } from "../../lib/server/privy-auth";
@@ -31,6 +35,8 @@ type PairConfig = {
   label: string;
   provider: MarketFeedProvider;
   symbol: string;
+  chartSymbol: string;
+  isPerpChart: boolean;
   mockPrice: number;
   mockPriceChange: number;
 };
@@ -39,12 +45,46 @@ const CACHE_TTL_MS = 20_000;
 const RATE_LIMIT = 120;
 const RATE_WINDOW_MS = 60_000;
 
+function parseChartSymbol(chartSymbol: string): {
+  provider: MarketFeedProvider | null;
+  symbol: string | null;
+  isPerp: boolean;
+} {
+  const [providerRaw, symbolRaw] = chartSymbol.split(":");
+  if (!providerRaw || !symbolRaw) {
+    return { provider: null, symbol: null, isPerp: false };
+  }
+
+  const provider = providerRaw.toLowerCase();
+  const mappedProvider: MarketFeedProvider | null =
+    provider === "binance" ? "binance"
+    : provider === "bybit" ? "bybit"
+    : provider === "mexc" ? "mexc"
+    : provider === "coinbase" ? "coinbase"
+    : provider === "kraken" ? "kraken"
+    : provider === "gateio" || provider === "gate" ? "gateio"
+    : null;
+  const isPerp = /\.p$/i.test(symbolRaw);
+  const symbol = symbolRaw.replace(/\.p$/i, "");
+  return { provider: mappedProvider, symbol, isPerp };
+}
+
 const PAIRS: PairConfig[] = TRADING_PAIRS.map((pair) => {
   const primaryReference = getOrderedReferenceProviders(pair)[0];
+  const feed = getMarketFeed(pair);
+  const chart = parseChartSymbol(feed.primaryChartSymbol);
+  const chartReference = getOrderedReferenceProviders(pair).find(
+    (provider) => provider.provider === chart.provider
+  );
   return {
     label: pair.label,
-    provider: primaryReference?.provider ?? "binance",
-    symbol: primaryReference?.symbol ?? `${pair.base.symbol}USDT`,
+    provider: chart.provider ?? primaryReference?.provider ?? "binance",
+    symbol:
+      chart.isPerp && chart.symbol
+        ? chart.symbol
+        : chartReference?.symbol ?? primaryReference?.symbol ?? chart.symbol ?? `${pair.base.symbol}USDT`,
+    chartSymbol: feed.primaryChartSymbol,
+    isPerpChart: chart.isPerp,
     mockPrice: pair.mockPrice,
     mockPriceChange: pair.mockPriceChange,
   };
@@ -72,8 +112,11 @@ async function fetchProviderTicker(pair: PairConfig): Promise<PriceData | null> 
 
   try {
     if (pair.provider === "binance") {
+      const endpoint = pair.isPerpChart
+        ? "https://fapi.binance.com/fapi/v1/ticker/24hr"
+        : "https://api.binance.com/api/v3/ticker/24hr";
       const response = await fetch(
-        `https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(pair.symbol)}`,
+        `${endpoint}?symbol=${encodeURIComponent(pair.symbol)}`,
         { signal: timeout }
       );
       if (!response.ok) return null;
@@ -100,8 +143,9 @@ async function fetchProviderTicker(pair: PairConfig): Promise<PriceData | null> 
     }
 
     if (pair.provider === "bybit") {
+      const category = pair.isPerpChart ? "linear" : "spot";
       const response = await fetch(
-        `https://api.bybit.com/v5/market/tickers?category=linear&symbol=${encodeURIComponent(pair.symbol)}`,
+        `https://api.bybit.com/v5/market/tickers?category=${category}&symbol=${encodeURIComponent(pair.symbol)}`,
         { signal: timeout }
       );
       if (!response.ok) return null;
