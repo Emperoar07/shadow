@@ -36,6 +36,7 @@ const DEFAULT_MARKET_REGISTRY: Record<string, string> = {
 };
 const DEFAULT_MAX_AGE_SECONDS = 240;
 const DEFAULT_MIN_SOURCES = 2;
+const DEFAULT_FAILSAFE_MAX_MOVE_BPS = 150;
 const USER_RATE_LIMIT = 12;
 const IP_RATE_LIMIT = 30;
 const RATE_WINDOW_MS = 60_000;
@@ -185,6 +186,27 @@ function toRawPrice(ui: number): number {
   return Math.round(ui * 1_000_000);
 }
 
+function parseBoolean(raw: string | undefined, fallback: boolean): boolean {
+  if (!raw) return fallback;
+  const value = raw.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(value)) return true;
+  if (["0", "false", "no", "off"].includes(value)) return false;
+  return fallback;
+}
+
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function deviationBps(nextPrice: number, currentPrice: number): number {
+  if (!Number.isFinite(nextPrice) || !Number.isFinite(currentPrice) || currentPrice <= 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return Math.abs(nextPrice - currentPrice) / currentPrice * 10_000;
+}
+
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -275,14 +297,43 @@ async function fetchProviderPrice(config: ReferenceProviderConfig): Promise<numb
   return null;
 }
 
-async function fetchReferencePrice(pairLabel: string): Promise<{ price: number; providers: string[] }> {
+async function fetchCoinGeckoPrice(pairLabel: string): Promise<number | null> {
+  const pair = TRADING_PAIRS.find((candidate) => candidate.label === pairLabel);
+  const id = pair?.base.coingeckoId;
+  if (!id) return null;
+
+  try {
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=usd`,
+      { signal: AbortSignal.timeout(8_000) }
+    );
+    if (!response.ok) return null;
+    const payload = (await response.json()) as Record<string, { usd?: number }>;
+    const price = payload[id]?.usd;
+    return Number.isFinite(price) && (price as number) > 0 ? (price as number) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchReferencePrice(
+  pairLabel: string,
+  currentPrice: number | null,
+  ageSeconds: number
+): Promise<{ price: number; providers: string[]; reducedSourceMode: boolean }> {
   const pair = TRADING_PAIRS.find((candidate) => candidate.label === pairLabel) ?? TRADING_PAIRS[0];
   const providers = getOrderedReferenceProviders(pair);
   const results = await Promise.all(
-    providers.map(async (provider) => ({
-      key: `${provider.provider}:${provider.symbol}`,
-      price: await fetchProviderPrice(provider),
-    }))
+    [
+      ...providers.map(async (provider) => ({
+        key: `${provider.provider}:${provider.symbol}`,
+        price: await fetchProviderPrice(provider),
+      })),
+      (async () => ({
+        key: "coingecko:usd",
+        price: await fetchCoinGeckoPrice(pairLabel),
+      }))(),
+    ]
   );
   const live = results.filter(
     (result): result is { key: string; price: number } =>
@@ -293,11 +344,35 @@ async function fetchReferencePrice(pairLabel: string): Promise<{ price: number; 
     10
   );
   if (live.length < Math.max(1, minSources)) {
-    throw new Error(`Insufficient oracle sources (${live.length}/${minSources}).`);
+    const failsafeAllowed = parseBoolean(process.env.ORACLE_REFRESH_FAILSAFE_SINGLE_SOURCE, true);
+    const failsafeMaxMoveBps = parsePositiveInt(
+      process.env.ORACLE_REFRESH_FAILSAFE_MAX_MOVE_BPS,
+      DEFAULT_FAILSAFE_MAX_MOVE_BPS
+    );
+    const candidate = live[0]?.price;
+    const moveBps =
+      currentPrice !== null && candidate !== undefined
+        ? deviationBps(candidate, currentPrice)
+        : Number.POSITIVE_INFINITY;
+    const canUseFailsafe =
+      failsafeAllowed &&
+      live.length >= 1 &&
+      ageSeconds >= DEFAULT_MAX_AGE_SECONDS &&
+      currentPrice !== null &&
+      moveBps <= failsafeMaxMoveBps;
+    if (!canUseFailsafe) {
+      throw new Error(`Insufficient oracle sources (${live.length}/${minSources}).`);
+    }
+    return {
+      price: candidate,
+      providers: live.map((result) => result.key),
+      reducedSourceMode: true,
+    };
   }
   return {
     price: median(live.map((result) => result.price)),
     providers: live.map((result) => result.key),
+    reducedSourceMode: false,
   };
 }
 
@@ -401,7 +476,12 @@ async function refreshOracle(req: NextApiRequest, userId: string): Promise<Oracl
     commitment: "confirmed",
   });
   const writeProgram = new Program(idl, writeProvider);
-  const { price, providers } = await fetchReferencePrice(pairLabel);
+  const currentPrice = Number.isFinite(oracleRaw) && oracleRaw > 0 ? oracleRaw / 1_000_000 : null;
+  const { price, providers, reducedSourceMode } = await fetchReferencePrice(
+    pairLabel,
+    currentPrice,
+    ageSeconds
+  );
   const priceRaw = toRawPrice(price);
   const tx = await (writeProgram.methods as any)
     .updatePrice(new BN(priceRaw))
@@ -415,7 +495,7 @@ async function refreshOracle(req: NextApiRequest, userId: string): Promise<Oracl
     price,
     ageSeconds: 0,
     signature,
-    providers,
+    providers: reducedSourceMode ? providers.map((provider) => `${provider}:failsafe`) : providers,
   };
 }
 
