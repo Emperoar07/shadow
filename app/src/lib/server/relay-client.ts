@@ -20,6 +20,14 @@ const DEFAULT_RPC_ENDPOINT = "https://api.devnet.solana.com";
 const DEFAULT_COLLATERAL_MINT =
   process.env.NEXT_PUBLIC_MOCKUSDC_MINT ??
   "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6";
+const DEFAULT_IDL_PROGRAM_ID =
+  typeof shadowperpIdl.address === "string" && shadowperpIdl.address.length > 0
+    ? shadowperpIdl.address
+    : undefined;
+const LEGACY_DEVNET_VALUES = new Set([
+  "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo",
+  "BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4",
+]);
 type RpcTransport = { rpcUrl: string; wsUrl: string };
 export type RelayRuntimeSummary = {
   programId: string;
@@ -45,7 +53,11 @@ function normalize(value?: string): string | undefined {
 }
 
 function parsePublicKey(name: string, fallback?: string): PublicKey {
-  const raw = normalize(process.env[name]) || normalize(fallback);
+  const envValue = normalize(process.env[name]);
+  const raw =
+    envValue && !LEGACY_DEVNET_VALUES.has(envValue)
+      ? envValue
+      : normalize(fallback);
   if (!raw) {
     throw new Error(`Missing required env var: ${name}`);
   }
@@ -279,7 +291,7 @@ export function summarizeRelayRuntime(context: RelayRuntimeContext): RelayRuntim
 export async function createRelayRuntimeContext(): Promise<RelayRuntimeContext> {
   const programId = parsePublicKey(
     "NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID",
-    typeof shadowperpIdl.address === "string" ? shadowperpIdl.address : undefined
+    DEFAULT_IDL_PROGRAM_ID
   );
   const config = buildRelayConfig(programId);
   const { rpcUrl, wsUrl } = await resolveRpcTransport();

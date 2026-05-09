@@ -26,6 +26,10 @@ const DEFAULT_RPC = "https://api.devnet.solana.com";
 const DEFAULT_PROGRAM_ID = "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD";
 const DEFAULT_MARKET = "AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ";
 const DEFAULT_COLLATERAL_MINT = "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6";
+const LEGACY_DEVNET_VALUES = new Set([
+  "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo",
+  "BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4",
+]);
 const DEFAULT_MARKET_REGISTRY: Record<string, string> = {
   "SOL-USD": "AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ",
   "BTC-USD": "CxWM4JjCwz9Cjt43Bj5NjKicjck9r1xwTur9YJB1fbAM",
@@ -110,8 +114,14 @@ async function getHealthyConnection(): Promise<Connection> {
 }
 
 function parsePublicKey(name: string, fallback: string): PublicKey {
-  const raw = normalizeValue(process.env[name]) ?? fallback;
+  const envValue = normalizeValue(process.env[name]);
+  const raw = envValue && !LEGACY_DEVNET_VALUES.has(envValue) ? envValue : fallback;
   return new PublicKey(raw);
+}
+
+function normalizeFreshPublicKeyValue(raw?: string): string | null {
+  const value = normalizeValue(raw);
+  return value && !LEGACY_DEVNET_VALUES.has(value) ? value : null;
 }
 
 function getAllowedMarkets(programId: PublicKey): Map<string, string> {
@@ -136,7 +146,8 @@ function getAllowedMarkets(programId: PublicKey): Map<string, string> {
   }
 
   const configuredMarket =
-    normalizeValue(process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT) ?? DEFAULT_MARKET;
+    normalizeFreshPublicKeyValue(process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT) ??
+    DEFAULT_MARKET;
   allowed.set(configuredMarket, allowed.get(configuredMarket) ?? "SOL-USD");
   return allowed;
 }
@@ -417,7 +428,9 @@ async function refreshOracle(req: NextApiRequest, userId: string): Promise<Oracl
   const programId = parsePublicKey("NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID", DEFAULT_PROGRAM_ID);
   const allowedMarkets = getAllowedMarkets(programId);
   let market = new PublicKey(
-    body.market || process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT || DEFAULT_MARKET
+    normalizeFreshPublicKeyValue(body.market) ??
+      normalizeFreshPublicKeyValue(process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT) ??
+      DEFAULT_MARKET
   );
   let marketLabel = allowedMarkets.get(market.toBase58());
   const requestedPairLabel = typeof body.pairLabel === "string" ? body.pairLabel : undefined;

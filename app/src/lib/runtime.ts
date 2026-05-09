@@ -80,6 +80,10 @@ const DEFAULT_IDL_PROGRAM_ID =
   typeof shadowperpIdl.address === "string" && shadowperpIdl.address.length > 0
     ? shadowperpIdl.address
     : undefined;
+const LEGACY_DEVNET_VALUES = new Set([
+  "34wszdEvGvyAVADY7ozpbdAvAB9zHRBTaT1YsNcpRJdo",
+  "BLvULbGNEKFXYgVGjE6yXWfShAevzKCwqxV1EJS29Pn4",
+]);
 
 function normalizeRpcUrl(raw?: string): string | null {
   if (!raw) return null;
@@ -135,7 +139,10 @@ function parsePublicKey(name: string, fallback?: string): PublicKey {
   };
 
   const envValue = normalize(process.env[name]);
-  const raw = envValue && envValue.length > 0 ? envValue : normalize(fallback);
+  const raw =
+    envValue && envValue.length > 0 && !LEGACY_DEVNET_VALUES.has(envValue)
+      ? envValue
+      : normalize(fallback);
   if (!raw) {
     throw new Error(
       `Missing required env var: ${name}. ` +
