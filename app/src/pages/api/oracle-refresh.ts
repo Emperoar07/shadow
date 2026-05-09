@@ -140,6 +140,12 @@ function getAllowedMarkets(programId: PublicKey): Map<string, string> {
   return allowed;
 }
 
+function getCanonicalMarketForPair(programId: PublicKey, pairLabel: string): PublicKey | null {
+  if (programId.toBase58() !== DEFAULT_PROGRAM_ID) return null;
+  const market = DEFAULT_MARKET_REGISTRY[pairLabel];
+  return market ? new PublicKey(market) : null;
+}
+
 function getFeederKeypair(): Keypair {
   const secret =
     normalizeValue(process.env.ORACLE_FEEDER_SECRET_KEY) ??
@@ -335,14 +341,22 @@ async function refreshOracle(req: NextApiRequest, userId: string): Promise<Oracl
   };
   const programId = parsePublicKey("NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID", DEFAULT_PROGRAM_ID);
   const allowedMarkets = getAllowedMarkets(programId);
-  const market = new PublicKey(
+  let market = new PublicKey(
     body.market || process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT || DEFAULT_MARKET
   );
-  const marketLabel = allowedMarkets.get(market.toBase58());
+  let marketLabel = allowedMarkets.get(market.toBase58());
+  const requestedPairLabel = typeof body.pairLabel === "string" ? body.pairLabel : undefined;
+  if (!marketLabel && requestedPairLabel) {
+    const canonicalMarket = getCanonicalMarketForPair(programId, requestedPairLabel);
+    if (canonicalMarket) {
+      market = canonicalMarket;
+      marketLabel = requestedPairLabel;
+    }
+  }
   if (!marketLabel) {
     throw new Error("Oracle refresh rejected an unsupported market.");
   }
-  const pairLabel = typeof body.pairLabel === "string" ? body.pairLabel : marketLabel;
+  const pairLabel = requestedPairLabel ?? marketLabel;
   if (!TRADING_PAIRS.some((pair) => pair.label === pairLabel)) {
     throw new Error("Oracle refresh rejected an unsupported trading pair.");
   }
