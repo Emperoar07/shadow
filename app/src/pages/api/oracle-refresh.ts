@@ -26,6 +26,14 @@ const DEFAULT_RPC = "https://api.devnet.solana.com";
 const DEFAULT_PROGRAM_ID = "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD";
 const DEFAULT_MARKET = "AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ";
 const DEFAULT_COLLATERAL_MINT = "DbF1Z21WCTbcx5feBB9LNkhtqRE99DZt9ENJT79prHc6";
+const DEFAULT_MARKET_REGISTRY: Record<string, string> = {
+  "SOL-USD": "AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ",
+  "BTC-USD": "CxWM4JjCwz9Cjt43Bj5NjKicjck9r1xwTur9YJB1fbAM",
+  "ETH-USD": "6T7YWdt6jFmamz1N95DNv547xxwHfiCt6GGYq64qpJxu",
+  "JUP-USD": "BMD5qdg3wyp4rV7qb5wUGbVYuJHJjr3ub94kHDpddMYL",
+  "PYTH-USD": "EryeFaYLwAHrJZqqKXwXtzm1tRsaFs5J11VStDr84y7k",
+  "ORCA-USD": "FWBJVXhXfijSjwN1bxeS1Mj7a22Fe8hkm3sC7m933ncD",
+};
 const DEFAULT_MAX_AGE_SECONDS = 240;
 const DEFAULT_MIN_SOURCES = 2;
 const USER_RATE_LIMIT = 12;
@@ -118,6 +126,12 @@ function getAllowedMarkets(programId: PublicKey): Map<string, string> {
       programId
     );
     allowed.set(market.toBase58(), pair.label);
+  }
+
+  if (programId.toBase58() === DEFAULT_PROGRAM_ID) {
+    for (const [label, market] of Object.entries(DEFAULT_MARKET_REGISTRY)) {
+      allowed.set(market, label);
+    }
   }
 
   const configuredMarket =
