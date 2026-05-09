@@ -42,7 +42,7 @@ function buildSnapshot(
     bestBid !== null && bestAsk !== null ? (bestBid + bestAsk) / 2 : null;
   const lastTradePrice = positiveFiniteOrNull(depthSnapshot?.lastTrade?.price);
   const liveLast = positiveFiniteOrNull(livePrice?.price);
-  const last = liveLast ?? lastTradePrice ?? mid ?? pair.mockPrice;
+  const last = lastTradePrice ?? mid ?? liveLast ?? pair.mockPrice;
   const depthStats = depthSnapshot?.stats24h ?? null;
 
   return {

@@ -14,6 +14,7 @@ import {
 import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
+import { requestPanelRefresh, subscribePanelRefresh } from "../lib/panel-refresh";
 import OrderConfirmModal from "./OrderConfirmModal";
 import CollateralModal from "./CollateralModal";
 import {
@@ -378,6 +379,7 @@ export default function BottomPositionsPanel({
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
   const [collateralModalTab, setCollateralModalTab] = useState<"deposit" | "withdraw">("deposit");
   const [balancesRefreshTick, setBalancesRefreshTick] = useState(0);
+  const [panelRefreshTick, setPanelRefreshTick] = useState(0);
 
   // Reset cached client when wallet or wallet mode changes
   useEffect(() => {
@@ -541,7 +543,7 @@ export default function BottomPositionsPanel({
     } finally {
       setLoading(false);
     }
-  }, [activePairLabel, publicKey, anchorWallet, connection]);
+  }, [activePairLabel, publicKey, anchorWallet, connection, walletExecutionMode]);
 
   const loadAutomationState = useCallback(() => {
     // Ensure owner is set before reading views so plain-text storage is loaded
@@ -570,6 +572,12 @@ export default function BottomPositionsPanel({
     loadAutomationState();
     return subscribeAutomationUpdates(loadAutomationState);
   }, [loadAutomationState]);
+
+  useEffect(() => subscribePanelRefresh(() => {
+    setPanelRefreshTick((tick) => tick + 1);
+    loadAutomationState();
+    void loadPositions();
+  }), [loadAutomationState, loadPositions]);
 
   const executeClose = useCallback(
     async (pos: UiPosition) => {
@@ -622,6 +630,7 @@ export default function BottomPositionsPanel({
           { id: pos.address, duration: 10_000 }
         );
         await loadPositions();
+        requestPanelRefresh("position-closed");
       } catch (error: any) {
         const classified = error?.classified ?? classifyArciumError(error);
         const msg = classified.message || "Failed to close position";
@@ -953,7 +962,7 @@ export default function BottomPositionsPanel({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, anchorWallet, publicKey]);
+  }, [activeTab, anchorWallet, panelRefreshTick, publicKey]);
 
   useEffect(() => {
     if (activeTab !== "balances") return;
@@ -1020,7 +1029,7 @@ export default function BottomPositionsPanel({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, anchorWallet, balancesRefreshTick, connection, publicKey, walletExecutionMode]);
+  }, [activeTab, anchorWallet, balancesRefreshTick, connection, panelRefreshTick, publicKey, walletExecutionMode]);
 
   const updateOrderField = useCallback(
     (orderId: string, field: "limitPrice" | "takeProfit" | "stopLoss", raw: string) => {
@@ -1667,7 +1676,7 @@ export default function BottomPositionsPanel({
                       <td className="px-2 py-2.5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           {rule?.takeProfit ? (
-                            <span className="rounded border border-cyan-400/20 bg-cyan-400/10 px-1.5 py-0.5 text-[9px] font-medium text-cyan-300">
+                            <span className="rounded border border-accent-green/20 bg-accent-green/10 px-1.5 py-0.5 text-[9px] font-medium text-accent-green">
                               TP {formatPrice(rule.takeProfit)}
                             </span>
                           ) : null}

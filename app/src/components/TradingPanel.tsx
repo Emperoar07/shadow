@@ -14,6 +14,7 @@ import { useArciumPrivacy } from "../hooks/useArcium";
 import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor-wallet";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
+import { requestPanelRefresh } from "../lib/panel-refresh";
 import {
   disableEncryptedAutomationPersistence,
   enableEncryptedAutomationPersistence,
@@ -225,7 +226,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       }
     }
     return clientRef.current;
-  }, [anchorWallet, connection]);
+  }, [anchorWallet, connection, walletExecutionMode]);
 
   useEffect(() => {
     clientRef.current = null;
@@ -477,6 +478,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
         onQueued: (update) => {
           setTradeTxSig(update.txSignature);
           setTradeStep("verifying");
+          requestPanelRefresh("position-queued");
         },
       });
 
@@ -486,6 +488,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       setTakeProfit("");
       setStopLoss("");
       void refreshMarketData();
+      requestPanelRefresh("position-opened");
     } catch (error: any) {
       const exactErrorMessage =
         typeof error?.message === "string" && error.message.trim().length > 0
@@ -625,6 +628,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       setTakeProfit("");
       setStopLoss("");
       toastSuccess(`Limit order queued at ${formatPrice(entryPrice)}`);
+      requestPanelRefresh("limit-order-queued");
       return;
     }
 
@@ -726,6 +730,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
             pairLabel: order.pairLabel,
             takeProfit: order.takeProfit,
             stopLoss: order.stopLoss,
+            onQueued: () => requestPanelRefresh("limit-position-queued"),
           });
           updateLimitOrder(order.id, {
             status: "filled",
@@ -735,6 +740,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
           });
           toastSuccess(`${order.pairLabel} ${order.side} limit filled`);
           void refreshMarketData();
+          requestPanelRefresh("limit-position-opened");
         } catch (error: any) {
           const msg = error?.message || "Limit execution failed";
           updateLimitOrder(order.id, { status: "failed", error: msg });
