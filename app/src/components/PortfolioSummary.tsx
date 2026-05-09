@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import BN from "bn.js";
 import { createShadowPerpClient } from "../lib/create-client";
@@ -11,6 +11,7 @@ import {
   getOwnerPositionViews,
   removeOwnerPositionView,
 } from "../lib/trade-automation";
+import { subscribePanelRefresh } from "../lib/panel-refresh";
 import CollateralModal from "./CollateralModal";
 import type { TradingPair } from "../lib/tokens";
 
@@ -25,11 +26,21 @@ interface PortfolioData {
   maintenanceMargin: number;
   crossAccountLeverage: number | null;
   accountHealth: number; // 0-100
+  positionMarks?: PositionMark[];
+}
+
+interface PositionMark {
+  pairLabel: string;
+  side: "long" | "short";
+  entryPrice: number;
+  sizeBase: number;
+  fallbackPrice: number;
 }
 
 interface PortfolioSummaryProps {
   onMarginReady?: (balance: number | null, openModal: () => void) => void;
   pair?: TradingPair;
+  activeMarketPrice?: number | null;
 }
 
 const PORTFOLIO_CACHE_KEY = "shadow:portfolio:v1";
@@ -52,7 +63,7 @@ function writeCachedPortfolio(walletKey: string, data: PortfolioData) {
   }
 }
 
-export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSummaryProps = {}) {
+export default function PortfolioSummary({ onMarginReady, pair, activeMarketPrice }: PortfolioSummaryProps = {}) {
   const anchorWallet = useAnchorWalletCompat();
   const { connected } = useWalletConnectionState();
   const publicKey = anchorWallet?.publicKey ?? null;
@@ -100,11 +111,20 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
         });
       }
 
-      const [marginResult, positionsResult] = await Promise.allSettled([
+      const [marginResult, positionsResult, marketResults] = await Promise.allSettled([
         client.getMarginAccount(client.getMarginAccountAddress(publicKey)),
         client.getUserPositionAccountsAcrossMarkets(
           marketEntries.map(({ address }) => address),
           publicKey
+        ),
+        Promise.allSettled(
+          marketEntries.map(async ({ label, address }) => {
+            const market = await client.getMarket(address);
+            return {
+              label,
+              oraclePrice: new BN(market.oraclePrice.toString()).toNumber() / 1_000_000,
+            };
+          })
         ),
       ]);
       const livePrices = await fetchPrices().catch(() => null);
@@ -123,7 +143,17 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
       let ownerUnrealizedEstimate = 0;
       let ownerUnrealizedCount = 0;
       let estimatedNotional = 0;
+      const positionMarks: PositionMark[] = [];
       const ownerViews = getOwnerPositionViews();
+      const oraclePrices: Record<string, number> = {};
+      if (marketResults.status === "fulfilled") {
+        for (const result of marketResults.value) {
+          if (result.status !== "fulfilled") continue;
+          if (Number.isFinite(result.value.oraclePrice) && result.value.oraclePrice > 0) {
+            oraclePrices[result.value.label] = result.value.oraclePrice;
+          }
+        }
+      }
       if (positionsResult.status === "fulfilled") {
         for (const p of positionsResult.value) {
           const account = p.account as any;
@@ -144,7 +174,9 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
           }
 
           if (!isOpen || !view) continue;
-          const marketPrice = livePrices?.[view.pairLabel]?.price;
+          const marketPrice =
+            oraclePrices[view.pairLabel] ??
+            livePrices?.[view.pairLabel]?.price;
           if (!marketPrice || !Number.isFinite(marketPrice)) continue;
 
           const pnl =
@@ -158,6 +190,13 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
           }
           ownerUnrealizedEstimate += pnl;
           ownerUnrealizedCount += 1;
+          positionMarks.push({
+            pairLabel: view.pairLabel,
+            side: view.side,
+            entryPrice: view.entryPrice,
+            sizeBase: view.sizeBase,
+            fallbackPrice: marketPrice,
+          });
         }
       }
 
@@ -191,6 +230,7 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
         maintenanceMargin,
         crossAccountLeverage,
         accountHealth: health,
+        positionMarks,
       };
       setData(next);
       // Persist so next refresh shows data immediately before wallet reconnects
@@ -208,25 +248,56 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
     return () => clearInterval(interval);
   }, [loadPortfolio]);
 
+  useEffect(() => subscribePanelRefresh(() => {
+    void loadPortfolio();
+  }), [loadPortfolio]);
+
   useEffect(() => {
     onMarginReady?.(data?.marginBalance ?? null, () => setCollateralModalOpen(true));
   }, [data, onMarginReady]);
 
+  const displayUnrealizedPnl = useMemo(() => {
+    if (!data?.positionMarks?.length) return data?.unrealizedPnl ?? null;
+    let total = 0;
+    let counted = 0;
+    for (const mark of data.positionMarks) {
+      const price =
+        mark.pairLabel === pair?.label &&
+        typeof activeMarketPrice === "number" &&
+        Number.isFinite(activeMarketPrice) &&
+        activeMarketPrice > 0
+          ? activeMarketPrice
+          : mark.fallbackPrice;
+      if (!Number.isFinite(price) || price <= 0) continue;
+      total +=
+        mark.side === "long"
+          ? (price - mark.entryPrice) * mark.sizeBase
+          : (mark.entryPrice - price) * mark.sizeBase;
+      counted += 1;
+    }
+    return counted > 0 ? total : data.unrealizedPnl;
+  }, [activeMarketPrice, data, pair?.label]);
+
+  const displayAccountHealth = useMemo(() => {
+    if (!data) return 0;
+    const equity = Math.max(0, data.marginBalance + (displayUnrealizedPnl ?? 0));
+    return data.marginBalance > 0 ? Math.min(100, Math.max(0, (equity / data.marginBalance) * 100)) : 0;
+  }, [data, displayUnrealizedPnl]);
 
   // Hide when no wallet is connected (not even autoconnecting)
   if (!publicKey && !connected) return null;
 
   const healthColor =
-    (data?.accountHealth ?? 0) > 70
+    displayAccountHealth > 70
       ? "text-accent-green"
-      : (data?.accountHealth ?? 0) > 30
+      : displayAccountHealth > 30
       ? "text-yellow-400"
       : "text-accent-red";
 
   const healthBarColor =
-    (data?.accountHealth ?? 0) > 70
+    displayAccountHealth > 70
       ? "bg-accent-green"
-      : (data?.accountHealth ?? 0) > 30
+      : displayAccountHealth > 30
       ? "bg-yellow-400"
       : "bg-accent-red";
 
@@ -249,7 +320,7 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
         label="Unrealized PnL"
         value={
           (() => {
-            const unrealized = data?.unrealizedPnl;
+            const unrealized = displayUnrealizedPnl;
             if (unrealized === null || unrealized === undefined) {
               return <span className="text-gray-400 text-xs">--</span>;
             }
@@ -269,11 +340,11 @@ export default function PortfolioSummary({ onMarginReady, pair }: PortfolioSumma
           <div className="w-16 h-1.5 bg-shadow-600 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-700 ${healthBarColor}`}
-              style={{ width: `${data?.accountHealth ?? 0}%` }}
+              style={{ width: `${displayAccountHealth}%` }}
             />
           </div>
           <span className={`text-xs font-semibold ${healthColor}`}>
-            {data ? `${data.accountHealth.toFixed(0)}%` : "--"}
+            {data ? `${displayAccountHealth.toFixed(0)}%` : "--"}
           </span>
         </div>
       </div>

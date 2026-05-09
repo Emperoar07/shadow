@@ -3,9 +3,10 @@ import BN from "bn.js";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { useConnection } from "@solana/wallet-adapter-react";
+import { usePrivy } from "@privy-io/react-auth";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
-import { fetchWalletHistory, type IndexedRecentTx } from "../lib/history";
+import { fetchWalletHistory } from "../lib/history";
 import {
   useAnchorWalletCompat,
   useWalletConnectionState,
@@ -15,6 +16,7 @@ import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
 import { requestPanelRefresh, subscribePanelRefresh } from "../lib/panel-refresh";
+import { ensureFreshMarketOracle } from "../lib/oracle-refresh";
 import OrderConfirmModal from "./OrderConfirmModal";
 import CollateralModal from "./CollateralModal";
 import {
@@ -42,8 +44,6 @@ type BottomTab =
   | "openOrders"
   | "balances"
   | "orderHistory"
-  | "tradeHistory"
-  | "fundingHistory"
   | "positionHistory";
 
 interface UiPosition {
@@ -218,22 +218,6 @@ function formatDollarAmount(value: number | null | undefined): string {
   return `$${value.toFixed(2)}`;
 }
 
-function formatTimestamp(value: number | null | undefined): string {
-  if (!value) return "--";
-  return new Date(value * 1000).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function statusChipClass(error: boolean): string {
-  return error
-    ? "bg-accent-red/15 text-accent-red"
-    : "bg-accent-green/15 text-accent-green";
-}
-
 function TpSlEditor({
   label,
   tone,
@@ -314,11 +298,15 @@ const PANEL_TABLE_STYLE = { borderCollapse: "separate" as const, borderSpacing: 
 
 export default function BottomPositionsPanel({
   activePairLabel,
+  activePairPrice,
+  onPairSelect,
   hidePnl = false,
   confirmClose = true,
   showNotifications = true,
 }: {
   activePairLabel?: string;
+  activePairPrice?: number | null;
+  onPairSelect?: (pairLabel: string) => void;
   hidePnl?: boolean;
   confirmClose?: boolean;
   showNotifications?: boolean;
@@ -335,6 +323,7 @@ export default function BottomPositionsPanel({
   const { connected } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
   const publicKey = anchorWallet?.publicKey ?? null;
+  const { getAccessToken } = usePrivy();
   const { connection } = useConnection();
   const [positions, setPositions] = useState<UiPosition[]>([]);
   const [loading, setLoading] = useState(false);
@@ -349,7 +338,6 @@ export default function BottomPositionsPanel({
     null
   );
   const [historyPositionsNotice, setHistoryPositionsNotice] = useState<string | null>(null);
-  const [activityRows, setActivityRows] = useState<IndexedRecentTx[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [tpSlModalAddress, setTpSlModalAddress] = useState<string | null>(null);
   const [tpSlDraft, setTpSlDraft] = useState<TpSlDraft>({
@@ -396,7 +384,6 @@ export default function BottomPositionsPanel({
       setPositions([]);
       setIndexedHistoryPositions(null);
       setHistoryPositionsNotice(null);
-      setActivityRows([]);
       setWalletSolBalance(null);
       setWalletTokenBalances([]);
       setAccountTotal(null);
@@ -407,7 +394,6 @@ export default function BottomPositionsPanel({
       setPositions([]);
       setIndexedHistoryPositions(null);
       setHistoryPositionsNotice(null);
-      setActivityRows([]);
       setWalletSolBalance(null);
       setWalletTokenBalances([]);
       setAccountTotal(null);
@@ -592,6 +578,13 @@ export default function BottomPositionsPanel({
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(
           marketAddress
         );
+        toastLoading("Refreshing close price...", { id: pos.address });
+        await ensureFreshMarketOracle({
+          market: marketAddress,
+          pairLabel: pos.pairLabel,
+          getAccessToken,
+          operation: "closing position",
+        });
         toastLoading("Submitting close...", { id: pos.address });
         const tx = await client.closePosition(
           marketAddress,
@@ -662,7 +655,7 @@ export default function BottomPositionsPanel({
         setClosingAddress(null);
       }
     },
-    [publicKey, anchorWallet, connection, loadPositions, toastSuccess, toastLoading, showNotifications, walletExecutionMode]
+    [publicKey, anchorWallet, connection, getAccessToken, loadPositions, toastSuccess, toastLoading, showNotifications, walletExecutionMode]
   );
 
   const executeCloseRef = useRef<typeof executeClose | null>(null);
@@ -788,20 +781,6 @@ export default function BottomPositionsPanel({
     return filterPositions(base);
   }, [activeTab, openPositions, historyPositions, filterPositions]);
 
-  const tradeActivity = useMemo(
-    () =>
-      activityRows.filter((row) =>
-        ["Open Position", "Close Position", "Liquidation", "Position Settled"].includes(
-          row.txType?.label ?? ""
-        )
-      ),
-    [activityRows]
-  );
-  const fundingActivity = useMemo(
-    () => activityRows.filter((row) => /funding/i.test(row.txType?.label ?? "")),
-    [activityRows]
-  );
-
   const derivePositionCard = useCallback(
     (position: UiPosition) => {
       const view = ownerPositionViews[position.address] ?? null;
@@ -813,7 +792,14 @@ export default function BottomPositionsPanel({
       const pairLabel = view?.pairLabel ?? position.pairLabel ?? rule?.pairLabel ?? "SOL-USD";
       const sizeBase = view?.sizeBase ?? null;
       const baseSymbol = pairLabel.split("-")[0] ?? "USD";
-      const pairOraclePrice = pairPrices[pairLabel] ?? null;
+      const liveActivePrice =
+        pairLabel === activePairLabel &&
+        typeof activePairPrice === "number" &&
+        Number.isFinite(activePairPrice) &&
+        activePairPrice > 0
+          ? activePairPrice
+          : null;
+      const pairOraclePrice = liveActivePrice ?? pairPrices[pairLabel] ?? null;
       const pairLiqThreshold = pairLiqThresholds[pairLabel] ?? liqThreshold;
 
       let liqPrice: number | null = null;
@@ -883,7 +869,7 @@ export default function BottomPositionsPanel({
         healthPercent,
       };
     },
-    [liqThreshold, ownerPositionViews, pairLiqThresholds, pairPrices, positionRules]
+    [activePairLabel, activePairPrice, liqThreshold, ownerPositionViews, pairLiqThresholds, pairPrices, positionRules]
   );
 
   useEffect(() => {
@@ -918,7 +904,7 @@ export default function BottomPositionsPanel({
   }, [activeTab, executeClose, openPositions, pairPrices, positionRules]);
 
   useEffect(() => {
-    if (!["tradeHistory", "fundingHistory", "positionHistory"].includes(activeTab)) return;
+    if (activeTab !== "positionHistory") return;
     if (!publicKey || !anchorWallet) return;
     if (typeof document !== "undefined" && document.visibilityState !== "visible") {
       return;
@@ -945,13 +931,11 @@ export default function BottomPositionsPanel({
           hasEncryptedData: row.hasEncryptedData,
         }));
         if (!cancelled) {
-          setActivityRows(snapshot.activity);
           setIndexedHistoryPositions(mapped);
           setHistoryPositionsNotice(snapshot.historyPositionsNotice ?? null);
         }
       } catch {
-        // On error keep existing data — don't blank the list
-        // setActivityRows and setIndexedHistoryPositions intentionally not cleared
+        // On error keep existing data; don't blank the list.
       } finally {
         if (!cancelled) {
           setHistoryLoading(false);
@@ -1077,10 +1061,8 @@ export default function BottomPositionsPanel({
     { key: "positions", label: "Positions", count: openPositions.length },
     { key: "openOrders", label: "Open Orders", count: openOrders.length },
     { key: "balances", label: "Balances" },
-    { key: "orderHistory", label: "Order History", count: orderHistory.length },
-    { key: "tradeHistory", label: "Trade History", count: tradeActivity.length },
-    { key: "fundingHistory", label: "Funding History", count: fundingActivity.length },
-    { key: "positionHistory", label: "Position History", count: historyPositions.length },
+    { key: "orderHistory", label: "Order History" },
+    { key: "positionHistory", label: "Position History" },
   ];
 
   const tpSlModalPosition = tpSlModalAddress
@@ -1351,102 +1333,6 @@ export default function BottomPositionsPanel({
               ))}
             </div>
           )
-        ) : activeTab === "tradeHistory" ? (
-          historyLoading ? (
-            <div className="py-6 text-center text-xs text-gray-500">Loading trade activity...</div>
-          ) : tradeActivity.length === 0 ? (
-            <div className="py-6 text-center text-xs text-gray-500">No trade activity yet.</div>
-          ) : (
-            <table className={PANEL_TABLE_CLASS} style={PANEL_TABLE_STYLE}>
-              <thead className="sticky top-0 z-10 bg-shadow-900">
-                <tr className="text-[10px] uppercase tracking-wider text-gray-500">
-                  <th className="px-3 py-1.5 text-left font-medium">Event</th>
-                  <th className="px-2 py-1.5 text-left font-medium">Status</th>
-                  <th className="px-2 py-1.5 text-left font-medium">Detail</th>
-                  <th className="px-2 py-1.5 text-right font-medium">Time</th>
-                  <th className="px-3 py-1.5 text-right font-medium">Explorer</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tradeActivity.map((row) => (
-                  <tr key={row.sig} className="position-row group">
-                    <td className="px-3 py-2.5">
-                      <div className={`font-medium ${row.txType?.color ?? "text-white"}`}>
-                        {row.txType?.label ?? "Trade event"}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2.5">
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${statusChipClass(row.err)}`}>
-                        {row.err ? "Failed" : "Confirmed"}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5 text-gray-400">
-                      {row.txType?.detail ?? row.memo ?? "--"}
-                    </td>
-                    <td className="px-2 py-2.5 text-right text-gray-400">{formatTimestamp(row.blockTime)}</td>
-                    <td className="px-3 py-2.5 text-right">
-                      <a
-                        href={getExplorerTxUrl(row.sig)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-accent-purple hover:underline"
-                      >
-                        View
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )
-        ) : activeTab === "fundingHistory" ? (
-          historyLoading ? (
-            <div className="py-6 text-center text-xs text-gray-500">Loading funding activity...</div>
-          ) : fundingActivity.length === 0 ? (
-            <div className="py-6 text-center text-xs text-gray-500">No funding events yet.</div>
-          ) : (
-            <table className={PANEL_TABLE_CLASS} style={PANEL_TABLE_STYLE}>
-              <thead className="sticky top-0 z-10 bg-shadow-900">
-                <tr className="text-[10px] uppercase tracking-wider text-gray-500">
-                  <th className="px-3 py-1.5 text-left font-medium">Event</th>
-                  <th className="px-2 py-1.5 text-left font-medium">Status</th>
-                  <th className="px-2 py-1.5 text-left font-medium">Detail</th>
-                  <th className="px-2 py-1.5 text-right font-medium">Time</th>
-                  <th className="px-3 py-1.5 text-right font-medium">Explorer</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fundingActivity.map((row) => (
-                  <tr key={row.sig} className="position-row group">
-                    <td className="px-3 py-2.5">
-                      <div className={`font-medium ${row.txType?.color ?? "text-white"}`}>
-                        {row.txType?.label ?? "Funding event"}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2.5">
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${statusChipClass(row.err)}`}>
-                        {row.err ? "Failed" : "Confirmed"}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5 text-gray-400">
-                      {row.txType?.detail ?? row.memo ?? "--"}
-                    </td>
-                    <td className="px-2 py-2.5 text-right text-gray-400">{formatTimestamp(row.blockTime)}</td>
-                    <td className="px-3 py-2.5 text-right">
-                      <a
-                        href={getExplorerTxUrl(row.sig)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-accent-purple hover:underline"
-                      >
-                        View
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )
         ) : activeTab === "openOrders" ? (
           openOrders.length === 0 ? (
             <div className="py-6 text-center text-xs text-gray-500">No active orders.</div>
@@ -1620,8 +1506,17 @@ export default function BottomPositionsPanel({
                   minute: "2-digit",
                 });
 
+                const canSelectPair = activeTab === "positions" && !!onPairSelect;
+
                 return (
-                  <tr key={pos.address} className="position-row group">
+                  <tr
+                    key={pos.address}
+                    onClick={() => {
+                      if (canSelectPair) onPairSelect?.(card.pairLabel);
+                    }}
+                    className={`position-row group ${canSelectPair ? "cursor-pointer" : ""}`}
+                    title={canSelectPair ? `Switch market to ${card.pairLabel}` : undefined}
+                  >
                     {/* Pair */}
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <div className="font-medium text-white">{card.pairLabel}</div>
@@ -1685,7 +1580,10 @@ export default function BottomPositionsPanel({
                               SL {formatPrice(rule.stopLoss)}
                             </span>
                           ) : null}
-                          <button onClick={() => openTpSlModal(pos)}
+                          <button onClick={(event) => {
+                            event.stopPropagation();
+                            openTpSlModal(pos);
+                          }}
                             className="rounded bg-cyan-500/15 px-2 py-0.5 text-[9px] font-medium text-cyan-300 hover:bg-cyan-500/25">
                             TP/SL
                           </button>
@@ -1717,7 +1615,10 @@ export default function BottomPositionsPanel({
                               <StatusBadge status={pos.status} isClosing={isClosing} />
                             ) : null}
                             {!isPending && !isSettling && !isFinal ? (
-                            <button onClick={() => void handleClose(pos)} disabled={TRADING_DISABLED || isClosing}
+                            <button onClick={(event) => {
+                              event.stopPropagation();
+                              void handleClose(pos);
+                            }} disabled={TRADING_DISABLED || isClosing}
                               className="rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-40">
                               {TRADING_DISABLED ? "Off" : isClosing ? "Closing..." : "Close"}
                             </button>

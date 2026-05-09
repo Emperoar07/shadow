@@ -86,7 +86,11 @@ export default function MarketInfo({
         </div>
       </div>
 
-      <PortfolioSummary pair={activePair} onMarginReady={onMarginReady} />
+      <PortfolioSummary
+        pair={activePair}
+        activeMarketPrice={snapshot.last}
+        onMarginReady={onMarginReady}
+      />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   diagnoseOpenCallbackFailure,
   normalizePositionStatus as normalizePositionStatusShared,
 } from "../lib/arcium-callback-diag";
+import { ensureFreshMarketOracle } from "../lib/oracle-refresh";
 
 function normalizePositionStatus(raw: unknown): PositionStatus {
   return normalizePositionStatusShared(raw) as PositionStatus;
@@ -108,12 +109,6 @@ const OPEN_POSITION_CALLBACK_TIMEOUT_MS = 120_000;
 const OPEN_POSITION_CALLBACK_POLL_MS = 2_000;
 const OPEN_POSITION_CALLBACK_DIAG_POLL_MS = 6_000;
 
-type OracleRefreshPayload = {
-  success?: boolean;
-  error?: string;
-  refreshed?: boolean;
-};
-
 type PrivateOrderProgress = {
   stage: "queued";
   txSignature: string;
@@ -137,42 +132,6 @@ function toScaledPositiveBn(value: number, scale: number, label: string): BN {
     throw new Error(`Invalid ${label}: out of supported range.`);
   }
   return new BN(scaled);
-}
-
-async function ensureFreshOracle(
-  market: PublicKey,
-  pairLabel: string | undefined,
-  getAccessToken: () => Promise<string | null>
-): Promise<void> {
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
-    throw new Error("Sign in again before refreshing the market oracle.");
-  }
-
-  const response = await fetch("/api/oracle-refresh", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      market: market.toBase58(),
-      pairLabel: pairLabel ?? "SOL-USD",
-      maxAgeSeconds: 240,
-    }),
-  });
-
-  let payload: OracleRefreshPayload | null = null;
-  try {
-    payload = (await response.json()) as OracleRefreshPayload;
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok || !payload?.success) {
-    const detail = payload?.error ? ` ${payload.error}` : "";
-    throw new Error(`Unable to refresh market oracle before opening position.${detail}`);
-  }
 }
 
 async function waitForOpenPositionCallback(
@@ -360,7 +319,12 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       );
 
       setStatusMessage("Refreshing market oracle before encrypted submission...");
-      await ensureFreshOracle(orderMarket, order.pairLabel, getAccessToken);
+      await ensureFreshMarketOracle({
+        market: orderMarket,
+        pairLabel: order.pairLabel,
+        getAccessToken,
+        operation: "opening position",
+      });
 
       const market = await client.getMarket(orderMarket);
       const marketMaxLeverage = Number(market.maxLeverage ?? 0);

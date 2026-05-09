@@ -504,8 +504,6 @@ export default function CollateralModal({
   const QUICK_LABELS = tab === "withdraw" && availableCollateral
     ? ["25%", "50%", "75%", "100%"]
     : QUICK_AMOUNTS.map((v) => `$${v}`);
-  const actionHelperText =
-    "This action uses your connected Solana wallet directly on devnet.";
   const actionLabel = tab === "deposit" ? "Deposit to trading account" : "Withdraw to wallet";
   const actionButtonLabel = isBusy
     ? tab === "deposit"
@@ -545,14 +543,6 @@ export default function CollateralModal({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-          </div>
-          <div className="mt-3 rounded-xl border border-shadow-600/80 bg-shadow-800/55 px-3 py-2">
-            <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500">
-              Trading account
-            </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
-              Token transfers are public on Solana. Your position details stay separate and encrypted from the transfer itself.
-            </p>
           </div>
         </div>
 
@@ -632,9 +622,6 @@ export default function CollateralModal({
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-[10px] leading-relaxed text-gray-500">
-              {actionHelperText}
-            </p>
           </div>
 
           {/* Info row */}

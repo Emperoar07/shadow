@@ -542,6 +542,11 @@ export default function TradingAppPage() {
                 positionsComponent={
                   <BottomPositionsPanel
                     activePairLabel={selectedPair.label}
+                    activePairPrice={marketSnapshot.last}
+                    onPairSelect={(pairLabel) => {
+                      const nextPair = TRADING_PAIRS.find((candidate) => candidate.label === pairLabel);
+                      if (nextPair) handlePairChange(nextPair);
+                    }}
                     hidePnl={tradingSettings.hidePnl}
                     confirmClose={tradingSettings.confirmCloseOrder}
                     showNotifications={tradingSettings.showNotifications}
@@ -609,7 +614,14 @@ export default function TradingAppPage() {
 
             {/* Mobile positions */}
             <div className="lg:hidden">
-              <BottomPositionsPanel activePairLabel={selectedPair.label} />
+              <BottomPositionsPanel
+                activePairLabel={selectedPair.label}
+                activePairPrice={marketSnapshot.last}
+                onPairSelect={(pairLabel) => {
+                  const nextPair = TRADING_PAIRS.find((candidate) => candidate.label === pairLabel);
+                  if (nextPair) handlePairChange(nextPair);
+                }}
+              />
             </div>
 
           </main>
