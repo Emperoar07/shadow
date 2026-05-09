@@ -392,14 +392,16 @@ export default function BottomPositionsPanel({
         for (const result of marketResults) {
           if (result.status !== "fulfilled") continue;
           nextPairLiqThresholds[result.value.label] = result.value.liqThreshold;
-          const livePrice = livePrices?.[result.value.label]?.price;
-          if (Number.isFinite(livePrice) && livePrice! > 0) {
-            nextPairPrices[result.value.label] = livePrice!;
-          } else if (
+          if (
             Number.isFinite(result.value.oraclePrice) &&
             result.value.oraclePrice > 0
           ) {
             nextPairPrices[result.value.label] = result.value.oraclePrice;
+          } else {
+            const livePrice = livePrices?.[result.value.label]?.price;
+            if (Number.isFinite(livePrice) && livePrice! > 0) {
+              nextPairPrices[result.value.label] = livePrice!;
+            }
           }
         }
         setPairPrices(nextPairPrices);
@@ -1577,8 +1579,10 @@ export default function BottomPositionsPanel({
                         </div>
                       ) : (
                         <div className="flex flex-col items-end gap-1">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <StatusBadge status={pos.status} isClosing={isClosing} />
+                          <div className="flex min-h-[22px] items-center justify-end gap-1.5">
+                            {pos.status !== "open" ? (
+                              <StatusBadge status={pos.status} isClosing={isClosing} />
+                            ) : null}
                             {!isPending && !isSettling && !isFinal ? (
                             <button onClick={() => void handleClose(pos)} disabled={TRADING_DISABLED || isClosing}
                               className="rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-40">
@@ -1586,9 +1590,9 @@ export default function BottomPositionsPanel({
                             </button>
                             ) : null}
                           </div>
-                          {statusDetail ? (
-                            <span className="text-[10px] text-gray-500">{statusDetail}</span>
-                          ) : null}
+                          <span className={`min-h-[14px] text-[10px] text-gray-500 ${statusDetail ? "" : "invisible"}`}>
+                            {statusDetail ?? "Ready"}
+                          </span>
                         </div>
                       )}
                     </td>
@@ -1609,8 +1613,6 @@ export default function BottomPositionsPanel({
         variant="danger"
         confirmLabel="Close Position"
         details={closeConfirmPos ? [
-          { label: "Status", value: closeConfirmPos.status.charAt(0).toUpperCase() + closeConfirmPos.status.slice(1) },
-          { label: "Margin", value: `$${closeConfirmPos.margin.toFixed(2)}` },
           { label: "Opened", value: closeConfirmPos.openedAt.toLocaleDateString() },
           { label: "Position", value: closeConfirmPos.address.slice(0, 8) + "..." },
         ] : []}

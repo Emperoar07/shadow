@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -10,6 +11,8 @@ interface OrderConfirmModalProps {
   cancelLabel?: string;
   variant?: "default" | "danger";
   doubleConfirm?: boolean;
+  confirmDisabled?: boolean;
+  children?: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -23,6 +26,8 @@ export default function OrderConfirmModal({
   cancelLabel = "Cancel",
   variant = "default",
   doubleConfirm = false,
+  confirmDisabled = false,
+  children,
   onConfirm,
   onCancel,
 }: OrderConfirmModalProps) {
@@ -63,6 +68,7 @@ export default function OrderConfirmModal({
   const accentHover = isDanger ? "hover:bg-accent-red/90" : "hover:bg-accent-purple/90";
 
   const handleConfirm = () => {
+    if (confirmDisabled) return;
     if (doubleConfirm && step === 1) {
       setStep(2);
       return;
@@ -87,23 +93,17 @@ export default function OrderConfirmModal({
         <div className="px-5 pt-5 pb-2">
           {/* Icon */}
           <div className={`mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full ${accentBgLight}`}>
-            {isDanger ? (
-              <svg className="h-5 w-5 text-accent-red" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-            ) : (
-              <svg className="h-6 w-6" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="shadow-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity="1" />
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="1" />
-                  </linearGradient>
-                </defs>
-                <path d="M50 8 L92 30 L50 52 L8 30 Z" fill="url(#shadow-logo-grad)" opacity="0.4" />
-                <path d="M50 20 L92 42 L50 64 L8 42 Z" fill="url(#shadow-logo-grad)" opacity="0.65" />
-                <path d="M50 32 L92 54 L50 76 L8 54 Z" fill="url(#shadow-logo-grad)" />
-              </svg>
-            )}
+            <svg className="h-6 w-6" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="shadow-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="1" />
+                </linearGradient>
+              </defs>
+              <path d="M50 8 L92 30 L50 52 L8 30 Z" fill="url(#shadow-logo-grad)" opacity="0.4" />
+              <path d="M50 20 L92 42 L50 64 L8 42 Z" fill="url(#shadow-logo-grad)" opacity="0.65" />
+              <path d="M50 32 L92 54 L50 76 L8 54 Z" fill="url(#shadow-logo-grad)" />
+            </svg>
           </div>
 
           <h3 className="text-center text-sm font-semibold text-white mb-1">
@@ -117,6 +117,7 @@ export default function OrderConfirmModal({
               This action cannot be undone.
             </p>
           )}
+          {children}
 
           {/* Details */}
           {details && details.length > 0 && (
@@ -145,7 +146,8 @@ export default function OrderConfirmModal({
           <button
             type="button"
             onClick={handleConfirm}
-            className={`flex-1 rounded-xl ${accentBg} py-2.5 text-[12px] font-semibold text-white transition-colors ${accentHover}`}
+            disabled={confirmDisabled}
+            className={`flex-1 rounded-xl ${accentBg} py-2.5 text-[12px] font-semibold text-white transition-colors ${accentHover} disabled:cursor-not-allowed disabled:opacity-45`}
           >
             {doubleConfirm && step === 2 ? "Yes, confirm" : confirmLabel}
           </button>
