@@ -125,6 +125,16 @@ function hasAllowedTopLevelInstructions(tx: Transaction, shadowProgramId: Public
   return tx.instructions.every((ix) => allowed.has(ix.programId.toBase58()));
 }
 
+function sponsorIsFeePayerOnly(tx: Transaction, sponsor: PublicKey): boolean {
+  return tx.instructions.every((ix) =>
+    ix.keys.every(
+      (key) =>
+        !key.pubkey.equals(sponsor) ||
+        (!key.isSigner && !key.isWritable)
+    )
+  );
+}
+
 async function authenticateSponsoredTransaction(
   req: NextApiRequest,
   tx: Transaction,
@@ -227,12 +237,18 @@ export default async function handler(
     if (!hasAllowedTopLevelInstructions(tx, shadowProgramId)) {
       throw new Error("Sponsored transaction contains unsupported top-level instructions.");
     }
+    if (!sponsorIsFeePayerOnly(tx, sponsor.publicKey)) {
+      throw new Error("Sponsored transaction cannot use the sponsor as an instruction account.");
+    }
     if (!tx.verifySignatures(false)) {
       throw new Error("Sponsored transaction is missing a valid user signature.");
     }
     await authenticateSponsoredTransaction(req, tx, sponsor);
 
     tx.partialSign(sponsor);
+    if (!tx.verifySignatures(true)) {
+      throw new Error("Sponsored transaction is missing a required signature.");
+    }
 
     const signature = await sendWithFallback(tx, resolveRpcEndpoints());
 

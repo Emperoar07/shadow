@@ -40,7 +40,7 @@ const USER_RATE_LIMIT = 12;
 const IP_RATE_LIMIT = 30;
 const RATE_WINDOW_MS = 60_000;
 
-let inFlightRefresh: Promise<OracleRefreshResponse> | null = null;
+const inFlightRefreshes = new Map<string, Promise<OracleRefreshResponse>>();
 
 function isOracleAdmin(userId: string): boolean {
   const raw = process.env.ORACLE_ADMIN_USER_IDS?.trim();
@@ -144,7 +144,8 @@ function getFeederKeypair(): Keypair {
   const secret =
     normalizeValue(process.env.ORACLE_FEEDER_SECRET_KEY) ??
     normalizeValue(process.env.PRICE_FEEDER_SECRET_KEY) ??
-    normalizeValue(process.env.SHADOWPERP_ORACLE_KEYPAIR_JSON);
+    normalizeValue(process.env.SHADOWPERP_ORACLE_KEYPAIR_JSON) ??
+    normalizeValue(process.env.FAUCET_WALLET_SECRET_KEY);
 
   if (secret) {
     return Keypair.fromSecretKey(new Uint8Array(JSON.parse(secret) as number[]));
@@ -404,6 +405,21 @@ async function refreshOracle(req: NextApiRequest, userId: string): Promise<Oracl
   };
 }
 
+function getRefreshKey(req: NextApiRequest): string {
+  const body = (req.body ?? {}) as {
+    market?: string;
+    pairLabel?: string;
+    maxAgeSeconds?: number;
+    force?: boolean;
+  };
+  return [
+    normalizeValue(body.market) ?? "default-market",
+    normalizeValue(body.pairLabel) ?? "default-pair",
+    Number.isFinite(body.maxAgeSeconds) ? String(body.maxAgeSeconds) : "default-age",
+    body.force === true ? "force" : "normal",
+  ].join("|");
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<OracleRefreshResponse>
@@ -430,21 +446,24 @@ export default async function handler(
     return res.status(429).json({ success: false, error: "Rate limit exceeded." });
   }
 
+  const refreshKey = getRefreshKey(req);
+  const inFlightRefresh = inFlightRefreshes.get(refreshKey);
   if (inFlightRefresh) {
     const result = await inFlightRefresh;
     return res.status(result.success ? 200 : 500).json(result);
   }
 
-  inFlightRefresh = refreshOracle(req, userId)
+  const refreshPromise = refreshOracle(req, userId)
     .catch((error) => ({
       success: false as const,
       error: error instanceof Error ? error.message : String(error),
       stale: true,
     }))
     .finally(() => {
-      inFlightRefresh = null;
+      inFlightRefreshes.delete(refreshKey);
     });
+  inFlightRefreshes.set(refreshKey, refreshPromise);
 
-  const result = await inFlightRefresh;
+  const result = await refreshPromise;
   return res.status(result.success ? 200 : 503).json(result);
 }
