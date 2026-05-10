@@ -6,7 +6,8 @@ import {
 } from "@solana/spl-token";
 import { ComputeBudgetProgram, SystemProgram } from "@solana/web3.js";
 import { checkRateLimitAsync } from "../../lib/server/rate-limit";
-import { extractBearerToken, getPrivyServerClient, getRequestIp } from "../../lib/server/privy-auth";
+import { extractBearerToken, getPrivyServerClient } from "../../lib/server/privy-auth";
+import { getRequestIp } from "../../lib/server/request-ip";
 
 type SponsorResponse =
   | { ok: true; signature: string }

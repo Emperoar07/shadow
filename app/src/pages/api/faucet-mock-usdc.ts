@@ -31,7 +31,8 @@ import * as os from "os";
 
 import { FAUCET_FIRST_CLAIM_USDC, FAUCET_CAP_USDC, FAUCET_TRIGGER_USDC, MUSDC_DECIMALS } from "../../lib/faucet-constants";
 import { checkRateLimitAsync, readDurableValue, writeDurableValue } from "../../lib/server/rate-limit";
-import { getRequestIp, requirePrivySolanaWallet } from "../../lib/server/privy-auth";
+import { requirePrivySolanaWallet } from "../../lib/server/privy-auth";
+import { getRequestIp } from "../../lib/server/request-ip";
 
 const CAP_USDC     = FAUCET_CAP_USDC;
 const TRIGGER_USDC = FAUCET_TRIGGER_USDC;

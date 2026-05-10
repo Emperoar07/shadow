@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { checkRateLimit } from "../../lib/server/rate-limit";
-import { getRequestIp } from "../../lib/server/privy-auth";
+import { getRequestIp } from "../../lib/server/request-ip";
 import {
   findTradingPair,
   getReferenceProviders,

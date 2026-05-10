@@ -1,8 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getOrderedReferenceProviders, type MarketFeedProvider } from "../../lib/market-feeds";
+import {
+  getOrderedReferenceProviders,
+  type MarketFeedProvider,
+  type ReferenceProviderConfig,
+} from "../../lib/market-feeds";
 import { TRADING_PAIRS } from "../../lib/tokens";
 import { checkRateLimit } from "../../lib/server/rate-limit";
-import { getRequestIp } from "../../lib/server/privy-auth";
+import { getRequestIp } from "../../lib/server/request-ip";
 
 type PriceData = {
   price: number;
@@ -29,8 +33,7 @@ type PriceResponse = {
 
 type PairConfig = {
   label: string;
-  provider: MarketFeedProvider;
-  symbol: string;
+  providers: ReferenceProviderConfig[];
   mockPrice: number;
   mockPriceChange: number;
 };
@@ -40,11 +43,9 @@ const RATE_LIMIT = 120;
 const RATE_WINDOW_MS = 60_000;
 
 const PAIRS: PairConfig[] = TRADING_PAIRS.map((pair) => {
-  const primaryReference = getOrderedReferenceProviders(pair)[0];
   return {
     label: pair.label,
-    provider: primaryReference?.provider ?? "binance",
-    symbol: primaryReference?.symbol ?? `${pair.base.symbol}USDT`,
+    providers: getOrderedReferenceProviders(pair),
     mockPrice: pair.mockPrice,
     mockPriceChange: pair.mockPriceChange,
   };
@@ -67,13 +68,16 @@ function isFinitePositive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-async function fetchProviderTicker(pair: PairConfig): Promise<PriceData | null> {
+async function fetchProviderTicker(
+  provider: ReferenceProviderConfig,
+  pair: Pick<PairConfig, "mockPriceChange">
+): Promise<PriceData | null> {
   const timeout = AbortSignal.timeout(8_000);
 
   try {
-    if (pair.provider === "binance") {
+    if (provider.provider === "binance") {
       const response = await fetch(
-        `https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(pair.symbol)}`,
+        `https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(provider.symbol)}`,
         { signal: timeout }
       );
       if (!response.ok) return null;
@@ -99,9 +103,9 @@ async function fetchProviderTicker(pair: PairConfig): Promise<PriceData | null> 
       };
     }
 
-    if (pair.provider === "bybit") {
+    if (provider.provider === "bybit") {
       const response = await fetch(
-        `https://api.bybit.com/v5/market/tickers?category=linear&symbol=${encodeURIComponent(pair.symbol)}`,
+        `https://api.bybit.com/v5/market/tickers?category=linear&symbol=${encodeURIComponent(provider.symbol)}`,
         { signal: timeout }
       );
       if (!response.ok) return null;
@@ -132,9 +136,9 @@ async function fetchProviderTicker(pair: PairConfig): Promise<PriceData | null> 
       };
     }
 
-    if (pair.provider === "mexc") {
+    if (provider.provider === "mexc") {
       const response = await fetch(
-        `https://api.mexc.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(pair.symbol)}`,
+        `https://api.mexc.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(provider.symbol)}`,
         { signal: timeout }
       );
       if (!response.ok) return null;
@@ -160,14 +164,14 @@ async function fetchProviderTicker(pair: PairConfig): Promise<PriceData | null> 
       };
     }
 
-    if (pair.provider === "coinbase") {
+    if (provider.provider === "coinbase") {
       const [tickerResponse, statsResponse] = await Promise.all([
         fetch(
-          `https://api.exchange.coinbase.com/products/${encodeURIComponent(pair.symbol)}/ticker`,
+          `https://api.exchange.coinbase.com/products/${encodeURIComponent(provider.symbol)}/ticker`,
           { signal: timeout }
         ),
         fetch(
-          `https://api.exchange.coinbase.com/products/${encodeURIComponent(pair.symbol)}/stats`,
+          `https://api.exchange.coinbase.com/products/${encodeURIComponent(provider.symbol)}/stats`,
           { signal: timeout }
         ),
       ]);
@@ -195,9 +199,9 @@ async function fetchProviderTicker(pair: PairConfig): Promise<PriceData | null> 
       };
     }
 
-    if (pair.provider === "kraken") {
+    if (provider.provider === "kraken") {
       const response = await fetch(
-        `https://api.kraken.com/0/public/Ticker?pair=${encodeURIComponent(pair.symbol)}`,
+        `https://api.kraken.com/0/public/Ticker?pair=${encodeURIComponent(provider.symbol)}`,
         { signal: timeout }
       );
       if (!response.ok) return null;
@@ -230,9 +234,9 @@ async function fetchProviderTicker(pair: PairConfig): Promise<PriceData | null> 
       };
     }
 
-    if (pair.provider === "gateio") {
+    if (provider.provider === "gateio") {
       const response = await fetch(
-        `https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${encodeURIComponent(pair.symbol)}`,
+        `https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${encodeURIComponent(provider.symbol)}`,
         { signal: timeout }
       );
       if (!response.ok) return null;
@@ -263,6 +267,18 @@ async function fetchProviderTicker(pair: PairConfig): Promise<PriceData | null> 
   }
 
   return null;
+}
+
+async function fetchPairTicker(
+  pair: PairConfig
+): Promise<{ live: PriceData | null; providerUsed: MarketFeedProvider | null }> {
+  for (const provider of pair.providers) {
+    const live = await fetchProviderTicker(provider, pair);
+    if (live) {
+      return { live, providerUsed: provider.provider };
+    }
+  }
+  return { live: null, providerUsed: null };
 }
 
 function buildPayload(
@@ -304,14 +320,14 @@ export default async function handler(
   const results = await Promise.all(
     PAIRS.map(async (pair) => ({
       pair,
-      live: await fetchProviderTicker(pair),
+      ...(await fetchPairTicker(pair)),
     }))
   );
 
-  for (const { pair, live } of results) {
+  for (const { pair, live, providerUsed } of results) {
     if (!live) continue;
     prices[pair.label] = live;
-    providersUsed.add(pair.provider);
+    if (providerUsed) providersUsed.add(providerUsed);
   }
 
   let provider: PriceResponse["provider"] = "mock";

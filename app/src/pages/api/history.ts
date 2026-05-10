@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { checkRateLimit } from "../../lib/server/rate-limit";
 import { getHistorySnapshot } from "../../lib/server/history";
-import { getRequestIp, requirePrivySolanaWallet } from "../../lib/server/privy-auth";
+import { requirePrivySolanaWallet } from "../../lib/server/privy-auth";
+import { getRequestIp } from "../../lib/server/request-ip";
 
 type HistoryResponse =
   | {

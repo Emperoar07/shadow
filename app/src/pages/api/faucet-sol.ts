@@ -23,7 +23,8 @@ import {
 } from "@solana/web3.js";
 
 import { checkRateLimitAsync, readDurableValue, writeDurableValue } from "../../lib/server/rate-limit";
-import { getRequestIp, requirePrivySolanaWallet } from "../../lib/server/privy-auth";
+import { requirePrivySolanaWallet } from "../../lib/server/privy-auth";
+import { getRequestIp } from "../../lib/server/request-ip";
 
 const DRIP_LAMPORTS = Math.floor(0.2 * LAMPORTS_PER_SOL);
 const ELIGIBILITY_LAMPORTS = Math.floor(0.05 * LAMPORTS_PER_SOL);

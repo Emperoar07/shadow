@@ -9,7 +9,8 @@ import shadowperpIdl from "../../idl/shadowperp.json";
 import { getOrderedReferenceProviders, type ReferenceProviderConfig } from "../../lib/market-feeds";
 import { TRADING_PAIRS } from "../../lib/tokens";
 import { checkRateLimitAsync } from "../../lib/server/rate-limit";
-import { getRequestIp, requirePrivyUser } from "../../lib/server/privy-auth";
+import { requirePrivyUser } from "../../lib/server/privy-auth";
+import { getRequestIp } from "../../lib/server/request-ip";
 
 type OracleRefreshResponse =
   | {
