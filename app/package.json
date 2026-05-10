@@ -45,6 +45,9 @@
     "node": ">=20 <25"
   },
   "overrides": {
+    "rpc-websockets": {
+      "uuid": "10.0.0"
+    },
     "@solana/wallet-adapter-react": {
       "@types/react": "~18.2.0"
     },
