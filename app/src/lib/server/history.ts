@@ -20,15 +20,22 @@ const INSTRUCTION_TYPE_MAP: Record<string, HistoryTxType> = {
   depositcollateral: { label: "Deposit Collateral", color: "text-accent-green", icon: "down" },
   withdrawcollateral: { label: "Withdraw Collateral", color: "text-accent-red", icon: "up" },
   openposition: { label: "Open Position", color: "text-accent-purple", icon: "open" },
+  openpositionprobeb: { label: "Open Position", color: "text-accent-purple", icon: "open", detail: "Submitted through Arcium MPC" },
+  openpositionprobebcallback: { label: "Open Callback", color: "text-accent-green", icon: "open", detail: "Arcium MPC finalized the open" },
   closeposition: { label: "Close Position", color: "text-yellow-400", icon: "close" },
+  closepositionv3: { label: "Close Position", color: "text-yellow-400", icon: "close", detail: "Submitted through Arcium MPC" },
+  closepositionv3callback: { label: "Close Callback", color: "text-accent-green", icon: "close", detail: "Arcium MPC finalized the close" },
   addprivateorder: { label: "Order Submitted", color: "text-accent-purple", icon: "ref", detail: "Submitted through the private flow" },
   settleprivateposition: { label: "Position Settled", color: "text-yellow-300", icon: "close" },
   liquidateposition: { label: "Liquidation", color: "text-accent-red", icon: "close" },
+  checkliquidationv3: { label: "Liquidation Check", color: "text-yellow-400", icon: "generic", detail: "Checked through Arcium MPC" },
+  checkliquidationv3callback: { label: "Liquidation Callback", color: "text-accent-red", icon: "close", detail: "Arcium MPC finalized liquidation check" },
   updatefundingrate: { label: "Funding Rate Update", color: "text-blue-400", icon: "generic" },
   initfundingstate: { label: "Funding Initialized", color: "text-gray-400", icon: "generic" },
   setfundingpremium: { label: "Funding Premium Set", color: "text-gray-400", icon: "generic" },
   setoicaps: { label: "OI Cap Update", color: "text-gray-400", icon: "generic" },
   updatemarkprice: { label: "Mark Price Update", color: "text-gray-400", icon: "generic" },
+  updateprice: { label: "Oracle Price Update", color: "text-gray-400", icon: "generic" },
 };
 
 // Helius Enhanced Transaction shape (subset we use)
@@ -133,6 +140,10 @@ function heliusTxToIndexed(tx: HeliusTx, wallet: string): IndexedRecentTx {
 
 function inferTxTypeFromDescription(tx: HeliusTx, wallet: string): HistoryTxType {
   const desc = tx.description.toLowerCase();
+  const type = tx.type?.trim();
+  const touchesProgram = tx.instructions?.some(
+    (instruction) => instruction.programId === RUNTIME_CONFIG.programId.toBase58()
+  );
 
   const inbound = tx.tokenTransfers?.some((t) => t.toUserAccount === wallet && t.tokenAmount > 0);
   const outbound = tx.tokenTransfers?.some((t) => t.fromUserAccount === wallet && t.tokenAmount > 0);
@@ -140,7 +151,46 @@ function inferTxTypeFromDescription(tx: HeliusTx, wallet: string): HistoryTxType
   if (inbound && desc.includes("transfer")) return { label: "Token Received", color: "text-accent-green", icon: "down" };
   if (outbound && desc.includes("transfer")) return { label: "Token Sent", color: "text-accent-red", icon: "up" };
 
-  return { label: tx.type || "Transaction", color: "text-gray-500", icon: "generic" };
+  if (touchesProgram) {
+    return {
+      label: "Shadow Transaction",
+      color: "text-accent-purple",
+      icon: "generic",
+      detail: "Shadow on-chain wallet activity",
+    };
+  }
+
+  if (!type || type.toUpperCase() === "UNKNOWN") {
+    return { label: "Wallet Activity", color: "text-gray-500", icon: "generic" };
+  }
+
+  return { label: type.replace(/_/g, " "), color: "text-gray-500", icon: "generic" };
+}
+
+function inferTxTypeFromLogs(logs: string[] | null | undefined): HistoryTxType | undefined {
+  if (!logs?.length) return undefined;
+  const joined = logs.join("\n").toLowerCase();
+  const instructionMatch = joined.match(/instruction:\s*([a-z0-9_]+)/i);
+  const normalizedInstruction = instructionMatch?.[1]?.replace(/_/g, "").toLowerCase();
+  if (normalizedInstruction && INSTRUCTION_TYPE_MAP[normalizedInstruction]) {
+    return INSTRUCTION_TYPE_MAP[normalizedInstruction];
+  }
+  if (joined.includes("open_position") || joined.includes("openposition")) {
+    return { label: "Open Position", color: "text-accent-purple", icon: "open", detail: "Submitted through Arcium MPC" };
+  }
+  if (joined.includes("close_position") || joined.includes("closeposition")) {
+    return { label: "Close Position", color: "text-yellow-400", icon: "close", detail: "Submitted through Arcium MPC" };
+  }
+  if (joined.includes("deposit")) {
+    return { label: "Deposit Collateral", color: "text-accent-green", icon: "down" };
+  }
+  if (joined.includes("withdraw")) {
+    return { label: "Withdraw Collateral", color: "text-accent-red", icon: "up" };
+  }
+  if (joined.includes("oracle") || joined.includes("price")) {
+    return { label: "Oracle Price Update", color: "text-gray-400", icon: "generic" };
+  }
+  return undefined;
 }
 
 async function withHistoryConnection<T>(
@@ -195,13 +245,33 @@ async function loadHistorySnapshot(
         limit: options.limit,
         before: options.before,
       });
-      activity = sigs.map((s) => ({
+      const detailedLimit = Math.min(sigs.length, 20);
+      const detailed = await Promise.all(
+        sigs.slice(0, detailedLimit).map(async (s) => {
+          const tx = await connection.getTransaction(s.signature, {
+            commitment: "confirmed",
+            maxSupportedTransactionVersion: 0,
+          }).catch(() => null);
+          const txType = inferTxTypeFromLogs(tx?.meta?.logMessages);
+          return {
+            sig: s.signature,
+            slot: s.slot,
+            err: s.err !== null,
+            blockTime: s.blockTime ?? null,
+            memo: s.memo ?? txType?.detail ?? null,
+            txType: txType ?? { label: "Wallet Activity", color: "text-gray-500", icon: "generic" as const },
+          };
+        })
+      );
+      const rest = sigs.slice(detailedLimit).map((s) => ({
         sig: s.signature,
         slot: s.slot,
         err: s.err !== null,
         blockTime: s.blockTime ?? null,
         memo: s.memo ?? null,
+        txType: { label: "Wallet Activity", color: "text-gray-500", icon: "generic" as const },
       }));
+      activity = [...detailed, ...rest];
       nextBefore = sigs.at(-1)?.signature ?? null;
       hasMore = sigs.length >= options.limit;
     });

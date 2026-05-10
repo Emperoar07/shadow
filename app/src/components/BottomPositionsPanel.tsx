@@ -1898,9 +1898,6 @@ export default function BottomPositionsPanel({
               setTpSlDraft((current) => ({ ...current, stopLossValue: value }))
             }
           />
-          <p className="text-[10px] leading-relaxed text-gray-500">
-            These triggers apply to the entire open position. Percentage sliders calculate trigger prices only; partial take-profit needs protocol-level partial close support.
-          </p>
         </div>
       </OrderConfirmModal>
 

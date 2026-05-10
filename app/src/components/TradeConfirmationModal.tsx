@@ -33,7 +33,7 @@ const STEPS: { key: TradeStep; label: string; icon: string }[] = [
   { key: "confirmed",  label: "Confirmed",  icon: "✓"  },
 ];
 
-const TERMINAL_AUTO_DISMISS_MS = 5_000;
+const TERMINAL_AUTO_DISMISS_MS = 3_000;
 const QUEUED_PERSIST_KEY       = "shadow-queued-tx";
 
 function stepIndex(step: TradeStep): number {
