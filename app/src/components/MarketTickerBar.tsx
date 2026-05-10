@@ -11,9 +11,16 @@ interface TickerItem {
 interface MarketTickerBarProps {
   activePair: TradingPair;
   onSelect: (pair: TradingPair) => void;
+  activePrice?: number | null;
+  activeChange24h?: number | null;
 }
 
-export default function MarketTickerBar({ activePair, onSelect }: MarketTickerBarProps) {
+export default function MarketTickerBar({
+  activePair,
+  onSelect,
+  activePrice,
+  activeChange24h,
+}: MarketTickerBarProps) {
   const [tickers, setTickers] = useState<TickerItem[]>(() =>
     TRADING_PAIRS.map((pair) => ({
       pair,
@@ -43,7 +50,25 @@ export default function MarketTickerBar({ activePair, onSelect }: MarketTickerBa
     return () => clearInterval(id);
   }, [refresh]);
 
-  const movers = tickers
+  const displayTickers = tickers.map((ticker) => {
+    if (ticker.pair.label !== activePair.label) return ticker;
+    const chartPrice =
+      typeof activePrice === "number" && Number.isFinite(activePrice) && activePrice > 0
+        ? activePrice
+        : null;
+    const chartChange =
+      typeof activeChange24h === "number" && Number.isFinite(activeChange24h)
+        ? activeChange24h
+        : null;
+    if (chartPrice === null && chartChange === null) return ticker;
+    return {
+      ...ticker,
+      price: chartPrice ?? ticker.price,
+      change24h: chartChange ?? ticker.change24h,
+    };
+  });
+
+  const movers = displayTickers
     .filter(({ change24h }) => change24h > 0)
     .sort((a, b) => b.change24h - a.change24h)
     .slice(0, 5);

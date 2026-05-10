@@ -8,6 +8,8 @@ type HistoryResponse =
       ok: true;
       activity: Awaited<ReturnType<typeof getHistorySnapshot>>["activity"];
       historyPositions: Awaited<ReturnType<typeof getHistorySnapshot>>["historyPositions"];
+      historyPositionsSource: Awaited<ReturnType<typeof getHistorySnapshot>>["historyPositionsSource"];
+      historyPositionsNotice?: Awaited<ReturnType<typeof getHistorySnapshot>>["historyPositionsNotice"];
       nextBefore: string | null;
       hasMore: boolean;
       fetchedAt: number;
@@ -80,6 +82,8 @@ export default async function handler(
       ok: true,
       activity: snapshot.activity,
       historyPositions: snapshot.historyPositions,
+      historyPositionsSource: snapshot.historyPositionsSource,
+      historyPositionsNotice: snapshot.historyPositionsNotice,
       nextBefore: snapshot.nextBefore,
       hasMore: snapshot.hasMore,
       fetchedAt: snapshot.fetchedAt,

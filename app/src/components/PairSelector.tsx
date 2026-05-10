@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
-import { getCachedPrice, fetchPrices, PriceData } from "../lib/prices";
+import { fetchPrices, PriceData } from "../lib/prices";
 
 interface PairSelectorProps {
   activePair: TradingPair;
@@ -21,10 +21,17 @@ export default function PairSelector({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch prices on mount for the dropdown preview
-  useEffect(() => {
+  const refreshPrices = useCallback(() => {
     fetchPrices().then(setPrices).catch(() => {});
   }, []);
+
+  // Keep dropdown previews fresh enough without letting fallback prices override
+  // the active chart-driven pair display.
+  useEffect(() => {
+    refreshPrices();
+    const id = window.setInterval(refreshPrices, isOpen ? 10_000 : 30_000);
+    return () => window.clearInterval(id);
+  }, [isOpen, refreshPrices]);
 
   // Close on outside click
   useEffect(() => {
@@ -115,15 +122,39 @@ export default function PairSelector({
             {filtered.length === 0 ? (
               <p className="text-center text-gray-500 text-sm py-4">No pairs found</p>
             ) : (
-              filtered.map((pair) => (
-                <PairRow
-                  key={pair.label}
-                  pair={pair}
-                  price={prices[pair.label]}
-                  isActive={pair.label === activePair.label}
-                  onSelect={() => handleSelect(pair)}
-                />
-              ))
+              filtered.map((pair) => {
+                const isActive = pair.label === activePair.label;
+                const activeChartPrice =
+                  isActive &&
+                  typeof displayPrice === "number" &&
+                  Number.isFinite(displayPrice) &&
+                  displayPrice > 0
+                    ? displayPrice
+                    : null;
+                const activeChartChange =
+                  isActive &&
+                  typeof displayChange24h === "number" &&
+                  Number.isFinite(displayChange24h)
+                    ? displayChange24h
+                    : null;
+                const rowPrice =
+                  activeChartPrice !== null
+                    ? {
+                        price: activeChartPrice,
+                        change24h: activeChartChange ?? prices[pair.label]?.change24h ?? 0,
+                      }
+                    : prices[pair.label];
+
+                return (
+                  <PairRow
+                    key={pair.label}
+                    pair={pair}
+                    price={rowPrice}
+                    isActive={isActive}
+                    onSelect={() => handleSelect(pair)}
+                  />
+                );
+              })
             )}
           </div>
         </div>

@@ -498,7 +498,12 @@ export default function TradingAppPage() {
 
             {/* Mobile: top movers strip in normal document flow */}
             <div className="lg:hidden shrink-0">
-              <MarketTickerBar activePair={selectedPair} onSelect={handlePairChange} />
+              <MarketTickerBar
+                activePair={selectedPair}
+                onSelect={handlePairChange}
+                activePrice={marketSnapshot.last}
+                activeChange24h={marketSnapshot.change24h}
+              />
             </div>
 
             {/* Desktop: modular drag-and-drop grid layout */}
@@ -515,7 +520,12 @@ export default function TradingAppPage() {
                   />
                 }
                 topMoversComponent={
-                  <MarketTickerBar activePair={selectedPair} onSelect={handlePairChange} />
+                  <MarketTickerBar
+                    activePair={selectedPair}
+                    onSelect={handlePairChange}
+                    activePrice={marketSnapshot.last}
+                    activeChange24h={marketSnapshot.change24h}
+                  />
                 }
                 chartComponent={
                   <PriceChart
@@ -621,6 +631,9 @@ export default function TradingAppPage() {
                   const nextPair = TRADING_PAIRS.find((candidate) => candidate.label === pairLabel);
                   if (nextPair) handlePairChange(nextPair);
                 }}
+                hidePnl={tradingSettings.hidePnl}
+                confirmClose={tradingSettings.confirmCloseOrder}
+                showNotifications={tradingSettings.showNotifications}
               />
             </div>
 

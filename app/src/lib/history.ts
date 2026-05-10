@@ -43,6 +43,7 @@ export interface WalletHistoryQuery {
   limit?: number;
   before?: string;
   includePositions?: boolean;
+  accessToken?: string | null;
 }
 
 export function buildWalletHistoryQuery(query: WalletHistoryQuery): string {
@@ -55,10 +56,16 @@ export function buildWalletHistoryQuery(query: WalletHistoryQuery): string {
 }
 
 export async function fetchWalletHistory(query: WalletHistoryQuery): Promise<WalletHistorySnapshot> {
-  const response = await fetch(`/api/history?${buildWalletHistoryQuery(query)}`);
+  const response = await fetch(`/api/history?${buildWalletHistoryQuery(query)}`, {
+    headers: query.accessToken ? { Authorization: `Bearer ${query.accessToken}` } : undefined,
+  });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(text || `History API request failed (${response.status})`);
   }
-  return (await response.json()) as WalletHistorySnapshot;
+  const payload = (await response.json()) as WalletHistorySnapshot & { ok?: boolean; error?: string };
+  if (payload.ok === false) {
+    throw new Error(payload.error || "History API request failed");
+  }
+  return payload;
 }

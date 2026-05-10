@@ -7,6 +7,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { fetchWalletHistory } from "../lib/history";
+import type { IndexedRecentTx } from "../lib/history";
 import {
   useAnchorWalletCompat,
   useWalletConnectionState,
@@ -34,7 +35,7 @@ import {
   subscribeAutomationUpdates,
   updateLimitOrder,
 } from "../lib/trade-automation";
-import { fetchPrices } from "../lib/prices";
+import { fetchPrices, getLastPriceMeta } from "../lib/prices";
 import { WALLET_DISPLAY_TOKENS } from "../lib/tokens";
 
 type UiStatus = "open" | "closing" | "closed" | "pending" | "liquidated" | "settling";
@@ -294,6 +295,29 @@ function TpSlEditor({
 
 const PANEL_TABLE_CLASS = "w-full min-w-[800px] text-[11px]";
 const PANEL_TABLE_STYLE = { borderCollapse: "separate" as const, borderSpacing: "0 6px" };
+const LOCAL_ORDER_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+function referenceMarkFromDepth(snapshot: {
+  bids?: Array<{ price?: number }>;
+  asks?: Array<{ price?: number }>;
+  lastTrade?: { price?: number } | null;
+} | null): number | null {
+  const last = snapshot?.lastTrade?.price;
+  if (typeof last === "number" && Number.isFinite(last) && last > 0) return last;
+  const bid = snapshot?.bids?.[0]?.price;
+  const ask = snapshot?.asks?.[0]?.price;
+  if (
+    typeof bid === "number" &&
+    Number.isFinite(bid) &&
+    bid > 0 &&
+    typeof ask === "number" &&
+    Number.isFinite(ask) &&
+    ask > 0
+  ) {
+    return (bid + ask) / 2;
+  }
+  return null;
+}
 
 
 export default function BottomPositionsPanel({
@@ -337,7 +361,11 @@ export default function BottomPositionsPanel({
   const [indexedHistoryPositions, setIndexedHistoryPositions] = useState<UiPosition[] | null>(
     null
   );
+  const [indexedOrderActivity, setIndexedOrderActivity] = useState<IndexedRecentTx[] | null>(
+    null
+  );
   const [historyPositionsNotice, setHistoryPositionsNotice] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [tpSlModalAddress, setTpSlModalAddress] = useState<string | null>(null);
   const [tpSlDraft, setTpSlDraft] = useState<TpSlDraft>({
@@ -506,7 +534,10 @@ export default function BottomPositionsPanel({
             }
           }
         }
-        setPairPrices(nextPairPrices);
+        setPairPrices((previous) => ({
+          ...nextPairPrices,
+          ...previous,
+        }));
         setPairLiqThresholds(nextPairLiqThresholds);
         const selectedPrice =
           nextPairPrices[activePairLabel ?? ""] ??
@@ -595,6 +626,73 @@ export default function BottomPositionsPanel({
     }
   }, [getAccessToken, positions, publicKey]);
 
+  const refreshDisplayMarks = useCallback(async () => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+    const labels = Array.from(
+      new Set(
+        [
+          activePairLabel,
+          ...positions
+            .filter((pos) => pos.status === "open" || pos.status === "pending" || pos.status === "closing")
+            .map((pos) => pos.pairLabel),
+        ].filter((label): label is string => Boolean(label))
+      )
+    );
+    if (labels.length === 0) return;
+
+    const [depthResults, fallbackPrices] = await Promise.all([
+      Promise.allSettled(
+        labels.map(async (pairLabel) => {
+          const response = await fetch(`/api/reference-depth?pair=${encodeURIComponent(pairLabel)}`, {
+            signal: AbortSignal.timeout(5_000),
+          });
+          if (!response.ok) return { pairLabel, price: null };
+          const snapshot = await response.json();
+          return { pairLabel, price: referenceMarkFromDepth(snapshot) };
+        })
+      ),
+      fetchPrices().catch(() => null),
+    ]);
+    const priceMeta = getLastPriceMeta();
+
+    setPairPrices((previous) => {
+      const next = { ...previous };
+      if (
+        activePairLabel &&
+        typeof activePairPrice === "number" &&
+        Number.isFinite(activePairPrice) &&
+        activePairPrice > 0
+      ) {
+        next[activePairLabel] = activePairPrice;
+      }
+      for (const result of depthResults) {
+        if (result.status !== "fulfilled") continue;
+        const { pairLabel, price } = result.value;
+        if (typeof price === "number" && Number.isFinite(price) && price > 0) {
+          next[pairLabel] = price;
+        }
+      }
+      if (priceMeta.quality !== "mock" && fallbackPrices) {
+        for (const pairLabel of labels) {
+          if (Number.isFinite(next[pairLabel]) && next[pairLabel] > 0) continue;
+          const fallback = fallbackPrices[pairLabel]?.price;
+          if (typeof fallback === "number" && Number.isFinite(fallback) && fallback > 0) {
+            next[pairLabel] = fallback;
+          }
+        }
+      }
+      return next;
+    });
+  }, [activePairLabel, activePairPrice, positions]);
+
+  useEffect(() => {
+    void refreshDisplayMarks();
+    const id = window.setInterval(() => void refreshDisplayMarks(), 5_000);
+    return () => window.clearInterval(id);
+  }, [refreshDisplayMarks]);
+
   const executeClose = useCallback(
     async (pos: UiPosition) => {
       if (!publicKey || !anchorWallet) return;
@@ -608,7 +706,6 @@ export default function BottomPositionsPanel({
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(
           marketAddress
         );
-        toastLoading("Refreshing close price...", { id: pos.address });
         await ensureFreshMarketOracle({
           market: marketAddress,
           pairLabel: pos.pairLabel,
@@ -773,9 +870,17 @@ export default function BottomPositionsPanel({
     [limitOrders]
   );
   const orderHistory = useMemo(
-    () => limitOrders.filter((o) => ["filled", "failed", "cancelled"].includes(o.status)),
+    () => {
+      const cutoff = Date.now() - LOCAL_ORDER_HISTORY_RETENTION_MS;
+      return limitOrders.filter(
+        (o) =>
+          ["filled", "failed", "cancelled"].includes(o.status) &&
+          (o.updatedAt >= cutoff || o.createdAt >= cutoff)
+      );
+    },
     [limitOrders]
   );
+  const chainOrderActivity = indexedOrderActivity ?? [];
   const historyPositions = indexedHistoryPositions ?? [];
 
   const filterPositions = useCallback((list: UiPosition[]) => {
@@ -811,6 +916,22 @@ export default function BottomPositionsPanel({
     return filterPositions(base);
   }, [activeTab, openPositions, historyPositions, filterPositions]);
 
+  const getFreshPairPrice = useCallback(
+    (pairLabel: string): number | null => {
+      const liveActivePrice =
+        pairLabel === activePairLabel &&
+        typeof activePairPrice === "number" &&
+        Number.isFinite(activePairPrice) &&
+        activePairPrice > 0
+          ? activePairPrice
+          : null;
+      const cachedPrice = pairPrices[pairLabel];
+      return liveActivePrice ??
+        (Number.isFinite(cachedPrice) && cachedPrice > 0 ? cachedPrice : null);
+    },
+    [activePairLabel, activePairPrice, pairPrices]
+  );
+
   const derivePositionCard = useCallback(
     (position: UiPosition) => {
       const view = ownerPositionViews[position.address] ?? null;
@@ -822,14 +943,7 @@ export default function BottomPositionsPanel({
       const pairLabel = view?.pairLabel ?? position.pairLabel ?? rule?.pairLabel ?? "SOL-USD";
       const sizeBase = view?.sizeBase ?? null;
       const baseSymbol = pairLabel.split("-")[0] ?? "USD";
-      const liveActivePrice =
-        pairLabel === activePairLabel &&
-        typeof activePairPrice === "number" &&
-        Number.isFinite(activePairPrice) &&
-        activePairPrice > 0
-          ? activePairPrice
-          : null;
-      const pairOraclePrice = liveActivePrice ?? pairPrices[pairLabel] ?? null;
+      const pairOraclePrice = getFreshPairPrice(pairLabel);
       const pairLiqThreshold = pairLiqThresholds[pairLabel] ?? liqThreshold;
 
       let liqPrice: number | null = null;
@@ -899,7 +1013,7 @@ export default function BottomPositionsPanel({
         healthPercent,
       };
     },
-    [activePairLabel, activePairPrice, liqThreshold, ownerPositionViews, pairLiqThresholds, pairPrices, positionRules]
+    [getFreshPairPrice, liqThreshold, ownerPositionViews, pairLiqThresholds, positionRules]
   );
 
   useEffect(() => {
@@ -910,7 +1024,7 @@ export default function BottomPositionsPanel({
       if (autoCloseInFlightRef.current.has(pos.address)) continue;
       const rule = positionRules[pos.address];
       if (!rule) continue;
-      const triggerPrice = pairPrices[rule.pairLabel];
+      const triggerPrice = getFreshPairPrice(rule.pairLabel);
       if (!triggerPrice || !Number.isFinite(triggerPrice)) continue;
       const hit =
         rule.side === "long"
@@ -931,10 +1045,10 @@ export default function BottomPositionsPanel({
         autoCloseInFlightRef.current.delete(pos.address);
       });
     }
-  }, [activeTab, executeClose, openPositions, pairPrices, positionRules]);
+  }, [activeTab, executeClose, getFreshPairPrice, openPositions, positionRules]);
 
   useEffect(() => {
-    if (activeTab !== "positionHistory") return;
+    if (activeTab !== "positionHistory" && activeTab !== "orderHistory") return;
     if (!publicKey || !anchorWallet) return;
     if (typeof document !== "undefined" && document.visibilityState !== "visible") {
       return;
@@ -943,29 +1057,45 @@ export default function BottomPositionsPanel({
     let cancelled = false;
     void (async () => {
       setHistoryLoading(true);
+      setHistoryError(null);
       try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          throw new Error("Sign in again to load wallet history.");
+        }
         const snapshot = await fetchWalletHistory({
           wallet: publicKey.toBase58(),
           limit: 100,
-          includePositions: true,
+          includePositions: activeTab === "positionHistory",
+          accessToken,
         });
-        const mapped: UiPosition[] = snapshot.historyPositions.map((row) => ({
-          address: row.address,
-          marketAddress: row.marketAddress,
-          pairLabel: row.pairLabel,
-          index: new BN(row.index),
-          status: parseStatus(row.status),
-          margin: row.margin,
-          openedAt: new Date(row.openedAt),
-          realizedPnl: row.realizedPnl,
-          hasEncryptedData: row.hasEncryptedData,
-        }));
         if (!cancelled) {
-          setIndexedHistoryPositions(mapped);
-          setHistoryPositionsNotice(snapshot.historyPositionsNotice ?? null);
+          if (activeTab === "orderHistory") {
+            setIndexedOrderActivity(snapshot.activity);
+          } else {
+            const mapped: UiPosition[] = snapshot.historyPositions.map((row) => ({
+              address: row.address,
+              marketAddress: row.marketAddress,
+              pairLabel: row.pairLabel,
+              index: new BN(row.index),
+              status: parseStatus(row.status),
+              margin: row.margin,
+              openedAt: new Date(row.openedAt),
+              realizedPnl: row.realizedPnl,
+              hasEncryptedData: row.hasEncryptedData,
+            }));
+            setIndexedHistoryPositions(mapped);
+            setHistoryPositionsNotice(snapshot.historyPositionsNotice ?? null);
+          }
         }
-      } catch {
-        // On error keep existing data; don't blank the list.
+      } catch (error: any) {
+        if (!cancelled) {
+          setHistoryError(
+            typeof error?.message === "string" && error.message.trim().length > 0
+              ? error.message
+              : "Failed to load wallet history."
+          );
+        }
       } finally {
         if (!cancelled) {
           setHistoryLoading(false);
@@ -976,7 +1106,7 @@ export default function BottomPositionsPanel({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, anchorWallet, panelRefreshTick, publicKey]);
+  }, [activeTab, anchorWallet, getAccessToken, panelRefreshTick, publicKey]);
 
   useEffect(() => {
     if (activeTab !== "balances") return;
@@ -1287,15 +1417,60 @@ export default function BottomPositionsPanel({
             </div>
           )
         ) : activeTab === "orderHistory" ? (
-          orderHistory.length === 0 ? (
+          historyLoading && chainOrderActivity.length === 0 && orderHistory.length === 0 ? (
+            <div className="py-6 text-center text-xs text-gray-500">Loading wallet history...</div>
+          ) : historyError && chainOrderActivity.length === 0 && orderHistory.length === 0 ? (
+            <div className="py-6 text-center text-xs text-accent-red">{historyError}</div>
+          ) : chainOrderActivity.length === 0 && orderHistory.length === 0 ? (
             <div className="py-6 text-center text-xs text-gray-500">
-              No browser-managed order history yet.
+              No wallet order history yet.
             </div>
           ) : (
             <div className="space-y-3 p-4">
               <p className="text-xs text-gray-500">
-                Order history here reflects browser-managed Shadow automation for this wallet.
+                Recent wallet activity plus this browser's last 24h of Shadow limit/TP-SL automation.
               </p>
+              {historyError ? (
+                <p className="rounded-lg border border-yellow-400/20 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-200">
+                  Showing cached history. Latest refresh failed: {historyError}
+                </p>
+              ) : null}
+              {chainOrderActivity.map((tx) => {
+                const txType = tx.txType;
+                const label = txType?.label ?? "Transaction";
+                const tone = tx.err
+                  ? "text-accent-red"
+                  : txType?.color ?? "text-gray-300";
+                const when = tx.blockTime
+                  ? new Date(tx.blockTime * 1000).toLocaleString()
+                  : `Slot ${tx.slot}`;
+                return (
+                  <a
+                    key={tx.sig}
+                    href={getExplorerTxUrl(tx.sig)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-xl border border-shadow-600 bg-shadow-800/60 px-4 py-3 transition-colors hover:border-accent-purple/40"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className={`text-sm font-semibold ${tone}`}>
+                          {tx.err ? `${label} failed` : label}
+                        </p>
+                        <p className="mt-1 max-w-2xl truncate text-xs text-gray-500">
+                          {tx.memo ?? txType?.detail ?? "On-chain wallet activity"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-400">{when}</p>
+                        <p className="mt-1 font-mono text-[10px] text-accent-purple">
+                          {tx.sig.slice(0, 6)}...{tx.sig.slice(-6)}
+                        </p>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
               {orderHistory.map((order) => (
                 <div key={order.id} className="rounded-xl border border-shadow-600 bg-shadow-800/60 px-4 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1472,6 +1647,8 @@ export default function BottomPositionsPanel({
         /* ── POSITIONS TAB ── */
         ) : historyLoading && activeTab === "positionHistory" && displayed.length === 0 ? (
           <div className="py-6 text-center text-xs text-gray-500">Loading position history...</div>
+        ) : historyError && activeTab === "positionHistory" && displayed.length === 0 ? (
+          <div className="py-6 text-center text-xs text-accent-red">{historyError}</div>
         ) : displayed.length === 0 ? (
           <div className="py-6 text-center text-xs text-gray-500">
             {!publicKey
@@ -1482,6 +1659,11 @@ export default function BottomPositionsPanel({
           </div>
         ) : (
           <div className="space-y-2">
+            {activeTab === "positionHistory" && historyError ? (
+              <div className="rounded-lg border border-yellow-400/20 bg-yellow-400/10 px-3 py-2 text-[11px] text-yellow-200">
+                Showing cached position history. Latest refresh failed: {historyError}
+              </div>
+            ) : null}
             {activeTab === "positionHistory" && historyPositionsNotice ? (
               <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/8 px-3 py-2 text-[11px] text-yellow-200/90">
                 {historyPositionsNotice}
