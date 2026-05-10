@@ -20,6 +20,9 @@ const USER_RPC_OVERRIDE_KEY = "shadowperp.rpc.override";
 const USER_RPC_ENDPOINTS_KEY = "shadowperp.rpc.endpoints";
 export const RPC_CHANGED_EVENT = "shadowperp:rpc-changed";
 export const MAX_CUSTOM_ENDPOINTS = 5;
+export const DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+export const MAINNET_GENESIS_HASH = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
+export type SolanaClusterName = "devnet" | "mainnet-beta";
 
 export interface SavedRpcEndpoint {
   id: string;
@@ -73,7 +76,9 @@ export function resolveUserRpcUrl(config: UserRpcConfig): string | null {
   if (config.activeId === "devnet") return DEFAULT_RPC_ENDPOINT;
   const endpoints = getSavedRpcEndpoints();
   const found = endpoints.find((e) => e.id === config.activeId);
-  return found?.url.trim() || null;
+  const url = found?.url.trim() || null;
+  if (!url) return null;
+  return isRpcUrlAllowedForExpectedCluster(url) ? url : null;
 }
 export type RpcTransport = { rpc: string; ws: string };
 const DEFAULT_IDL_PROGRAM_ID =
@@ -119,6 +124,27 @@ function deriveWsEndpoint(rpcEndpoint: string): string {
   } catch {
     return rpcEndpoint.replace(/^https:/i, "wss:").replace(/^http:/i, "ws:");
   }
+}
+
+export function getExpectedSolanaCluster(): SolanaClusterName {
+  const explicit = process.env.NEXT_PUBLIC_SOLANA_CLUSTER?.trim().toLowerCase();
+  if (explicit === "mainnet" || explicit === "mainnet-beta") return "mainnet-beta";
+  return "devnet";
+}
+
+export function getExpectedGenesisHash(): string {
+  return getExpectedSolanaCluster() === "mainnet-beta"
+    ? MAINNET_GENESIS_HASH
+    : DEVNET_GENESIS_HASH;
+}
+
+export function isRpcUrlAllowedForExpectedCluster(rpcUrl: string): boolean {
+  const expected = getExpectedSolanaCluster();
+  const normalized = rpcUrl.toLowerCase();
+  if (expected === "devnet") {
+    return !normalized.includes("mainnet") && !normalized.includes("testnet");
+  }
+  return !normalized.includes("devnet") && !normalized.includes("testnet");
 }
 
 function parsePublicKey(name: string, fallback?: string): PublicKey {

@@ -41,6 +41,7 @@ import {
 } from "../types";
 import { isMissingAccountError } from "./account-errors";
 import { confirmWithPolling } from "./arcium-errors";
+import { getExpectedGenesisHash, getExpectedSolanaCluster } from "./runtime";
 import {
   extractOpenCallbackFailureMessage,
   diagnoseOpenCallbackFailure as diagnoseCallbackShared,
@@ -99,6 +100,24 @@ function resolveSponsorPubkey(): PublicKey | null {
   } catch {
     return null;
   }
+}
+
+async function assertExpectedSolanaCluster(connection: AnchorProvider["connection"]): Promise<void> {
+  const expectedGenesis = getExpectedGenesisHash();
+  const actualGenesis = await connection.getGenesisHash();
+  if (actualGenesis === expectedGenesis) return;
+
+  const expectedCluster = getExpectedSolanaCluster();
+  const actualCluster =
+    actualGenesis === "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
+      ? "mainnet-beta"
+      : actualGenesis === "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+      ? "devnet"
+      : "an unknown Solana cluster";
+  throw new Error(
+    `Network mismatch: Shadow is configured for ${expectedCluster}, but the active RPC is ${actualCluster}. ` +
+      "Open settings and switch the RPC back to Solana Devnet before trading."
+  );
 }
 
 function sponsorshipEnabled(): boolean {
@@ -403,6 +422,7 @@ export class ShadowPerpClient {
     options: { skipExternalPreflight?: boolean } = {}
   ): Promise<string> {
     const connection = this.provider.connection;
+    await assertExpectedSolanaCluster(connection);
     const sponsorFeePayer = canUseGasSponsorship(this.walletMode) ? resolveSponsorPubkey() : null;
     const feePayer = sponsorFeePayer ?? this.provider.wallet.publicKey;
     const { blockhash } = await connection.getLatestBlockhash("confirmed");

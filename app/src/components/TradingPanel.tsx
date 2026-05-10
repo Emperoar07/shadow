@@ -1,6 +1,7 @@
 ﻿import { useState, useCallback, useEffect, useRef } from "react";
 import BN from "bn.js";
 import { useConnection } from "@solana/wallet-adapter-react";
+import { usePrivy } from "@privy-io/react-auth";
 import toast from "react-hot-toast";
 import { createShadowPerpClient } from "../lib/create-client";
 import { TradingPair, TRADING_PAIRS } from "../lib/tokens";
@@ -15,6 +16,7 @@ import { useAnchorWalletCompat, useWalletExecutionMode } from "../lib/use-anchor
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
 import { requestPanelRefresh } from "../lib/panel-refresh";
+import { warmMarketOracle } from "../lib/oracle-refresh";
 import {
   disableEncryptedAutomationPersistence,
   enableEncryptedAutomationPersistence,
@@ -132,6 +134,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   }, [showNotifications]) as typeof toast.loading;
   const anchorWallet = useAnchorWalletCompat();
   const walletExecutionMode = useWalletExecutionMode();
+  const { getAccessToken } = usePrivy();
   const publicKey = anchorWallet?.publicKey ?? null;
   const signMessage = anchorWallet?.signMessage;
   const { connection } = useConnection();
@@ -381,6 +384,27 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
     const interval = setInterval(() => void refreshMarketData(), 30_000);
     return () => clearInterval(interval);
   }, [refreshMarketData]);
+
+  useEffect(() => {
+    if (!publicKey || !anchorWallet) return;
+    const warmActiveMarket = () => {
+      const ctx = getClient();
+      if (!ctx) return;
+      const market =
+        ctx.runtime.marketRegistry[activePair.label] ?? ctx.runtime.marketAddress;
+      void warmMarketOracle({
+        market,
+        pairLabel: activePair.label,
+        getAccessToken,
+        operation: "preparing this market",
+        maxAgeSeconds: 180,
+        minIntervalMs: 90_000,
+      });
+    };
+    warmActiveMarket();
+    const interval = setInterval(warmActiveMarket, 120_000);
+    return () => clearInterval(interval);
+  }, [activePair.label, anchorWallet, getAccessToken, getClient, publicKey]);
 
   const submitEncryptedOrder = useCallback(
     async (input: {

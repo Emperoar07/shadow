@@ -16,7 +16,7 @@ import { getExplorerTxUrl } from "../lib/explorer";
 import { TRADING_DISABLED } from "../lib/feature-flags";
 import { classifyArciumError } from "../lib/arcium-errors";
 import { requestPanelRefresh, subscribePanelRefresh } from "../lib/panel-refresh";
-import { ensureFreshMarketOracle } from "../lib/oracle-refresh";
+import { ensureFreshMarketOracle, warmMarketOracle } from "../lib/oracle-refresh";
 import OrderConfirmModal from "./OrderConfirmModal";
 import CollateralModal from "./CollateralModal";
 import {
@@ -564,6 +564,36 @@ export default function BottomPositionsPanel({
     loadAutomationState();
     void loadPositions();
   }), [loadAutomationState, loadPositions]);
+
+  useEffect(() => {
+    if (!publicKey || positions.length === 0) return;
+    const activePositions = positions.filter((pos) =>
+      pos.status === "open" || pos.status === "pending" || pos.status === "closing"
+    );
+    const uniqueMarkets = Array.from(
+      new Map(
+        activePositions.map((pos) => [
+          pos.marketAddress,
+          { marketAddress: pos.marketAddress, pairLabel: pos.pairLabel },
+        ])
+      ).values()
+    ).slice(0, 4);
+
+    for (const { marketAddress, pairLabel } of uniqueMarkets) {
+      try {
+        void warmMarketOracle({
+          market: new PublicKey(marketAddress),
+          pairLabel,
+          getAccessToken,
+          operation: "monitoring open positions",
+          maxAgeSeconds: 180,
+          minIntervalMs: 90_000,
+        });
+      } catch {
+        // Bad cached metadata should not break the panel.
+      }
+    }
+  }, [getAccessToken, positions, publicKey]);
 
   const executeClose = useCallback(
     async (pos: UiPosition) => {
