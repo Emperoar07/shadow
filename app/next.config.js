@@ -2,7 +2,8 @@
 const path = require("path");
 
 const privyApiOrigin = process.env.NEXT_PUBLIC_PRIVY_API_URL?.trim();
-const privyFrameSources = [
+const canonicalHost = process.env.NEXT_PUBLIC_CANONICAL_HOST?.trim().toLowerCase();
+const privyFrameSourceSet = new Set([
   "blob:",
   "https://s.tradingview.com",
   "https://auth.privy.io",
@@ -10,11 +11,20 @@ const privyFrameSources = [
   // Privy custom wallet proxy domains used by hosted Shadow deployments.
   "https://privy.shadowperpdex.xyz",
   "https://privy.www.shadowperpdex.xyz",
-];
+]);
+
+if (canonicalHost) {
+  privyFrameSourceSet.add(`https://privy.${canonicalHost}`);
+  if (canonicalHost.startsWith("www.")) {
+    privyFrameSourceSet.add(`https://privy.${canonicalHost.slice(4)}`);
+  }
+}
 
 if (privyApiOrigin) {
-  privyFrameSources.push(privyApiOrigin);
+  privyFrameSourceSet.add(privyApiOrigin);
 }
+
+const privyFrameSources = Array.from(privyFrameSourceSet);
 
 const nextConfig = {
   reactStrictMode: true,
