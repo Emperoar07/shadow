@@ -78,6 +78,7 @@ export default async function handler(
       limit,
       before,
       includePositions,
+      userId,
     });
     res.status(200).json({
       ok: true,

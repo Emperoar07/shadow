@@ -163,28 +163,49 @@ export default async function handler(
       });
     }
 
-    const tx = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: sponsor.publicKey,
-        toPubkey: recipient,
-        lamports: DRIP_LAMPORTS,
-      })
-    );
-    const { blockhash } = await connection.getLatestBlockhash("confirmed");
-    tx.recentBlockhash = blockhash;
-    tx.feePayer = sponsor.publicKey;
-    tx.sign(sponsor);
-
-    const signature = await connection.sendRawTransaction(tx.serialize(), {
-      skipPreflight: false,
-      preflightCommitment: "confirmed",
-    });
-    await connection.confirmTransaction(signature, "confirmed");
-    claimedWallets.add(recipientKey);
+    // Write the claim record BEFORE sending SOL to prevent double-spend under
+    // concurrent requests. If the transaction fails we roll back the KV entry.
+    let durableWritten = false;
     try {
       await writeDurableValue(claimKey, String(Date.now()));
+      durableWritten = true;
     } catch (error) {
-      console.error("[faucet-sol] durable claim write failed", error);
+      console.error("[faucet-sol] durable claim pre-write failed", error);
+      // Fall through — in-memory guard still prevents same-process duplicates.
+    }
+    claimedWallets.add(recipientKey);
+
+    let signature: string;
+    try {
+      const tx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: sponsor.publicKey,
+          toPubkey: recipient,
+          lamports: DRIP_LAMPORTS,
+        })
+      );
+      const { blockhash } = await connection.getLatestBlockhash("confirmed");
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = sponsor.publicKey;
+      tx.sign(sponsor);
+
+      signature = await connection.sendRawTransaction(tx.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+      });
+      await connection.confirmTransaction(signature, "confirmed");
+    } catch (txErr) {
+      // Transaction failed — roll back the claim so the user can retry.
+      claimedWallets.delete(recipientKey);
+      if (durableWritten) {
+        try {
+          await writeDurableValue(claimKey, "");
+        } catch {
+          // Best-effort rollback; log but don't mask the original error.
+          console.error("[faucet-sol] claim rollback failed after tx error");
+        }
+      }
+      throw txErr;
     }
 
     return res.status(200).json({

@@ -84,6 +84,10 @@ pub fn open_position_callback_handler(
                 // leave this position stuck in Pending forever.
                 position.consume_pending_computation(ctx.accounts.computation_account.key())?;
                 position.status = PositionStatus::Closed;
+                // Zero reserved fields so the closed position holds no phantom margin values.
+                // No margin_account mutation needed — lock_margin was never called on this path.
+                position.requested_margin = 0;
+                position.margin = 0;
                 msg!(
                     "open_position callback cleanup committed for aborted computation {}",
                     ctx.accounts.computation_account.key()
@@ -135,7 +139,10 @@ pub fn open_position_callback_handler(
     if !verified_output.field_0 {
         // MPC rejected the position (e.g. insufficient margin, invalid params).
         // Persist a terminal state so the account is not stuck in Pending.
+        // No margin_account mutation needed — lock_margin has not been called yet.
         position.status = PositionStatus::Closed;
+        position.requested_margin = 0;
+        position.margin = 0;
         msg!(
             "open_position callback rejected position {} after MPC validation",
             position.key()

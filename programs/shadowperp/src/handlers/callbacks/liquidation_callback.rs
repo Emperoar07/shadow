@@ -144,12 +144,10 @@ pub fn check_liquidation_callback_handler(
     }
 
     // LIQUIDATION OCCURS
-    let margin = if revealed_margin > 0 {
-        revealed_margin
-    } else {
-        position.margin
-    };
-    require!(margin > 0, ShadowPerpError::InvalidComputationResult);
+    // position.margin is zeroed by open_position_callback for privacy — never fall back to it.
+    // MPC must always return a valid (non-zero) margin for liquidation to proceed.
+    require!(revealed_margin > 0, ShadowPerpError::InvalidComputationResult);
+    let margin = revealed_margin;
     margin_account.unlock_margin(position.margin_mode(), margin)?;
 
     // Calculate liquidation penalty (5% to liquidator, rest returned).

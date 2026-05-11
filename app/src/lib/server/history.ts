@@ -212,9 +212,11 @@ async function withHistoryConnection<T>(
 
 async function loadHistorySnapshot(
   owner: PublicKey,
-  options: { limit: number; before?: string; includePositions: boolean }
+  options: { limit: number; before?: string; includePositions: boolean; userId: string }
 ): Promise<WalletHistorySnapshot> {
-  const cacheKey = `${owner.toBase58()}:${options.limit}:${options.before ?? ""}:${options.includePositions ? 1 : 0}`;
+  // Include userId in cache key so users cannot read each other's cached history
+  // by knowing another wallet address.
+  const cacheKey = `${options.userId}:${owner.toBase58()}:${options.limit}:${options.before ?? ""}:${options.includePositions ? 1 : 0}`;
   const cached = historyCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.payload;
 
@@ -332,7 +334,7 @@ async function loadHistorySnapshot(
 
 export async function getHistorySnapshot(
   wallet: string,
-  options: { limit?: number; before?: string; includePositions?: boolean } = {}
+  options: { limit?: number; before?: string; includePositions?: boolean; userId: string }
 ): Promise<WalletHistorySnapshot> {
   const owner = new PublicKey(wallet);
   const limit = Math.max(1, Math.min(options.limit ?? HISTORY_PAGE_SIZE, 40));
@@ -340,5 +342,6 @@ export async function getHistorySnapshot(
     limit,
     before: options.before,
     includePositions: options.includePositions ?? false,
+    userId: options.userId,
   });
 }
