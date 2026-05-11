@@ -181,10 +181,12 @@ export default function App({ Component, pageProps }: AppProps) {
         },
       },
       embeddedWallets: {
-        // Only create an embedded wallet for users who don't already have one.
-        // "all-users" caused sign-in failures for existing embedded-wallet users
-        // whose wallets were keyed to a prior Privy app.
-        createOnLogin: "users-without-wallets",
+        // "all-users" ensures email/social logins always get an embedded wallet
+        // even when an external wallet (Phantom) is auto-connected. The prior
+        // "users-without-wallets" caused email logins to never receive an
+        // embedded wallet when shouldAutoConnect fired first, leaving them
+        // permanently wallet-less.
+        createOnLogin: "all-users",
         noPromptOnSignature: true,
         // Restrict to Solana only — prevents Privy from creating an Ethereum
         // embedded wallet first, which would resolve as the active wallet with
