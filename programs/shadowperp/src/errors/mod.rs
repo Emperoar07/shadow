@@ -28,9 +28,6 @@ pub enum ShadowPerpError {
     #[msg("Position is not open")]
     PositionNotOpen,
 
-    #[msg("Position is already closed")]
-    PositionAlreadyClosed,
-
     #[msg("Invalid oracle price")]
     InvalidPrice,
 

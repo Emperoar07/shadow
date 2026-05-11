@@ -98,7 +98,8 @@ pub fn handler(ctx: Context<SettleClosePosition>) -> Result<()> {
     ) {
         let funding_delta = fs
             .cumulative_funding
-            .saturating_sub(pos_ref.entry_funding_rate);
+            .checked_sub(pos_ref.entry_funding_rate)
+            .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
         if funding_delta != 0 {
             let abs_delta = funding_delta.unsigned_abs();

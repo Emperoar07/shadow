@@ -100,10 +100,11 @@ async function getHealthyConnection(): Promise<Connection> {
   for (const rpcUrl of getRpcCandidates()) {
     const connection = new Connection(rpcUrl, "confirmed");
     try {
+      const probeTimeoutMs = parsePositiveInt(process.env.RPC_PROBE_TIMEOUT_MS, 4_500);
       await Promise.race([
         connection.getLatestBlockhash("processed"),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("rpc probe timeout")), 4_500)
+          setTimeout(() => reject(new Error("rpc probe timeout")), probeTimeoutMs)
         ),
       ]);
       return connection;
@@ -356,7 +357,7 @@ async function fetchReferencePrice(
     10
   );
   if (live.length < Math.max(1, minSources)) {
-    const failsafeAllowed = parseBoolean(process.env.ORACLE_REFRESH_FAILSAFE_SINGLE_SOURCE, true);
+    const failsafeAllowed = parseBoolean(process.env.ORACLE_REFRESH_FAILSAFE_SINGLE_SOURCE, false);
     const failsafeMaxMoveBps = parsePositiveInt(
       process.env.ORACLE_REFRESH_FAILSAFE_MAX_MOVE_BPS,
       DEFAULT_FAILSAFE_MAX_MOVE_BPS
