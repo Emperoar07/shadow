@@ -296,6 +296,7 @@ function TpSlEditor({
 const PANEL_TABLE_CLASS = "w-full min-w-[800px] text-[11px]";
 const PANEL_TABLE_STYLE = { borderCollapse: "separate" as const, borderSpacing: "0 6px" };
 const LOCAL_ORDER_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
+const PENDING_POSITION_VIEW_TTL_MS = 5 * 60 * 1000;
 
 function referenceMarkFromDepth(snapshot: {
   bids?: Array<{ price?: number }>;
@@ -816,6 +817,32 @@ export default function BottomPositionsPanel({
     setTpSlModalAddress(pos.address);
   }, [positionRules]);
 
+  const visibleOpenPositions = useMemo(() => {
+    const knownAddresses = new Set(positions.map((position) => position.address));
+    const pendingViewCutoff = Date.now() - PENDING_POSITION_VIEW_TTL_MS;
+    const syntheticPendingPositions = Object.values(ownerPositionViews)
+      .filter((view) => !knownAddresses.has(view.positionAddress))
+      .filter((view) => view.updatedAt >= pendingViewCutoff)
+      .map((view) => ({
+        address: view.positionAddress,
+        marketAddress: "",
+        pairLabel: view.pairLabel,
+        index: new BN(0),
+        status: "pending" as const,
+        margin:
+          view.leverage > 0
+            ? (view.entryPrice * view.sizeBase) / view.leverage
+            : 0,
+        openedAt: new Date(view.openedAt),
+        realizedPnl: 0,
+        hasEncryptedData: false,
+      }));
+
+    return [...syntheticPendingPositions, ...positions]
+      .filter((position) => ["open", "pending", "closing", "settling"].includes(position.status))
+      .sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
+  }, [ownerPositionViews, positions]);
+
   const saveTpSlRule = useCallback((address: string, card: {
     side: Direction | null;
     entryPrice: number | null;
@@ -840,7 +867,7 @@ export default function BottomPositionsPanel({
     );
     const existingRule = positionRules[address];
     const view = ownerPositionViews[address];
-    const position = positions.find((item) => item.address === address);
+    const position = visibleOpenPositions.find((item) => item.address === address);
     const pairLabel =
       view?.pairLabel ?? existingRule?.pairLabel ?? position?.pairLabel ?? activePairLabel ?? "SOL-USD";
     if (tp === null && sl === null) {
@@ -859,11 +886,11 @@ export default function BottomPositionsPanel({
     });
     toastSuccess("TP/SL rule saved");
     setTpSlModalAddress(null);
-  }, [activePairLabel, ownerPositionViews, positionRules, positions, toastSuccess, tpSlDraft]);
+  }, [activePairLabel, ownerPositionViews, positionRules, toastSuccess, tpSlDraft, visibleOpenPositions]);
 
   const openPositions = useMemo(
-    () => positions.filter((p) => ["open", "pending", "closing", "settling"].includes(p.status)),
-    [positions]
+    () => visibleOpenPositions,
+    [visibleOpenPositions]
   );
   const openOrders = useMemo(
     () => limitOrders.filter((o) => ["pending", "triggered"].includes(o.status)),
@@ -1226,7 +1253,7 @@ export default function BottomPositionsPanel({
   ];
 
   const tpSlModalPosition = tpSlModalAddress
-    ? positions.find((position) => position.address === tpSlModalAddress) ?? null
+    ? visibleOpenPositions.find((position) => position.address === tpSlModalAddress) ?? null
     : null;
   const tpSlModalCard = tpSlModalPosition ? derivePositionCard(tpSlModalPosition) : null;
   const tpPreview = tpSlModalCard
