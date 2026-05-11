@@ -48,6 +48,18 @@ export interface OwnerPositionView {
   updatedAt: number;
 }
 
+export interface PendingOpenPosition {
+  positionAddress: string;
+  pairLabel: string;
+  side: PositionDirection;
+  marginMode: MarginMode;
+  sizeBase: number;
+  entryPrice: number;
+  leverage: number;
+  openedAt: number;
+  updatedAt: number;
+}
+
 const UPDATE_EVENT = "shadowperp:automation-updated";
 const STORAGE_KEY_PREFIX = "shadowperp:automation:v1:";
 const POSITION_VIEWS_KEY_PREFIX = "shadowperp:posviews:v1:";
@@ -79,6 +91,7 @@ interface PersistenceState {
 let limitOrdersState: PendingLimitOrder[] = [];
 let positionRulesState: Record<string, PositionProtectionRule> = {};
 let ownerPositionViewsState: Record<string, OwnerPositionView> = {};
+let pendingOpenPositionsState: Record<string, PendingOpenPosition> = {};
 const persistenceState: PersistenceState = {
   owner: null,
   key: null,
@@ -556,6 +569,10 @@ export function getOwnerPositionViews(): Record<string, OwnerPositionView> {
   return { ...ownerPositionViewsState };
 }
 
+export function getPendingOpenPositions(): Record<string, PendingOpenPosition> {
+  return { ...pendingOpenPositionsState };
+}
+
 export function getOwnerPositionView(positionAddress: string): OwnerPositionView | null {
   const views = getOwnerPositionViews();
   return views[positionAddress] ?? null;
@@ -585,6 +602,29 @@ export function removeOwnerPositionView(positionAddress: string): void {
   ownerPositionViewsState = next;
   persistPositionViewsPlain();
   queuePersist();
+  emitUpdate();
+}
+
+export function setPendingOpenPosition(
+  payload: Omit<PendingOpenPosition, "updatedAt" | "openedAt"> & { openedAt?: number }
+): void {
+  const existing = pendingOpenPositionsState[payload.positionAddress];
+  pendingOpenPositionsState = {
+    ...pendingOpenPositionsState,
+    [payload.positionAddress]: {
+      ...payload,
+      openedAt: payload.openedAt ?? existing?.openedAt ?? Date.now(),
+      updatedAt: Date.now(),
+    },
+  };
+  emitUpdate();
+}
+
+export function removePendingOpenPosition(positionAddress: string): void {
+  if (!pendingOpenPositionsState[positionAddress]) return;
+  const next = { ...pendingOpenPositionsState };
+  delete next[positionAddress];
+  pendingOpenPositionsState = next;
   emitUpdate();
 }
 

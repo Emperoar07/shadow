@@ -7,42 +7,46 @@ const MAX_LEVERAGE = 50;
 interface LeverageModalProps {
   isOpen: boolean;
   leverage: number;
+  useAsDefault: boolean;
   onClose: () => void;
-  onConfirm: (leverage: number) => void;
+  onConfirm: (payload: { leverage: number; useAsDefault: boolean }) => void;
 }
 
 export default function LeverageModal({
   isOpen,
   leverage,
+  useAsDefault,
   onClose,
   onConfirm,
 }: LeverageModalProps) {
   const [visible, setVisible] = useState(false);
   const [draft, setDraft] = useState(leverage);
   const [inputValue, setInputValue] = useState(String(leverage));
+  const [defaultChecked, setDefaultChecked] = useState(useAsDefault);
 
   useEffect(() => {
     if (isOpen) {
       setDraft(leverage);
       setInputValue(String(leverage));
+      setDefaultChecked(useAsDefault);
       requestAnimationFrame(() => setVisible(true));
     } else {
       setVisible(false);
     }
-  }, [isOpen, leverage]);
+  }, [isOpen, leverage, useAsDefault]);
 
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if (e.key === "Enter") {
-        onConfirm(draft);
+        onConfirm({ leverage: draft, useAsDefault: defaultChecked });
         onClose();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [isOpen, draft, onClose, onConfirm]);
+  }, [isOpen, defaultChecked, draft, onClose, onConfirm]);
 
   const handleSlider = useCallback((val: number) => {
     const clamped = Math.max(MIN_LEVERAGE, Math.min(MAX_LEVERAGE, val));
@@ -186,11 +190,30 @@ export default function LeverageModal({
           </div>
         </div>
 
+        <div className="mx-5 mb-4">
+          <button
+            type="button"
+            onClick={() => setDefaultChecked((current) => !current)}
+            className="flex w-full items-center gap-2 rounded-lg border border-shadow-600 bg-shadow-800/40 px-3 py-2 text-left transition-colors hover:bg-shadow-800/70"
+          >
+            <span
+              className={`flex h-4 w-4 items-center justify-center rounded border text-[11px] transition-colors ${
+                defaultChecked
+                  ? "border-accent-purple bg-accent-purple text-white"
+                  : "border-shadow-500 bg-transparent text-transparent"
+              }`}
+            >
+              ✓
+            </span>
+            <span className="text-[11px] text-gray-300">Use as default for all markets</span>
+          </button>
+        </div>
+
         {/* Confirm button */}
         <div className="px-5 pb-4">
           <button
             onClick={() => {
-              onConfirm(draft);
+              onConfirm({ leverage: draft, useAsDefault: defaultChecked });
               onClose();
             }}
             className="w-full rounded-xl bg-accent-purple py-2.5 text-sm font-semibold text-white hover:bg-accent-purple/90 transition-colors"

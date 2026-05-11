@@ -23,11 +23,14 @@ import CollateralModal from "./CollateralModal";
 import {
   PendingLimitOrder,
   OwnerPositionView,
+  PendingOpenPosition,
   getLimitOrders,
   getOwnerPositionViews,
+  getPendingOpenPositions,
   PositionProtectionRule,
   getPositionRule,
   getPositionRules,
+  removePendingOpenPosition,
   removeLimitOrder,
   removePositionRule,
   setPositionRule,
@@ -359,6 +362,9 @@ export default function BottomPositionsPanel({
   const [ownerPositionViews, setOwnerPositionViews] = useState<Record<string, OwnerPositionView>>(
     {}
   );
+  const [pendingOpenPositions, setPendingOpenPositions] = useState<Record<string, PendingOpenPosition>>(
+    {}
+  );
   const [indexedHistoryPositions, setIndexedHistoryPositions] = useState<UiPosition[] | null>(
     null
   );
@@ -495,6 +501,9 @@ export default function BottomPositionsPanel({
       });
       mapped.sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
       setPositions(mapped);
+      for (const position of mapped) {
+        removePendingOpenPosition(position.address);
+      }
       // Persist so positions appear immediately on next refresh
       try {
         const walletKey = publicKey.toBase58();
@@ -571,6 +580,7 @@ export default function BottomPositionsPanel({
     setPositionRules(getPositionRules());
     setLimitOrders(getLimitOrders());
     setOwnerPositionViews(getOwnerPositionViews());
+    setPendingOpenPositions(getPendingOpenPositions());
   }, [publicKey]);
 
   useEffect(() => {
@@ -820,20 +830,20 @@ export default function BottomPositionsPanel({
   const visibleOpenPositions = useMemo(() => {
     const knownAddresses = new Set(positions.map((position) => position.address));
     const pendingViewCutoff = Date.now() - PENDING_POSITION_VIEW_TTL_MS;
-    const syntheticPendingPositions = Object.values(ownerPositionViews)
-      .filter((view) => !knownAddresses.has(view.positionAddress))
-      .filter((view) => view.updatedAt >= pendingViewCutoff)
-      .map((view) => ({
-        address: view.positionAddress,
+    const syntheticPendingPositions = Object.values(pendingOpenPositions)
+      .filter((pending) => !knownAddresses.has(pending.positionAddress))
+      .filter((pending) => pending.updatedAt >= pendingViewCutoff)
+      .map((pending) => ({
+        address: pending.positionAddress,
         marketAddress: "",
-        pairLabel: view.pairLabel,
+        pairLabel: pending.pairLabel,
         index: new BN(0),
         status: "pending" as const,
         margin:
-          view.leverage > 0
-            ? (view.entryPrice * view.sizeBase) / view.leverage
+          pending.leverage > 0
+            ? (pending.entryPrice * pending.sizeBase) / pending.leverage
             : 0,
-        openedAt: new Date(view.openedAt),
+        openedAt: new Date(pending.openedAt),
         realizedPnl: 0,
         hasEncryptedData: false,
       }));
@@ -841,7 +851,7 @@ export default function BottomPositionsPanel({
     return [...syntheticPendingPositions, ...positions]
       .filter((position) => ["open", "pending", "closing", "settling"].includes(position.status))
       .sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
-  }, [ownerPositionViews, positions]);
+  }, [pendingOpenPositions, positions]);
 
   const saveTpSlRule = useCallback((address: string, card: {
     side: Direction | null;

@@ -22,6 +22,7 @@ import {
   enableEncryptedAutomationPersistence,
   createLimitOrderId,
   getLimitOrders,
+  setPendingOpenPosition,
   setOwnerPositionView,
   setPositionRule,
   setPositionViewsOwner,
@@ -39,6 +40,8 @@ const TP_SL_MIN_GAP_BPS = 10; // 0.10%
 const MAX_POSITION_SIZE_BASE = 1_000_000;
 const MAX_POSITION_NOTIONAL_USDC = 5_000_000;
 const MARGIN_MODE_STORAGE_PREFIX = "shadowperp:ui:margin-mode:v1";
+const LEVERAGE_STORAGE_PREFIX = "shadowperp:ui:leverage:v1";
+const LEVERAGE_DEFAULT_STORAGE_PREFIX = "shadowperp:ui:leverage-default:v1";
 interface TradingPanelProps {
   pair?: TradingPair;
   layout?: "vertical" | "horizontal";
@@ -70,9 +73,32 @@ function resolveMarginModeStorageKey(owner: string | null): string {
     : `${MARGIN_MODE_STORAGE_PREFIX}:guest`;
 }
 
+function resolveLeverageStorageKey(owner: string | null): string {
+  return owner
+    ? `${LEVERAGE_STORAGE_PREFIX}:${owner}`
+    : `${LEVERAGE_STORAGE_PREFIX}:guest`;
+}
+
+function resolveLeverageDefaultStorageKey(owner: string | null): string {
+  return owner
+    ? `${LEVERAGE_DEFAULT_STORAGE_PREFIX}:${owner}`
+    : `${LEVERAGE_DEFAULT_STORAGE_PREFIX}:guest`;
+}
+
 function parseStoredMarginMode(value: string | null): MarginMode | null {
   if (value === "cross" || value === "isolated") return value;
   return null;
+}
+
+function parseStoredLeverage(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 50) return null;
+  return parsed;
+}
+
+function parseStoredBoolean(value: string | null): boolean {
+  return value === "1";
 }
 
 function validateTpSl(
@@ -147,6 +173,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   const [takeProfit, setTakeProfit] = useState("");
   const [stopLoss, setStopLoss] = useState("");
   const [leverage, setLeverage] = useState(10);
+  const [useDefaultLeverage, setUseDefaultLeverage] = useState(false);
   const [leverageModalOpen, setLeverageModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
@@ -276,6 +303,37 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       // storage quota/private-mode failures should not block trading
     }
   }, [marginMode, publicKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const owner = publicKey?.toBase58() ?? null;
+    const storedDefault = parseStoredBoolean(
+      window.localStorage.getItem(resolveLeverageDefaultStorageKey(owner))
+    );
+    const storedLeverage = parseStoredLeverage(
+      window.localStorage.getItem(resolveLeverageStorageKey(owner))
+    );
+    setUseDefaultLeverage(storedDefault);
+    if (storedDefault && storedLeverage !== null) {
+      setLeverage(storedLeverage);
+    }
+  }, [publicKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const owner = publicKey?.toBase58() ?? null;
+    try {
+      window.localStorage.setItem(
+        resolveLeverageDefaultStorageKey(owner),
+        useDefaultLeverage ? "1" : "0"
+      );
+      if (useDefaultLeverage) {
+        window.localStorage.setItem(resolveLeverageStorageKey(owner), String(leverage));
+      }
+    } catch {
+      // storage quota/private-mode failures should not block trading
+    }
+  }, [leverage, publicKey, useDefaultLeverage]);
 
   const ensureAutomationPersistenceUnlocked = useCallback(async () => {
     const owner = publicKey?.toBase58();
@@ -435,6 +493,15 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
             // not after MPC callback — so the card shows correct labels even
             // if the MPC callback times out.
             setOwnerPositionView({
+              positionAddress: update.positionAddress,
+              pairLabel: input.pairLabel,
+              side: input.side,
+              marginMode: input.marginMode,
+              sizeBase: input.sizeBase,
+              entryPrice: input.entryPrice,
+              leverage: input.leverage,
+            });
+            setPendingOpenPosition({
               positionAddress: update.positionAddress,
               pairLabel: input.pairLabel,
               side: input.side,
@@ -1145,8 +1212,12 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
       <LeverageModal
         isOpen={leverageModalOpen}
         leverage={leverage}
+        useAsDefault={useDefaultLeverage}
         onClose={() => setLeverageModalOpen(false)}
-        onConfirm={setLeverage}
+        onConfirm={({ leverage: nextLeverage, useAsDefault }) => {
+          setLeverage(nextLeverage);
+          setUseDefaultLeverage(useAsDefault);
+        }}
       />
 
       <CollateralModal
