@@ -25,14 +25,14 @@ mod settle_private_position_circuit {
     ///   - realized_pnl: net PnL for the position
     ///   - settlement_amount: tokens to credit back to shielded balance
     ///   - fee: trading fee deducted
-    ///   - new_balance: updated shielded balance after settlement
+    ///   - enc_new_balance: updated shielded balance after settlement (encrypted with MXE key)
     #[instruction]
     pub fn settle_private_position(
         position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         exit_price: u64,
         trading_fee_bps: u64,
         remaining_balance: Enc<Shared, u64>,
-    ) -> (i64, u64, u64, u64) {
+    ) -> (i64, u64, u64, Enc<Mxe, u64>) {
         let pos = position.to_arcis();
         let rem_balance = remaining_balance.to_arcis();
 
@@ -65,11 +65,14 @@ mod settle_private_position_circuit {
         // New shielded balance = remaining + settlement
         let new_balance = rem_balance + settlement_amount;
 
+        // FIX: Re-encrypt the new balance to the MXE cluster so it stays private
+        let enc_new_balance = Mxe::get().from_arcis(new_balance);
+
         (
             realized_pnl.reveal(),
             settlement_amount.reveal(),
             fee.reveal(),
-            new_balance.reveal(),
+            enc_new_balance,
         )
     }
 }

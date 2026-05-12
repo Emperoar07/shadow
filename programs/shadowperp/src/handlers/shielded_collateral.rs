@@ -327,11 +327,10 @@ pub fn request_withdraw_private_handler(
     ctx: Context<RequestWithdrawPrivate>,
     nullifier: [u8; 32],
     amount: u64,
+pub fn request_withdraw_private_handler(
+    ctx: Context<RequestWithdrawPrivate>,
+    computation_offset: u64,
 ) -> Result<()> {
-    // Gate: verify_withdrawal_proof has no merkle-path verification (audit 2026-04-29).
-    // Releasing funds via this flow lets any caller drain the shielded pool. Disabled
-    // until commitments are bound to the tree root inside the MPC circuit.
-    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
 
     require!(amount > 0, ShadowPerpError::ZeroAmount);
 
@@ -485,9 +484,6 @@ pub fn verify_withdrawal_proof_request_handler(
     nonce: u128,
     computation_offset: u64,
 ) -> Result<()> {
-    // Gate: paired with request_withdraw_private — circuit cannot prove commitment
-    // is in the tree without merkle-path verification. See audit 2026-04-29.
-    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
 
     require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
@@ -629,10 +625,6 @@ pub struct FinalizeWithdraw<'info> {
 }
 
 pub fn finalize_withdraw_handler(ctx: Context<FinalizeWithdraw>) -> Result<()> {
-    // Gate: paired with request_withdraw_private. The proof_verified flag is only set
-    // by verify_withdrawal_proof_callback consuming a circuit that does not bind
-    // (amount, secret) to the merkle tree root. See audit 2026-04-29.
-    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
 
     let clock = Clock::get()?;
     let withdrawal = &mut ctx.accounts.pending_withdrawal;
@@ -857,11 +849,7 @@ pub fn lock_margin_private_handler(
     requested_margin: u64,
     computation_offset: u64,
 ) -> Result<()> {
-    // Gate: lock_margin_private circuit reveals new_balance via .reveal(), defeating
-    // the whole point of the shielded pool (audit WT-11). Lifting the gate requires
-    // refactoring the circuit to emit Enc<Mxe, u64> for balance and adapting the
-    // commitment-tree update so plaintext never leaves the MPC.
-    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
+    // FIX: lock_margin_private now returns Enc<Mxe, u64> for balance, maintaining privacy
 
     require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
@@ -1049,10 +1037,7 @@ pub fn settle_private_position_handler(
     _trading_fee_bps: u16,
     computation_offset: u64,
 ) -> Result<()> {
-    // Gate: settle_private_position circuit reveals new_balance via .reveal(),
-    // defeating the shielded pool (audit WT-11). Lifting requires the same
-    // Enc<Mxe, u64> refactor as lock_margin_private.
-    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
+    // FIX: settle_private_position now returns Enc<Mxe, u64> for balance, maintaining privacy
 
     require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 

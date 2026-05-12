@@ -51,7 +51,7 @@ pub struct LockMarginPrivateCallback<'info> {
 }
 
 /// Handler for the lock_margin_private callback.
-/// Circuit returns (bool, u64, u64): (valid, new_balance, locked_margin).
+/// Circuit returns (bool, Enc<Mxe, u64>, u64): (valid, enc_new_balance, locked_margin).
 pub fn lock_margin_private_callback_handler(
     ctx: Context<LockMarginPrivateCallback>,
     output: SignedComputationOutputs<LockMarginPrivateOutput>,
@@ -81,21 +81,21 @@ pub fn lock_margin_private_callback_handler(
         ShadowPerpError::InvalidAccountData
     );
 
-    // Extract circuit outputs: (valid, new_balance, locked_margin)
+    // Extract circuit outputs: (valid, enc_new_balance, locked_margin)
     let valid = verified_output.field_0.field_0;
-    let new_balance = verified_output.field_0.field_1;
+
+    // Read the 32-byte ciphertext instead of a plaintext u64
+    let enc_new_balance = verified_output.field_0.field_1.ciphertexts[0];
     let locked_margin = verified_output.field_0.field_2;
 
     require!(valid, ShadowPerpError::InvalidComputationResult);
     require!(locked_margin > 0, ShadowPerpError::InsufficientMargin);
 
     // Update the commitment tree with a new root reflecting the balance change.
-    // The new commitment is hash(new_balance || owner) — simplified for devnet.
-    let mut balance_bytes = [0u8; 32];
-    balance_bytes[..8].copy_from_slice(&new_balance.to_le_bytes());
+    // FIX: We now hash the ciphertext directly to maintain privacy!
     let new_commitment = CommitmentTree::compute_next_root(
         &margin_ref.commitment,
-        &balance_bytes,
+        &enc_new_balance,
     );
     let new_root = CommitmentTree::compute_next_root(&pool.tree_root, &new_commitment);
     tree.push_root(new_root);

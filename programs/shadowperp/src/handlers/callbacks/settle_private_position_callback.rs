@@ -59,7 +59,7 @@ pub struct SettlePrivatePositionCallback<'info> {
 }
 
 /// Handler for the settle_private_position callback.
-/// Circuit returns (i64, u64, u64, u64): (realized_pnl, settlement_amount, fee, new_balance).
+/// Circuit returns (i64, u64, u64, Enc<Mxe, u64>): (realized_pnl, settlement_amount, fee, enc_new_balance).
 pub fn settle_private_position_callback_handler(
     ctx: Context<SettlePrivatePositionCallback>,
     output: SignedComputationOutputs<SettlePrivatePositionOutput>,
@@ -102,11 +102,11 @@ pub fn settle_private_position_callback_handler(
         ShadowPerpError::InvalidAccountData
     );
 
-    // Extract circuit outputs: (realized_pnl, settlement_amount, fee, new_balance)
+    // Extract circuit outputs: (realized_pnl, settlement_amount, fee, enc_new_balance)
     let _realized_pnl = verified_output.field_0.field_0;
     let settlement_amount = verified_output.field_0.field_1;
     let fee = verified_output.field_0.field_2;
-    let new_balance = verified_output.field_0.field_3;
+    let enc_new_balance = verified_output.field_0.field_3.ciphertexts[0];
 
     // Collect trading fees
     market.total_fees_collected = market
@@ -114,12 +114,10 @@ pub fn settle_private_position_callback_handler(
         .checked_add(fee)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
-    // Update the commitment to reflect the new shielded balance.
-    let mut balance_bytes = [0u8; 32];
-    balance_bytes[..8].copy_from_slice(&new_balance.to_le_bytes());
+    // Update the commitment to reflect the new shielded balance using the ciphertext.
     let new_commitment = CommitmentTree::compute_next_root(
         &margin_ref.commitment,
-        &balance_bytes,
+        &enc_new_balance,
     );
     let new_root = CommitmentTree::compute_next_root(&pool.tree_root, &new_commitment);
     tree.push_root(new_root);
@@ -132,10 +130,9 @@ pub fn settle_private_position_callback_handler(
     pool.updated_at = Clock::get()?.unix_timestamp;
 
     msg!(
-        "settle_private_position callback: settlement={}, fee={}, new_balance={}",
+        "settle_private_position callback: settlement={}, fee={}",
         settlement_amount,
         fee,
-        new_balance
     );
 
     Ok(())

@@ -23,13 +23,13 @@ mod lock_margin_private_circuit {
     ///
     /// Returns:
     ///   - valid: whether the lock is valid (balance >= lock_amount, amounts match)
-    ///   - new_balance: remaining balance after lock (revealed for new commitment)
+    ///   - enc_new_balance: remaining balance after lock (encrypted with MXE key)
     ///   - locked_margin: the amount actually locked (revealed for position binding)
     #[instruction]
     pub fn lock_margin_private(
         balance_and_lock: Enc<Shared, (u64, u64, u64)>,
         requested_margin: u64,
-    ) -> (bool, u64, u64) {
+    ) -> (bool, Enc<Mxe, u64>, u64) {
         let (balance, lock_amount, _commitment_secret) = balance_and_lock.to_arcis();
 
         // Validate lock amount matches the on-chain requested margin
@@ -45,6 +45,9 @@ mod lock_margin_private_circuit {
 
         let locked = if valid { lock_amount } else { 0 };
 
-        (valid.reveal(), new_balance.reveal(), locked.reveal())
+        // FIX: Return the new balance as an MXE-owned ciphertext instead of revealing it!
+        let enc_new_balance = Mxe::get().from_arcis(new_balance);
+
+        (valid.reveal(), enc_new_balance, locked.reveal())
     }
 }
