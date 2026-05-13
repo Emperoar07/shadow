@@ -36,6 +36,22 @@ import { resolveRpcEndpoint } from "./rpc";
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /** Parse a minimal .env file and inject keys that aren't already in process.env */
+function normalizeValue(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  let out = raw.trim();
+  if (!out) return undefined;
+  if (out.startsWith("<") && out.endsWith(">")) {
+    out = out.slice(1, -1).trim();
+  }
+  if (
+    (out.startsWith('"') && out.endsWith('"')) ||
+    (out.startsWith("'") && out.endsWith("'"))
+  ) {
+    out = out.slice(1, -1).trim();
+  }
+  return out || undefined;
+}
+
 function loadEnvFile(envPath: string): void {
   if (!fs.existsSync(envPath)) return;
   const lines = fs.readFileSync(envPath, "utf-8").split("\n");
@@ -45,8 +61,8 @@ function loadEnvFile(envPath: string): void {
     const eq = line.indexOf("=");
     if (eq < 1) continue;
     const key = line.slice(0, eq).trim();
-    const val = line.slice(eq + 1).trim();
-    if (!(key in process.env)) {
+    const val = normalizeValue(line.slice(eq + 1));
+    if (val && !(key in process.env)) {
       process.env[key] = val;
     }
   }
@@ -104,16 +120,16 @@ async function main(): Promise<void> {
   const rpcUrl = rpcSelection.rpcUrl;
 
   const programIdStr =
-    process.env.SHADOWPERP_PROGRAM_ID ||
-    process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID;
+    normalizeValue(process.env.SHADOWPERP_PROGRAM_ID) ||
+    normalizeValue(process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID);
   if (!programIdStr) {
     console.error("ERROR: No program ID found. Set SHADOWPERP_PROGRAM_ID or run deploy-devnet.ts first.");
     process.exit(1);
   }
 
   const marketStr =
-    process.env.SHADOWPERP_MARKET ||
-    process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT;
+    normalizeValue(process.env.SHADOWPERP_MARKET) ||
+    normalizeValue(process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT);
   if (!marketStr) {
     console.error("ERROR: No market account found. Set SHADOWPERP_MARKET or run deploy-devnet.ts first.");
     process.exit(1);

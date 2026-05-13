@@ -1,0 +1,103 @@
+# Arcium Docs
+
+> Arcium is the encrypted supercomputer on Solana, enabling trustless computation over fully encrypted data powered by MPC. Bring trustless privacy to any new or existing Solana application.
+
+Arcium mainnet-alpha is live on Solana mainnet. Building requires Rust (for Arcis circuits) and the Anchor framework (for Solana programs). The TypeScript client libraries are `@arcium-hq/client` and `@arcium-hq/reader`.
+
+## AI Agent Resources
+
+- [SKILL.md](https://docs.arcium.com/skill.md): Capabilities, code patterns, gotchas, and verification checklist for AI agents building on Arcium
+- [Full Documentation](https://docs.arcium.com/llms-full.txt): Complete inline documentation for full-context consumption
+- [TypeScript SDK API](https://ts.arcium.com/api): Client library API reference
+
+## Getting Started
+
+- [Overview of the Arcium Network](https://docs.arcium.com/index.md): What Arcium is, how encrypted computation works, and key benefits for developers
+- [Key Features & Use Cases](https://docs.arcium.com/introduction/key-features-and-use-cases.md): Confidential DeFi, secure AI, private gaming, and other application scenarios
+- [Basic Concepts](https://docs.arcium.com/introduction/basic-concepts.md): Core concepts: MPC, MXEs, Arx nodes, Clusters, and secret sharing
+- [Architecture Overview](https://docs.arcium.com/getting-started/architecture-overview.md): How MXEs, arxOS, Arcis, and Clusters fit together
+- [Network Stakeholders](https://docs.arcium.com/getting-started/network-stakeholders.md): Roles in the Arcium Network: Computation Customers, Arx Operators, and Delegators
+
+## Developer Guide
+
+Build and deploy confidential applications on Arcium. Start with Hello World, then explore encryption, deployment, and node setup.
+
+- [Intro to Arcium](https://docs.arcium.com/developers.md): What Arcium enables, common use cases, and a guided path from setup to deployment
+- [Hello World with Arcium](https://docs.arcium.com/developers/hello-world.md): Build your first encrypted circuit with Arcis (Rust), a Solana program, and TypeScript tests
+- [Installation](https://docs.arcium.com/developers/installation.md): Install the Arcium toolchain with arcup, including Rust, Solana CLI, and Anchor prerequisites
+- [Arcup Version Manager](https://docs.arcium.com/developers/installation/arcup.md): Install and manage Arcium toolchain versions with arcup
+- [Computation Lifecycle](https://docs.arcium.com/developers/computation-lifecycle.md): How computations flow from client encryption through MPC execution to callback
+- [Encryption Overview](https://docs.arcium.com/developers/encryption.md): How encryption works in Arcium: X25519 key exchange, Rescue cipher, and data protection
+- [Sealing (Re-encryption)](https://docs.arcium.com/developers/encryption/sealing.md): Re-encrypt data between parties using sealing patterns
+- [Deployment](https://docs.arcium.com/developers/deployment.md): Deploy your MXE to Solana with cluster configuration and RPC setup
+- [Node Setup](https://docs.arcium.com/developers/node-setup.md): Run an Arx node: hardware requirements and network registration
+- [Current Limitations](https://docs.arcium.com/developers/limitations.md): Output size limits, Arcis language constraints, and common error codes
+
+## Arcis Framework
+
+Arcis is a Rust-based framework for writing MPC circuits. Circuits define encrypted instructions that run across Arx node clusters without decrypting data.
+
+- [Arcis Overview](https://docs.arcium.com/developers/arcis.md): Introduction to Arcis and how it maps Rust to secure MPC circuits
+- [Thinking in MPC](https://docs.arcium.com/developers/arcis/mental-model.md): Why MPC circuits work differently from regular code -- both branches execute, loops must be fixed-size
+- [Types](https://docs.arcium.com/developers/arcis/types.md): Supported types: integers, floats, arrays, structs, and encrypted Enc types
+- [Input/Output](https://docs.arcium.com/developers/arcis/input-output.md): Working with Enc<Shared, T> and Enc<Mxe, T> for encrypted inputs and outputs
+- [Operations](https://docs.arcium.com/developers/arcis/operations.md): Complete reference for supported operations, expressions, and patterns
+- [Primitives](https://docs.arcium.com/developers/arcis/primitives.md): Random number generation, cryptographic operations, and data packing
+- [Best Practices](https://docs.arcium.com/developers/arcis/best-practices.md): Performance tips, debugging techniques, and testing strategies
+- [Quick Reference](https://docs.arcium.com/developers/arcis/quick-reference.md): Cheatsheet for Arcis syntax and patterns
+
+## Solana Program Integration
+
+Invoke encrypted computations from Solana programs via CPI. Requires the `#[arcium_program]` macro and Anchor framework.
+
+- [Invoking Computations](https://docs.arcium.com/developers/program.md): Invoke confidential computations from your Solana program using CPI
+- [Computation Definition Accounts](https://docs.arcium.com/developers/program/computation-def-accs.md): On-chain accounts that store compiled MPC circuits for execution
+- [Callback Accounts](https://docs.arcium.com/developers/program/callback-accs.md): Account structure and patterns for receiving computation results
+- [Callback Type Generation](https://docs.arcium.com/developers/program/callback-type-generation.md): Automatic type generation for callback outputs via .idarc files
+
+## JavaScript Client
+
+TypeScript libraries for client-side encryption, computation invocation, and result tracking.
+
+- [Client Library Overview](https://docs.arcium.com/developers/js-client-library.md): `@arcium-hq/client` and `@arcium-hq/reader` -- encrypting data, invoking computations, and tracking results
+- [Encrypting Inputs](https://docs.arcium.com/developers/js-client-library/encryption.md): Encrypt input data with RescueCipher for confidential computations
+- [Tracking Callbacks](https://docs.arcium.com/developers/js-client-library/callback.md): Track computation progress and handle callback results
+
+## Core Architecture
+
+How Arcium's network is structured: MXEs provide isolated execution environments, Clusters group Arx nodes for computation, and Solana handles coordination.
+
+- [MXE Overview](https://docs.arcium.com/multi-party-execution-environments-mxes/overview.md): MPC eXecution Environments: customizable environments for secure encrypted computation
+- [MPC Protocols](https://docs.arcium.com/multi-party-execution-environments-mxes/mpc-protocols.md): Cerberus (dishonest majority) and Manticore (honest but curious) security models
+- [MXE Encryption](https://docs.arcium.com/multi-party-execution-environments-mxes/mxe-encryption.md): MXE-level encryption protocols, data isolation, and configurable security parameters
+- [Clusters Overview](https://docs.arcium.com/clusters/overview.md): How Arx node clusters form, execute computations, and maintain security
+- [Node Priority & Selection](https://docs.arcium.com/clusters/node-priority-list-and-alternative-selection-criteria.md): Node priority ordering, backup activation, and alternative selection
+- [Cluster Forking & Migration](https://docs.arcium.com/clusters/cluster-forking-and-migration.md): How clusters activate, fork, and migrate nodes
+- [Sybil Resistance](https://docs.arcium.com/clusters/sybil-resistance.md): Sybil attack prevention using Proof of Stake
+- [Incentivization](https://docs.arcium.com/clusters/incentivization.md): Staking delegation, rewards distribution, and incentive alignment
+- [Permissioned Clusters](https://docs.arcium.com/clusters/permissioned-clusters.md): Fully-permissioned, partially-permissioned, and permissionless configurations
+- [Arx Node Overview](https://docs.arcium.com/arx-nodes/overview.md): Arx node metadata, jurisdiction, and registration
+- [Arx Node Configuration](https://docs.arcium.com/arx-nodes/configuration-and-security.md): Hardware declarations, keyshare management, and security considerations
+- [Arx Node Performance](https://docs.arcium.com/arx-nodes/performance-and-incentives.md): Performance metrics, reputation scoring, and incentive structures
+- [Computation Tasks](https://docs.arcium.com/computations/computation-tasks.md): Computation Units (CUs), task structure, and measurement
+- [Defining & Commissioning](https://docs.arcium.com/computations/defining-and-commissioning-computations.md): How to define computation blueprints and commission them for execution
+- [Computation Lifecycle](https://docs.arcium.com/computations/lifecycle-of-an-arcium-computation.md): From definition to commissioning, execution, and completion
+- [Pricing and Incentives](https://docs.arcium.com/computations/pricing-and-incentives.md): Base pricing, priority fee markets, and economic incentives
+- [Censorship Resistance](https://docs.arcium.com/computations/censorship-resistance-and-fault-handling.md): Fault tolerance and slashing mechanisms
+- [Solana Integration](https://docs.arcium.com/solana-integration-and-multichain-coordination/solana-integration-orchestration-and-execution.md): Onchain coordination, node management, and payment processing
+- [Multichain Expansion](https://docs.arcium.com/solana-integration-and-multichain-coordination/multichain-expansion.md): Roadmap for blockchain-agnostic support beyond Solana
+- [Staking](https://docs.arcium.com/staking/overview.md): Staking mechanics: activation, delegation, and rewards
+
+## Optional
+
+- [How To Use This Documentation](https://docs.arcium.com/getting-started/how-to-use-this-documentation.md): Recommended reading order and navigation guide
+- [Migration Overview](https://docs.arcium.com/developers/migration.md): Migration guides for upgrading between Arcium versions
+- [v0.8.0 to v0.9.x](https://docs.arcium.com/developers/migration/migration-v0.8.0-to-v0.9.0.md): CLI flag changes, mxe-keys merged into mxe-info, and Arcis improvements
+- [v0.7.0 to v0.8.0](https://docs.arcium.com/developers/migration/migration-v0.7.0-to-v0.8.0.md): Migration guide from Arcium v0.7.0 to v0.8.0
+- [v0.6.3 to v0.7.0](https://docs.arcium.com/developers/migration/migration-v0.6.3-to-v0.7.0.md): LUT support and tree-shaking changes
+- [v0.5.x to v0.6.3](https://docs.arcium.com/developers/migration/migration-v0.5-to-v0.6.md): Program redeploy required
+- [v0.4.x to v0.5.1](https://docs.arcium.com/developers/migration/migration-v0.4-to-v0.5.md): Migration guide from Arcium v0.4.x to v0.5.1
+- [v0.3.x to v0.4.0](https://docs.arcium.com/developers/migration/migration-v0.3-to-v0.4.md): Migration guide from Arcium v0.3.x to v0.4.0
+- [v0.2.x to v0.3.0](https://docs.arcium.com/developers/migration/migration-v0.2-to-v0.3.md): Migration guide from Arcium v0.2.x to v0.3.0
+- [v0.1.x to v0.2.0](https://docs.arcium.com/developers/migration/migration-v0.1-to-v0.2.md): Migration guide from Arcium v0.1.x to v0.2.0
+

@@ -128,3 +128,5 @@ Thumbs.db
 C*Usersbolaj/
 .vercel
 app/.vercel/
+.env*.local
+.vercel.bak-*/

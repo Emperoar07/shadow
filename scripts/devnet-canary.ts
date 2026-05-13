@@ -415,12 +415,19 @@ async function main(): Promise<void> {
     );
 
     const oraclePrice = BigInt(Math.max(1, Math.floor(oraclePriceRaw)));
+    const notionalUi = (marginAmountNum / 1_000_000) * 2; // 2x leverage on 1 USDC max
+    const sizeBaseRaw = BigInt(
+      Math.max(
+        1,
+        Math.round((notionalUi * 1_000_000_000) / (oraclePriceRaw / 1_000_000))
+      )
+    );
     const values = [
-      BigInt(Math.max(1, marginAmountNum * 2)), // size (u64, 6dp quote notional)
-      oraclePrice, // entry price
+      sizeBaseRaw, // size (u64, 9dp base size)
+      oraclePrice, // entry price (u64, 6dp)
       BigInt(2), // leverage (u8)
       BigInt(1), // is_long (bool)
-      BigInt(marginAmountNum), // margin
+      BigInt(marginAmountNum), // margin (u64, 6dp)
     ];
     const encryptedTuple = cipher.encrypt(values, nonceBytes) as unknown as Uint8Array[];
     const [encSize, encEntryPrice, encLeverage, encIsLong, encMargin] = encryptedTuple.map((buf) =>

@@ -68,10 +68,15 @@ export default function MarketTickerBar({
     };
   });
 
-  const movers = displayTickers
+  const positiveMovers = displayTickers
     .filter(({ change24h }) => change24h > 0)
     .sort((a, b) => b.change24h - a.change24h)
     .slice(0, 5);
+  const negativeMovers = displayTickers
+    .filter(({ change24h }) => change24h < 0)
+    .sort((a, b) => a.change24h - b.change24h)
+    .slice(0, 5);
+  const movers = positiveMovers.length > 0 ? positiveMovers : negativeMovers;
   const stripItems = movers.length > 0 ? [...movers, ...movers] : [];
 
   return (
@@ -115,9 +120,11 @@ export default function MarketTickerBar({
 
               {/* 24h change */}
               <span
-                className="text-[10px] font-semibold whitespace-nowrap text-accent-green"
+                className={`text-[10px] font-semibold whitespace-nowrap ${
+                  change24h >= 0 ? "text-accent-green" : "text-accent-red"
+                }`}
               >
-                +
+                {change24h > 0 ? "+" : ""}
                 {change24h.toFixed(2)}%
               </span>
             </button>
@@ -125,7 +132,7 @@ export default function MarketTickerBar({
               })}
             </div>
           ) : (
-            <p className="text-[11px] text-gray-500">No positive movers on the current feed yet.</p>
+            <p className="text-[11px] text-gray-500">No live movers on the current feed yet.</p>
           )}
         </div>
       </div>

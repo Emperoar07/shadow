@@ -41,14 +41,15 @@ function isConnectedSolanaWalletLike(value: unknown): value is ConnectedSolanaWa
 export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
   const { ready, authenticated, user } = usePrivy();
   const { wallet: activeWallet } = useActiveWallet();
-  const { wallets } = useWallets();
-  const { wallets: embeddedWallets } = useSolanaWallets();
+  const { ready: walletsReady, wallets } = useWallets();
+  const { ready: solanaWalletsReady, wallets: embeddedWallets } = useSolanaWallets();
 
   return useMemo(() => {
     // Wait for Privy to hydrate before picking a wallet. Otherwise an extension
     // auto-connect (shouldAutoConnect: true) wins the race against Privy's
     // session restore and hijacks email/embedded logins on refresh.
     if (!ready) return null;
+    if (!walletsReady || !solanaWalletsReady) return null;
 
     // No Privy session = logged out. If localStorage is cleared, authenticated
     // becomes false and we return null even if Phantom is still connected via
@@ -149,7 +150,7 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
     return embeddedWallets.find(
       (w) => w.walletClientType !== "privy" && typeof w.address === "string"
     ) ?? null;
-  }, [ready, authenticated, user, activeWallet, wallets, embeddedWallets]);
+  }, [ready, walletsReady, solanaWalletsReady, authenticated, user, activeWallet, wallets, embeddedWallets]);
 }
 
 export function useWalletConnectionState() {

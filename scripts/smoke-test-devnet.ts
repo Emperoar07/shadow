@@ -50,6 +50,22 @@ const DEFAULT_MARKET_ACCOUNT = "AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ";
 const DEFAULT_ARCIUM_PROGRAM_ID = "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ";
 const DEFAULT_CLUSTER_OFFSET = 456;
 
+function normalizeValue(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  let out = raw.trim();
+  if (!out) return undefined;
+  if (out.startsWith("<") && out.endsWith(">")) {
+    out = out.slice(1, -1).trim();
+  }
+  if (
+    (out.startsWith('"') && out.endsWith('"')) ||
+    (out.startsWith("'") && out.endsWith("'"))
+  ) {
+    out = out.slice(1, -1).trim();
+  }
+  return out || undefined;
+}
+
 function loadEnvFile(filePath: string): void {
   if (!fs.existsSync(filePath)) return;
   const raw = fs.readFileSync(filePath, "utf8");
@@ -59,8 +75,8 @@ function loadEnvFile(filePath: string): void {
     const idx = trimmed.indexOf("=");
     if (idx <= 0) continue;
     const key = trimmed.slice(0, idx).trim();
-    const value = trimmed.slice(idx + 1).trim();
-    if (key && !(key in process.env)) {
+    const value = normalizeValue(trimmed.slice(idx + 1));
+    if (key && value && !(key in process.env)) {
       process.env[key] = value;
     }
   }
@@ -70,24 +86,24 @@ loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"));
 
 const PROGRAM_ID = new PublicKey(
   readArg("program") ||
-    process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
-    process.env.SHADOWPERP_PROGRAM_ID ||
+    normalizeValue(process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID) ||
+    normalizeValue(process.env.SHADOWPERP_PROGRAM_ID) ||
     DEFAULT_PROGRAM_ID
 );
 const MARKET_ACCOUNT = new PublicKey(
   readArg("market") ||
-    process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT ||
-    process.env.SHADOWPERP_MARKET ||
+    normalizeValue(process.env.NEXT_PUBLIC_SHADOWPERP_MARKET_ACCOUNT) ||
+    normalizeValue(process.env.SHADOWPERP_MARKET) ||
     DEFAULT_MARKET_ACCOUNT
 );
 const ARCIUM_PROGRAM_ID = new PublicKey(
   readArg("arcium-program") ||
-    process.env.NEXT_PUBLIC_ARCIUM_PROGRAM_ID ||
+    normalizeValue(process.env.NEXT_PUBLIC_ARCIUM_PROGRAM_ID) ||
     DEFAULT_ARCIUM_PROGRAM_ID
 );
 const CLUSTER_OFFSET = Number(
   readArg("cluster-offset") ||
-    process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET ||
+    normalizeValue(process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET) ||
     DEFAULT_CLUSTER_OFFSET
 );
 
@@ -442,9 +458,10 @@ async function main() {
         const sharedSecret = x25519.getSharedSecret(privKey, mxePubkey!);
         const cipher = new RescueCipher(sharedSecret);
 
-        // Encrypt position: size=1 SOL, entry=oracle price, leverage=2x, long=true, margin=1 USDC
+        // Encrypt a tiny base-asset position:
+        // size is 9dp base size, prices are 6dp, margin is 6dp.
         const margin = new anchor.BN(1_000_000); // 1 USDC
-        const size = BigInt(1_000_000); // 1 unit
+        const size = BigInt(1_000_000); // 0.001 base units
         const entryPrice = BigInt(market.oraclePrice.toString());
         const leverage = BigInt(2);
         const isLong = BigInt(1);

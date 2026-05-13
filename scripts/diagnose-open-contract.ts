@@ -484,8 +484,11 @@ async function main(): Promise<void> {
   const marketAccount = await (program.account as any).market.fetch(market);
   const oraclePrice = Number(marketAccount.oraclePrice);
   const requestedMargin = new anchor.BN(1_000_000);
-  const size = BigInt(2_000_000);
   const entryPrice = BigInt(oraclePrice);
+  const notionalUi = (Number(requestedMargin.toString()) / 1_000_000) * 2;
+  const size = BigInt(
+    Math.max(1, Math.round((notionalUi * 1_000_000_000) / (oraclePrice / 1_000_000)))
+  );
   const leverage = BigInt(2);
   const isLong = BigInt(1);
   const margin = BigInt(requestedMargin.toString());

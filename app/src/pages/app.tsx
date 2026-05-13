@@ -712,10 +712,11 @@ function clearWalletRestoreHint() {
 
 function ConnectWalletButton() {
   const { ready, authenticated, logout, login, user, getAccessToken } = usePrivy();
-  const { wallets } = useWallets();
-  const { wallets: solanaWallets, exportWallet } = useSolanaWallets();
+  const { ready: walletsReady, wallets } = useWallets();
+  const { ready: solanaWalletsReady, wallets: solanaWallets, exportWallet } = useSolanaWallets();
   const { address: connectedAddress } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
+  const walletHooksReady = walletsReady && solanaWalletsReady;
 
   // Wire Privy bearer token into the gas sponsor path.
   useEffect(() => {
@@ -737,6 +738,7 @@ function ConnectWalletButton() {
   // Notify once when wallet first becomes connected this session.
   const prevConnectedRef = useRef(false);
   useEffect(() => {
+    if (!walletHooksReady) return;
     const resolvedAddr = connectedAddress ?? solanaWallets.find((w) => w.walletClientType === "privy")?.address ?? null;
     const isNowConnected = !!resolvedAddr;
     if (isNowConnected && !prevConnectedRef.current) {
@@ -744,7 +746,7 @@ function ConnectWalletButton() {
       toast.success(`Wallet connected: ${short}`, { duration: 3500 });
     }
     prevConnectedRef.current = isNowConnected;
-  }, [connectedAddress, solanaWallets]);
+  }, [connectedAddress, solanaWallets, walletHooksReady]);
 
   const handlePrivyLogin = useCallback(() => {
     setOpen(false);
@@ -827,7 +829,8 @@ function ConnectWalletButton() {
   // strong evidence a wallet existed previously).
   const hasStrongRestoreEvidence = Boolean(hasLinkedSolanaWallet || restoreHintMatchesUser);
   const shouldRestoreWallet = authenticated && !isConnected;
-  const shouldAutoRecoverWallet = shouldRestoreWallet && hasStrongRestoreEvidence;
+  const shouldAutoRecoverWallet =
+    shouldRestoreWallet && (hasStrongRestoreEvidence || isEmbeddedLoginUser);
   const isProvisioningEmbeddedWallet = shouldRestoreWallet && isEmbeddedLoginUser && !hasStrongRestoreEvidence;
 
   useEffect(() => {
@@ -839,7 +842,10 @@ function ConnectWalletButton() {
 
   // Authenticated but wallet hooks still hydrating: keep prior sessions in auto-restore mode.
   useEffect(() => {
-    if (!authenticated || isConnected) { setHydrationTimedOut(false); return; }
+    if (!authenticated || isConnected || !walletHooksReady) {
+      setHydrationTimedOut(false);
+      return;
+    }
     // Longer budget when we have strong evidence a wallet existed before (linked
     // account or localStorage hint). Baseline 10s is enough for a normal embedded-wallet
     // rehydrate on a warm Privy session after refresh. Fresh email logins can
@@ -848,10 +854,10 @@ function ConnectWalletButton() {
     const timeoutMs = hasStrongRestoreEvidence ? 20000 : 45000;
     const t = setTimeout(() => setHydrationTimedOut(true), timeoutMs);
     return () => clearTimeout(t);
-  }, [authenticated, isConnected, hasStrongRestoreEvidence]);
+  }, [authenticated, isConnected, hasStrongRestoreEvidence, walletHooksReady]);
 
   useEffect(() => {
-    if (!hydrationTimedOut || !shouldAutoRecoverWallet || autoRecoveryRunning) return;
+    if (!walletHooksReady || !hydrationTimedOut || !shouldAutoRecoverWallet || autoRecoveryRunning) return;
     const recoveryKey = `${WALLET_AUTO_RECOVERY_KEY}:${user?.id ?? restoreHint?.address ?? "unknown"}`;
     try {
       if (window.sessionStorage.getItem(recoveryKey) === "1") {
@@ -863,7 +869,12 @@ function ConnectWalletButton() {
     } catch {
       // If sessionStorage is unavailable, still try once for this component instance.
     }
-    toast.loading("Restoring wallet session...", { id: "wallet-recovery" });
+    toast.loading(
+      isProvisioningEmbeddedWallet
+        ? "Finishing secure sign-in..."
+        : "Restoring wallet session...",
+      { id: "wallet-recovery" }
+    );
     void handleRecoverWalletSession().finally(() => {
       toast.dismiss("wallet-recovery");
     });
@@ -871,10 +882,12 @@ function ConnectWalletButton() {
     autoRecoveryRunning,
     handleRecoverWalletSession,
     hydrationTimedOut,
+    isProvisioningEmbeddedWallet,
     logout,
     restoreHint?.address,
     shouldAutoRecoverWallet,
     user?.id,
+    walletHooksReady,
   ]);
 
   useEffect(() => {
@@ -887,7 +900,7 @@ function ConnectWalletButton() {
   }, [open]);
 
   if (!mounted) return null;
-  if (!ready) return (
+  if (!ready || !walletHooksReady) return (
     <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
   );
 
@@ -896,23 +909,6 @@ function ConnectWalletButton() {
   if (isHydrating || autoRecoveryRunning || shouldAutoRecoverWallet) return (
     <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
   );
-
-  if (hydrationTimedOut && isProvisioningEmbeddedWallet) {
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          toast.loading("Retrying email wallet setup...", { id: "wallet-recovery" });
-          void handleRecoverWalletSession().finally(() => {
-            toast.dismiss("wallet-recovery");
-          });
-        }}
-        className="rounded border border-yellow-500/40 bg-yellow-500/10 px-3 py-1.5 text-[11px] font-medium text-yellow-200 hover:bg-yellow-500/15 transition-colors"
-      >
-        Finish sign-in
-      </button>
-    );
-  }
 
   if (isConnected) {
     const short = `${addr!.slice(0, 4)}...${addr!.slice(-4)}`;
