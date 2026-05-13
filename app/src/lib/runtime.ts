@@ -106,6 +106,22 @@ function normalizeRpcUrl(raw?: string): string | null {
   return value || null;
 }
 
+function normalizeEnvValue(raw?: string): string | null {
+  if (!raw) return null;
+  let value = raw.trim();
+  if (!value) return null;
+  if (value.startsWith("<") && value.endsWith(">")) {
+    value = value.slice(1, -1).trim();
+  }
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+  return value || null;
+}
+
 function parseRpcList(raw?: string): string[] {
   const normalized = normalizeRpcUrl(raw);
   if (!normalized) return [];
@@ -148,27 +164,11 @@ export function isRpcUrlAllowedForExpectedCluster(rpcUrl: string): boolean {
 }
 
 function parsePublicKey(name: string, fallback?: string): PublicKey {
-  const normalize = (value?: string): string | undefined => {
-    if (!value) return undefined;
-    let out = value.trim();
-    if (!out) return undefined;
-    if (out.startsWith("<") && out.endsWith(">")) {
-      out = out.slice(1, -1).trim();
-    }
-    if (
-      (out.startsWith('"') && out.endsWith('"')) ||
-      (out.startsWith("'") && out.endsWith("'"))
-    ) {
-      out = out.slice(1, -1).trim();
-    }
-    return out || undefined;
-  };
-
-  const envValue = normalize(process.env[name]);
+  const envValue = normalizeEnvValue(process.env[name]) ?? undefined;
   const raw =
     envValue && envValue.length > 0 && !LEGACY_DEVNET_VALUES.has(envValue)
       ? envValue
-      : normalize(fallback);
+      : normalizeEnvValue(fallback) ?? undefined;
   if (!raw) {
     throw new Error(
       `Missing required env var: ${name}. ` +
@@ -208,7 +208,9 @@ export function getRuntimeConfig(): ShadowPerpConfig {
     ARCIUM_ADDR
   );
 
-  const clusterOffsetRaw = process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET?.trim();
+  const clusterOffsetRaw = normalizeEnvValue(
+    process.env.NEXT_PUBLIC_ARCIUM_CLUSTER_OFFSET
+  );
   const clusterOffset = clusterOffsetRaw
     ? Number.parseInt(clusterOffsetRaw, 10)
     : DEFAULT_CLUSTER_OFFSET;

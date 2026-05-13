@@ -21,7 +21,26 @@ import {
 
 import "../styles/globals.css";
 
-const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
+function normalizeEnvValue(raw?: string): string {
+  if (!raw) return "";
+  let value = raw.trim();
+  if (!value) return "";
+  if (value.startsWith("<") && value.endsWith(">")) {
+    value = value.slice(1, -1).trim();
+  }
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+  return value;
+}
+
+const PRIVY_APP_ID = normalizeEnvValue(process.env.NEXT_PUBLIC_PRIVY_APP_ID);
+const WALLETCONNECT_PROJECT_ID = normalizeEnvValue(
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+);
 
 if (typeof window !== "undefined" && !(globalThis as any).Buffer) {
   (globalThis as any).Buffer = Buffer;
@@ -166,7 +185,7 @@ export default function App({ Component, pageProps }: AppProps) {
         ],
       },
       walletConnectCloudProjectId:
-        process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+        WALLETCONNECT_PROJECT_ID || undefined,
       loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
