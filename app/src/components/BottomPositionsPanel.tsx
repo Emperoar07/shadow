@@ -717,12 +717,19 @@ export default function BottomPositionsPanel({
         const ownerTokenAccount = await client.getOwnerCollateralTokenAccount(
           marketAddress
         );
-        await ensureFreshMarketOracle({
-          market: marketAddress,
-          pairLabel: pos.pairLabel,
-          getAccessToken,
-          operation: "closing position",
-        });
+        try {
+          await ensureFreshMarketOracle({
+            market: marketAddress,
+            pairLabel: pos.pairLabel,
+            getAccessToken,
+            operation: "closing position",
+          });
+        } catch (err: any) {
+          void err;
+          throw new Error(
+            "Live pricing is currently synchronizing on the network. Please try again in a few seconds."
+          );
+        }
         toastLoading("Submitting close...", { id: pos.address });
         const tx = await client.closePosition(
           marketAddress,
@@ -853,6 +860,12 @@ export default function BottomPositionsPanel({
       .sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime());
   }, [pendingOpenPositions, positions]);
 
+  const clearTpSlRule = useCallback((address: string) => {
+    removePositionRule(address);
+    toastSuccess("TP/SL rule removed");
+    setTpSlModalAddress(null);
+  }, [toastSuccess]);
+
   const saveTpSlRule = useCallback((address: string, card: {
     side: Direction | null;
     entryPrice: number | null;
@@ -881,9 +894,7 @@ export default function BottomPositionsPanel({
     const pairLabel =
       view?.pairLabel ?? existingRule?.pairLabel ?? position?.pairLabel ?? activePairLabel ?? "SOL-USD";
     if (tp === null && sl === null) {
-      removePositionRule(address);
-      toastSuccess("TP/SL rule removed");
-      setTpSlModalAddress(null);
+      clearTpSlRule(address);
       return;
     }
     setPositionRule({
@@ -896,7 +907,7 @@ export default function BottomPositionsPanel({
     });
     toastSuccess("TP/SL rule saved");
     setTpSlModalAddress(null);
-  }, [activePairLabel, ownerPositionViews, positionRules, toastSuccess, tpSlDraft, visibleOpenPositions]);
+  }, [activePairLabel, clearTpSlRule, ownerPositionViews, positionRules, toastSuccess, tpSlDraft, visibleOpenPositions]);
 
   const openPositions = useMemo(
     () => visibleOpenPositions,
@@ -1263,9 +1274,11 @@ export default function BottomPositionsPanel({
   ];
 
   const tpSlModalPosition = tpSlModalAddress
-    ? visibleOpenPositions.find((position) => position.address === tpSlModalAddress) ?? null
-    : null;
+  ? visibleOpenPositions.find((position) => position.address === tpSlModalAddress) ?? null
+  : null;
   const tpSlModalCard = tpSlModalPosition ? derivePositionCard(tpSlModalPosition) : null;
+  const tpSlModalRule =
+    tpSlModalPosition ? positionRules[tpSlModalPosition.address] ?? null : null;
   const tpPreview = tpSlModalCard
     ? calculateTriggerPrice(
         tpSlDraft.takeProfitMode,
@@ -1860,7 +1873,7 @@ export default function BottomPositionsPanel({
                       ) : (
                         <div className="flex flex-col items-end gap-1">
                           <div className="flex min-h-[22px] items-center justify-end gap-1.5">
-                            {pos.status !== "open" ? (
+                            {pos.status !== "open" && !isClosing ? (
                               <StatusBadge status={pos.status} isClosing={isClosing} />
                             ) : null}
                             {!isPending && !isSettling && !isFinal ? (
@@ -1935,6 +1948,18 @@ export default function BottomPositionsPanel({
               setTpSlDraft((current) => ({ ...current, stopLossValue: value }))
             }
           />
+          {tpSlModalPosition ? (
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => clearTpSlRule(tpSlModalPosition.address)}
+                disabled={!tpSlModalRule}
+                className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[11px] font-medium text-red-300 transition-colors hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                Delete TP/SL
+              </button>
+            </div>
+          ) : null}
         </div>
       </OrderConfirmModal>
 

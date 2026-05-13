@@ -9,9 +9,14 @@ use crate::ID_CONST;
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
 
+use arcium_anchor::traits::CallbackCompAccs;
+use arcium_client::idl::arcium::types::CallbackAccount;
+use crate::handlers::callbacks::close_position_callback::ClosePositionV3Callback;
+
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{
-    MarginAccount, Market, Position, TpSlOrder, TpSlOrderCancelled,
+    MarginAccount, Market, Position, PositionStatus, TpSlOrder, TpSlOrderCancelled, TpSlOrderSet,
+    TpSlTriggered,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,8 +66,25 @@ pub fn set_tpsl_handler(
     sl_price: u64,
     is_long: bool,
 ) -> Result<()> {
-    let _ = (&ctx, tp_price, sl_price, is_long);
-    err!(ShadowPerpError::TpSlPrivateDirectionUnsupported)
+    let tpsl = &mut ctx.accounts.tpsl_order;
+    tpsl.position = ctx.accounts.position.key();
+    tpsl.owner = ctx.accounts.owner.key();
+    tpsl.market = ctx.accounts.market.key();
+    tpsl.tp_price = tp_price;
+    tpsl.sl_price = sl_price;
+    tpsl.is_long = if is_long { TpSlOrder::IS_LONG_LONG } else { TpSlOrder::IS_LONG_SHORT };
+    tpsl.active = true;
+    tpsl.bump = ctx.bumps.tpsl_order;
+
+    emit!(TpSlOrderSet {
+        position: tpsl.position,
+        owner: tpsl.owner,
+        tp_price,
+        sl_price,
+        is_long,
+    });
+
+    Ok(())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -202,6 +224,140 @@ pub fn trigger_tpsl_handler(
     ctx: Context<TriggerTpSl>,
     computation_offset: u64,
 ) -> Result<()> {
-    let _ = (&ctx, computation_offset);
-    err!(ShadowPerpError::TpSlPrivateDirectionUnsupported)
+    require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
+    ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+
+    let clock = Clock::get()?;
+    let market = &ctx.accounts.market;
+    let margin_account_key = ctx.accounts.margin_account.key();
+    let mxe_account = ctx.accounts.mxe_account.clone();
+    let computation_account_key = ctx.accounts.computation_account.key();
+
+    let (position_key, position_owner, mark_price, trigger_type, trigger_price, args) = {
+        let position = &mut ctx.accounts.position;
+        let tpsl_order = &mut ctx.accounts.tpsl_order;
+
+        require!(tpsl_order.active, ShadowPerpError::TpSlNotActive);
+        require!(position.status == PositionStatus::Open, ShadowPerpError::PositionNotOpen);
+
+        let price_age = clock.unix_timestamp.saturating_sub(market.last_price_update);
+        require!(price_age < 300, ShadowPerpError::StalePrice);
+        require!(market.oracle_price > 0, ShadowPerpError::InvalidPrice);
+
+        let mark_price = market.effective_mark_price_at(clock.unix_timestamp);
+        let is_long = tpsl_order.is_long == crate::state::TpSlOrder::IS_LONG_LONG;
+
+        let mut triggered = false;
+        let mut trigger_type = 0u8;
+
+        if is_long {
+            if tpsl_order.tp_price > 0 && mark_price >= tpsl_order.tp_price {
+                triggered = true;
+                trigger_type = 1;
+            } else if tpsl_order.sl_price > 0 && mark_price <= tpsl_order.sl_price {
+                triggered = true;
+                trigger_type = 2;
+            }
+        } else {
+            if tpsl_order.tp_price > 0 && mark_price <= tpsl_order.tp_price {
+                triggered = true;
+                trigger_type = 1;
+            } else if tpsl_order.sl_price > 0 && mark_price >= tpsl_order.sl_price {
+                triggered = true;
+                trigger_type = 2;
+            }
+        }
+
+        require!(triggered, ShadowPerpError::TpSlNotTriggered);
+
+        tpsl_order.active = false;
+
+        position.status = PositionStatus::Closing;
+        position.begin_pending_computation(
+            computation_account_key,
+            Position::CALLBACK_KIND_CLOSE,
+            computation_offset,
+        )?;
+
+        let nonce = u128::from_le_bytes(position.nonce);
+        let encrypted_size: [u8; 32] = position.encrypted_data[0..32]
+            .try_into()
+            .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+        let encrypted_entry_price: [u8; 32] = position.encrypted_data[32..64]
+            .try_into()
+            .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+        let encrypted_leverage: [u8; 32] = position.encrypted_data[64..96]
+            .try_into()
+            .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+        let encrypted_is_long: [u8; 32] = position.encrypted_data[96..128]
+            .try_into()
+            .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+        let encrypted_margin: [u8; 32] = position.encrypted_data[128..160]
+            .try_into()
+            .map_err(|_| error!(ShadowPerpError::InvalidAccountData))?;
+
+        let args = ArgBuilder::new()
+            .x25519_pubkey(position.client_pubkey)
+            .plaintext_u128(nonce)
+            .encrypted_u64(encrypted_size)
+            .encrypted_u64(encrypted_entry_price)
+            .encrypted_u8(encrypted_leverage)
+            .encrypted_u8(encrypted_is_long)
+            .encrypted_u64(encrypted_margin)
+            .plaintext_u64(mark_price)
+            .plaintext_u64(u64::from(market.trading_fee))
+            .build();
+
+        let trigger_price = if trigger_type == 1 {
+            tpsl_order.tp_price
+        } else {
+            tpsl_order.sl_price
+        };
+
+        (
+            position.key(),
+            position.owner,
+            mark_price,
+            trigger_type,
+            trigger_price,
+            args,
+        )
+    };
+
+    let callback_accounts = vec![
+        CallbackAccount {
+            pubkey: position_key,
+            is_writable: true,
+        },
+        CallbackAccount {
+            pubkey: market.key(),
+            is_writable: true,
+        },
+        CallbackAccount {
+            pubkey: margin_account_key,
+            is_writable: true,
+        },
+    ];
+
+    let callback_ix =
+        ClosePositionV3Callback::callback_ix(computation_offset, &mxe_account, &callback_accounts)?;
+
+    queue_computation(
+        ctx.accounts,
+        computation_offset,
+        args,
+        vec![callback_ix],
+        1,
+        0,
+    )?;
+
+    emit!(TpSlTriggered {
+        position: position_key,
+        owner: position_owner,
+        trigger_type,
+        trigger_price,
+        mark_price,
+    });
+
+    Ok(())
 }

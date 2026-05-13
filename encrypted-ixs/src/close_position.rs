@@ -28,20 +28,22 @@ mod close_position_circuit {
     ) -> (i64, u64, u64, u64) {
         let pos = position.to_arcis();
 
-        let entry = pos.1 as i64;
-        let price_delta = exit_price as i64 - entry;
-        let direction: i64 = if pos.3 != 0 { 1 } else { -1 };
+        let size = pos.0 as u128;
+        let entry = pos.1 as i128;
+        let exit_price_i128 = exit_price as i128;
+        let price_delta = exit_price_i128 - entry;
+        let direction: i128 = if pos.3 != 0 { 1 } else { -1 };
 
-        // Stay in i64/u64 throughout — no u128/i128 intermediates.
-        // Pre-divide size by 1e3 and price by 1e6 before multiplying so the
-        // product (size * price / 1e9) stays within u64/i64 range.
-        // Equivalent to the original BASE_SCALE=1e9 division but cast-free.
-        let size_reduced = (pos.0 / 1_000) as i64;
-        let realized_pnl = size_reduced * (price_delta / 1_000_000) * direction;
+        // size is stored at 1e9 precision and prices at 1e6 precision.
+        // Multiplying in 128-bit space preserves the full 1e6-scaled pnl.
+        let realized_pnl_i128 =
+            (size as i128 * price_delta * direction) / 1_000_000_000i128;
+        let realized_pnl = realized_pnl_i128 as i64;
 
-        // Fee: position_value = size/1e3 * exit_price/1e6 (= size*price/1e9)
-        let position_value: u64 = (pos.0 / 1_000) * (exit_price / 1_000_000);
-        let fee: u64 = position_value * trading_fee_bps / 10_000;
+        let position_value = size * (exit_price as u128);
+        let fee_u128 =
+            (position_value * (trading_fee_bps as u128)) / 10_000_000_000_000u128;
+        let fee = fee_u128 as u64;
 
         // Settlement = margin + pnl - fees (clamped to 0)
         let margin_i64 = pos.4 as i64;

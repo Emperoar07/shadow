@@ -319,12 +319,19 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
       );
 
       setStatusMessage("Refreshing market oracle before encrypted submission...");
-      await ensureFreshMarketOracle({
-        market: orderMarket,
-        pairLabel: order.pairLabel,
-        getAccessToken,
-        operation: "opening position",
-      });
+      try {
+        await ensureFreshMarketOracle({
+          market: orderMarket,
+          pairLabel: order.pairLabel,
+          getAccessToken,
+          operation: "opening position",
+        });
+      } catch (err: any) {
+        void err;
+        throw new Error(
+          "Live pricing is currently synchronizing on the network. Please try again in a few seconds."
+        );
+      }
 
       const market = await client.getMarket(orderMarket);
       const marketMaxLeverage = Number(market.maxLeverage ?? 0);

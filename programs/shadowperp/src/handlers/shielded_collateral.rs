@@ -327,9 +327,6 @@ pub fn request_withdraw_private_handler(
     ctx: Context<RequestWithdrawPrivate>,
     nullifier: [u8; 32],
     amount: u64,
-pub fn request_withdraw_private_handler(
-    ctx: Context<RequestWithdrawPrivate>,
-    computation_offset: u64,
 ) -> Result<()> {
 
     require!(amount > 0, ShadowPerpError::ZeroAmount);
@@ -1072,9 +1069,9 @@ pub fn settle_private_position_handler(
     //   position: Enc<Shared, (u64, u64, u8, bool, u64)>,  // (size, entry_price, leverage, is_long, locked_margin)
     //   exit_price: u64,
     //   trading_fee_bps: u64,
-    //   remaining_balance: Enc<Shared, u64>,
+    //   remaining_balance_and_secret: Enc<Shared, (u64, u64)>,
     // )
-    require!(encrypted_payload.len() >= 192, ShadowPerpError::InvalidAccountData);
+    require!(encrypted_payload.len() >= 224, ShadowPerpError::InvalidAccountData);
 
     let mut enc_size = [0u8; 32];
     let mut enc_entry_price = [0u8; 32];
@@ -1082,12 +1079,14 @@ pub fn settle_private_position_handler(
     let mut enc_is_long = [0u8; 32];
     let mut enc_locked_margin = [0u8; 32];
     let mut enc_remaining_balance = [0u8; 32];
+    let mut enc_commitment_secret = [0u8; 32];
     enc_size.copy_from_slice(&encrypted_payload[0..32]);
     enc_entry_price.copy_from_slice(&encrypted_payload[32..64]);
     enc_leverage.copy_from_slice(&encrypted_payload[64..96]);
     enc_is_long.copy_from_slice(&encrypted_payload[96..128]);
     enc_locked_margin.copy_from_slice(&encrypted_payload[128..160]);
     enc_remaining_balance.copy_from_slice(&encrypted_payload[160..192]);
+    enc_commitment_secret.copy_from_slice(&encrypted_payload[192..224]);
 
     let args = ArgBuilder::new()
         // position: Enc<Shared, (u64, u64, u8, u8, u64)>
@@ -1102,10 +1101,11 @@ pub fn settle_private_position_handler(
         .plaintext_u64(exit_price)
         // trading_fee_bps: plaintext (from market state, NOT caller-supplied)
         .plaintext_u64(u64::from(trading_fee_bps))
-        // remaining_balance: Enc<Shared, u64> — separate Shared group needs its own pubkey+nonce
+        // remaining_balance_and_secret: Enc<Shared, (u64, u64)> — separate Shared group needs its own pubkey+nonce
         .x25519_pubkey(balance_client_pubkey)
         .plaintext_u128(balance_nonce)
         .encrypted_u64(enc_remaining_balance)
+        .encrypted_u64(enc_commitment_secret)
         .build();
 
     // Build callback accounts

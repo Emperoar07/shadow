@@ -212,11 +212,27 @@ export class ShadowPerpClient {
    * to derive a shared secret used for Rescue cipher encryption.
    */
   async initializeEncryption(): Promise<void> {
-    // Generate ephemeral client keypair for x25519 key exchange
+    // ⚡ OPTIMIZATION: Shared Rescue Keys Caching
+    // Try to load cached ephemeral keys to avoid RPC latency penalty on every trade.
+    if (typeof window !== "undefined") {
+      const cachedPriv = localStorage.getItem("shadowperp:arcium:privkey");
+      const cachedSecret = localStorage.getItem("shadowperp:arcium:sharedsecret");
+
+      if (cachedPriv && cachedSecret) {
+        // Cache hit: Initialize in 0ms without RPC call
+        this.clientPrivateKey = new Uint8Array(Buffer.from(cachedPriv, "hex"));
+        this.clientPublicKey = x25519.getPublicKey(this.clientPrivateKey);
+        this.sharedSecret = new Uint8Array(Buffer.from(cachedSecret, "hex"));
+        this.cipher = new RescueCipher(this.sharedSecret);
+        return; // Skip RPC latency entirely
+      }
+    }
+
+    // Cache miss: Generate new ephemeral keypair
     this.clientPrivateKey = this.generateClientPrivateKey();
     this.clientPublicKey = x25519.getPublicKey(this.clientPrivateKey);
 
-    // Fetch MXE cluster public key from on-chain account
+    // Fetch MXE cluster public key from on-chain account (RPC call)
     const mxePublicKey = await this.getMXEPublicKey();
 
     // Derive shared secret via ECDH
@@ -227,6 +243,18 @@ export class ShadowPerpClient {
 
     // Initialize Rescue cipher with derived shared secret
     this.cipher = new RescueCipher(this.sharedSecret);
+
+    // Persist keys to localStorage for subsequent trades on this session
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "shadowperp:arcium:privkey",
+        Buffer.from(this.clientPrivateKey).toString("hex")
+      );
+      localStorage.setItem(
+        "shadowperp:arcium:sharedsecret",
+        Buffer.from(this.sharedSecret).toString("hex")
+      );
+    }
   }
 
   /**

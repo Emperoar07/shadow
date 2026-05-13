@@ -59,7 +59,7 @@ pub struct SettlePrivatePositionCallback<'info> {
 }
 
 /// Handler for the settle_private_position callback.
-/// Circuit returns (i64, u64, u64, Enc<Mxe, u64>): (realized_pnl, settlement_amount, fee, enc_new_balance).
+/// Circuit returns (realized_pnl, settlement_amount, fee, new_commitment_lo).
 pub fn settle_private_position_callback_handler(
     ctx: Context<SettlePrivatePositionCallback>,
     output: SignedComputationOutputs<SettlePrivatePositionOutput>,
@@ -102,11 +102,11 @@ pub fn settle_private_position_callback_handler(
         ShadowPerpError::InvalidAccountData
     );
 
-    // Extract circuit outputs: (realized_pnl, settlement_amount, fee, enc_new_balance)
+    // Extract circuit outputs: (realized_pnl, settlement_amount, fee, new_commitment_lo)
     let _realized_pnl = verified_output.field_0.field_0;
     let settlement_amount = verified_output.field_0.field_1;
     let fee = verified_output.field_0.field_2;
-    let enc_new_balance = verified_output.field_0.field_3.ciphertexts[0];
+    let new_commitment_lo = verified_output.field_0.field_3;
 
     // Collect trading fees
     market.total_fees_collected = market
@@ -114,10 +114,13 @@ pub fn settle_private_position_callback_handler(
         .checked_add(fee)
         .ok_or(ShadowPerpError::ArithmeticOverflow)?;
 
-    // Update the commitment to reflect the new shielded balance using the ciphertext.
+    // Expand the additive-binding commitment scalar into the 32-byte payload
+    // used by the on-chain commitment tree.
+    let mut commitment_bytes = [0u8; 32];
+    commitment_bytes[..8].copy_from_slice(&new_commitment_lo.to_le_bytes());
     let new_commitment = CommitmentTree::compute_next_root(
         &margin_ref.commitment,
-        &enc_new_balance,
+        &commitment_bytes,
     );
     let new_root = CommitmentTree::compute_next_root(&pool.tree_root, &new_commitment);
     tree.push_root(new_root);

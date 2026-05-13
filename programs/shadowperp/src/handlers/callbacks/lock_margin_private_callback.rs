@@ -51,7 +51,7 @@ pub struct LockMarginPrivateCallback<'info> {
 }
 
 /// Handler for the lock_margin_private callback.
-/// Circuit returns (bool, Enc<Mxe, u64>, u64): (valid, enc_new_balance, locked_margin).
+/// Circuit returns (valid, new_commitment_lo, locked_margin).
 pub fn lock_margin_private_callback_handler(
     ctx: Context<LockMarginPrivateCallback>,
     output: SignedComputationOutputs<LockMarginPrivateOutput>,
@@ -81,21 +81,21 @@ pub fn lock_margin_private_callback_handler(
         ShadowPerpError::InvalidAccountData
     );
 
-    // Extract circuit outputs: (valid, enc_new_balance, locked_margin)
+    // Extract circuit outputs: (valid, new_commitment_lo, locked_margin)
     let valid = verified_output.field_0.field_0;
-
-    // Read the 32-byte ciphertext instead of a plaintext u64
-    let enc_new_balance = verified_output.field_0.field_1.ciphertexts[0];
+    let new_commitment_lo = verified_output.field_0.field_1;
     let locked_margin = verified_output.field_0.field_2;
 
     require!(valid, ShadowPerpError::InvalidComputationResult);
     require!(locked_margin > 0, ShadowPerpError::InsufficientMargin);
 
-    // Update the commitment tree with a new root reflecting the balance change.
-    // FIX: We now hash the ciphertext directly to maintain privacy!
+    // Expand the additive-binding commitment scalar into the 32-byte payload
+    // used by the on-chain commitment tree.
+    let mut commitment_bytes = [0u8; 32];
+    commitment_bytes[..8].copy_from_slice(&new_commitment_lo.to_le_bytes());
     let new_commitment = CommitmentTree::compute_next_root(
         &margin_ref.commitment,
-        &enc_new_balance,
+        &commitment_bytes,
     );
     let new_root = CommitmentTree::compute_next_root(&pool.tree_root, &new_commitment);
     tree.push_root(new_root);
@@ -108,9 +108,8 @@ pub fn lock_margin_private_callback_handler(
     pool.updated_at = Clock::get()?.unix_timestamp;
 
     msg!(
-        "lock_margin_private callback: locked {} margin, new_balance={}",
-        locked_margin,
-        new_balance
+        "lock_margin_private callback: locked {} margin and rotated shielded commitment",
+        locked_margin
     );
 
     Ok(())
