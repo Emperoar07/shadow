@@ -150,6 +150,10 @@ Current product note:
 
 ### Shielded Withdraw (feature-gated)
 
+Current safety state: token release is intentionally gated until the MPC proof
+can verify real commitment-tree membership. The arithmetic-only devnet proof is
+not sufficient withdrawal authorization.
+
 1. User calls `request_withdraw_private` with nullifier and amount
 2. Program creates `PendingWithdrawal` PDA (keyed by pool + nullifier — PDA uniqueness prevents double-spend)
 3. Expiry set to `current_slot + WITHDRAWAL_DELAY_SLOTS`

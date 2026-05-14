@@ -194,6 +194,8 @@ Arcium-related account pointers are stored in market state and validated in call
 - Commitments are appended to a rolling Merkle tree on deposit.
 - Withdrawals require a nullifier that can only be used once (PDA-enforced uniqueness + NullifierSet tracking).
 - A time-delay (`WITHDRAWAL_DELAY_SLOTS`) separates withdrawal request from finalization.
+- Withdrawal token release is currently gated until the Arcium proof verifies
+  commitment-tree membership, not only encrypted arithmetic consistency.
 - Private margin lock/release transitions will be handled by Arcium MPC circuits (stubs in place).
 
 ## Security Design Decisions

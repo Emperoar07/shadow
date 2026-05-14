@@ -328,6 +328,10 @@ pub fn request_withdraw_private_handler(
     nullifier: [u8; 32],
     amount: u64,
 ) -> Result<()> {
+    // Withdrawal release needs a real commitment-tree inclusion proof inside the
+    // MPC circuit. The current devnet arithmetic proof is not sufficient to
+    // prove note membership, so keep the token-release flow gated.
+    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
 
     require!(amount > 0, ShadowPerpError::ZeroAmount);
 
@@ -481,6 +485,9 @@ pub fn verify_withdrawal_proof_request_handler(
     nonce: u128,
     computation_offset: u64,
 ) -> Result<()> {
+    // Defense-in-depth with request/finalize: do not accept arithmetic-only
+    // withdrawal proofs as spend authorization.
+    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
 
     require!(computation_offset > 0, ShadowPerpError::InvalidAccountData);
 
@@ -622,6 +629,9 @@ pub struct FinalizeWithdraw<'info> {
 }
 
 pub fn finalize_withdraw_handler(ctx: Context<FinalizeWithdraw>) -> Result<()> {
+    // Final token release remains disabled until verify_withdrawal_proof proves
+    // real commitment-tree membership, not only encrypted value consistency.
+    require!(false, ShadowPerpError::ShieldedWithdrawalGated);
 
     let clock = Clock::get()?;
     let withdrawal = &mut ctx.accounts.pending_withdrawal;

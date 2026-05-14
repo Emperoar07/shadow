@@ -37,21 +37,22 @@ mod liquidation_check_circuit {
             entry - mark_price_u128
         };
         let pnl_abs_u128 = (size * price_diff) / 1_000_000_000u128;
-        let pnl_abs = pnl_abs_u128 as u64;
         let profitable = if is_long { price_above } else { !price_above };
 
-        let equity_with_profit = margin + (if profitable { pnl_abs } else { 0u64 });
-        let loss = if !profitable { pnl_abs } else { 0u64 };
-        let underwater = loss > margin;
-        let equity_net = if underwater { 0u64 } else { margin - loss };
+        let margin_u128 = margin as u128;
+        let equity_with_profit = margin_u128 + (if profitable { pnl_abs_u128 } else { 0u128 });
+        let loss = if !profitable { pnl_abs_u128 } else { 0u128 };
+        let equity_net = if loss > margin_u128 {
+            0u128
+        } else {
+            margin_u128 - loss
+        };
         let equity = if profitable { equity_with_profit } else { equity_net };
 
         let notional = size * mark_price_u128;
         let maintenance_u128 =
             (notional * (liquidation_threshold_bps as u128)) / 10_000_000_000_000u128;
-        let maintenance = maintenance_u128 as u64;
-
-        let should_liquidate = equity < maintenance;
+        let should_liquidate = equity < maintenance_u128;
         let revealed_margin = if should_liquidate { margin } else { 0 };
         let liquidation_price = if should_liquidate { mark_price } else { 0 };
 

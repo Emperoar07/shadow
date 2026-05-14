@@ -801,9 +801,10 @@ function ConnectWalletButton() {
   const addr = connectedAddress ?? embeddedAddr ?? null;
   const isConnected = !!addr;
   const hasLinkedSolanaWallet = Boolean(
-    user?.linkedAccounts?.some(
-      (account) => account.type === "wallet" && account.chainType === "solana"
-    )
+    user?.linkedAccounts?.some((account: any) => {
+      const type = account?.type ?? account?.linkedAccountType;
+      return type === "wallet" && account?.chainType === "solana";
+    })
   );
   const isEmbeddedLoginUser = Boolean(
     user?.linkedAccounts?.some((account: any) => {
@@ -830,13 +831,11 @@ function ConnectWalletButton() {
   // ready embedded wallet immediately.
   const hasStrongRestoreEvidence = Boolean(hasLinkedSolanaWallet || restoreHintMatchesUser);
   const shouldRestoreWallet = authenticated && !isConnected;
-  // Only auto-recover sessions we have strong evidence were previously valid.
-  // Fresh email OTP logins often need extra time for Privy to finish creating
-  // the first embedded Solana wallet; logging them out on timeout turns a
-  // successful OTP into a confusing bounce back to "Sign in".
-  const shouldAutoRecoverWallet =
-    shouldRestoreWallet && hasStrongRestoreEvidence;
   const isProvisioningEmbeddedWallet = shouldRestoreWallet && isEmbeddedLoginUser && !hasStrongRestoreEvidence;
+  // Never leave a successful Privy auth stuck behind a permanent pulse. Fresh
+  // email sessions get a longer provisioning window, then the same automatic
+  // recovery path as stale wallet restores.
+  const shouldAttemptWalletRecovery = shouldRestoreWallet && hydrationTimedOut;
 
   useEffect(() => {
     if (!addr) return;
@@ -862,7 +861,7 @@ function ConnectWalletButton() {
   }, [authenticated, isConnected, hasStrongRestoreEvidence, walletHooksReady]);
 
   useEffect(() => {
-    if (!walletHooksReady || !hydrationTimedOut || !shouldAutoRecoverWallet || autoRecoveryRunning) return;
+    if (!walletHooksReady || !shouldAttemptWalletRecovery || autoRecoveryRunning) return;
     const recoveryKey = `${WALLET_AUTO_RECOVERY_KEY}:${user?.id ?? restoreHint?.address ?? "unknown"}`;
     try {
       if (window.sessionStorage.getItem(recoveryKey) === "1") {
@@ -890,7 +889,7 @@ function ConnectWalletButton() {
     isProvisioningEmbeddedWallet,
     logout,
     restoreHint?.address,
-    shouldAutoRecoverWallet,
+    shouldAttemptWalletRecovery,
     user?.id,
     walletHooksReady,
   ]);
@@ -912,9 +911,9 @@ function ConnectWalletButton() {
   const isHydrating =
     authenticated &&
     !isConnected &&
-    (!hydrationTimedOut || !hasStrongRestoreEvidence);
+    !hydrationTimedOut;
 
-  if (isHydrating || autoRecoveryRunning || shouldAutoRecoverWallet) return (
+  if (isHydrating || autoRecoveryRunning || shouldAttemptWalletRecovery) return (
     <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
   );
 

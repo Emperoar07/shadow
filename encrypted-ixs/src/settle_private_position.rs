@@ -37,28 +37,41 @@ mod settle_private_position_circuit {
 
         // PnL in 10^6 scale: size (10^9) * price_delta (10^6) -> 10^15 / 10^9 -> 10^6
         let realized_pnl_i128 = (size as i128 * price_delta * direction) / 1_000_000_000i128;
-        let realized_pnl = realized_pnl_i128 as i64;
+        let realized_pnl = if realized_pnl_i128 > 9_223_372_036_854_775_807i128 {
+            9_223_372_036_854_775_807i64
+        } else if realized_pnl_i128 < -9_223_372_036_854_775_808i128 {
+            -9_223_372_036_854_775_808i64
+        } else {
+            realized_pnl_i128 as i64
+        };
 
         // Position value: size (10^9) * exit_price (10^6) = 10^15
         let position_value = size * (exit_price as u128);
 
         // Fee: (position_value * bps) / (10_000 * 10^9) -> 10^6 scale
         let fee_u128 = (position_value * (trading_fee_bps as u128)) / 10_000_000_000_000u128;
-        let fee = fee_u128 as u64;
+        let fee = if fee_u128 > 18_446_744_073_709_551_615u128 {
+            18_446_744_073_709_551_615u64
+        } else {
+            fee_u128 as u64
+        };
 
         // Settlement = margin + pnl - fees
-        let margin_i64 = pos.4 as i64;
-        let fee_i64 = fee as i64;
-        let settlement_i64 = margin_i64.wrapping_add(realized_pnl).wrapping_sub(fee_i64);
-
-        let settlement_amount = if settlement_i64 > 0 {
-            settlement_i64 as u64
-        } else {
+        let settlement_i128 = (pos.4 as i128) + realized_pnl_i128 - (fee as i128);
+        let settlement_amount = if settlement_i128 <= 0 {
             0
+        } else if settlement_i128 > 18_446_744_073_709_551_615i128 {
+            18_446_744_073_709_551_615u64
+        } else {
+            settlement_i128 as u64
         };
 
         // New shielded balance = remaining + settlement
-        let new_balance = rem_balance + settlement_amount;
+        let new_balance = if rem_balance > 18_446_744_073_709_551_615u64 - settlement_amount {
+            18_446_744_073_709_551_615u64
+        } else {
+            rem_balance + settlement_amount
+        };
 
         // PRIVACY: Additive binding — return new_balance + secret as plaintext u64.
         // This hides the actual shielded balance on-chain.
