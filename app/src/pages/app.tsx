@@ -841,8 +841,12 @@ function ConnectWalletButton() {
   // strong evidence a wallet existed previously).
   const hasStrongRestoreEvidence = Boolean(hasLinkedSolanaWallet || restoreHintMatchesUser);
   const shouldRestoreWallet = authenticated && !isConnected;
+  // Only auto-recover sessions we have strong evidence were previously valid.
+  // Fresh email OTP logins often need extra time for Privy to finish creating
+  // the first embedded Solana wallet; logging them out on timeout turns a
+  // successful OTP into a confusing bounce back to "Sign in".
   const shouldAutoRecoverWallet =
-    shouldRestoreWallet && (hasStrongRestoreEvidence || isEmbeddedLoginUser);
+    shouldRestoreWallet && hasStrongRestoreEvidence;
   const isProvisioningEmbeddedWallet = shouldRestoreWallet && isEmbeddedLoginUser && !hasStrongRestoreEvidence;
 
   useEffect(() => {
@@ -916,7 +920,10 @@ function ConnectWalletButton() {
     <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
   );
 
-  const isHydrating = authenticated && !isConnected && !hydrationTimedOut;
+  const isHydrating =
+    authenticated &&
+    !isConnected &&
+    (!hydrationTimedOut || !hasStrongRestoreEvidence);
 
   if (isHydrating || autoRecoveryRunning || shouldAutoRecoverWallet) return (
     <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
