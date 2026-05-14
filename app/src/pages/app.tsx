@@ -834,11 +834,12 @@ function ConnectWalletButton() {
     })
   );
   const restoreHintMatchesUser = Boolean(restoreHint && (!user?.id || restoreHint.userId === user.id));
-  // Every authenticated Privy session has an embedded Solana wallet (createOnLogin:
-  // "all-users"). So if Privy says authenticated but the wallet hooks haven't hydrated
-  // yet, always wait for restore — regardless of linkedAccounts or localStorage hint.
-  // linkedAccounts/hint only influence the timeout budget (longer wait when we have
-  // strong evidence a wallet existed previously).
+  // Users authenticated through email/social should eventually resolve to an
+  // embedded Solana wallet, but with Privy's "users-without-wallets" mode that
+  // wallet is only created when needed rather than force-created on every login.
+  // We therefore treat linkedAccounts/local restore hints as the signal for a
+  // previously valid session instead of assuming every authenticated user has a
+  // ready embedded wallet immediately.
   const hasStrongRestoreEvidence = Boolean(hasLinkedSolanaWallet || restoreHintMatchesUser);
   const shouldRestoreWallet = authenticated && !isConnected;
   // Only auto-recover sessions we have strong evidence were previously valid.
