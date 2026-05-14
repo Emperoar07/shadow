@@ -748,9 +748,21 @@ function ConnectWalletButton() {
     prevConnectedRef.current = isNowConnected;
   }, [connectedAddress, solanaWallets, walletHooksReady]);
 
-  const handlePrivyLogin = useCallback(() => {
+  const handlePrivyLogin = useCallback(async () => {
     setOpen(false);
     try {
+      // Start email/social sign-in from a clean wallet state. If Phantom or
+      // Solflare is already connected in the background, Privy can try to link
+      // that wallet into the new auth session and reject the login when that
+      // wallet already belongs to another Privy user.
+      for (const wallet of [...wallets, ...solanaWallets]) {
+        if (wallet.walletClientType === "privy") continue;
+        try {
+          await wallet.disconnect?.();
+        } catch {
+          // Best-effort cleanup only.
+        }
+      }
       login();
     } catch (error) {
       console.error("[Shadow][Privy connect]", error);
@@ -758,7 +770,7 @@ function ConnectWalletButton() {
         duration: 7000,
       });
     }
-  }, [login]);
+  }, [login, solanaWallets, wallets]);
 
   const handleRecoverWalletSession = useCallback(async () => {
     setOpen(false);
