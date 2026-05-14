@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useCreateWallet, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
@@ -712,6 +712,7 @@ function clearWalletRestoreHint() {
 
 function ConnectWalletButton() {
   const { ready, authenticated, logout, login, user, getAccessToken } = usePrivy();
+  const { createWallet } = useCreateWallet();
   const { ready: walletsReady, wallets } = useWallets();
   const { ready: solanaWalletsReady, wallets: solanaWallets, exportWallet } = useSolanaWallets();
   const { address: connectedAddress } = useWalletConnectionState();
@@ -729,6 +730,7 @@ function ConnectWalletButton() {
   const [hydrationTimedOut, setHydrationTimedOut] = useState(false);
   const [autoRecoveryRunning, setAutoRecoveryRunning] = useState(false);
   const [restoreHint, setRestoreHint] = useState<WalletRestoreHint | null>(null);
+  const createWalletAttemptedRef = useRef(false);
   useEffect(() => {
     setMounted(true);
     setRestoreHint(readWalletRestoreHint());
@@ -751,11 +753,23 @@ function ConnectWalletButton() {
   const handlePrivyLogin = useCallback(() => {
     setOpen(false);
     try {
-      login();
+      login({ loginMethods: ["email"] });
     } catch (error) {
       console.error("[Shadow][Privy connect]", error);
       toast.error("Privy sign-in could not open. Check the configured app ID, allowed origins, and the wallet/email methods in the Privy dashboard.", {
         duration: 7000,
+      });
+    }
+  }, [login]);
+
+  const handleExternalWalletLogin = useCallback(() => {
+    setOpen(false);
+    try {
+      login({ loginMethods: ["wallet"] });
+    } catch (error) {
+      console.error("[Shadow][Privy wallet connect]", error);
+      toast.error("Wallet sign-in could not open. If Privy says this address already exists, use the Privy dashboard to unlink or merge that wallet user.", {
+        duration: 8000,
       });
     }
   }, [login]);
@@ -780,7 +794,7 @@ function ConnectWalletButton() {
       window.setTimeout(() => {
         setAutoRecoveryRunning(false);
         try {
-          login();
+          login({ loginMethods: ["email"] });
         } catch (error) {
           console.error("[Shadow][Privy reconnect]", error);
           toast.error("Reconnect could not open. Refresh once and try again.", {
@@ -848,6 +862,9 @@ function ConnectWalletButton() {
   useEffect(() => {
     if (!authenticated || isConnected || !walletHooksReady) {
       setHydrationTimedOut(false);
+      if (!authenticated || isConnected) {
+        createWalletAttemptedRef.current = false;
+      }
       return;
     }
     // Longer budget when we have strong evidence a wallet existed before (linked
@@ -862,6 +879,32 @@ function ConnectWalletButton() {
 
   useEffect(() => {
     if (!walletHooksReady || !shouldAttemptWalletRecovery || autoRecoveryRunning) return;
+    if (isProvisioningEmbeddedWallet && !createWalletAttemptedRef.current) {
+      createWalletAttemptedRef.current = true;
+      setAutoRecoveryRunning(true);
+      toast.loading("Finishing secure email wallet setup...", { id: "wallet-recovery" });
+      void createWallet()
+        .then((wallet) => {
+          if (typeof wallet?.address === "string") {
+            const nextHint = { address: wallet.address, userId: user?.id };
+            writeWalletRestoreHint(nextHint.address, nextHint.userId);
+            setRestoreHint(nextHint);
+          }
+        })
+        .catch((error) => {
+          console.error("[Shadow][Privy create embedded wallet]", error);
+          toast.error("Email sign-in succeeded, but the embedded wallet did not finish. Starting a clean email sign-in...", {
+            duration: 7000,
+          });
+          void handleRecoverWalletSession();
+        })
+        .finally(() => {
+          toast.dismiss("wallet-recovery");
+          setAutoRecoveryRunning(false);
+        });
+      return;
+    }
+
     const recoveryKey = `${WALLET_AUTO_RECOVERY_KEY}:${user?.id ?? restoreHint?.address ?? "unknown"}`;
     try {
       if (window.sessionStorage.getItem(recoveryKey) === "1") {
@@ -886,6 +929,7 @@ function ConnectWalletButton() {
     autoRecoveryRunning,
     handleRecoverWalletSession,
     hydrationTimedOut,
+    createWallet,
     isProvisioningEmbeddedWallet,
     logout,
     restoreHint?.address,
@@ -1032,13 +1076,21 @@ function ConnectWalletButton() {
   }
 
     return (
-      <div className="relative" ref={ref}>
+      <div className="relative flex items-center gap-2" ref={ref}>
         <button
           type="button"
           onClick={handlePrivyLogin}
           className="px-4 py-1.5 rounded border border-accent-purple/60 bg-accent-purple/15 text-[12px] font-semibold text-accent-purple hover:bg-accent-purple/25 hover:border-accent-purple/80 transition-colors"
         >
-          Sign in
+          Email
+        </button>
+        <button
+          type="button"
+          onClick={handleExternalWalletLogin}
+          className="px-3 py-1.5 rounded border border-shadow-500/60 bg-shadow-800/70 text-[12px] font-semibold text-gray-200 hover:border-accent-purple/50 hover:bg-shadow-700/80 transition-colors"
+          title="Connect an external Solana wallet"
+        >
+          Wallet
         </button>
       </div>
     );
