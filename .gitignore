@@ -130,3 +130,5 @@ C*Usersbolaj/
 app/.vercel/
 .env*.local
 .vercel.bak-*/
+repomix-output.xml
+security_best_practices_report.md
