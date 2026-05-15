@@ -675,8 +675,6 @@ export default function TradingAppPage() {
 }
 
 const WALLET_RESTORE_HINT_KEY = "shadowperp:wallet:last-connected:v1";
-const WALLET_AUTO_RECOVERY_KEY = "shadowperp:wallet:auto-recovery:v1";
-
 type WalletRestoreHint = {
   address: string;
   userId?: string;
@@ -729,6 +727,7 @@ function ConnectWalletButton() {
   const [mounted, setMounted] = useState(false);
   const [hydrationTimedOut, setHydrationTimedOut] = useState(false);
   const [autoRecoveryRunning, setAutoRecoveryRunning] = useState(false);
+  const [walletRecoveryFailed, setWalletRecoveryFailed] = useState(false);
   const [restoreHint, setRestoreHint] = useState<WalletRestoreHint | null>(null);
   const createWalletAttemptedRef = useRef(false);
   useEffect(() => {
@@ -761,43 +760,6 @@ function ConnectWalletButton() {
       });
     }
   }, [login]);
-
-  const handleRecoverWalletSession = useCallback(async () => {
-    setOpen(false);
-    setAutoRecoveryRunning(true);
-    clearWalletRestoreHint();
-    setRestoreHint(null);
-    setHydrationTimedOut(false);
-
-    for (const wallet of [...wallets, ...solanaWallets]) {
-      try {
-        await wallet.disconnect?.();
-      } catch {
-        // Best-effort cleanup; Privy logout below clears the stuck auth session.
-      }
-    }
-
-    try {
-      await logout();
-      window.setTimeout(() => {
-        setAutoRecoveryRunning(false);
-        try {
-          login();
-        } catch (error) {
-          console.error("[Shadow][Privy reconnect]", error);
-          toast.error("Reconnect could not open. Refresh once and try again.", {
-            duration: 7000,
-          });
-        }
-      }, 150);
-    } catch (error) {
-      console.error("[Shadow][Privy recover session]", error);
-      toast.error("Could not reset this wallet session. Refresh once and try again.", {
-        duration: 7000,
-      });
-      setAutoRecoveryRunning(false);
-    }
-  }, [login, logout, solanaWallets, wallets]);
 
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
   const addr = connectedAddress ?? embeddedAddr ?? null;
@@ -834,10 +796,11 @@ function ConnectWalletButton() {
   const hasStrongRestoreEvidence = Boolean(hasLinkedSolanaWallet || restoreHintMatchesUser);
   const shouldRestoreWallet = authenticated && !isConnected;
   const isProvisioningEmbeddedWallet = shouldRestoreWallet && isEmbeddedLoginUser && !hasStrongRestoreEvidence;
-  // Never leave a successful Privy auth stuck behind a permanent pulse. Fresh
-  // email sessions get a longer provisioning window, then the same automatic
-  // recovery path as stale wallet restores.
-  const shouldAttemptWalletRecovery = shouldRestoreWallet && hydrationTimedOut;
+  // Never log out a successful Privy auth just because wallet hydration is slow.
+  // For fresh email/social sessions, the humane recovery is to ask Privy to
+  // create the missing Solana embedded wallet and keep the auth session intact.
+  const shouldAttemptWalletRecovery =
+    isProvisioningEmbeddedWallet && hydrationTimedOut && !walletRecoveryFailed;
 
   useEffect(() => {
     if (!addr) return;
@@ -850,6 +813,7 @@ function ConnectWalletButton() {
   useEffect(() => {
     if (!authenticated || isConnected || !walletHooksReady) {
       setHydrationTimedOut(false);
+      setWalletRecoveryFailed(false);
       if (!authenticated || isConnected) {
         createWalletAttemptedRef.current = false;
       }
@@ -879,46 +843,21 @@ function ConnectWalletButton() {
         })
         .catch((error) => {
           console.error("[Shadow][Privy create embedded wallet] Failed to provision embedded wallet after email OTP:", error);
-          toast.error("Email sign-in succeeded, but the embedded wallet did not finish. Starting a clean email sign-in...", {
+          setWalletRecoveryFailed(true);
+          toast.error("Email sign-in succeeded, but the embedded wallet did not finish. Refresh once or try sign-in again.", {
             duration: 7000,
           });
-          void handleRecoverWalletSession();
         })
         .finally(() => {
           toast.dismiss("wallet-recovery");
           setAutoRecoveryRunning(false);
         });
-      return;
     }
-
-    const recoveryKey = `${WALLET_AUTO_RECOVERY_KEY}:${user?.id ?? restoreHint?.address ?? "unknown"}`;
-    try {
-      if (window.sessionStorage.getItem(recoveryKey) === "1") {
-        setAutoRecoveryRunning(true);
-        void logout().finally(() => setAutoRecoveryRunning(false));
-        return;
-      }
-      window.sessionStorage.setItem(recoveryKey, "1");
-    } catch {
-      // If sessionStorage is unavailable, still try once for this component instance.
-    }
-    toast.loading(
-      isProvisioningEmbeddedWallet
-        ? "Finishing secure sign-in..."
-        : "Restoring wallet session...",
-      { id: "wallet-recovery" }
-    );
-    void handleRecoverWalletSession().finally(() => {
-      toast.dismiss("wallet-recovery");
-    });
   }, [
     autoRecoveryRunning,
-    handleRecoverWalletSession,
     hydrationTimedOut,
     createWallet,
     isProvisioningEmbeddedWallet,
-    logout,
-    restoreHint?.address,
     shouldAttemptWalletRecovery,
     user?.id,
     walletHooksReady,

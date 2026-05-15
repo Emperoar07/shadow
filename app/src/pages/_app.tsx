@@ -189,15 +189,11 @@ export default function App({ Component, pageProps }: AppProps) {
       loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
-          // Enable auto-connect for external wallets, but hijacking is prevented by
-          // useConnectedSolanaWallet() which checks:
-          // 1. Email/social users: block external until embedded wallet is provisioned
-          // 2. Embedded wallet users: verify external is in linkedAccounts (explicit link)
-          // 3. External-only users: allow external freely
-          // This lets external wallet users stay connected across page refreshes
-          // while protecting email users from wallet takeover during provisioning.
+          // Keep Solana extension reconnect explicit. Privy's docs note some
+          // Solana connectors do not gracefully support autoConnect, and the
+          // previous stable Shadow flow disabled it to avoid wallet/email races.
           connectors: toSolanaWalletConnectors({
-            shouldAutoConnect: true,
+            shouldAutoConnect: false,
           }),
         },
       },
