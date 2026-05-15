@@ -771,6 +771,16 @@ function ConnectWalletButton() {
       return type === "wallet" && account?.chainType === "solana";
     })
   );
+  const hasLinkedExternalSolanaWallet = Boolean(
+    user?.linkedAccounts?.some((account: any) => {
+      const type = account?.type ?? account?.linkedAccountType;
+      return (
+        type === "wallet" &&
+        account?.chainType === "solana" &&
+        account?.walletClientType !== "privy"
+      );
+    })
+  );
   const isEmbeddedLoginUser = Boolean(
     user?.linkedAccounts?.some((account: any) => {
       const type = account?.type ?? account?.linkedAccountType;
@@ -824,7 +834,7 @@ function ConnectWalletButton() {
     // Keep the wait bounded. Fresh email OTP sessions should not sit behind a
     // blank/pulse state for nearly a minute; if Privy has not surfaced an
     // embedded Solana wallet quickly, we create/recover it automatically below.
-    const timeoutMs = hasStrongRestoreEvidence ? 20000 : 20000;
+    const timeoutMs = hasStrongRestoreEvidence ? 20000 : 10000;
     const t = setTimeout(() => setHydrationTimedOut(true), timeoutMs);
     return () => clearTimeout(t);
   }, [authenticated, isConnected, hasStrongRestoreEvidence, walletHooksReady]);
@@ -834,7 +844,7 @@ function ConnectWalletButton() {
       !authenticated ||
       isConnected ||
       !walletHooksReady ||
-      !hasLinkedSolanaWallet ||
+      !hasLinkedExternalSolanaWallet ||
       activeWalletRestoreAttemptedRef.current
     ) {
       return;
@@ -854,7 +864,7 @@ function ConnectWalletButton() {
   }, [
     authenticated,
     connectActiveWallet,
-    hasLinkedSolanaWallet,
+    hasLinkedExternalSolanaWallet,
     isConnected,
     user?.id,
     walletHooksReady,
