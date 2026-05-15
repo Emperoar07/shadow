@@ -753,23 +753,11 @@ function ConnectWalletButton() {
   const handlePrivyLogin = useCallback(() => {
     setOpen(false);
     try {
-      login({ loginMethods: ["email"] });
+      login();
     } catch (error) {
       console.error("[Shadow][Privy connect]", error);
       toast.error("Privy sign-in could not open. Check the configured app ID, allowed origins, and the wallet/email methods in the Privy dashboard.", {
         duration: 7000,
-      });
-    }
-  }, [login]);
-
-  const handleExternalWalletLogin = useCallback(() => {
-    setOpen(false);
-    try {
-      login({ loginMethods: ["wallet"] });
-    } catch (error) {
-      console.error("[Shadow][Privy wallet connect]", error);
-      toast.error("Wallet sign-in could not open. If Privy says this address already exists, use the Privy dashboard to unlink or merge that wallet user.", {
-        duration: 8000,
       });
     }
   }, [login]);
@@ -794,7 +782,7 @@ function ConnectWalletButton() {
       window.setTimeout(() => {
         setAutoRecoveryRunning(false);
         try {
-          login({ loginMethods: ["email"] });
+          login();
         } catch (error) {
           console.error("[Shadow][Privy reconnect]", error);
           toast.error("Reconnect could not open. Refresh once and try again.", {
@@ -867,12 +855,10 @@ function ConnectWalletButton() {
       }
       return;
     }
-    // Longer budget when we have strong evidence a wallet existed before (linked
-    // account or localStorage hint). Baseline 10s is enough for a normal embedded-wallet
-    // rehydrate on a warm Privy session after refresh. Fresh email logins can
-    // still be provisioning their first embedded wallet, so give them a much
-    // longer window and do not auto-logout on timeout.
-    const timeoutMs = hasStrongRestoreEvidence ? 20000 : 45000;
+    // Keep the wait bounded. Fresh email OTP sessions should not sit behind a
+    // blank/pulse state for nearly a minute; if Privy has not surfaced an
+    // embedded Solana wallet quickly, we create/recover it automatically below.
+    const timeoutMs = hasStrongRestoreEvidence ? 15000 : 10000;
     const t = setTimeout(() => setHydrationTimedOut(true), timeoutMs);
     return () => clearTimeout(t);
   }, [authenticated, isConnected, hasStrongRestoreEvidence, walletHooksReady]);
@@ -1076,21 +1062,13 @@ function ConnectWalletButton() {
   }
 
     return (
-      <div className="relative flex items-center gap-2" ref={ref}>
+      <div className="relative" ref={ref}>
         <button
           type="button"
           onClick={handlePrivyLogin}
           className="px-4 py-1.5 rounded border border-accent-purple/60 bg-accent-purple/15 text-[12px] font-semibold text-accent-purple hover:bg-accent-purple/25 hover:border-accent-purple/80 transition-colors"
         >
-          Email
-        </button>
-        <button
-          type="button"
-          onClick={handleExternalWalletLogin}
-          className="px-3 py-1.5 rounded border border-shadow-500/60 bg-shadow-800/70 text-[12px] font-semibold text-gray-200 hover:border-accent-purple/50 hover:bg-shadow-700/80 transition-colors"
-          title="Connect an external Solana wallet"
-        >
-          Wallet
+          Sign in
         </button>
       </div>
     );
