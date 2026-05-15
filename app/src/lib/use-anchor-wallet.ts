@@ -87,19 +87,21 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
 
     // Privy's active wallet reflects the wallet the user actually signed in
     // with — for email/social logins it's the embedded wallet, for wallet
-    // logins it's the connected extension. Trust it.
+    // logins it's the connected extension. Trust it, but guard against hijacking.
     if (isConnectedSolanaWalletLike(activeWallet)) {
       if (activeWallet.walletClientType !== "privy") {
-        // Email/social user: if the external extension is active but the embedded
-        // wallet hasn't been provisioned into linkedAccounts yet, return null
-        // (loading) rather than yielding to Phantom/Solflare.
+        // External wallet is active. Check if this is legitimate or a hijack attempt.
+
+        // Case 1: Email/social user with embedded wallet still provisioning
+        // Block external wallet until embedded is ready, to prevent hijacking.
         if (isEmbeddedLoginUser && !userOwnsEmbeddedSolana) {
           return null;
         }
 
-        // Guardrail: if Privy says "external" but the authenticated user owns
-        // an embedded Solana wallet AND no external wallet is in linkedAccounts,
-        // the extension is hijacking. Prefer the embedded wallet.
+        // Case 2: Email/social user with embedded wallet already provisioned
+        // The user owns an embedded wallet. If they also own an external wallet in linkedAccounts,
+        // they explicitly linked both — safe to use the external. Otherwise, the external is
+        // hijacking and we prefer the embedded.
         if (userOwnsEmbeddedSolana) {
           const userLinkedExternal = (user?.linkedAccounts ?? []).some((a: any) => {
             const t = a?.type ?? a?.linkedAccountType;
@@ -108,12 +110,19 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
             return t === "wallet" && ct === "solana" && wct !== "privy";
           });
           if (!userLinkedExternal) {
+            // External wallet is connected but not in linkedAccounts — hijacking.
             const embeddedFromSdk = embeddedWallets.find(
               (w) => w.walletClientType === "privy" && typeof w.address === "string"
             );
             if (embeddedFromSdk) return embeddedFromSdk;
           }
+          // User owns both embedded and external — use external since it's active.
+          return solanaByAddress.get(activeWallet.address) ?? activeWallet;
         }
+
+        // Case 3: External-wallet-only user
+        // User signed in with an external wallet and owns no embedded wallet.
+        // Safe to use the external wallet; no hijacking possible.
       }
       return solanaByAddress.get(activeWallet.address) ?? activeWallet;
     }

@@ -858,7 +858,7 @@ function ConnectWalletButton() {
     // Keep the wait bounded. Fresh email OTP sessions should not sit behind a
     // blank/pulse state for nearly a minute; if Privy has not surfaced an
     // embedded Solana wallet quickly, we create/recover it automatically below.
-    const timeoutMs = hasStrongRestoreEvidence ? 15000 : 10000;
+    const timeoutMs = hasStrongRestoreEvidence ? 20000 : 20000;
     const t = setTimeout(() => setHydrationTimedOut(true), timeoutMs);
     return () => clearTimeout(t);
   }, [authenticated, isConnected, hasStrongRestoreEvidence, walletHooksReady]);
@@ -878,7 +878,7 @@ function ConnectWalletButton() {
           }
         })
         .catch((error) => {
-          console.error("[Shadow][Privy create embedded wallet]", error);
+          console.error("[Shadow][Privy create embedded wallet] Failed to provision embedded wallet after email OTP:", error);
           toast.error("Email sign-in succeeded, but the embedded wallet did not finish. Starting a clean email sign-in...", {
             duration: 7000,
           });
@@ -962,13 +962,15 @@ function ConnectWalletButton() {
 
     const handleDisconnect = () => {
       setOpen(false);
-      clearWalletRestoreHint();
-      setRestoreHint(null);
       const activeWallet =
         wallets.find((wallet) => wallet.address === addr) ??
         solanaWallets.find((wallet) => wallet.address === addr);
       activeWallet?.disconnect?.();
-      if (authenticated) logout();
+      if (authenticated) {
+        clearWalletRestoreHint();
+        setRestoreHint(null);
+        logout();
+      }
     };
 
     return (

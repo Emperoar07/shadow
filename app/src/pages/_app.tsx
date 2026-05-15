@@ -189,14 +189,15 @@ export default function App({ Component, pageProps }: AppProps) {
       loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
-          // Keep silent external-wallet reconnect off. When Phantom/Solflare is
-          // already connected while a user tries to log in with email, Privy can
-          // treat that wallet as part of the auth/linking flow and reject the
-          // login if the wallet belongs to a different Privy user. Email/embedded
-          // login is the safer default for this app; external wallets can still
-          // be connected explicitly through the Privy modal when needed.
+          // Enable auto-connect for external wallets, but hijacking is prevented by
+          // useConnectedSolanaWallet() which checks:
+          // 1. Email/social users: block external until embedded wallet is provisioned
+          // 2. Embedded wallet users: verify external is in linkedAccounts (explicit link)
+          // 3. External-only users: allow external freely
+          // This lets external wallet users stay connected across page refreshes
+          // while protecting email users from wallet takeover during provisioning.
           connectors: toSolanaWalletConnectors({
-            shouldAutoConnect: false,
+            shouldAutoConnect: true,
           }),
         },
       },
