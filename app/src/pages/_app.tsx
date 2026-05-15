@@ -209,7 +209,7 @@ export default function App({ Component, pageProps }: AppProps) {
         // a 0x address (invalid base58) before the Solana wallet is ready.
         ethereum: { createOnLogin: "off" },
       },
-      solanaClusters: [{ name: "devnet", rpcUrl: initialRpcUrl.current, chainId: "0x3" }],
+      solanaClusters: [{ name: "devnet", rpcUrl: initialRpcUrl.current }],
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally empty: config must stay stable for wallet proxy iframe
     []

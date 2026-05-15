@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useConnectWallet, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
@@ -709,7 +709,19 @@ function clearWalletRestoreHint() {
 }
 
 function ConnectWalletButton() {
-  const { ready, authenticated, logout, login, connectWallet, user, getAccessToken } = usePrivy();
+  const { ready, authenticated, logout, login, user, getAccessToken } = usePrivy();
+  const { connectWallet } = useConnectWallet({
+    onSuccess: (wallet) => {
+      if (wallet.type !== "solana") return;
+      const nextHint = { address: wallet.address, userId: user?.id };
+      writeWalletRestoreHint(nextHint.address, nextHint.userId);
+      setRestoreHint(nextHint);
+      toast.dismiss("wallet-recovery");
+    },
+    onError: () => {
+      toast.dismiss("wallet-recovery");
+    },
+  });
   const { ready: walletsReady, wallets } = useWallets();
   const { ready: solanaWalletsReady, wallets: solanaWallets, exportWallet, createWallet } = useSolanaWallets();
   const { address: connectedAddress } = useWalletConnectionState();
@@ -811,15 +823,14 @@ function ConnectWalletButton() {
   // create the missing Solana embedded wallet and keep the auth session intact.
   const shouldAttemptWalletRecovery =
     isProvisioningEmbeddedWallet && hydrationTimedOut && !walletRecoveryFailed;
-  const shouldReconnectExternalWallet =
-    Boolean(
-      authenticated &&
-      !isConnected &&
-      walletHooksReady &&
-      hydrationTimedOut &&
-      linkedExternalSolanaAddress &&
-      externalReconnectAttemptedRef.current !== linkedExternalSolanaAddress
-    );
+  const shouldReconnectExternalWallet = Boolean(
+    authenticated &&
+    !isConnected &&
+    walletHooksReady &&
+    hydrationTimedOut &&
+    linkedExternalSolanaAddress &&
+    externalReconnectAttemptedRef.current !== linkedExternalSolanaAddress
+  );
 
   useEffect(() => {
     if (!addr) return;
@@ -850,16 +861,15 @@ function ConnectWalletButton() {
   useEffect(() => {
     if (!shouldReconnectExternalWallet || !linkedExternalSolanaAddress) return;
     externalReconnectAttemptedRef.current = linkedExternalSolanaAddress;
-    toast.loading("Reconnecting your wallet session...", { id: "wallet-recovery" });
+    toast.loading("Finalizing wallet connection...", { id: "wallet-recovery" });
     try {
-      connectWallet({ suggestedAddress: linkedExternalSolanaAddress });
+      connectWallet({
+        suggestedAddress: linkedExternalSolanaAddress,
+        walletList: ["detected_solana_wallets", "phantom", "wallet_connect"],
+      });
     } catch (error) {
       console.error("[Shadow][Privy external wallet reconnect]", error);
-      toast.error("Wallet sign-in succeeded, but the wallet connector did not finish. Refresh once and try again.", {
-        duration: 7000,
-      });
-    } finally {
-      window.setTimeout(() => toast.dismiss("wallet-recovery"), 3000);
+      toast.dismiss("wallet-recovery");
     }
   }, [connectWallet, linkedExternalSolanaAddress, shouldReconnectExternalWallet]);
 
@@ -919,7 +929,12 @@ function ConnectWalletButton() {
     !hydrationTimedOut;
 
   if (isHydrating || autoRecoveryRunning || shouldAttemptWalletRecovery || shouldReconnectExternalWallet) return (
-    <div className="h-8 w-24 animate-pulse rounded border border-shadow-500/40 bg-shadow-800/60" />
+    <div
+      className="flex h-8 min-w-28 animate-pulse items-center justify-center rounded border border-shadow-500/40 bg-shadow-800/60 px-3 text-[11px] font-medium text-gray-400"
+      title="Privy sign-in succeeded; Shadow is waiting for the Solana wallet connector."
+    >
+      Finalizing
+    </div>
   );
 
   if (authenticated && !isConnected) return (
