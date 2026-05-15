@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useActiveWallet, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
@@ -710,6 +710,7 @@ function clearWalletRestoreHint() {
 
 function ConnectWalletButton() {
   const { ready, authenticated, logout, login, user, getAccessToken } = usePrivy();
+  const { connect: connectActiveWallet } = useActiveWallet();
   const { ready: walletsReady, wallets } = useWallets();
   const { ready: solanaWalletsReady, wallets: solanaWallets, exportWallet, createWallet } = useSolanaWallets();
   const { address: connectedAddress } = useWalletConnectionState();
@@ -729,6 +730,7 @@ function ConnectWalletButton() {
   const [walletRecoveryFailed, setWalletRecoveryFailed] = useState(false);
   const [restoreHint, setRestoreHint] = useState<WalletRestoreHint | null>(null);
   const createWalletAttemptedRef = useRef(false);
+  const activeWalletRestoreAttemptedRef = useRef(false);
   useEffect(() => {
     setMounted(true);
     setRestoreHint(readWalletRestoreHint());
@@ -815,6 +817,7 @@ function ConnectWalletButton() {
       setWalletRecoveryFailed(false);
       if (!authenticated || isConnected) {
         createWalletAttemptedRef.current = false;
+        activeWalletRestoreAttemptedRef.current = false;
       }
       return;
     }
@@ -825,6 +828,37 @@ function ConnectWalletButton() {
     const t = setTimeout(() => setHydrationTimedOut(true), timeoutMs);
     return () => clearTimeout(t);
   }, [authenticated, isConnected, hasStrongRestoreEvidence, walletHooksReady]);
+
+  useEffect(() => {
+    if (
+      !authenticated ||
+      isConnected ||
+      !walletHooksReady ||
+      !hasLinkedSolanaWallet ||
+      activeWalletRestoreAttemptedRef.current
+    ) {
+      return;
+    }
+
+    activeWalletRestoreAttemptedRef.current = true;
+    void connectActiveWallet({ reset: false })
+      .then(({ wallet }) => {
+        if (wallet?.type !== "solana" || typeof wallet.address !== "string") return;
+        const nextHint = { address: wallet.address, userId: user?.id };
+        writeWalletRestoreHint(nextHint.address, nextHint.userId);
+        setRestoreHint(nextHint);
+      })
+      .catch((error) => {
+        console.warn("[Shadow][Privy active wallet restore] Silent reconnect did not complete:", error);
+      });
+  }, [
+    authenticated,
+    connectActiveWallet,
+    hasLinkedSolanaWallet,
+    isConnected,
+    user?.id,
+    walletHooksReady,
+  ]);
 
   useEffect(() => {
     if (!walletHooksReady || !shouldAttemptWalletRecovery || autoRecoveryRunning) return;
