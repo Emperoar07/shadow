@@ -1,8 +1,8 @@
 # ShadowPerp
 
-ShadowPerp is a private perpetual trading terminal on Solana, powered by Arcium confidential compute.
+ShadowPerp is a devnet perpetual trading terminal on Solana, powered by Arcium confidential compute.
 
-It is built for traders who want a quieter trading surface. Position size, leverage, entry price, margin, liquidation values, and PnL move through an encrypted computation path instead of being published as ordinary plaintext position data. Solana handles settlement. Arcium handles the private compute. The app keeps the trading experience familiar while reducing the amount of useful information exposed to the public ledger.
+It is built for traders who want a quieter trading surface. Sensitive trade inputs and risk calculations move through an encrypted computation path instead of being handled as ordinary plaintext business logic. Solana handles custody and settlement. Arcium handles the private compute. The app keeps the trading experience familiar while reducing the amount of useful information exposed to the public ledger.
 
 Program ID on Solana devnet
 
@@ -16,7 +16,7 @@ Size, leverage, entry price, margin, liquidation thresholds, and unrealized PnL 
 
 Direct wallet trading
 
-Every trading and collateral action is signed by the connected Solana wallet. Email users can trade through a Privy embedded Solana wallet. External wallet users can connect through supported Solana wallet connectors.
+Every active trading and collateral action is signed by the connected Solana wallet. Email users can trade through a Privy embedded Solana wallet. External wallet users can connect through supported Solana wallet connectors. Delegated session code remains in the protocol for diagnostics and future optional flows, but it is not the primary frontend path.
 
 Market context in one place
 
@@ -72,15 +72,17 @@ The active computation definitions use offchain Arcium circuit sources. The comp
 
 Private through the encrypted path
 
-Position size, entry price, leverage, margin amount, liquidation values, and unrealized PnL.
+Trade sizing inputs, entry/risk inputs, margin intent, liquidation checks, and PnL settlement calculations while they are inside the Arcium computation path.
 
 Visible on Solana
 
-Wallet addresses, token transfers, transaction timing, and the public settlement state required by the protocol.
+Wallet addresses, token transfers, transaction timing, oracle updates, and the public settlement state required by the protocol.
 
 Partially public by design
 
 Direction is encrypted for MPC and revealed at open where routing and liquidation bookkeeping need it. Shadow is designed to reduce information leakage, not pretend that a public chain has no public surface.
+
+Shielded collateral work follows the same boundary: public token transfers at the edge, private internal accounting where the feature-gated Arcium path is used. Withdrawal token release stays gated until commitment membership proofing and smoke coverage are safe enough for the devnet workflow.
 
 ## Repository Map
 
@@ -131,7 +133,11 @@ Important environment values
 
 `NEXT_PUBLIC_PRIVY_APP_ID`
 
+`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`
+
 `NEXT_PUBLIC_PRIVY_API_URL` when using a Privy hosted auth domain
+
+`NEXT_PUBLIC_CANONICAL_HOST` for the hosted app origin
 
 `PRIVY_APP_SECRET` for protected backend routes
 
@@ -140,6 +146,8 @@ Important environment values
 `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`, or Vercel KV equivalents, for durable hosted rate limits and faucet records
 
 `NEXT_PUBLIC_ARCIUM_CLUSTER_ACCOUNT` when pinning the deployed Arcium cluster account explicitly
+
+Do not commit local `.env.local`, Vercel metadata, private keys, bearer tokens, or generated private audit notes.
 
 Run the app
 
@@ -197,7 +205,7 @@ ShadowPerp runs as a devnet trading workspace. Balances are test funds, and the 
 
 The active product path uses Privy for authentication and wallet connection, direct Solana wallet signing for trading and collateral, Arcium computation definitions for encrypted logic, and preflight scripts to keep the deployed namespace easy to verify.
 
-Before calling a build ready, run the preflight checks, refresh the oracle if needed, and perform a browser smoke test through the wallet path you care about.
+Before calling a build ready, run the preflight checks, refresh the oracle if needed, and perform a browser smoke test through the wallet path you care about. For live operational notes, keep using the local untracked `DEV_NOTES.md`; `DEV_NOTES.template.md` is only the public structure reference.
 
 ## References
 

@@ -36,20 +36,74 @@ function isConnectedSolanaWalletLike(value: unknown): value is ConnectedSolanaWa
 }
 
 export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
+  const { ready, authenticated, user } = usePrivy();
   const { wallet: activeWallet } = useActiveWallet();
-  const { wallets } = useWallets();
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { ready: walletsReady, wallets } = useWallets();
+  const { ready: solanaWalletsReady, wallets: solanaWallets } = useSolanaWallets();
 
   return useMemo(() => {
-    const solanaByAddress = new Map(solanaWallets.map((w) => [w.address, w]));
+    if (!ready || !walletsReady || !solanaWalletsReady || !authenticated) return null;
 
-    // Match the old working flow: Privy's active wallet is the source of truth
-    // for the wallet the user intentionally selected in the modal.
+    const solanaByAddress = new Map(solanaWallets.map((w) => [w.address, w]));
+    const linkedAccounts = user?.linkedAccounts ?? [];
+    const userOwnsEmbeddedSolana = linkedAccounts.some((account: any) => {
+      const type = account?.type ?? account?.linkedAccountType;
+      return type === "wallet" && account?.chainType === "solana" && account?.walletClientType === "privy";
+    });
+    const userLinkedExternalSolana = linkedAccounts.some((account: any) => {
+      const type = account?.type ?? account?.linkedAccountType;
+      return type === "wallet" && account?.chainType === "solana" && account?.walletClientType !== "privy";
+    });
+    const isEmbeddedLoginUser = linkedAccounts.some((account: any) => {
+      const type = account?.type ?? account?.linkedAccountType;
+      return (
+        type === "email" ||
+        type === "phone" ||
+        type === "google_oauth" ||
+        type === "twitter_oauth" ||
+        type === "discord_oauth" ||
+        type === "github_oauth" ||
+        type === "linkedin_oauth" ||
+        type === "tiktok_oauth" ||
+        type === "farcaster"
+      );
+    });
+
+    // Privy's active wallet is the source of truth for the wallet selected in
+    // the auth modal. If an extension auto-hydrates during an email session,
+    // prefer the user's embedded wallet unless that external wallet is actually
+    // linked to the authenticated Privy user.
     if (isConnectedSolanaWalletLike(activeWallet)) {
+      if (
+        activeWallet.walletClientType !== "privy" &&
+        isEmbeddedLoginUser &&
+        userOwnsEmbeddedSolana &&
+        !userLinkedExternalSolana
+      ) {
+        const embedded = solanaWallets.find(
+          (w) => w.walletClientType === "privy" && typeof w.address === "string"
+        );
+        if (embedded) return embedded;
+      }
+      if (activeWallet.walletClientType !== "privy" && isEmbeddedLoginUser && !userLinkedExternalSolana) {
+        return null;
+      }
       return solanaByAddress.get(activeWallet.address) ?? activeWallet;
     }
 
     const connected = wallets.filter(isConnectedSolanaWalletLike);
+
+    if (userOwnsEmbeddedSolana) {
+      const embeddedDetected = connected.find((w) => w.walletClientType === "privy");
+      if (embeddedDetected) return solanaByAddress.get(embeddedDetected.address) ?? embeddedDetected;
+      const embeddedFallback = solanaWallets.find(
+        (w) => w.walletClientType === "privy" && typeof w.address === "string"
+      );
+      if (embeddedFallback) return embeddedFallback;
+      return null;
+    }
+
+    if (isEmbeddedLoginUser && !userLinkedExternalSolana) return null;
 
     const externalDetected = connected.find((w) => w.walletClientType !== "privy");
     if (externalDetected) {
@@ -69,7 +123,7 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
     return solanaWallets.find(
       (w) => w.walletClientType !== "privy" && typeof w.address === "string"
     ) ?? null;
-  }, [activeWallet, wallets, solanaWallets]);
+  }, [ready, walletsReady, solanaWalletsReady, authenticated, user, activeWallet, wallets, solanaWallets]);
 }
 
 export function useWalletConnectionState() {

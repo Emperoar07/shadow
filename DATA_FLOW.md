@@ -146,7 +146,7 @@ Current product note:
 3. Commitment appended to `CommitmentTree` at next leaf index
 4. Rolling root updated in tree and pool
 5. Pool accounting incremented (`total_public_in`, `commitment_count`)
-6. `ShieldedDeposit` event emitted (pool, depositor, commitment, leaf index — no plaintext amount)
+6. `ShieldedDeposit` event emitted (pool, depositor, commitment, leaf index - no plaintext amount)
 
 ### Shielded Withdraw (feature-gated)
 
@@ -155,18 +155,19 @@ can verify real commitment-tree membership. The arithmetic-only devnet proof is
 not sufficient withdrawal authorization.
 
 1. User calls `request_withdraw_private` with nullifier and amount
-2. Program creates `PendingWithdrawal` PDA (keyed by pool + nullifier — PDA uniqueness prevents double-spend)
+2. Program creates `PendingWithdrawal` PDA (keyed by pool + nullifier - PDA uniqueness prevents double-spend)
 3. Expiry set to `current_slot + WITHDRAWAL_DELAY_SLOTS`
 4. After delay, user calls `finalize_withdraw`
 5. Program verifies delay passed, marks nullifier spent in `NullifierSet`
 6. SPL transfer from vault to recipient (public)
 7. Pool accounting incremented (`total_public_out`)
 
-### Private Margin Lock/Release (stubs — awaiting Arcium circuits)
+### Private Margin Lock/Release (feature-gated)
 
-- `lock_margin_private` will queue Arcium MPC computation with commitment reference and encrypted balance
-- Callback will verify output and update shielded commitment root
-- `settle_private_position` will apply PnL/funding/fees privately through MPC callback
+- `lock_margin_private` queues Arcium MPC computation with commitment reference and encrypted balance intent
+- Callback verifies output and updates the shielded commitment root
+- `settle_private_position` applies PnL/funding/fees privately through the MPC callback
+- This path remains behind the shielded-collateral safety gate until withdrawal proofing and end-to-end smoke coverage are complete
 
 ### Shared Collateral Migration Flow
 
@@ -190,7 +191,7 @@ Note:
 - Privacy target is internal collateral ownership, allocation, and margin transitions.
 - Full design in `PRIVATE_COLLATERAL_SPEC.md`.
 
-## 5.1 Direct Wallet Lifecycle
+## 6. Direct Wallet Lifecycle
 
 1. User connects through Privy with either:
    - an embedded Solana wallet
@@ -199,7 +200,7 @@ Note:
 3. The app encrypts sensitive order inputs before queueing Arcium computation
 4. Callback and settlement complete on-chain without a delegated relayer being required in the primary frontend path
 
-## 5.2 Delegated Session Lifecycle
+## 7. Delegated Session Lifecycle
 
 1. `create_trade_session`: owner signs once, defines relayer + limits
 2. `open_position_with_session` / `close_position_with_session`: relayer executes within limits
@@ -215,7 +216,7 @@ Note:
 - One wallet-scoped delegated session has been smoke-tested across multiple markets for delegated collateral actions.
 - Open-position and delegated-session smoke status should be checked in local `DEV_NOTES.md` before making live-readiness claims.
 
-## 5. Oracle Flow
+## 8. Oracle Flow
 
 - feeder updates on-chain oracle through `update_price`
 - trading paths enforce max staleness window
@@ -230,13 +231,13 @@ Operational scripts:
 
 The manual override bypasses external source fetching (Coinbase, Binance, CoinGecko) and submits the given price directly. The on-chain 10x circuit breaker still applies as a safety net.
 
-## 6. Network/RPC Flow
+## 9. Network/RPC Flow
 
 - script layer resolves healthy RPC from configured candidate list
 - UI layer can switch among configured endpoints manually
 - preferred UI endpoint index persists locally and triggers provider rebind
 
-## 7. Preflight and Smoke Flow
+## 10. Preflight and Smoke Flow
 
 Use this sequence before real testing:
 
@@ -259,7 +260,7 @@ Canary scope:
 - client encryption init
 - non-destructive `open_position` queue simulation health
 
-## 8. Typical Failure Classes
+## 11. Typical Failure Classes
 
 ### Arcium queue invalid arguments
 

@@ -189,11 +189,12 @@ export default function App({ Component, pageProps }: AppProps) {
       loginMethods: ["wallet", "email"],
       externalWallets: {
         solana: {
-          // Keep Solana extension reconnect explicit. Privy's docs note some
-          // Solana connectors do not gracefully support autoConnect, and the
-          // previous stable Shadow flow disabled it to avoid wallet/email races.
+          // Allow previously-authorized Solana extensions to restore silently on
+          // refresh. Email/embedded sessions are protected from extension hijack
+          // in `useConnectedSolanaWallet`, where Privy's authenticated user is
+          // treated as the source of truth.
           connectors: toSolanaWalletConnectors({
-            shouldAutoConnect: false,
+            shouldAutoConnect: true,
           }),
         },
       },
