@@ -113,7 +113,7 @@ const STATUS_LABELS: Record<UiStatus, string> = {
   pending: "Queued",
   open: "Open",
   closing: "Closing",
-  settling: "Finalizing",
+  settling: "Settle",
   closed: "Resolved",
   liquidated: "Liquidated",
 };
@@ -121,7 +121,7 @@ const STATUS_LABELS: Record<UiStatus, string> = {
 function getStatusDetail(status: UiStatus, isClosing: boolean): string | null {
   if (isClosing || status === "closing") return "Closing the trade";
   if (status === "pending") return "Waiting for trade confirmation";
-  if (status === "settling") return "Finishing settlement on-chain";
+  if (status === "settling") return "Settlement ready; retry close when ready";
   if (status === "closed") return "Close settled on-chain";
   return null;
 }
@@ -730,12 +730,15 @@ export default function BottomPositionsPanel({
             "Live pricing is currently synchronizing on the network. Please try again in a few seconds."
           );
         }
-        toastLoading("Submitting close...", { id: pos.address });
-        const tx = await client.closePosition(
-          marketAddress,
-          pos.index
-        );
-        toastLoading("Waiting for close to settle...", { id: pos.address });
+        let tx: string | null = null;
+        if (pos.status !== "settling") {
+          toastLoading("Submitting close...", { id: pos.address });
+          tx = await client.closePosition(
+            marketAddress,
+            pos.index
+          );
+        }
+        toastLoading("Finishing settlement...", { id: pos.address });
         const finalized = await client.finalizeClosePosition(
           marketAddress,
           publicKey,
@@ -746,14 +749,16 @@ export default function BottomPositionsPanel({
           <div>
             <p className="font-medium">Position closed and settled</p>
             <p className="text-xs text-gray-400 mt-0.5">PnL finalized and settlement completed on-chain</p>
-            <a
-              href={getExplorerTxUrl(tx)}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-accent-purple underline mt-1 block"
-            >
-              View close transaction
-            </a>
+            {tx ? (
+              <a
+                href={getExplorerTxUrl(tx)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-accent-purple underline mt-1 block"
+              >
+                View close transaction
+              </a>
+            ) : null}
             {finalized.settleTxSignature ? (
               <a
                 href={getExplorerTxUrl(finalized.settleTxSignature)}
@@ -1876,7 +1881,7 @@ export default function BottomPositionsPanel({
                             {pos.status !== "open" && !isClosing ? (
                               <StatusBadge status={pos.status} isClosing={isClosing} />
                             ) : null}
-                            {!isPending && !isSettling && !isFinal ? (
+                            {!isPending && !isFinal ? (
                             <button onClick={(event) => {
                               event.stopPropagation();
                               void handleClose(pos);

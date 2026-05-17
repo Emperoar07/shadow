@@ -729,6 +729,7 @@ function ConnectWalletButton() {
   const [walletRecoveryFailed, setWalletRecoveryFailed] = useState(false);
   const [restoreHint, setRestoreHint] = useState<WalletRestoreHint | null>(null);
   const createWalletAttemptedRef = useRef(false);
+  const createWalletRetryRef = useRef(0);
   useEffect(() => {
     setMounted(true);
     setRestoreHint(readWalletRestoreHint());
@@ -763,10 +764,14 @@ function ConnectWalletButton() {
   const embeddedAddr = solanaWallets.find((w) => w.walletClientType === "privy")?.address;
   const addr = connectedAddress ?? embeddedAddr ?? null;
   const isConnected = !!addr;
-  const hasLinkedSolanaWallet = Boolean(
+  const hasLinkedEmbeddedSolanaWallet = Boolean(
     user?.linkedAccounts?.some((account: any) => {
       const type = account?.type ?? account?.linkedAccountType;
-      return type === "wallet" && account?.chainType === "solana";
+      return (
+        type === "wallet" &&
+        account?.chainType === "solana" &&
+        account?.walletClientType === "privy"
+      );
     })
   );
   const isEmbeddedLoginUser = Boolean(
@@ -792,14 +797,15 @@ function ConnectWalletButton() {
   // We therefore treat linkedAccounts/local restore hints as the signal for a
   // previously valid session instead of assuming every authenticated user has a
   // ready embedded wallet immediately.
-  const hasStrongRestoreEvidence = Boolean(hasLinkedSolanaWallet || restoreHintMatchesUser);
+  const hasStrongRestoreEvidence = Boolean(
+    isEmbeddedLoginUser ? hasLinkedEmbeddedSolanaWallet || restoreHintMatchesUser : restoreHintMatchesUser
+  );
   const shouldRestoreWallet = authenticated && !isConnected;
-  const isProvisioningEmbeddedWallet = shouldRestoreWallet && isEmbeddedLoginUser && !hasStrongRestoreEvidence;
   // Never log out a successful Privy auth just because wallet hydration is slow.
   // For fresh email/social sessions, the humane recovery is to ask Privy to
   // create the missing Solana embedded wallet and keep the auth session intact.
   const shouldAttemptWalletRecovery =
-    isProvisioningEmbeddedWallet && hydrationTimedOut && !walletRecoveryFailed;
+    shouldRestoreWallet && isEmbeddedLoginUser && hydrationTimedOut && !walletRecoveryFailed;
 
   useEffect(() => {
     if (!addr) return;
@@ -815,6 +821,7 @@ function ConnectWalletButton() {
       setWalletRecoveryFailed(false);
       if (!authenticated || isConnected) {
         createWalletAttemptedRef.current = false;
+        createWalletRetryRef.current = 0;
       }
       return;
     }
@@ -828,7 +835,7 @@ function ConnectWalletButton() {
 
   useEffect(() => {
     if (!walletHooksReady || !shouldAttemptWalletRecovery || autoRecoveryRunning) return;
-    if (isProvisioningEmbeddedWallet && !createWalletAttemptedRef.current) {
+    if (!createWalletAttemptedRef.current) {
       createWalletAttemptedRef.current = true;
       setAutoRecoveryRunning(true);
       toast.loading("Finishing secure email wallet setup...", { id: "wallet-recovery" });
@@ -842,10 +849,25 @@ function ConnectWalletButton() {
         })
         .catch((error) => {
           console.error("[Shadow][Privy create embedded wallet] Failed to provision embedded wallet after email OTP:", error);
-          setWalletRecoveryFailed(true);
-          toast.error("Email sign-in succeeded, but the embedded wallet did not finish. Refresh once or try sign-in again.", {
-            duration: 7000,
-          });
+          createWalletRetryRef.current += 1;
+          createWalletAttemptedRef.current = false;
+          setHydrationTimedOut(false);
+          if (createWalletRetryRef.current >= 3) {
+            setWalletRecoveryFailed(true);
+            toast.error("Email sign-in is connected, but the embedded wallet is still syncing. Shadow will keep trying in the background.", {
+              id: "wallet-recovery-slow",
+              duration: 7000,
+            });
+            window.setTimeout(() => {
+              setWalletRecoveryFailed(false);
+              setHydrationTimedOut(true);
+            }, 10000);
+            return;
+          }
+          window.setTimeout(() => {
+            setWalletRecoveryFailed(false);
+            setHydrationTimedOut(true);
+          }, 3500);
         })
         .finally(() => {
           toast.dismiss("wallet-recovery");
@@ -856,7 +878,6 @@ function ConnectWalletButton() {
     autoRecoveryRunning,
     hydrationTimedOut,
     createWallet,
-    isProvisioningEmbeddedWallet,
     shouldAttemptWalletRecovery,
     user?.id,
     walletHooksReady,

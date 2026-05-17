@@ -103,7 +103,15 @@ export function useConnectedSolanaWallet(): ConnectedSolanaWalletLike | null {
       return null;
     }
 
-    if (isEmbeddedLoginUser && !userLinkedExternalSolana) return null;
+    if (isEmbeddedLoginUser) {
+      const embeddedDetected = connected.find((w) => w.walletClientType === "privy");
+      if (embeddedDetected) return solanaByAddress.get(embeddedDetected.address) ?? embeddedDetected;
+      const embeddedFallback = solanaWallets.find(
+        (w) => w.walletClientType === "privy" && typeof w.address === "string"
+      );
+      if (embeddedFallback) return embeddedFallback;
+      if (!userLinkedExternalSolana) return null;
+    }
 
     const externalDetected = connected.find((w) => w.walletClientType !== "privy");
     if (externalDetected) {

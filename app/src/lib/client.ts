@@ -988,7 +988,7 @@ export class ShadowPerpClient {
       [PositionStatus.ClosedPendingSettlement, PositionStatus.Closed],
       options
     );
-    if (callbackResult.status === PositionStatus.Closed) {
+    if (normalizeStatus(callbackResult.status) === PositionStatus.Closed) {
       return { positionAddress, settleTxSignature: null, status: PositionStatus.Closed };
     }
 
