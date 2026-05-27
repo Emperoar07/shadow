@@ -9,9 +9,9 @@ use arcium_client::idl::arcium::types::CallbackAccount;
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
-use crate::handlers::callbacks::close_position_callback::ClosePositionV3Callback;
+use crate::handlers::callbacks::close_position_callback::ClosePositionV5Callback;
 
-#[queue_computation_accounts("close_position_v3", owner)]
+#[queue_computation_accounts("close_position_v5", owner)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct ClosePosition<'info> {
@@ -170,7 +170,7 @@ pub fn handler(ctx: Context<ClosePosition>, computation_offset: u64) -> Result<(
         },
     ];
 
-    let callback_ix = ClosePositionV3Callback::callback_ix(
+    let callback_ix = ClosePositionV5Callback::callback_ix(
         computation_offset,
         &ctx.accounts.mxe_account,
         &callback_accounts,

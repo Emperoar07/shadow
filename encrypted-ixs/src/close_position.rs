@@ -1,4 +1,4 @@
-﻿//! Close Position Circuit
+//! Close Position Circuit
 //!
 //! This circuit calculates the final PnL when a position is closed.
 //! THIS IS THE ONLY CIRCUIT THAT REVEALS DATA - the realized PnL.
@@ -21,7 +21,7 @@ mod close_position_circuit {
     /// locked_margin is revealed only during close settlement so active
     /// positions do not need a plaintext margin slot on-chain.
     #[instruction]
-    pub fn close_position_v3(
+    pub fn close_position_v5(
         position: Enc<Shared, (u64, u64, u8, u8, u64)>,
         exit_price: u64,
         trading_fee_bps: u64,

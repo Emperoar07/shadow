@@ -5,17 +5,17 @@ use arcium_anchor::prelude::*;
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{MarginAccount, Market, Position, PositionStatus};
 
-const COMP_DEF_OFFSET_CHECK_LIQUIDATION: u32 = comp_def_offset("check_liquidation_v3");
+const COMP_DEF_OFFSET_CHECK_LIQUIDATION_V5: u32 = comp_def_offset("check_liquidation_v5");
 
 /// Callback account for receiving liquidation decision from MPC.
 /// Token transfer is deferred to a separate `settle_liquidation` instruction
 /// so that this callback only needs 3 custom accounts (within Arcium's comp-account budget).
-#[callback_accounts("check_liquidation_v3")]
+#[callback_accounts("check_liquidation_v5")]
 #[derive(Accounts)]
-pub struct CheckLiquidationV3Callback<'info> {
+pub struct CheckLiquidationV5Callback<'info> {
     // Standard Arcium callback accounts — address constraints required by #[callback_accounts] macro
     pub arcium_program: Program<'info, Arcium>,
-    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_CHECK_LIQUIDATION))]
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_CHECK_LIQUIDATION_V5))]
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
     #[account(address = derive_mxe_pda!())]
     pub mxe_account: Account<'info, MXEAccount>,
@@ -54,8 +54,8 @@ pub struct CheckLiquidationV3Callback<'info> {
 /// Handler logic for the check_liquidation callback (called from lib.rs via #[arcium_callback]).
 /// Updates state only — token settlement is handled by `settle_liquidation`.
 pub fn check_liquidation_callback_handler(
-    ctx: Context<CheckLiquidationV3Callback>,
-    output: SignedComputationOutputs<CheckLiquidationV3Output>,
+    ctx: Context<CheckLiquidationV5Callback>,
+    output: SignedComputationOutputs<CheckLiquidationV5Output>,
 ) -> Result<()> {
     // Validate cluster + comp-def bindings BEFORE invoking verify_output. A forged
     // cluster_account would otherwise pass verify_output's signature path and then

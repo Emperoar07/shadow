@@ -8,8 +8,8 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-const PROGRAM_ID = new PublicKey("DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD");
-const MARKET = new PublicKey("AwiH92K4RxfhoHpmkiQrwZEBi1ia93x1WrK4uoEchLBJ");
+const PROGRAM_ID = new PublicKey("5Va2JgK2M2kwkoPdwX4RTjfaqwAXgd5hHSWEP5QS848T");
+const MARKET = new PublicKey("GUpRFdAG6QD4athYD7CtPN54yqgC2xt2UH5pYeVyXo6Z");
 
 function readArg(name: string): string | undefined {
   const args = process.argv.slice(2);
@@ -19,8 +19,8 @@ function readArg(name: string): string | undefined {
 }
 
 async function main() {
-  const rpcUrl = readArg("rpc") || "https://cool-boldest-yard.solana-devnet.quiknode.pro/3513dd000b0bf11aae344e55c52d9281969d0808";
-  const posIndex = parseInt(readArg("index") || "0", 10);
+  const rpcUrl = readArg("rpc") || "https://devnet.helius-rpc.com/?api-key=b077c7fc-8625-488f-93fd-1daf8de886c1";
+  const posPda = new PublicKey("FTLzGK7enerizMYKfkNWsaz28As8ZjwHWuC81wF8PF6P");
 
   const walletPath = path.join(os.homedir(), ".config", "solana", "id.json");
   const wallet = Keypair.fromSecretKey(
@@ -28,13 +28,6 @@ async function main() {
   );
 
   const connection = new Connection(rpcUrl, "confirmed");
-
-  const indexBuf = Buffer.alloc(8);
-  indexBuf.writeBigUInt64LE(BigInt(posIndex));
-  const [posPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("position"), MARKET.toBuffer(), wallet.publicKey.toBuffer(), indexBuf],
-    PROGRAM_ID
-  );
 
   console.log(`Position PDA: ${posPda.toBase58()}\n`);
 

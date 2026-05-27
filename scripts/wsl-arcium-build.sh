@@ -78,10 +78,10 @@ for ext in arcis arcis.ir hash idarc profile.json ts weight; do
     cp -f "build/open_position.$ext" "build/open_position_v4.$ext"
   fi
   if [ -f "build/close_position.$ext" ]; then
-    cp -f "build/close_position.$ext" "build/close_position_v3.$ext"
+    cp -f "build/close_position.$ext" "build/close_position_v5.$ext"
   fi
   if [ -f "build/check_liquidation.$ext" ]; then
-    cp -f "build/check_liquidation.$ext" "build/check_liquidation_v3.$ext"
+    cp -f "build/check_liquidation.$ext" "build/check_liquidation_v5.$ext"
   fi
 done
 

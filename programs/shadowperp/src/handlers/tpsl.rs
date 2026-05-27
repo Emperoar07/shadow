@@ -11,7 +11,7 @@ use arcium_anchor::prelude::*;
 
 use arcium_anchor::traits::CallbackCompAccs;
 use arcium_client::idl::arcium::types::CallbackAccount;
-use crate::handlers::callbacks::close_position_callback::ClosePositionV3Callback;
+use crate::handlers::callbacks::close_position_callback::ClosePositionV5Callback;
 
 use crate::errors::{ErrorCode, ShadowPerpError};
 use crate::state::{
@@ -138,7 +138,7 @@ pub fn cancel_tpsl_handler(ctx: Context<CancelTpSl>) -> Result<()> {
 
 /// Permissionless keeper call: checks mark_price against TP/SL levels and
 /// queues MPC close computation if triggered. The keeper pays computation fees.
-#[queue_computation_accounts("close_position_v3", keeper)]
+#[queue_computation_accounts("close_position_v5", keeper)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64)]
 pub struct TriggerTpSl<'info> {
@@ -340,7 +340,7 @@ pub fn trigger_tpsl_handler(
     ];
 
     let callback_ix =
-        ClosePositionV3Callback::callback_ix(computation_offset, &mxe_account, &callback_accounts)?;
+        ClosePositionV5Callback::callback_ix(computation_offset, &mxe_account, &callback_accounts)?;
 
     queue_computation(
         ctx.accounts,

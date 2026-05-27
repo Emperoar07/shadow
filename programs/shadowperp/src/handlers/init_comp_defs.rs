@@ -10,8 +10,17 @@ const OFFCHAIN_CIRCUIT_BASE_URL: &str =
     "https://npywafkaealcegkfnhjl.supabase.co/storage/v1/object/public/arcium-circuits";
 
 fn offchain_source(circuit: &'static str, hash: [u8; 32]) -> CircuitSource {
+    let source = match circuit {
+        "check_liquidation_v5" => "https://raw.githubusercontent.com/Emperoar07/shadow/master/build/check_liquidation_v5.arcis".to_string(),
+        "close_position_v5" => "https://raw.githubusercontent.com/Emperoar07/shadow/master/build/close_position_v5.arcis".to_string(),
+        "check_liquidation_v4" => "https://raw.githubusercontent.com/Emperoar07/shadow/master/build/check_liquidation_v4.arcis".to_string(),
+        "close_position_v4" => "https://raw.githubusercontent.com/Emperoar07/shadow/master/build/close_position_v4.arcis".to_string(),
+        "check_liquidation_v3" => "https://files.catbox.moe/c4cpum.arcis".to_string(),
+        "close_position_v3" => "https://files.catbox.moe/45jgmf.arcis".to_string(),
+        _ => format!("{}/{}.arcis", OFFCHAIN_CIRCUIT_BASE_URL, circuit),
+    };
     CircuitSource::OffChain(OffChainCircuitSource {
-        source: format!("{}/{}.arcis", OFFCHAIN_CIRCUIT_BASE_URL, circuit),
+        source,
         hash,
     })
 }
@@ -281,7 +290,7 @@ pub fn init_open_position_full_probe_handler(
 
 // ============ CLOSE POSITION COMP DEF ============
 
-#[init_computation_definition_accounts("close_position_v3", payer)]
+#[init_computation_definition_accounts("close_position_v5", payer)]
 #[derive(Accounts)]
 pub struct InitClosePositionCompDef<'info> {
     #[account(mut)]
@@ -320,8 +329,8 @@ pub fn init_close_position_handler(ctx: Context<InitClosePositionCompDef>) -> Re
     init_comp_def(
         ctx.accounts,
         Some(offchain_source(
-            "close_position_v3",
-            circuit_hash!("close_position_v3"),
+            "close_position_v5",
+            circuit_hash!("close_position_v5"),
         )),
         None,
     )?;
@@ -334,7 +343,7 @@ pub fn init_close_position_handler(ctx: Context<InitClosePositionCompDef>) -> Re
 
 // ============ LIQUIDATION COMP DEF ============
 
-#[init_computation_definition_accounts("check_liquidation_v3", payer)]
+#[init_computation_definition_accounts("check_liquidation_v5", payer)]
 #[derive(Accounts)]
 pub struct InitLiquidationCompDef<'info> {
     #[account(mut)]
@@ -373,8 +382,8 @@ pub fn init_liquidation_handler(ctx: Context<InitLiquidationCompDef>) -> Result<
     init_comp_def(
         ctx.accounts,
         Some(offchain_source(
-            "check_liquidation_v3",
-            circuit_hash!("check_liquidation_v3"),
+            "check_liquidation_v5",
+            circuit_hash!("check_liquidation_v5"),
         )),
         None,
     )?;

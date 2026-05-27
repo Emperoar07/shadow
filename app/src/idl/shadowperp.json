@@ -1,5 +1,5 @@
 {
-  "address": "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD",
+  "address": "5Va2JgK2M2kwkoPdwX4RTjfaqwAXgd5hHSWEP5QS848T",
   "metadata": {
     "name": "shadowperp",
     "version": "0.1.0",
@@ -656,19 +656,19 @@
       ]
     },
     {
-      "name": "check_liquidation_v3_callback",
+      "name": "check_liquidation_v5_callback",
       "docs": [
         "Callback after liquidation check"
       ],
       "discriminator": [
-        88,
-        186,
-        147,
-        173,
-        16,
-        116,
-        38,
-        50
+        39,
+        228,
+        79,
+        109,
+        13,
+        123,
+        5,
+        14
       ],
       "accounts": [
         {
@@ -794,7 +794,7 @@
                   "kind": "type",
                   "type": {
                     "defined": {
-                      "name": "CheckLiquidationV3Output"
+                      "name": "CheckLiquidationV5Output"
                     }
                   }
                 }
@@ -1002,19 +1002,19 @@
       ]
     },
     {
-      "name": "close_position_v3_callback",
+      "name": "close_position_v5_callback",
       "docs": [
         "Callback after position closing - reveals final PnL"
       ],
       "discriminator": [
-        53,
-        226,
-        84,
-        159,
-        124,
-        205,
-        23,
-        142
+        10,
+        220,
+        181,
+        102,
+        122,
+        148,
+        160,
+        94
       ],
       "accounts": [
         {
@@ -1140,7 +1140,7 @@
                   "kind": "type",
                   "type": {
                     "defined": {
-                      "name": "ClosePositionV3Output"
+                      "name": "ClosePositionV5Output"
                     }
                   }
                 }
@@ -9192,7 +9192,7 @@
       }
     },
     {
-      "name": "CheckLiquidationV3Output",
+      "name": "CheckLiquidationV5Output",
       "docs": [
         "The output of the callback instruction. Provided as a struct with ordered fields",
         "as anchor does not support tuples and tuple structs yet."
@@ -9204,7 +9204,7 @@
             "name": "field_0",
             "type": {
               "defined": {
-                "name": "CheckLiquidationV3OutputStruct0"
+                "name": "CheckLiquidationV5OutputStruct0"
               }
             }
           }
@@ -9212,7 +9212,7 @@
       }
     },
     {
-      "name": "CheckLiquidationV3OutputStruct0",
+      "name": "CheckLiquidationV5OutputStruct0",
       "type": {
         "kind": "struct",
         "fields": [
@@ -9309,7 +9309,7 @@
       }
     },
     {
-      "name": "ClosePositionV3Output",
+      "name": "ClosePositionV5Output",
       "docs": [
         "The output of the callback instruction. Provided as a struct with ordered fields",
         "as anchor does not support tuples and tuple structs yet."
@@ -9321,7 +9321,7 @@
             "name": "field_0",
             "type": {
               "defined": {
-                "name": "ClosePositionV3OutputStruct0"
+                "name": "ClosePositionV5OutputStruct0"
               }
             }
           }
@@ -9329,7 +9329,7 @@
       }
     },
     {
-      "name": "ClosePositionV3OutputStruct0",
+      "name": "ClosePositionV5OutputStruct0",
       "type": {
         "kind": "struct",
         "fields": [
@@ -12684,136 +12684,131 @@
     },
     {
       "code": 6006,
-      "name": "PositionAlreadyClosed",
-      "msg": "Position is already closed"
-    },
-    {
-      "code": 6007,
       "name": "InvalidPrice",
       "msg": "Invalid oracle price"
     },
     {
-      "code": 6008,
+      "code": 6007,
       "name": "StalePrice",
       "msg": "Price is stale - needs update"
     },
     {
-      "code": 6009,
+      "code": 6008,
       "name": "ComputationInProgress",
       "msg": "Computation already in progress"
     },
     {
-      "code": 6010,
+      "code": 6009,
       "name": "InvalidComputationResult",
       "msg": "Invalid computation result"
     },
     {
-      "code": 6011,
+      "code": 6010,
       "name": "MarketPaused",
       "msg": "Market is paused"
     },
     {
-      "code": 6012,
+      "code": 6011,
       "name": "InsufficientBalance",
       "msg": "Insufficient balance for withdrawal"
     },
     {
-      "code": 6013,
+      "code": 6012,
       "name": "ZeroAmount",
       "msg": "Amount must be greater than zero"
     },
     {
-      "code": 6014,
+      "code": 6013,
       "name": "CannotLiquidate",
       "msg": "Position cannot be liquidated - health factor above threshold"
     },
     {
-      "code": 6015,
+      "code": 6014,
       "name": "InvalidNonce",
       "msg": "Invalid nonce"
     },
     {
-      "code": 6016,
+      "code": 6015,
       "name": "ArithmeticOverflow",
       "msg": "Arithmetic overflow"
     },
     {
-      "code": 6017,
+      "code": 6016,
       "name": "InvalidAccountData",
       "msg": "Invalid account data"
     },
     {
-      "code": 6018,
+      "code": 6017,
       "name": "ShieldedNotEnabled",
       "msg": "Shielded collateral feature not enabled"
     },
     {
-      "code": 6019,
+      "code": 6018,
       "name": "NullifierAlreadySpent",
       "msg": "Nullifier already spent"
     },
     {
-      "code": 6020,
+      "code": 6019,
       "name": "InvalidCommitmentProof",
       "msg": "Invalid commitment proof"
     },
     {
-      "code": 6021,
+      "code": 6020,
       "name": "WithdrawalNotReady",
       "msg": "Withdrawal delay not yet passed"
     },
     {
-      "code": 6022,
+      "code": 6021,
       "name": "ShieldedWithdrawalGated",
       "msg": "Shielded withdrawal flow is gated: verify_withdrawal_proof requires merkle-path verification before this handler can run"
     },
     {
-      "code": 6023,
+      "code": 6022,
       "name": "CommitmentTreeFull",
       "msg": "Commitment tree is full"
     },
     {
-      "code": 6024,
+      "code": 6023,
       "name": "PendingComputationTimeout",
       "msg": "Pending computation has timed out"
     },
     {
-      "code": 6025,
+      "code": 6024,
       "name": "MarkPriceDeviationExceedsCap",
       "msg": "Mark price deviation exceeds the allowed cap from index price"
     },
     {
-      "code": 6026,
+      "code": 6025,
       "name": "FundingIntervalNotElapsed",
       "msg": "Funding interval has not elapsed yet"
     },
     {
-      "code": 6027,
+      "code": 6026,
       "name": "OiCapExceeded",
       "msg": "Open interest cap exceeded for this direction"
     },
     {
-      "code": 6028,
+      "code": 6027,
       "name": "TpSlNotActive",
       "msg": "TP/SL order is not active"
     },
     {
-      "code": 6029,
+      "code": 6028,
       "name": "TpSlNotTriggered",
       "msg": "TP/SL trigger conditions not met"
     },
     {
-      "code": 6030,
+      "code": 6029,
       "name": "InvalidTpSlPrice",
       "msg": "Invalid TP/SL price configuration"
     },
     {
-      "code": 6031,
+      "code": 6030,
       "name": "MarkPriceStale",
       "msg": "Mark price is not set or stale"
     },
     {
-      "code": 6032,
+      "code": 6031,
       "name": "TpSlPrivateDirectionUnsupported",
       "msg": "On-chain TP/SL requires a private direction-proof path and is currently disabled"
     }

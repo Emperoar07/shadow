@@ -39,10 +39,31 @@ function loadEnvFile(filePath: string): void {
 }
 
 function parsePublicKey(name: string, value?: string): PublicKey {
-  if (!value || value.trim().length === 0) {
+  const normalize = (raw?: string): string | undefined => {
+    if (!raw) return undefined;
+    let out = raw.trim();
+    if (!out) return undefined;
+    if (out.startsWith("<") && out.endsWith(">")) {
+      out = out.slice(1, -1).trim();
+    }
+    if (
+      (out.startsWith('"') && out.endsWith('"')) ||
+      (out.startsWith("'") && out.endsWith("'"))
+    ) {
+      out = out.slice(1, -1).trim();
+    }
+    return out || undefined;
+  };
+
+  const normalized = normalize(value);
+  if (!normalized) {
     throw new Error(`Missing required value: ${name}`);
   }
-  return new PublicKey(value.trim());
+  try {
+    return new PublicKey(normalized);
+  } catch {
+    throw new Error(`Invalid public key for ${name}: ${normalized}`);
+  }
 }
 
 function resolveIdlPath(): string {
