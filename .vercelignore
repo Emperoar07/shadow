@@ -1,3 +1,16 @@
 # Local backups and bulky dirs
 app/node_modules_bak_*/
 app/node_modules/
+node_modules/
+target/
+.anchor/
+.tmp-arcium/
+.git/
+build/
+programs/
+encrypted-ixs/
+tests/
+.next/
+app/.next/
+app/.logs/
+.logs/
