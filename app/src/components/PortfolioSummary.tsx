@@ -71,6 +71,24 @@ export default function PortfolioSummary({ onMarginReady, pair, activeMarketPric
   const [data, setData] = useState<PortfolioData | null>(null);
   const clientRef = useRef<ReturnType<typeof createShadowPerpClient> | null>(null);
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
+  const [hideBalances, setHideBalances] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("shadowperp:ui:hide-balances") === "true";
+      setHideBalances(stored);
+    } catch {}
+
+    const handleSync = () => {
+      try {
+        const stored = localStorage.getItem("shadowperp:ui:hide-balances") === "true";
+        setHideBalances(stored);
+      } catch {}
+    };
+
+    window.addEventListener("shadowperp:hide-balances-sync", handleSync);
+    return () => window.removeEventListener("shadowperp:hide-balances-sync", handleSync);
+  }, []);
 
   // Seed from cache as soon as the wallet key is known (autoconnect flash window)
   useEffect(() => {
@@ -306,7 +324,7 @@ export default function PortfolioSummary({ onMarginReady, pair, activeMarketPric
     <div className="flex items-center gap-2 shrink-0 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
       <SummaryStat
         label="Free Collateral"
-        value={data ? `$${data.freeCollateral.toFixed(2)}` : "--"}
+        value={hideBalances ? "••••" : data ? `$${data.freeCollateral.toFixed(2)}` : "--"}
       />
 
       {/* Open Positions */}
@@ -319,7 +337,9 @@ export default function PortfolioSummary({ onMarginReady, pair, activeMarketPric
       <SummaryStat
         label="Unrealized PnL"
         value={
-          (() => {
+          hideBalances ? (
+            <span className="text-gray-300 text-xs">••••</span>
+          ) : (() => {
             const unrealized = displayUnrealizedPnl;
             if (unrealized === null || unrealized === undefined) {
               return <span className="text-gray-400 text-xs">--</span>;

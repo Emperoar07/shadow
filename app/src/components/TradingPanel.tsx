@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import BN from "bn.js";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { usePrivy } from "@privy-io/react-auth";
@@ -851,7 +851,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   }, [runLimitExecutor]);
 
   return (
-    <div className="trade-trading-panel flex flex-col bg-shadow-900 p-3 h-full overflow-y-auto">
+    <div className="trade-trading-panel flex flex-col bg-shadow-900 p-3 h-full overflow-y-auto relative">
       <div className={isHorizontal ? "grid grid-cols-1 items-start gap-2 lg:grid-cols-12" : "space-y-2"}>
         <div className={isHorizontal ? "space-y-2 lg:col-span-12" : "space-y-2"}>
           {/* Market / Limit — underlined text tabs */}
@@ -919,30 +919,53 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
             </span>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <div className="flex gap-1.5">
-              {/* Margin mode chip — click to cycle */}
+          <div className="flex flex-col gap-1.5 bg-shadow-800/40 p-2.5 rounded-xl border border-shadow-600/45">
+            <div className="flex items-center justify-between text-[10px] text-gray-500 uppercase tracking-widest font-semibold px-0.5">
+              <span>Leverage</span>
               <button
                 type="button"
                 onClick={() => setMarginMode(marginMode === "cross" ? "isolated" : "cross")}
-                className="flex items-center gap-1.5 rounded-lg border border-shadow-500 bg-shadow-700 px-2.5 py-1 text-[11px] font-semibold text-gray-300 hover:text-white hover:border-shadow-400 transition-colors"
+                className="flex items-center gap-1.5 rounded bg-shadow-700/80 px-2 py-0.5 text-[9px] text-gray-300 hover:text-white transition-colors"
               >
-                <span className="capitalize">{marginMode}</span>
-                <svg className="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="capitalize">{marginMode} Mode</span>
+                <svg className="w-2 h-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
                 </svg>
               </button>
-              {/* Leverage chip — click to open modal */}
-              <button
-                type="button"
-                onClick={() => setLeverageModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-shadow-500 bg-shadow-700 px-2.5 py-1 text-[11px] font-semibold text-gray-300 hover:text-white hover:border-shadow-400 transition-colors"
-              >
-                <span>{leverage}x</span>
-                <svg className="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
+            </div>
+            <div className="grid grid-cols-6 gap-1">
+              {[2, 5, 10, 20, 50].map((val) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setLeverage(val)}
+                  className={`rounded py-1.5 text-center text-xs font-bold transition-all ${
+                    leverage === val
+                      ? "bg-accent-purple text-white shadow-[0_0_8px_rgba(139,92,246,0.45)]"
+                      : "bg-shadow-700/80 text-gray-400 hover:bg-shadow-700 hover:text-gray-200 border border-shadow-600/30"
+                  }`}
+                >
+                  {val}x
+                </button>
+              ))}
+              <div className="relative">
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={leverage === 0 ? "" : leverage}
+                  onChange={(e) => {
+                    const parsed = parseInt(e.target.value, 10);
+                    if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 50) {
+                      setLeverage(parsed);
+                    } else if (e.target.value === "") {
+                      setLeverage("" as any);
+                    }
+                  }}
+                  className="w-full h-full rounded border border-shadow-600/50 bg-shadow-700/80 px-1 text-center text-xs font-semibold text-white focus:outline-none focus:border-accent-purple/80"
+                  placeholder="Custom"
+                />
+              </div>
             </div>
           </div>
 
@@ -1250,6 +1273,35 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
         }}
         onCancel={() => setOpenConfirmPending(false)}
       />
+      {isSubmitting && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-xl bg-shadow-950/85 backdrop-blur-[2px] transition-all">
+          <div className="flex flex-col items-center gap-3">
+            <svg className="h-10 w-10 animate-spin text-accent-purple" viewBox="0 0 24 24">
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+                fill="none"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <span className="text-xs font-semibold text-gray-300">
+              {tradeStep === "signing" && "Waiting for signature..."}
+              {tradeStep === "encrypting" && "Encrypting order inputs..."}
+              {tradeStep === "submitting" && "Submitting order to MPC..."}
+              {tradeStep === "verifying" && "Verifying computation on-chain..."}
+              {!["signing", "encrypting", "submitting", "verifying"].includes(tradeStep) && "Executing trade..."}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

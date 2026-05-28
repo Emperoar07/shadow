@@ -718,36 +718,17 @@ export default function BottomPositionsPanel({
           marketAddress
         );
         try {
-          const marketAccount = await client.getMarket(marketAddress);
-          const lastUpdate = new BN(marketAccount.lastPriceUpdate.toString()).toNumber();
-          const nowSeconds = Math.floor(Date.now() / 1000);
-          const ageSeconds = nowSeconds - lastUpdate;
-
-          if (ageSeconds > 60) {
-            await ensureFreshMarketOracle({
-              market: marketAddress,
-              pairLabel: pos.pairLabel,
-              getAccessToken,
-              operation: "closing position",
-            });
-          } else {
-            console.debug(`[BottomPositionsPanel] Skipping oracle refresh because price is extremely fresh (${ageSeconds}s old).`);
-          }
+          // Fire refresh in background without blocking execution
+          ensureFreshMarketOracle({
+            market: marketAddress,
+            pairLabel: pos.pairLabel,
+            getAccessToken,
+            operation: "closing position",
+          }).catch((err) => {
+            console.debug("[BottomPositionsPanel] Background oracle refresh skipped or rate-limited:", err);
+          });
         } catch (err: any) {
-          try {
-            const marketAccount = await client.getMarket(marketAddress);
-            const lastUpdate = new BN(marketAccount.lastPriceUpdate.toString()).toNumber();
-            const nowSeconds = Math.floor(Date.now() / 1000);
-            const ageSeconds = nowSeconds - lastUpdate;
-            if (ageSeconds > 240) {
-              throw new Error("Oracle price is completely stale.");
-            }
-            console.warn(`[BottomPositionsPanel] Oracle refresh failed, but proceeding because on-chain price age is ${ageSeconds}s (<= 240s)`);
-          } catch {
-            throw new Error(
-              "Live pricing is currently synchronizing on the network. Please try again in a few seconds."
-            );
-          }
+          // Safe catch
         }
         let tx: string | null = null;
         if (pos.status !== "settling") {
