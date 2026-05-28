@@ -645,6 +645,7 @@ export default function TradingAppPage() {
               {/* Status indicator */}
               <div className="flex items-center justify-center gap-4 sm:justify-start">
                 <ProtocolStatusDot />
+                <MpcEnclaveIndicator />
                 <span className="hidden sm:inline text-[10px] text-gray-600">
                   Powered by{" "}
                   <a href="https://arcium.com" target="_blank" rel="noopener noreferrer" className="text-accent-purple/70 hover:text-accent-purple">
@@ -715,6 +716,34 @@ function ConnectWalletButton() {
   const { address: connectedAddress } = useWalletConnectionState();
   const walletExecutionMode = useWalletExecutionMode();
   const walletHooksReady = walletsReady && solanaWalletsReady;
+
+  const [hideBalances, setHideBalances] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("shadowperp:ui:hide-balances") === "true";
+      setHideBalances(stored);
+    } catch {}
+
+    const handleSync = () => {
+      try {
+        const stored = localStorage.getItem("shadowperp:ui:hide-balances") === "true";
+        setHideBalances(stored);
+      } catch {}
+    };
+
+    window.addEventListener("shadowperp:hide-balances-sync", handleSync);
+    return () => window.removeEventListener("shadowperp:hide-balances-sync", handleSync);
+  }, []);
+
+  const toggleHideBalances = () => {
+    try {
+      const next = !hideBalances;
+      localStorage.setItem("shadowperp:ui:hide-balances", String(next));
+      setHideBalances(next);
+      window.dispatchEvent(new Event("shadowperp:hide-balances-sync"));
+    } catch {}
+  };
 
   // Wire Privy bearer token into the gas sponsor path.
   useEffect(() => {
@@ -1018,10 +1047,24 @@ function ConnectWalletButton() {
                   Export Private Key
                 </button>
               )}
+              
+              <button
+                type="button"
+                onClick={toggleHideBalances}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-[12px] text-gray-300 hover:bg-shadow-800/80 hover:text-white transition-colors"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1.5 8s2.5-4.5 6.5-4.5 6.5 4.5 6.5 4.5-2.5 4.5-6.5 4.5-6.5-4.5-6.5-4.5z" />
+                  <circle cx="8" cy="8" r="2" />
+                  {hideBalances && <line x1="2" y1="2" x2="14" y2="14" />}
+                </svg>
+                {hideBalances ? "Show Balances" : "Hide Balances"}
+              </button>
+
               <button
                 type="button"
                 onClick={handleDisconnect}
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-[12px] text-red-400 hover:bg-shadow-800/80 hover:text-red-300 transition-colors"
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-[12px] text-red-400 hover:bg-shadow-800/80 hover:text-red-300 transition-colors border-t border-shadow-700/40"
               >
                 <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
                   <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -1048,6 +1091,24 @@ function ConnectWalletButton() {
       </div>
     );
   }
+
+function MpcEnclaveIndicator() {
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-cyan-500/20 bg-cyan-950/20 shadow-[0_0_8px_rgba(6,182,212,0.05)] select-none">
+      <span className="relative flex h-2 w-2 shrink-0">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500 shadow-[0_0_6px_rgba(6,182,212,0.8)]"></span>
+      </span>
+      <svg className="w-3 h-3 text-cyan-400 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <rect x="3" y="6" width="10" height="8" rx="1.5" />
+        <path d="M5 6V4.5a3 3 0 116 0V6" strokeLinecap="round" />
+      </svg>
+      <span className="text-[9px] font-bold tracking-wide uppercase bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent animate-pulse">
+        MPC Enclave Shield Active
+      </span>
+    </div>
+  );
+}
 
 function ProtocolStatusDot() {
   const { connection } = useConnection();

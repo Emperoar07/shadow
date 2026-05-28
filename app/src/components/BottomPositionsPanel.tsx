@@ -210,6 +210,13 @@ function clampPercent(value: number): number {
 }
 
 function formatAssetBalance(value: number | null | undefined): string {
+  if (typeof window !== "undefined") {
+    try {
+      if (localStorage.getItem("shadowperp:ui:hide-balances") === "true") {
+        return "••••";
+      }
+    } catch {}
+  }
   if (value == null || !Number.isFinite(value)) return "--";
   if (value < 0.001) return "<0.001";
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -218,6 +225,13 @@ function formatAssetBalance(value: number | null | undefined): string {
 }
 
 function formatDollarAmount(value: number | null | undefined): string {
+  if (typeof window !== "undefined") {
+    try {
+      if (localStorage.getItem("shadowperp:ui:hide-balances") === "true") {
+        return "••••";
+      }
+    } catch {}
+  }
   if (value == null || !Number.isFinite(value)) return "--";
   return `$${value.toFixed(2)}`;
 }
@@ -403,6 +417,24 @@ export default function BottomPositionsPanel({
   const [collateralModalTab, setCollateralModalTab] = useState<"deposit" | "withdraw">("deposit");
   const [balancesRefreshTick, setBalancesRefreshTick] = useState(0);
   const [panelRefreshTick, setPanelRefreshTick] = useState(0);
+  const [hideBalances, setHideBalances] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("shadowperp:ui:hide-balances") === "true";
+      setHideBalances(stored);
+    } catch {}
+
+    const handleSync = () => {
+      try {
+        const stored = localStorage.getItem("shadowperp:ui:hide-balances") === "true";
+        setHideBalances(stored);
+      } catch {}
+    };
+
+    window.addEventListener("shadowperp:hide-balances-sync", handleSync);
+    return () => window.removeEventListener("shadowperp:hide-balances-sync", handleSync);
+  }, []);
 
   // Reset cached client when wallet or wallet mode changes
   useEffect(() => {
@@ -685,7 +717,7 @@ export default function BottomPositionsPanel({
           next[pairLabel] = price;
         }
       }
-      if (priceMeta.quality !== "mock" && fallbackPrices) {
+      if (fallbackPrices) {
         for (const pairLabel of labels) {
           if (Number.isFinite(next[pairLabel]) && next[pairLabel] > 0) continue;
           const fallback = fallbackPrices[pairLabel]?.price;
@@ -1818,14 +1850,16 @@ export default function BottomPositionsPanel({
                     {/* Liq */}
                     <td className="px-2 py-2.5 text-right text-accent-red">{formatPrice(card.liqPrice)}</td>
                     {/* Margin */}
-                    <td className="px-2 py-2.5 text-right text-gray-300">${(card.localMargin ?? pos.margin).toFixed(2)}</td>
+                    <td className="px-2 py-2.5 text-right text-gray-300">
+                      {hideBalances ? "••••" : `$${(card.localMargin ?? pos.margin).toFixed(2)}`}
+                    </td>
                     {/* PnL */}
                     <td className={`px-2 py-2.5 text-right font-medium ${
-                      hidePnl ? "text-gray-500"
+                      hidePnl || hideBalances ? "text-gray-500"
                         : pnlValue === null ? "text-gray-500"
                         : pnlValue >= 0 ? "text-accent-green" : "text-accent-red"
                     }`}>
-                      {hidePnl ? "***" : isFinal ? (
+                      {hidePnl || hideBalances ? "••••" : isFinal ? (
                         <>{pos.realizedPnl >= 0 ? "+" : ""}${pos.realizedPnl.toFixed(2)}</>
                       ) : pnlValue === null ? "--" : (
                         <>{pnlValue >= 0 ? "+" : ""}${Math.abs(pnlValue).toFixed(2)}

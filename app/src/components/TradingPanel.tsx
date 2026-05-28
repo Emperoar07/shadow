@@ -179,6 +179,33 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [marginBalance, setMarginBalance] = useState<number | null>(null);
   const [availableMarginBalance, setAvailableMarginBalance] = useState<number | null>(null);
+  const [hideBalances, setHideBalances] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("shadowperp:ui:hide-balances") === "true";
+      setHideBalances(stored);
+    } catch {}
+
+    const handleSync = () => {
+      try {
+        const stored = localStorage.getItem("shadowperp:ui:hide-balances") === "true";
+        setHideBalances(stored);
+      } catch {}
+    };
+
+    window.addEventListener("shadowperp:hide-balances-sync", handleSync);
+    return () => window.removeEventListener("shadowperp:hide-balances-sync", handleSync);
+  }, []);
+
+  useEffect(() => {
+    if (publicKey) {
+      setPositionViewsOwner(publicKey.toBase58());
+    } else {
+      clearPositionViewsOwner();
+    }
+  }, [publicKey]);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [openConfirmPending, setOpenConfirmPending] = useState(false);
   const [collateralModalOpen, setCollateralModalOpen] = useState(false);
@@ -933,38 +960,50 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
                 </svg>
               </button>
             </div>
-            <div className="grid grid-cols-6 gap-1">
-              {[2, 5, 10, 20, 50].map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setLeverage(val)}
-                  className={`rounded py-1.5 text-center text-xs font-bold transition-all ${
-                    leverage === val
-                      ? "bg-accent-purple text-white shadow-[0_0_8px_rgba(139,92,246,0.45)]"
-                      : "bg-shadow-700/80 text-gray-400 hover:bg-shadow-700 hover:text-gray-200 border border-shadow-600/30"
-                  }`}
-                >
-                  {val}x
-                </button>
-              ))}
+             <div className="grid grid-cols-6 gap-1.5">
+              {[2, 5, 10, 20, 50].map((val) => {
+                const isActive = leverage === val;
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setLeverage(val)}
+                    className={`rounded-lg py-1.5 text-center text-xs font-extrabold transition-all duration-200 transform ${
+                      isActive
+                        ? "bg-gradient-to-r from-accent-purple to-accent-blue text-white shadow-[0_0_12px_rgba(139,92,246,0.5)] border border-accent-purple/50 scale-[1.03]"
+                        : "bg-shadow-700/60 text-gray-400 hover:bg-shadow-700 hover:text-gray-200 border border-shadow-600/25 hover:scale-[1.02]"
+                    }`}
+                  >
+                    {val}x
+                  </button>
+                );
+              })}
               <div className="relative">
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={leverage === 0 ? "" : leverage}
-                  onChange={(e) => {
-                    const parsed = parseInt(e.target.value, 10);
-                    if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 50) {
-                      setLeverage(parsed);
-                    } else if (e.target.value === "") {
-                      setLeverage("" as any);
-                    }
-                  }}
-                  className="w-full h-full rounded border border-shadow-600/50 bg-shadow-700/80 px-1 text-center text-xs font-semibold text-white focus:outline-none focus:border-accent-purple/80"
-                  placeholder="Custom"
-                />
+                <div className={`relative h-full w-full rounded-lg border transition-all duration-200 ${
+                  ! [2, 5, 10, 20, 50].includes(leverage) && leverage > 0
+                    ? "border-accent-purple bg-accent-purple/10 shadow-[0_0_12px_rgba(139,92,246,0.35)] scale-[1.03]"
+                    : "border-shadow-600/40 bg-shadow-700/50 hover:border-shadow-500 hover:bg-shadow-700/70"
+                }`}>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={leverage === 0 ? "" : leverage}
+                    onChange={(e) => {
+                      const parsed = parseInt(e.target.value, 10);
+                      if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 50) {
+                        setLeverage(parsed);
+                      } else if (e.target.value === "") {
+                        setLeverage("" as any);
+                      }
+                    }}
+                    className="w-full h-full bg-transparent px-1.5 pr-4 text-center text-xs font-bold text-white focus:outline-none placeholder-gray-600"
+                    placeholder="Custom"
+                  />
+                  <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] font-bold text-gray-500 select-none pointer-events-none">
+                    x
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -1015,10 +1054,10 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
                     ? "text-red-400 font-semibold"
                     : "text-gray-400"
                 }>
-                  ${margin.toFixed(2)}
+                  {hideBalances ? "••••" : `$${margin.toFixed(2)}`}
                   {(availableMarginBalance ?? marginBalance) != null && (
                     <span className="text-gray-600 ml-1">
-                      / ${(availableMarginBalance ?? marginBalance)!.toFixed(2)} free
+                      / {hideBalances ? "••••" : `$${(availableMarginBalance ?? marginBalance)!.toFixed(2)}`} free
                     </span>
                   )}
                 </span>
@@ -1200,7 +1239,7 @@ export default function TradingPanel({ pair, layout = "vertical", confirmOpen = 
             <div className="flex items-center justify-between">
               <span className="text-gray-500">Margin Required</span>
               <span className="font-medium text-gray-300">
-                {margin > 0 ? `$${margin.toFixed(2)}` : "N/A"}
+                {hideBalances ? "••••" : margin > 0 ? `$${margin.toFixed(2)}` : "N/A"}
               </span>
             </div>
             <div className="flex items-center justify-between">
