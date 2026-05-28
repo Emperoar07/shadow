@@ -33,6 +33,31 @@ import * as path from "path";
 import { resolveRpcEndpoint, sendAndConfirmWithPolling } from "./rpc";
 import { TRADING_PAIRS } from "../app/src/lib/tokens";
 
+function loadEnvFile(filePath: string, override = true): void {
+  if (!fs.existsSync(filePath)) return;
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const sep = line.indexOf("=");
+    if (sep <= 0) continue;
+    const key = line.slice(0, sep).trim();
+    let value = line.slice(sep + 1).trim();
+    if (value.startsWith('"') && value.endsWith('"')) {
+      value = value.slice(1, -1);
+    } else if (value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    }
+    if (override || !(key in process.env)) {
+      process.env[key] = value;
+    }
+  }
+}
+
+// Load env files before defining top-level constants
+loadEnvFile(path.resolve(__dirname, "..", ".env.local"), false);
+loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"), true);
+
 const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
     "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD"
@@ -53,8 +78,8 @@ const TRADING_FEE = 10;
 // Comp-def circuit names → init method names
 const COMP_DEFS = [
   { circuit: "open_position_probe_b", method: "initOpenPositionCompDef" },
-  { circuit: "close_position_v4",      method: "initClosePositionCompDef" },
-  { circuit: "check_liquidation_v4",    method: "initLiquidationCompDef" },
+  { circuit: "close_position_v5",      method: "initClosePositionCompDef" },
+  { circuit: "check_liquidation_v5",    method: "initLiquidationCompDef" },
   { circuit: "seed_open_interest_state_v3", method: "initSeedOpenInterestCompDef" },
 ] as const;
 
@@ -209,8 +234,8 @@ async function syncCompDefs(
   label: string
 ): Promise<void> {
   const openDef   = getCompDefPda("open_position_probe_b");
-  const closeDef  = getCompDefPda("close_position_v4");
-  const liqDef    = getCompDefPda("check_liquidation_v4");
+  const closeDef  = getCompDefPda("close_position_v5");
+  const liqDef    = getCompDefPda("check_liquidation_v5");
   const seedDef   = getCompDefPda("seed_open_interest_state_v3");
 
   process.stdout.write(`  [${label}] sync_comp_defs... `);
