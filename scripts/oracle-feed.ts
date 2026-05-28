@@ -18,6 +18,31 @@ import * as path from "path";
 import * as os from "os";
 import { resolveRpcEndpoint, sendAndConfirmWithPolling } from "./rpc";
 
+function loadEnvFile(filePath: string, override = true): void {
+  if (!fs.existsSync(filePath)) return;
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const sep = line.indexOf("=");
+    if (sep <= 0) continue;
+    const key = line.slice(0, sep).trim();
+    let value = line.slice(sep + 1).trim();
+    if (value.startsWith('"') && value.endsWith('"')) {
+      value = value.slice(1, -1);
+    } else if (value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    }
+    if (override || !(key in process.env)) {
+      process.env[key] = value;
+    }
+  }
+}
+
+// Load env files before defining top-level constants
+loadEnvFile(path.resolve(__dirname, "..", ".env.local"), false);
+loadEnvFile(path.resolve(__dirname, "..", "app", ".env.local"), true);
+
 const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_SHADOWPERP_PROGRAM_ID ||
     "DBshVTiQcB76wVpS6tLuSXuECZJ6LjqPQajxhEaCyDSD"
