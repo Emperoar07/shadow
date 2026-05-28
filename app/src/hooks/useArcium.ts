@@ -320,17 +320,36 @@ export const useArciumPrivacy = ({ pairLabel }: { pairLabel?: string } = {}) => 
 
       setStatusMessage("Refreshing market oracle before encrypted submission...");
       try {
-        await ensureFreshMarketOracle({
-          market: orderMarket,
-          pairLabel: order.pairLabel,
-          getAccessToken,
-          operation: "opening position",
-        });
+        const marketAccount = await client.getMarket(orderMarket);
+        const lastUpdate = new BN(marketAccount.lastPriceUpdate.toString()).toNumber();
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        const ageSeconds = nowSeconds - lastUpdate;
+
+        if (ageSeconds > 60) {
+          await ensureFreshMarketOracle({
+            market: orderMarket,
+            pairLabel: order.pairLabel,
+            getAccessToken,
+            operation: "opening position",
+          });
+        } else {
+          console.debug(`[useArcium] Skipping oracle refresh because price is extremely fresh (${ageSeconds}s old).`);
+        }
       } catch (err: any) {
-        void err;
-        throw new Error(
-          "Live pricing is currently synchronizing on the network. Please try again in a few seconds."
-        );
+        try {
+          const marketAccount = await client.getMarket(orderMarket);
+          const lastUpdate = new BN(marketAccount.lastPriceUpdate.toString()).toNumber();
+          const nowSeconds = Math.floor(Date.now() / 1000);
+          const ageSeconds = nowSeconds - lastUpdate;
+          if (ageSeconds > 240) {
+            throw new Error("Oracle price is completely stale.");
+          }
+          console.warn(`[useArcium] Oracle refresh failed, but proceeding because on-chain price age is ${ageSeconds}s (<= 240s)`);
+        } catch {
+          throw new Error(
+            "Live pricing is currently synchronizing on the network. Please try again in a few seconds."
+          );
+        }
       }
 
       const market = await client.getMarket(orderMarket);
